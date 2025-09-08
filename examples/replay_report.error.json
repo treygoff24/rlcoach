@@ -1,0 +1,4 @@
+{
+  "error": "unreadable_replay_file",
+  "details": "CRC check failed on header; expected 0x9A0C1BEE, got 0x00000000"
+}
