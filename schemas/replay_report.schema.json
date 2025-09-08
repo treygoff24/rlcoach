@@ -1,0 +1,480 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RocketLeagueReplayReport",
+  "type": "object",
+  "oneOf": [
+    {
+      "required": ["replay_id", "schema_version", "metadata", "quality", "teams", "players", "events", "analysis"]
+    },
+    {
+      "required": ["error", "details"]
+    }
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "replay_id": { "type": "string", "description": "Deterministic hash of header bytes + match GUID if present" },
+    "source_file": { "type": "string", "description": "Absolute or relative path provided by user" },
+    "schema_version": { "type": "string", "pattern": "^1\\.0\\.\\d+$" },
+    "generated_at_utc": { "type": "string", "format": "date-time" },
+
+    "metadata": {
+      "type": "object",
+      "required": ["engine_build", "playlist", "map", "team_size", "match_guid", "started_at_utc", "duration_seconds"],
+      "properties": {
+        "engine_build": { "type": "string", "description": "Replay build/version as parsed from header" },
+        "playlist": { "type": "string", "enum": ["DUEL", "DOUBLES", "STANDARD", "CHAOS", "PRIVATE", "EXTRA_MODE", "UNKNOWN"] },
+        "map": { "type": "string" },
+        "team_size": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "overtime": { "type": "boolean" },
+        "mutators": { "type": "object", "additionalProperties": { "type": ["string","number","boolean"] } },
+        "match_guid": { "type": "string" },
+        "started_at_utc": { "type": "string", "format": "date-time" },
+        "duration_seconds": { "type": "number" },
+        "recorded_frame_hz": { "type": "number", "description": "Measured replay sampling rate (often ~30 Hz). See TickMark 30fps note in boxcars.", "minimum": 1, "maximum": 240 },
+        "total_frames": { "type": "integer", "minimum": 1 },
+        "coordinate_reference": {
+          "type": "object",
+          "description": "Field constants used for analysis",
+          "properties": {
+            "side_wall_x": { "type": "number", "const": 4096 },
+            "back_wall_y": { "type": "number", "const": 5120 },
+            "ceiling_z": { "type": "number", "const": 2044 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "quality": {
+      "type": "object",
+      "required": ["parser", "warnings"],
+      "properties": {
+        "parser": {
+          "type": "object",
+          "required": ["name", "version", "parsed_header", "parsed_network_data"],
+          "properties": {
+            "name": { "type": "string", "description": "Internal parser id (e.g., rl-local/boxcars-core)" },
+            "version": { "type": "string" },
+            "parsed_header": { "type": "boolean" },
+            "parsed_network_data": { "type": "boolean" },
+            "crc_checked": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "E.g., 'network_data_unparsed_fallback_header_only', 'missing_demolish_stream', 'low_frame_rate_sampling'"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "teams": {
+      "type": "object",
+      "required": ["blue", "orange"],
+      "properties": {
+        "blue": { "$ref": "#/definitions/teamBlock" },
+        "orange": { "$ref": "#/definitions/teamBlock" }
+      },
+      "additionalProperties": false
+    },
+
+    "players": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/playerBlock" }
+    },
+
+    "events": {
+      "type": "object",
+      "required": ["timeline", "goals", "demos", "kickoffs", "boost_pickups", "touches"],
+      "properties": {
+        "timeline": {
+          "type": "array",
+          "description": "Chronological significant events",
+          "items": { "$ref": "#/definitions/timelineEvent" }
+        },
+        "goals": { "type": "array", "items": { "$ref": "#/definitions/goalEvent" } },
+        "demos": { "type": "array", "items": { "$ref": "#/definitions/demoEvent" } },
+        "kickoffs": { "type": "array", "items": { "$ref": "#/definitions/kickoffEvent" } },
+        "boost_pickups": { "type": "array", "items": { "$ref": "#/definitions/boostPickupEvent" } },
+        "touches": { "type": "array", "items": { "$ref": "#/definitions/touchEvent" } }
+      },
+      "additionalProperties": false
+    },
+
+    "analysis": {
+      "type": "object",
+      "required": ["per_team", "per_player", "coaching_insights"],
+      "properties": {
+        "per_team": {
+          "type": "object",
+          "required": ["blue", "orange"],
+          "properties": {
+            "blue": { "$ref": "#/definitions/teamAnalysis" },
+            "orange": { "$ref": "#/definitions/teamAnalysis" }
+          },
+          "additionalProperties": false
+        },
+        "per_player": {
+          "type": "object",
+          "description": "Keyed by player_id",
+          "additionalProperties": { "$ref": "#/definitions/playerAnalysis" }
+        },
+        "coaching_insights": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/insight" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "error": { "type": "string", "enum": ["unreadable_replay_file"] },
+    "details": { "type": "string" }
+  },
+
+  "definitions": {
+    "teamBlock": {
+      "type": "object",
+      "required": ["name", "score", "players"],
+      "properties": {
+        "name": { "type": "string", "enum": ["BLUE", "ORANGE"] },
+        "score": { "type": "integer", "minimum": 0 },
+        "players": { "type": "array", "items": { "type": "string" }, "description": "Array of player_id" }
+      },
+      "additionalProperties": false
+    },
+
+    "playerBlock": {
+      "type": "object",
+      "required": ["player_id", "display_name", "team", "platform_ids", "camera", "loadout"],
+      "properties": {
+        "player_id": { "type": "string" },
+        "display_name": { "type": "string" },
+        "team": { "type": "string", "enum": ["BLUE", "ORANGE"] },
+        "platform_ids": {
+          "type": "object",
+          "properties": {
+            "steam": { "type": "string" },
+            "epic": { "type": "string" },
+            "psn": { "type": "string" },
+            "xbox": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "camera": {
+          "type": "object",
+          "properties": {
+            "fov": { "type": "number" }, "height": { "type": "number" }, "angle": { "type": "number" },
+            "distance": { "type": "number" }, "stiffness": { "type": "number" }, "swivel_speed": { "type": "number" }, "transition_speed": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "loadout": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+
+    "timelineEvent": {
+      "type": "object",
+      "required": ["t", "type"],
+      "properties": {
+        "t": { "type": "number", "description": "Seconds from kickoff (including OT)" },
+        "frame": { "type": "integer" },
+        "type": {
+          "type": "string",
+          "enum": ["GOAL","SHOT","SAVE","ASSIST","DEMO","BOOST_PICKUP","TOUCH","KICKOFF","CHALLENGE","ROTATION_FLAG","WARNING"]
+        },
+        "player_id": { "type": ["string", "null"] },
+        "team": { "type": ["string", "null"], "enum": ["BLUE","ORANGE", null] },
+        "data": { "type": "object", "additionalProperties": true }
+      }
+    },
+
+    "goalEvent": {
+      "type": "object",
+      "required": ["t","frame","scorer","team","shot_speed_kph","assist","distance_m"],
+      "properties": {
+        "t": { "type": "number" }, "frame": { "type": "integer" },
+        "scorer": { "type": "string" }, "team": { "type": "string", "enum":["BLUE","ORANGE"] },
+        "assist": { "type": ["string","null"] },
+        "shot_speed_kph": { "type": "number" },
+        "distance_m": { "type": "number" },
+        "on_target": { "type": "boolean" },
+        "tickmark_lead_seconds": { "type": "number", "description": "Goal tickmark ramp-up context (see boxcars TickMark semantics)" }
+      }
+    },
+
+    "demoEvent": {
+      "type": "object",
+      "required": ["t","victim","attacker","location","team_attacker","team_victim"],
+      "properties": {
+        "t": { "type": "number" },
+        "victim": { "type": "string" }, "attacker": { "type": "string" },
+        "team_attacker": { "type": "string", "enum":["BLUE","ORANGE"] },
+        "team_victim": { "type": "string", "enum":["BLUE","ORANGE"] },
+        "location": { "$ref": "#/definitions/vec3" }
+      }
+    },
+
+    "kickoffEvent": {
+      "type": "object",
+      "required": ["phase","t_start","players","outcome"],
+      "properties": {
+        "phase": { "type": "string", "enum": ["INITIAL","OT"] },
+        "t_start": { "type": "number" },
+        "players": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["player_id","role","boost_used","approach_type","time_to_first_touch"],
+            "properties": {
+              "player_id": { "type": "string" },
+              "role": { "type": "string", "enum":["GO","CHEAT","WING","BACK"] },
+              "boost_used": { "type": "number" },
+              "approach_type": { "type": "string", "enum":["STANDARD","SPEEDFLIP","FAKE","DELAY","UNKNOWN"] },
+              "time_to_first_touch": { "type": ["number","null"] }
+            }
+          }
+        },
+        "outcome": { "type": "string", "enum": ["FIRST_POSSESSION_BLUE","FIRST_POSSESSION_ORANGE","NEUTRAL","GOAL_AGAINST","GOAL_FOR"] }
+      }
+    },
+
+    "boostPickupEvent": {
+      "type": "object",
+      "required": ["t","player_id","pad_type","stolen","pad_id","location"],
+      "properties": {
+        "t": { "type": "number" },
+        "player_id": { "type": "string" },
+        "pad_type": { "type": "string", "enum": ["SMALL","BIG"] },
+        "stolen": { "type": "boolean", "description": "True if pickup occurred on opponent half (excluding mid boosts)" },
+        "pad_id": { "type": "integer" },
+        "location": { "$ref": "#/definitions/vec3" }
+      }
+    },
+
+    "touchEvent": {
+      "type": "object",
+      "required": ["t","player_id","location","ball_speed_kph","outcome"],
+      "properties": {
+        "t": { "type": "number" }, "frame": { "type": "integer" },
+        "player_id": { "type": "string" },
+        "location": { "$ref": "#/definitions/vec3" },
+        "ball_speed_kph": { "type": "number" },
+        "outcome": { "type": "string", "enum": ["SHOT","CLEAR","PASS","DRIBBLE","50","NEUTRAL"] }
+      }
+    },
+
+    "teamAnalysis": {
+      "type": "object",
+      "required": ["fundamentals","boost","movement","positioning","passing","challenges","kickoffs"],
+      "properties": {
+        "fundamentals": { "$ref": "#/definitions/fundamentals" },
+        "boost": { "$ref": "#/definitions/boost" },
+        "movement": { "$ref": "#/definitions/movement" },
+        "positioning": { "$ref": "#/definitions/positioning" },
+        "passing": { "$ref": "#/definitions/passing" },
+        "challenges": { "$ref": "#/definitions/challenges" },
+        "kickoffs": { "$ref": "#/definitions/kickoffs" }
+      }
+    },
+
+    "playerAnalysis": {
+      "type": "object",
+      "required": ["player_id","fundamentals","boost","movement","positioning","passing","challenges","kickoffs","heatmaps","rotation_compliance","insights"],
+      "properties": {
+        "player_id": { "type": "string" },
+        "fundamentals": { "$ref": "#/definitions/fundamentals" },
+        "boost": { "$ref": "#/definitions/boost" },
+        "movement": { "$ref": "#/definitions/movement" },
+        "positioning": { "$ref": "#/definitions/positioning" },
+        "passing": { "$ref": "#/definitions/passing" },
+        "challenges": { "$ref": "#/definitions/challenges" },
+        "kickoffs": { "$ref": "#/definitions/kickoffs" },
+        "heatmaps": {
+          "type": "object",
+          "properties": {
+            "position_occupancy_grid": { "$ref": "#/definitions/grid2d" },
+            "touch_density_grid": { "$ref": "#/definitions/grid2d" },
+            "boost_pickup_grid": { "$ref": "#/definitions/grid2d" }
+          }
+        },
+        "rotation_compliance": {
+          "type": "object",
+          "required": ["score_0_to_100","flags"],
+          "properties": {
+            "score_0_to_100": { "type": "number", "minimum": 0, "maximum": 100 },
+            "flags": {
+              "type": "array",
+              "items": { "type": "string", "description": "e.g., 'double_commit', 'last_man_overcommit', 'no_back_post', 'low_boost_forward'" }
+            }
+          }
+        },
+        "insights": { "type": "array", "items": { "$ref": "#/definitions/insight" } }
+      }
+    },
+
+    "fundamentals": {
+      "type": "object",
+      "required": ["goals","assists","shots","saves","demos_inflicted","demos_taken","score","shooting_percentage"],
+      "properties": {
+        "goals": { "type": "integer", "minimum": 0 },
+        "assists": { "type": "integer", "minimum": 0 },
+        "shots": { "type": "integer", "minimum": 0 },
+        "saves": { "type": "integer", "minimum": 0 },
+        "demos_inflicted": { "type": "integer", "minimum": 0 },
+        "demos_taken": { "type": "integer", "minimum": 0 },
+        "score": { "type": "integer", "minimum": 0 },
+        "shooting_percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+
+    "boost": {
+      "type": "object",
+      "required": ["bpm","bcpm","avg_boost","time_zero_boost_s","time_hundred_boost_s","amount_collected","amount_stolen","big_pads","small_pads","overfill","waste"],
+      "properties": {
+        "bpm": { "type": "number" },
+        "bcpm": { "type": "number" },
+        "avg_boost": { "type": "number" },
+        "time_zero_boost_s": { "type": "number" },
+        "time_hundred_boost_s": { "type": "number" },
+        "amount_collected": { "type": "number" },
+        "amount_stolen": { "type": "number" },
+        "big_pads": { "type": "integer" },
+        "small_pads": { "type": "integer" },
+        "stolen_big_pads": { "type": "integer" },
+        "stolen_small_pads": { "type": "integer" },
+        "overfill": { "type": "number", "description": "Sum of (100 - boost_before) for pickups that exceed 100" },
+        "waste": { "type": "number", "description": "Boost spent with negligible speed benefit (heuristic)" }
+      }
+    },
+
+    "movement": {
+      "type": "object",
+      "required": ["avg_speed_kph","time_slow_s","time_boost_speed_s","time_supersonic_s","time_ground_s","time_low_air_s","time_high_air_s","powerslide_count","powerslide_duration_s","aerial_count","aerial_time_s"],
+      "properties": {
+        "avg_speed_kph": { "type": "number" },
+        "time_slow_s": { "type": "number" },
+        "time_boost_speed_s": { "type": "number" },
+        "time_supersonic_s": { "type": "number" },
+        "time_ground_s": { "type": "number" },
+        "time_low_air_s": { "type": "number" },
+        "time_high_air_s": { "type": "number" },
+        "powerslide_count": { "type": "integer" },
+        "powerslide_duration_s": { "type": "number" },
+        "aerial_count": { "type": "integer" },
+        "aerial_time_s": { "type": "number" }
+      }
+    },
+
+    "positioning": {
+      "type": "object",
+      "required": ["time_offensive_half_s","time_defensive_half_s","time_offensive_third_s","time_middle_third_s","time_defensive_third_s","behind_ball_pct","ahead_ball_pct","avg_distance_to_ball_m","avg_distance_to_teammate_m","first_man_pct","second_man_pct","third_man_pct"],
+      "properties": {
+        "time_offensive_half_s": { "type": "number" },
+        "time_defensive_half_s": { "type": "number" },
+        "time_offensive_third_s": { "type": "number" },
+        "time_middle_third_s": { "type": "number" },
+        "time_defensive_third_s": { "type": "number" },
+        "behind_ball_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "ahead_ball_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "avg_distance_to_ball_m": { "type": "number" },
+        "avg_distance_to_teammate_m": { "type": "number" },
+        "first_man_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "second_man_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "third_man_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+
+    "passing": {
+      "type": "object",
+      "required": ["passes_completed","passes_attempted","passes_received","turnovers","give_and_go_count","possession_time_s"],
+      "properties": {
+        "passes_completed": { "type": "integer" },
+        "passes_attempted": { "type": "integer" },
+        "passes_received": { "type": "integer" },
+        "turnovers": { "type": "integer" },
+        "give_and_go_count": { "type": "integer" },
+        "possession_time_s": { "type": "number" }
+      }
+    },
+
+    "challenges": {
+      "type": "object",
+      "required": ["contests","wins","losses","neutral","first_to_ball_pct","challenge_depth_m","risk_index_avg"],
+      "properties": {
+        "contests": { "type": "integer" },
+        "wins": { "type": "integer" },
+        "losses": { "type": "integer" },
+        "neutral": { "type": "integer" },
+        "first_to_ball_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "challenge_depth_m": { "type": "number", "description": "Average Y (field-relative) of contests" },
+        "risk_index_avg": { "type": "number", "description": "Heuristic 0–1: last-man + low boost + ahead-of-ball increases risk" }
+      }
+    },
+
+    "kickoffs": {
+      "type": "object",
+      "required": ["count","first_possession","neutral","goals_for","goals_against","avg_time_to_first_touch_s","approach_types"],
+      "properties": {
+        "count": { "type": "integer" },
+        "first_possession": { "type": "integer" },
+        "neutral": { "type": "integer" },
+        "goals_for": { "type": "integer" },
+        "goals_against": { "type": "integer" },
+        "avg_time_to_first_touch_s": { "type": "number" },
+        "approach_types": {
+          "type": "object",
+          "properties": {
+            "STANDARD": { "type": "integer" },
+            "SPEEDFLIP": { "type": "integer" },
+            "FAKE": { "type": "integer" },
+            "DELAY": { "type": "integer" },
+            "UNKNOWN": { "type": "integer" }
+          }
+        }
+      }
+    },
+
+    "insight": {
+      "type": "object",
+      "required": ["severity","message","evidence"],
+      "properties": {
+        "severity": { "type": "string", "enum": ["INFO","SUGGESTION","WARNING"] },
+        "message": { "type": "string" },
+        "evidence": { "type": "object", "additionalProperties": true }
+      }
+    },
+
+    "grid2d": {
+      "type": "object",
+      "required": ["x_bins","y_bins","extent","values"],
+      "properties": {
+        "x_bins": { "type": "integer", "minimum": 4 },
+        "y_bins": { "type": "integer", "minimum": 4 },
+        "extent": {
+          "type": "object",
+          "required": ["xmin","xmax","ymin","ymax"],
+          "properties": {
+            "xmin": { "type": "number" }, "xmax": { "type": "number" },
+            "ymin": { "type": "number" }, "ymax": { "type": "number" }
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "number" } },
+          "description": "Row-major grid values normalized [0..1] or counts"
+        }
+      }
+    },
+
+    "vec3": {
+      "type": "object",
+      "required": ["x","y","z"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "z": { "type": "number" } }
+    }
+  }
+}
