@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import NamedTuple
+
+
+class Vec3(NamedTuple):
+    """3D vector with x, y, z components."""
+    x: float
+    y: float
+    z: float
 
 
 @dataclass(frozen=True)
@@ -71,3 +79,47 @@ class NetworkFrames:
 
         if self.sample_rate <= 0:
             raise ValueError("sample_rate must be positive")
+
+
+@dataclass(frozen=True)
+class PlayerFrame:
+    """Player state at a specific frame."""
+    
+    player_id: str
+    team: int
+    position: Vec3
+    velocity: Vec3
+    rotation: Vec3  # pitch, yaw, roll in radians
+    boost_amount: int  # 0-100
+    is_supersonic: bool = False
+    is_on_ground: bool = True
+    is_demolished: bool = False
+
+
+@dataclass(frozen=True)
+class BallFrame:
+    """Ball state at a specific frame."""
+    
+    position: Vec3
+    velocity: Vec3
+    angular_velocity: Vec3
+
+
+@dataclass(frozen=True)
+class Frame:
+    """Normalized frame containing all game state at a specific time."""
+    
+    timestamp: float  # seconds from match start
+    ball: BallFrame
+    players: list[PlayerFrame] = field(default_factory=list)
+    
+    def get_player_by_id(self, player_id: str) -> PlayerFrame | None:
+        """Get player frame by ID, or None if not found."""
+        for player in self.players:
+            if player.player_id == player_id:
+                return player
+        return None
+    
+    def get_players_by_team(self, team: int) -> list[PlayerFrame]:
+        """Get all players on a specific team (0 or 1)."""
+        return [p for p in self.players if p.team == team]
