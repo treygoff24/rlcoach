@@ -1,7 +1,7 @@
 **Rust Parser Adapter (pyo3) — Build & Usage**
 
-- Goal: Provide a local Rust core that exposes minimal `parse_header(path)` and `iter_frames(path)` via a Python module using `pyo3`.
-- Scope: Header fields are placeholders but deterministic; frames iterator is a stub. This is a foundation for future full parsing.
+- Goal: Provide a local Rust core (boxcars-backed) that exposes `parse_header(path)` and `iter_frames(path)` via a Python module using `pyo3`.
+- Scope: Header parsing uses real replay properties; `iter_frames` emits network frames with ball and player states when available. If the Rust core is unavailable, the adapter degrades to a header-only path with explicit quality warnings.
 
 **Layout**
 - `parsers/rlreplay_rust/` — Rust crate compiled as a Python extension.
@@ -23,14 +23,20 @@ Commands
 **Using the Adapter**
 - In Python: `from rlcoach.parser import get_adapter; adapter = get_adapter('rust')`
 - Header parse: `adapter.parse_header(Path('testing_replay.replay'))`
-- Network frames: `adapter.parse_network(Path('testing_replay.replay'))` returns a valid stub structure if the Rust core is present, or `None` otherwise.
+- Network frames: `adapter.parse_network(Path('testing_replay.replay'))` returns `NetworkFrames` with a list of dict frames when the Rust core is present; otherwise `None` (falls back to header-only analysis).
 
-**Degradation Behavior**
+- **Degradation Behavior**
 - If the Rust module `rlreplay_rust` is not importable, the adapter falls back to header-only mode using the ingest validator and adds clear quality warnings:
   - `rust_core_unavailable_fallback_header_only`
   - `network_data_unparsed_fallback_header_only`
 
-**Notes**
-- The Rust implementation here is a stub that detects replay “shape” by scanning the first 2KB for known markers (e.g., `TAGame.Replay_`). It returns deterministic placeholder values and is safe/offline.
-- Future work: integrate `boxcars`/`rrrocket` to populate real header and frame data.
+**Frame Schema (emitted by iter_frames)**
+- Frame dict keys: `timestamp`, `ball`, `players`
+- `ball`: `{ position: {x,y,z}, velocity: {x,y,z}, angular_velocity: {x,y,z} }`
+- Each entry in `players` includes: `{ player_id: str, team: int, position: {x,y,z}, velocity: {x,y,z}, rotation: {x,y,z}, boost_amount: int, is_supersonic: bool, is_on_ground: bool, is_demolished: bool }`
 
+**Debugging Network Frames**
+- The module exposes `debug_first_frames(path: str, max_frames: int)` to inspect the actor classes and attribute kinds for the first N frames. This helps verify actor classification (ball vs car) and attribute coverage on new replays/builds.
+
+**Notes**
+- The Rust implementation uses `boxcars` to read header and network frames. On some replays/builds, certain attributes may differ; the adapter includes conservative fallbacks and can be extended in a table-driven way as needed.
