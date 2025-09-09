@@ -11,6 +11,7 @@ from .fundamentals import analyze_fundamentals
 from .boost import analyze_boost
 from .movement import analyze_movement
 from .positioning import analyze_positioning, calculate_rotation_compliance
+from .passing import analyze_passing
 from ..parser.types import Header, Frame
 
 
@@ -89,7 +90,7 @@ def _analyze_team(frames: list[Frame], events: dict[str, list[Any]],
     positioning = analyze_positioning(frames, events, team=team, header=header)
     
     # Placeholder for other analyzers (not in scope for this ticket)
-    passing = _placeholder_passing()
+    passing = analyze_passing(frames, events, team=team, header=header)
     challenges = _placeholder_challenges()
     kickoffs = _placeholder_kickoffs()
     
@@ -118,7 +119,7 @@ def _analyze_player(frames: list[Frame], events: dict[str, list[Any]],
     rotation_compliance = calculate_rotation_compliance(frames, player_id)
     
     # Placeholder for other analyzers (not in scope for this ticket)
-    passing = _placeholder_passing() 
+    passing = analyze_passing(frames, events, player_id=player_id, header=header) 
     challenges = _placeholder_challenges()
     kickoffs = _placeholder_kickoffs()
     heatmaps = _placeholder_heatmaps()
@@ -160,15 +161,10 @@ def _extract_players_from_frames(frames: list[Frame]) -> dict[str, str]:
 
 
 def _placeholder_passing() -> dict[str, Any]:
-    """Placeholder passing analysis.""" 
-    return {
-        "passes_completed": 0,
-        "passes_attempted": 0,
-        "passes_received": 0,
-        "turnovers": 0,
-        "give_and_go_count": 0,
-        "possession_time_s": 0.0
-    }
+    """Deprecated placeholder. Kept for import stability in older tests."""
+    from .passing import _empty_passing
+
+    return _empty_passing()
 
 
 def _placeholder_challenges() -> dict[str, Any]:
