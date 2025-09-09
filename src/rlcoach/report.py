@@ -27,6 +27,7 @@ from .events import (
 )
 from .ingest import ingest_replay
 from .normalize import build_timeline as build_normalized_frames, measure_frame_rate
+from .parser.types import NetworkFrames as NFType
 from .parser import get_adapter
 from .schema import validate_report
 
@@ -45,9 +46,14 @@ def generate_report(replay_path: Path, header_only: bool = False) -> dict[str, A
         # Ingest for file metadata and validation
         ingest_info = ingest_replay(replay_path)
 
-        # Parse header via adapter (null adapter by default)
-        adapter = get_adapter("null")
-        header = adapter.parse_header(replay_path)
+        # Parse header via adapter. Prefer rust adapter when available for richer header data,
+        # but fall back to null adapter if anything goes wrong.
+        try:
+            adapter = get_adapter("rust")
+            header = adapter.parse_header(replay_path)
+        except Exception:
+            adapter = get_adapter("null")
+            header = adapter.parse_header(replay_path)
 
         # Network frames optional (null adapter returns None)
         raw_frames = None
@@ -55,7 +61,16 @@ def generate_report(replay_path: Path, header_only: bool = False) -> dict[str, A
             raw_frames = adapter.parse_network(replay_path)
 
         # Normalize timeline
-        normalized_frames = build_normalized_frames(header, raw_frames or [])
+        # Normalize timeline; accept either a list of frames or a NetworkFrames wrapper
+        frames_input = []
+        if raw_frames is None:
+            frames_input = []
+        elif isinstance(raw_frames, NFType):
+            frames_input = raw_frames.frames
+        else:
+            frames_input = raw_frames
+
+        normalized_frames = build_normalized_frames(header, frames_input)
 
         # Events detection (can be empty in header-only)
         goals = detect_goals(normalized_frames, header)
@@ -235,4 +250,3 @@ def write_report_atomically(report: dict[str, Any], out_path: Path, pretty: bool
                 temp_path.unlink()
             except OSError:
                 pass
-
