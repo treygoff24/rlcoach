@@ -15,7 +15,7 @@ install-dev:
 
 # Run tests
 test:
-	pytest -q
+	PYTHONPATH=src pytest -q
 
 # Format code
 fmt:

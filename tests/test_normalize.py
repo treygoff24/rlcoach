@@ -3,14 +3,14 @@
 import pytest
 from unittest.mock import Mock
 
-from src.rlcoach.normalize import (
+from rlcoach.normalize import (
     measure_frame_rate, 
     to_field_coords, 
     normalize_players, 
     build_timeline
 )
-from src.rlcoach.field_constants import Vec3, FIELD
-from src.rlcoach.parser.types import Header, PlayerInfo, NetworkFrames, Frame
+from rlcoach.field_constants import Vec3, FIELD
+from rlcoach.parser.types import Header, PlayerInfo, NetworkFrames, Frame
 
 
 class TestFrameRateMeasurement:

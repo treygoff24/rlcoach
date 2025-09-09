@@ -3,14 +3,14 @@
 import pytest
 from unittest.mock import Mock
 
-from src.rlcoach.events import (
+from rlcoach.events import (
     detect_goals, detect_demos, detect_kickoffs, detect_boost_pickups, 
     detect_touches, build_timeline,
     GoalEvent, DemoEvent, KickoffEvent, BoostPickupEvent, TouchEvent, TimelineEvent,
     GOAL_LINE_THRESHOLD, TOUCH_PROXIMITY_THRESHOLD, BOOST_PAD_PROXIMITY_THRESHOLD
 )
-from src.rlcoach.field_constants import Vec3, FIELD
-from src.rlcoach.parser.types import Header, PlayerInfo, Frame, PlayerFrame, BallFrame
+from rlcoach.field_constants import Vec3, FIELD
+from rlcoach.parser.types import Header, PlayerInfo, Frame, PlayerFrame, BallFrame
 
 
 def create_test_frame(timestamp: float, ball_pos: Vec3, ball_vel: Vec3, players: list[PlayerFrame]) -> Frame:
