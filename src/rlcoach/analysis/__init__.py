@@ -9,6 +9,8 @@ from __future__ import annotations
 from typing import Any
 from .fundamentals import analyze_fundamentals
 from .boost import analyze_boost
+from .movement import analyze_movement
+from .positioning import analyze_positioning, calculate_rotation_compliance
 from ..parser.types import Header, Frame
 
 
@@ -83,10 +85,10 @@ def _analyze_team(frames: list[Frame], events: dict[str, list[Any]],
     # Run individual analyzers
     fundamentals = analyze_fundamentals(frames, events, team=team, header=header)
     boost = analyze_boost(frames, events, team=team, header=header)
+    movement = analyze_movement(frames, events, team=team, header=header)
+    positioning = analyze_positioning(frames, events, team=team, header=header)
     
     # Placeholder for other analyzers (not in scope for this ticket)
-    movement = _placeholder_movement()
-    positioning = _placeholder_positioning() 
     passing = _placeholder_passing()
     challenges = _placeholder_challenges()
     kickoffs = _placeholder_kickoffs()
@@ -109,15 +111,17 @@ def _analyze_player(frames: list[Frame], events: dict[str, list[Any]],
     # Run individual analyzers  
     fundamentals = analyze_fundamentals(frames, events, player_id=player_id, header=header)
     boost = analyze_boost(frames, events, player_id=player_id, header=header)
+    movement = analyze_movement(frames, events, player_id=player_id, header=header)
+    positioning = analyze_positioning(frames, events, player_id=player_id, header=header)
+    
+    # Calculate rotation compliance (player-only analysis)
+    rotation_compliance = calculate_rotation_compliance(frames, player_id)
     
     # Placeholder for other analyzers (not in scope for this ticket)
-    movement = _placeholder_movement()
-    positioning = _placeholder_positioning()
     passing = _placeholder_passing() 
     challenges = _placeholder_challenges()
     kickoffs = _placeholder_kickoffs()
     heatmaps = _placeholder_heatmaps()
-    rotation_compliance = _placeholder_rotation_compliance()
     insights = _placeholder_insights()
     
     return {
@@ -153,39 +157,6 @@ def _extract_players_from_frames(frames: list[Frame]) -> dict[str, str]:
 
 
 # Placeholder functions for analyzers not implemented in this ticket
-def _placeholder_movement() -> dict[str, Any]:
-    """Placeholder movement analysis."""
-    return {
-        "avg_speed_kph": 0.0,
-        "time_slow_s": 0.0,
-        "time_boost_speed_s": 0.0,
-        "time_supersonic_s": 0.0,
-        "time_ground_s": 0.0,
-        "time_low_air_s": 0.0,
-        "time_high_air_s": 0.0,
-        "powerslide_count": 0,
-        "powerslide_duration_s": 0.0,
-        "aerial_count": 0,
-        "aerial_time_s": 0.0
-    }
-
-
-def _placeholder_positioning() -> dict[str, Any]:
-    """Placeholder positioning analysis."""
-    return {
-        "time_offensive_half_s": 0.0,
-        "time_defensive_half_s": 0.0,
-        "time_offensive_third_s": 0.0,
-        "time_middle_third_s": 0.0,
-        "time_defensive_third_s": 0.0,
-        "behind_ball_pct": 0.0,
-        "ahead_ball_pct": 0.0,
-        "avg_distance_to_ball_m": 0.0,
-        "avg_distance_to_teammate_m": 0.0,
-        "first_man_pct": 0.0,
-        "second_man_pct": 0.0,
-        "third_man_pct": 0.0
-    }
 
 
 def _placeholder_passing() -> dict[str, Any]:
@@ -235,14 +206,6 @@ def _placeholder_heatmaps() -> dict[str, Any]:
     }
 
 
-def _placeholder_rotation_compliance() -> dict[str, Any]:
-    """Placeholder rotation compliance for player analysis."""
-    return {
-        "average_score": 0.0,
-        "time_out_of_position_s": 0.0,
-        "double_commits": 0,
-        "rotation_violations": 0
-    }
 
 
 def _placeholder_insights() -> list[dict[str, Any]]:
