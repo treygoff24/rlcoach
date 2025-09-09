@@ -27,11 +27,13 @@ from .errors import (
 )
 from .interface import ParserAdapter
 from .null_adapter import NullAdapter
+from .rust_adapter import RustAdapter
 from .types import Header, NetworkFrames, PlayerInfo
 
 # Registry of available parser adapters
 _ADAPTER_REGISTRY: dict[str, type[ParserAdapter]] = {
     "null": NullAdapter,
+    "rust": RustAdapter,
 }
 
 # Default adapter name

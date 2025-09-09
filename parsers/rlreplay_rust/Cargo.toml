@@ -1,0 +1,15 @@
+[package]
+name = "rlreplay_rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rlreplay_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+
+[package.metadata.maturin]
+name = "rlreplay_rust"
+
