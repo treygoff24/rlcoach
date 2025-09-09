@@ -13,12 +13,13 @@
 - Optional: `maturin` for building/installing wheels.
 
 Commands
+- Quick dev install: `make rust-dev` (installs maturin and builds the pyo3 module)
 - Build (debug): `cd parsers/rlreplay_rust && cargo build`
 - Build (release): `cd parsers/rlreplay_rust && cargo build --release`
-- Build wheel (recommended):
+- Build wheel:
   - `pip install maturin`
   - `cd parsers/rlreplay_rust`
-  - `maturin develop` (installs into the current virtualenv)
+  - `maturin build -r` (produces a wheel under `target/wheels/`)
 
 **Using the Adapter**
 - In Python: `from rlcoach.parser import get_adapter; adapter = get_adapter('rust')`
@@ -37,6 +38,11 @@ Commands
 
 **Debugging Network Frames**
 - The module exposes `debug_first_frames(path: str, max_frames: int)` to inspect the actor classes and attribute kinds for the first N frames. This helps verify actor classification (ball vs car) and attribute coverage on new replays/builds.
+
+Example:
+
+- `python -c "import rlreplay_rust as r; print(r.debug_first_frames('testing_replay.replay', 3))"`
+- `python -c "from rlcoach.parser import get_adapter; a=get_adapter('rust'); print(a.parse_network(__import__('pathlib').Path('testing_replay.replay')).frame_count)"`
 
 **Notes**
 - The Rust implementation uses `boxcars` to read header and network frames. On some replays/builds, certain attributes may differ; the adapter includes conservative fallbacks and can be extended in a table-driven way as needed.

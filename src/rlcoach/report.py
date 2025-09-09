@@ -36,7 +36,7 @@ def _utc_now_iso() -> str:
     return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
-def generate_report(replay_path: Path, header_only: bool = False) -> dict[str, Any]:
+def generate_report(replay_path: Path, header_only: bool = False, adapter_name: str = "rust") -> dict[str, Any]:
     """Generate a schema-conformant replay report.
 
     On failure to read/parse the replay, returns the error contract:
@@ -49,7 +49,7 @@ def generate_report(replay_path: Path, header_only: bool = False) -> dict[str, A
         # Parse header via adapter. Prefer rust adapter when available for richer header data,
         # but fall back to null adapter if anything goes wrong.
         try:
-            adapter = get_adapter("rust")
+            adapter = get_adapter(adapter_name)
             header = adapter.parse_header(replay_path)
         except Exception:
             adapter = get_adapter("null")

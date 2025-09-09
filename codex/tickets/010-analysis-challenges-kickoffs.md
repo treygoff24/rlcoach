@@ -10,9 +10,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Tools: plan, shell, apply_patch, pytest
 - Approvals: never; Network: enabled; Filesystem: full
 
-## Branching
-- Base: main
-- Create: `feat/gpt5-010-analysis-challenges-kickoffs`
 
 ## Goal
 - Implement challenge/50s identification and outcomes, first-to-ball, challenge depth/risk index; and kickoff classification with outcomes and approach types, per schema.
@@ -44,7 +41,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Run: `pytest -q`
 
 ## Deliverables
-- Branch: `feat/gpt5-010-analysis-challenges-kickoffs`
 - Files: analyzers + tests
 - Log: `./codex/logs/010.md`
 

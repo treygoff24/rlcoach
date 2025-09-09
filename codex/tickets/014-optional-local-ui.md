@@ -10,9 +10,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Tools: plan, shell, apply_patch
 - Approvals: never; Network: enabled; Filesystem: full
 
-## Branching
-- Base: main
-- Create: `feat/gpt5-014-optional-local-ui`
 
 ## Goal
 - Provide a minimal offline UI (CLI or Tauri/Electron stub) to open a local replay, run analysis, and render key tables/plots from the generated JSON (no network).
@@ -43,7 +40,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Manual: view provided example JSON; inspect output.
 
 ## Deliverables
-- Branch: `feat/gpt5-014-optional-local-ui`
 - Files: UI CLI, docs, optional scaffold
 - Log: `./codex/logs/014.md`
 

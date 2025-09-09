@@ -10,9 +10,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Tools: plan, shell, apply_patch, pytest
 - Approvals: never; Network: enabled; Filesystem: full
 
-## Branching
-- Base: main
-- Create: `feat/gpt5-011-report-generator-cli`
 
 ## Goal
 - Assemble full JSON report per schema using ingestion → parser adapter → normalization → events → analyzers. Add CLI `analyze <replay> --header-only` producing one JSON file per replay, validating against the schema.
@@ -46,7 +43,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Manual: run CLI with a small temp file; inspect JSON keys.
 
 ## Deliverables
-- Branch: `feat/gpt5-011-report-generator-cli`
 - Files: report orchestrator, CLI updates, tests
 - Log: `./codex/logs/011.md`
 

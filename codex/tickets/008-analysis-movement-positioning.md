@@ -10,9 +10,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Tools: plan, shell, apply_patch, pytest
 - Approvals: never; Network: enabled; Filesystem: full
 
-## Branching
-- Base: main
-- Create: `feat/gpt5-008-analysis-movement-positioning`
 
 ## Goal
 - Compute movement/speed and positioning/rotation metrics per schema: speed buckets, air/ground times, powerslides, aerials, halves/thirds occupancy, behind-/ahead-of-ball, distances, role occupancy, rotation compliance score (0–100).
@@ -44,7 +41,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Run: `pytest -q`
 
 ## Deliverables
-- Branch: `feat/gpt5-008-analysis-movement-positioning`
 - Files: analyzers + tests
 - Log: `./codex/logs/008.md`
 

@@ -10,9 +10,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Tools: plan, shell, apply_patch, pytest
 - Approvals: never; Network: enabled; Filesystem: full
 
-## Branching
-- Base: main
-- Create: `feat/gpt5-009-analysis-passing-possession`
 
 ## Goal
 - Implement possession and passing metrics per schema: possession time, pass attempts/completions/received, turnovers, give-and-go sequences.
@@ -42,7 +39,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Run: `pytest -q`
 
 ## Deliverables
-- Branch: `feat/gpt5-009-analysis-passing-possession`
 - Files: analyzer + tests
 - Log: `./codex/logs/009.md`
 

@@ -10,9 +10,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Tools: plan, shell, apply_patch, pytest
 - Approvals: never; Network: enabled; Filesystem: full
 
-## Branching
-- Base: main
-- Create: `feat/gpt5-012-golden-tests-and-fixtures`
 
 ## Goal
 - Establish golden JSON outputs for synthetic inputs and a pathing strategy for local replay fixtures (not committed). Add tests that compare outputs to goldens for regression safety.
@@ -43,7 +40,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Run: `pytest -q`
 
 ## Deliverables
-- Branch: `feat/gpt5-012-golden-tests-and-fixtures`
 - Files: goldens, tests, assets README
 - Log: `./codex/logs/012.md`
 

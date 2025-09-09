@@ -20,7 +20,7 @@ def _print(s: str) -> None:
     print(s)
 
 
-def summarize_report(data: dict[str, Any]) -> str:
+def summarize_report(data: dict[str, Any], focus_player: str | None = None) -> str:
     lines: list[str] = []
     meta = data.get("metadata", {})
     teams = data.get("teams", {})
@@ -57,7 +57,8 @@ def summarize_report(data: dict[str, Any]) -> str:
     for p in players:
         name = p.get("display_name", p.get("player_id", "?"))
         team = p.get("team", "?")
-        lines.append(f"- {name} [{team}]")
+        if not focus_player or focus_player.lower() in str(name).lower():
+            lines.append(f"- {name} [{team}]")
 
     # Key metrics per team (subset)
     per_team = analysis.get("per_team", {})
@@ -73,10 +74,28 @@ def summarize_report(data: dict[str, Any]) -> str:
             f"{team_key.upper()}: goals {fund.get('goals','?')}, shots {fund.get('shots','?')}, saves {fund.get('saves','?')} | avg_speed_kph {move.get('avg_speed_kph','?')} | avg_boost {boost.get('avg_boost','?')}"
         )
 
+    # Optional per-player section
+    if focus_player:
+        per_player = data.get("analysis", {}).get("per_player", {})
+        # Find player id by display name match
+        target_id = None
+        for p in players:
+            if focus_player.lower() in str(p.get("display_name", "")).lower():
+                target_id = p.get("player_id")
+                break
+        if target_id and target_id in per_player:
+            lines.append("")
+            lines.append(f"Player Focus — {focus_player}")
+            lines.append("-")
+            pf = per_player[target_id]
+            for section in ("fundamentals", "boost", "movement", "positioning", "passing", "challenges", "kickoffs"):
+                if section in pf:
+                    lines.append(f"{section}: {pf[section]}")
+
     return "\n".join(lines)
 
 
-def cmd_view(path: Path) -> int:
+def cmd_view(path: Path, focus_player: str | None = None) -> int:
     try:
         data = json.loads(Path(path).read_text())
     except FileNotFoundError:
@@ -86,7 +105,7 @@ def cmd_view(path: Path) -> int:
         _print(f"Error: invalid JSON in {path}: {e}")
         return 2
 
-    summary = summarize_report(data)
+    summary = summarize_report(data, focus_player=focus_player)
     _print(summary)
     return 0
 
@@ -96,10 +115,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_view = sub.add_parser("view", help="Pretty-print a JSON report")
     p_view.add_argument("json_path", type=str, help="Path to report JSON")
+    p_view.add_argument("--player", type=str, default=None, help="Filter and show per-player details by display name")
 
     args = parser.parse_args(argv)
     if args.cmd == "view":
-        return cmd_view(Path(args.json_path))
+        return cmd_view(Path(args.json_path), focus_player=args.player)
 
     parser.print_help()
     return 1
@@ -107,4 +127,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

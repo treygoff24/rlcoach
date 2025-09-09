@@ -203,6 +203,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut ball_actor: Option<i32> = None;
         let mut ball_pos: (f32, f32, f32) = (0.0, 0.0, 93.15);
         let mut ball_vel: (f32, f32, f32) = (0.0, 0.0, 0.0);
+        let mut ball_angvel: (f32, f32, f32) = (0.0, 0.0, 0.0);
         let mut actor_to_player_index: HashMap<i32, usize> = HashMap::new();
         let mut next_by_team: HashMap<i64, Vec<usize>> = HashMap::new();
 
@@ -254,17 +255,28 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             let obj_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
                             let loc = rb.location;
                             let vel = rb.linear_velocity.unwrap_or(Vector3f { x: 0.0, y: 0.0, z: 0.0 });
+                            let ang = rb.angular_velocity.unwrap_or(Vector3f { x: 0.0, y: 0.0, z: 0.0 });
                             // Update ball or car state depending on classification and fallback
                             let is_ball = Some(aid) == ball_actor || obj_name.contains("Ball_TA");
                             if is_ball {
                                 ball_actor = Some(aid);
                                 ball_pos = (loc.x, loc.y, loc.z);
                                 ball_vel = (vel.x, vel.y, vel.z);
+                                ball_angvel = (ang.x, ang.y, ang.z);
                             } else {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                                 car_vel.insert(aid, (vel.x, vel.y, vel.z));
                             }
                         }
+                        // Some builds carry these separately
+                        Attribute::Location(loc) => {
+                            if Some(aid) == ball_actor {
+                                ball_pos = (loc.x, loc.y, loc.z);
+                            } else {
+                                car_pos.insert(aid, (loc.x, loc.y, loc.z));
+                            }
+                        }
+                        
                         // Team + visual paint data (use team assignment if present)
                         Attribute::TeamPaint(tp) => {
                             let t = (tp.team as i64).clamp(0, 1);
@@ -300,7 +312,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 let bvel = PyDict::new(py);
                 bvel.set_item("x", ball_vel.0)?; bvel.set_item("y", ball_vel.1)?; bvel.set_item("z", ball_vel.2)?;
                 ball.set_item("position", bpos)?; ball.set_item("velocity", bvel)?; 
-                let ang = PyDict::new(py); ang.set_item("x", 0.0f64)?; ang.set_item("y", 0.0f64)?; ang.set_item("z", 0.0f64)?; 
+                let ang = PyDict::new(py); ang.set_item("x", ball_angvel.0)?; ang.set_item("y", ball_angvel.1)?; ang.set_item("z", ball_angvel.2)?; 
                 ball.set_item("angular_velocity", ang)?;
                 f.set_item("ball", ball)?;
 
@@ -342,13 +354,26 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         let ppos = PyDict::new(py); ppos.set_item("x", x)?; ppos.set_item("y", y)?; ppos.set_item("z", z)?;
                         let v = car_vel.get(&aid).cloned().unwrap_or((0.0, 0.0, 0.0));
                         let pvel = PyDict::new(py); pvel.set_item("x", v.0)?; pvel.set_item("y", v.1)?; pvel.set_item("z", v.2)?;
-                        let prot = PyDict::new(py); prot.set_item("x", 0.0f64)?; prot.set_item("y", 0.0f64)?; prot.set_item("z", 0.0f64)?;
+                        // Approximate rotation from velocity vector if available (yaw/pitch in radians)
+                        let speed2 = v.0 * v.0 + v.1 * v.1 + v.2 * v.2;
+                        let mut pitch = 0.0f64;
+                        let mut yaw = 0.0f64;
+                        if speed2 > 1e-6 {
+                            let speed = speed2.sqrt();
+                            // yaw around Z from X/Y
+                            yaw = (v.1 as f64).atan2(v.0 as f64);
+                            // pitch from vertical component
+                            pitch = (v.2 as f64 / speed as f64).asin();
+                        }
+                        let prot = PyDict::new(py);
+                        prot.set_item("x", pitch)?; // pitch
+                        prot.set_item("y", yaw)?;   // yaw
+                        prot.set_item("z", 0.0f64)?; // roll unknown
                         p.set_item("position", ppos)?;
                         p.set_item("velocity", pvel)?;
                         p.set_item("rotation", prot)?;
                         let boost = *car_boost.get(&aid).unwrap_or(&33);
                         p.set_item("boost_amount", boost)?;
-                        let speed2 = v.0 * v.0 + v.1 * v.1 + v.2 * v.2;
                         p.set_item("is_supersonic", speed2.sqrt() > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
@@ -385,11 +410,13 @@ fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> {
 
                 let news = PyList::empty(py);
                 for na in nf.new_actors {
-                    let oid: usize = na.object_id.into();
-                    let obj_name = objects.get(oid).cloned().unwrap_or_default();
+                    let oid_usize: usize = na.object_id.into();
+                    let obj_name = objects.get(oid_usize).cloned().unwrap_or_default();
+                    let aid_i32: i32 = na.actor_id.into();
+                    let oid_i32: i32 = na.object_id.into();
                     let d = PyDict::new(py);
-                    d.set_item("actor_id", i64::from(na.actor_id))?;
-                    d.set_item("object_id", i64::from(na.object_id))?;
+                    d.set_item("actor_id", aid_i32 as i64)?;
+                    d.set_item("object_id", oid_i32 as i64)?;
                     d.set_item("object_name", obj_name)?;
                     news.append(d)?;
                 }
@@ -400,7 +427,8 @@ fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> {
                     // Attribute discriminant via Debug formatting for visibility
                     let kind = format!("{:?}", ua.attribute);
                     let d = PyDict::new(py);
-                    d.set_item("actor_id", i64::from(ua.actor_id))?;
+                    let aid_i32: i32 = ua.actor_id.into();
+                    d.set_item("actor_id", aid_i32 as i64)?;
                     d.set_item("attribute", kind)?;
                     ups.append(d)?;
                 }

@@ -11,9 +11,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Tools: plan, shell, apply_patch, pytest
 - Approvals: never; Network: enabled; Filesystem: full
 
-## Branching
-- Base: main
-- Create: `feat/gpt5-013-rust-parser-adapter`
 
 ## Goal
 - Implement a Rust parser adapter compiled as a Python module via `pyo3`, capable of header parse (playlist/map/team_size/goals/players) and a minimal network frame iterator. Wire it behind `get_adapter('rust')`.
@@ -49,7 +46,6 @@ You are a coding agent in Codex CLI. Plan–execute–verify until all acceptanc
 - Run: `pytest -q`
 
 ## Deliverables
-- Branch: `feat/gpt5-013-rust-parser-adapter`
 - Files: rust crate, python shim, tests, docs
 - Log: `./codex/logs/013.md`
 

@@ -120,6 +120,13 @@ def main() -> int:
         help="Use header-only mode (no network parsing)",
     )
     analyze_parser.add_argument(
+        "--adapter",
+        type=str,
+        choices=["rust", "null"],
+        default="rust",
+        help="Parser adapter to use (default: rust)",
+    )
+    analyze_parser.add_argument(
         "--out",
         type=str,
         default="out",
@@ -139,7 +146,7 @@ def main() -> int:
     elif args.command == "analyze":
         # Generate report and write to output directory
         replay_path = Path(args.replay_file)
-        report = generate_report(replay_path, header_only=args.header_only)
+        report = generate_report(replay_path, header_only=args.header_only, adapter_name=args.adapter)
 
         # Determine output file path
         out_dir = Path(args.out)
