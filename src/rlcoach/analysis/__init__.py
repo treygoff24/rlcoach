@@ -12,6 +12,8 @@ from .boost import analyze_boost
 from .movement import analyze_movement
 from .positioning import analyze_positioning, calculate_rotation_compliance
 from .passing import analyze_passing
+from .challenges import analyze_challenges
+from .kickoffs import analyze_kickoffs
 from ..parser.types import Header, Frame
 
 
@@ -91,8 +93,8 @@ def _analyze_team(frames: list[Frame], events: dict[str, list[Any]],
     
     # Placeholder for other analyzers (not in scope for this ticket)
     passing = analyze_passing(frames, events, team=team, header=header)
-    challenges = _placeholder_challenges()
-    kickoffs = _placeholder_kickoffs()
+    challenges = analyze_challenges(frames, events, team=team, header=header)
+    kickoffs = analyze_kickoffs(frames, events, team=team, header=header)
     
     return {
         "fundamentals": fundamentals,
@@ -120,8 +122,8 @@ def _analyze_player(frames: list[Frame], events: dict[str, list[Any]],
     
     # Placeholder for other analyzers (not in scope for this ticket)
     passing = analyze_passing(frames, events, player_id=player_id, header=header) 
-    challenges = _placeholder_challenges()
-    kickoffs = _placeholder_kickoffs()
+    challenges = analyze_challenges(frames, events, player_id=player_id, header=header)
+    kickoffs = analyze_kickoffs(frames, events, player_id=player_id, header=header)
     heatmaps = _placeholder_heatmaps()
     insights = _placeholder_insights()
     
@@ -168,29 +170,13 @@ def _placeholder_passing() -> dict[str, Any]:
 
 
 def _placeholder_challenges() -> dict[str, Any]:
-    """Placeholder challenges analysis."""
-    return {
-        "contests": 0,
-        "wins": 0,
-        "losses": 0,
-        "neutral": 0,
-        "first_to_ball_pct": 0.0,
-        "challenge_depth_m": 0.0,
-        "risk_index_avg": 0.0
-    }
+    """Deprecated placeholder; use analyze_challenges instead."""
+    return analyze_challenges([], {})
 
 
 def _placeholder_kickoffs() -> dict[str, Any]:
-    """Placeholder kickoffs analysis."""
-    return {
-        "count": 0,
-        "wins": 0,
-        "losses": 0,
-        "neutral": 0,
-        "avg_boost_used": 0.0,
-        "first_touch_pct": 0.0,
-        "approach_consistency": 0.0
-    }
+    """Deprecated placeholder; use analyze_kickoffs instead."""
+    return analyze_kickoffs([], {})
 
 
 def _placeholder_heatmaps() -> dict[str, Any]:
