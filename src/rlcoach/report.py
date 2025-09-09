@@ -97,12 +97,12 @@ def generate_report(replay_path: Path, header_only: bool = False) -> dict[str, A
         # Metadata
         recorded_hz = measure_frame_rate(normalized_frames)
         metadata = {
-            "engine_build": header.map_name or "unknown",  # Placeholder where engine build unavailable
+            "engine_build": getattr(header, "engine_build", None) or "unknown",
             "playlist": "UNKNOWN",
             "map": header.map_name or "unknown",
             "team_size": max(1, int(header.team_size or 1)),
-            "overtime": False,
-            "mutators": {},
+            "overtime": bool(getattr(header, "overtime", False) or False),
+            "mutators": getattr(header, "mutators", {}) or {},
             "match_guid": "unknown",
             "started_at_utc": _utc_now_iso(),
             "duration_seconds": float(header.match_length or 0.0),
@@ -121,7 +121,7 @@ def generate_report(replay_path: Path, header_only: bool = False) -> dict[str, A
                 "name": adapter.name,
                 "version": "0.1.0",
                 "parsed_header": True,
-                "parsed_network_data": bool(raw_frames),
+                "parsed_network_data": bool(frames_input),
                 "crc_checked": ingest_info.get("crc_check", {}).get("passed", False),
             },
             "warnings": (header.quality_warnings if hasattr(header, "quality_warnings") else []),

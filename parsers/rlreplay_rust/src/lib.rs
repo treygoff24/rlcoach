@@ -50,10 +50,14 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
             props.iter().find(|(k, _)| k == key).map(|(_, v)| v)
         }
 
+        // Prepare a goals list to populate if available
+        let goals_list = PyList::empty(py);
+
         match ParserBuilder::new(&data).never_parse_network_data().parse() {
             Ok(Replay { properties, .. }) => {
                 if let Some(p) = find_prop(&properties, "MapName") { if let Some(s) = p.as_string() { map_name = Some(s.to_string()); } }
                 if let Some(p) = find_prop(&properties, "PlaylistID") { if let Some(s) = p.as_string() { playlist_id = Some(s.to_string()); } }
+                if let Some(p) = find_prop(&properties, "BuildVersion") { if let Some(s) = p.as_string() { warnings_vec.push(format!("build_version:{}", s)); } }
                 if let Some(p) = find_prop(&properties, "NumFrames") { if let Some(fr) = p.as_i32() { match_length = (fr as f64) / 30.0; } }
                 if let Some(p) = find_prop(&properties, "Team0Score") { if let Some(s0) = p.as_i32() { team0_score = s0 as i64; } }
                 if let Some(p) = find_prop(&properties, "Team1Score") { if let Some(s1) = p.as_i32() { team1_score = s1 as i64; } }
@@ -76,6 +80,30 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                                 }
                             }
                             if let Some(n) = name { players_vec.push((n, team)); }
+                        }
+                    }
+                }
+
+                // Goals (frame, PlayerName, PlayerTeam)
+                if let Some(p) = find_prop(&properties, "Goals") {
+                    if let Some(arr) = p.as_array() {
+                        for entry in arr {
+                            let mut g_frame: Option<i64> = None;
+                            let mut g_name: Option<String> = None;
+                            let mut g_team: Option<i64> = None;
+                            for (k, v) in entry {
+                                match (k.as_str(), v) {
+                                    ("frame", hp) => { if let Some(i) = hp.as_i32() { g_frame = Some(i as i64); } }
+                                    ("PlayerName", hp) => { if let Some(s) = hp.as_string() { g_name = Some(s.to_string()); } }
+                                    ("PlayerTeam", hp) => { if let Some(i) = hp.as_i32() { g_team = Some(i as i64); } }
+                                    _ => {}
+                                }
+                            }
+                            let g = PyDict::new(py);
+                            if let Some(fv) = g_frame { g.set_item("frame", fv)?; }
+                            if let Some(nv) = g_name { g.set_item("player_name", nv)?; }
+                            if let Some(tv) = g_team { g.set_item("player_team", tv)?; }
+                            goals_list.append(g)?;
                         }
                     }
                 }
@@ -110,6 +138,12 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         let players = PyList::empty(py);
         for (name, team) in players_vec { let p = PyDict::new(py); p.set_item("name", name)?; p.set_item("team", team)?; players.append(p)?; }
         header.set_item("players", players)?;
+        // Engine build (if captured in warnings)
+        if let Some(build) = warnings_vec.iter().find_map(|w| w.strip_prefix("build_version:")) {
+            header.set_item("engine_build", build)?;
+        }
+        // Goals list
+        header.set_item("goals", goals_list)?;
         let warnings = PyList::empty(py);
         warnings.append("parsed_with_rust_core")?;
         for w in warnings_vec { warnings.append(w)?; }

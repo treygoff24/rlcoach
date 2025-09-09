@@ -35,6 +35,10 @@ class Header:
     playlist_id: str | None = None
     map_name: str | None = None
     team_size: int = 0
+    engine_build: str | None = None
+    match_guid: str | None = None
+    overtime: bool | None = None
+    mutators: dict[str, str | int | float | bool] = field(default_factory=dict)
 
     # Match results
     team0_score: int = 0
@@ -43,6 +47,9 @@ class Header:
 
     # Players
     players: list[PlayerInfo] = field(default_factory=list)
+
+    # Goals from header (not full event list; minimal info)
+    goals: list["GoalHeader"] = field(default_factory=list)
 
     # Quality and warnings
     quality_warnings: list[str] = field(default_factory=list)
@@ -57,6 +64,15 @@ class Header:
 
         if self.match_length < 0:
             raise ValueError("match_length cannot be negative")
+
+
+@dataclass(frozen=True)
+class GoalHeader:
+    """Goal info extracted from the header properties."""
+
+    frame: int | None = None
+    player_name: str | None = None
+    player_team: int | None = None
 
 
 @dataclass(frozen=True)

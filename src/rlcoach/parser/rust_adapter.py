@@ -15,7 +15,7 @@ from typing import Any
 from ..ingest import ingest_replay
 from .errors import HeaderParseError, NetworkParseError
 from .interface import ParserAdapter
-from .types import Header, NetworkFrames, PlayerInfo
+from .types import Header, NetworkFrames, PlayerInfo, GoalHeader
 
 try:  # best-effort import of Rust core
     import rlreplay_rust as _rust
@@ -44,6 +44,15 @@ class RustAdapter(ParserAdapter):
             PlayerInfo(name=p.get("name", "Unknown"), team=p.get("team"))
             for p in d.get("players", [])
         ]
+        goals = []
+        for g in d.get("goals", []) or []:
+            goals.append(
+                GoalHeader(
+                    frame=int(g.get("frame")) if g.get("frame") is not None else None,
+                    player_name=g.get("player_name"),
+                    player_team=(int(g.get("player_team")) if g.get("player_team") is not None else None),
+                )
+            )
         warnings = list(d.get("quality_warnings", []))
         warnings.append("parsed_with_rust_core_stub")
         return Header(
@@ -53,7 +62,12 @@ class RustAdapter(ParserAdapter):
             team0_score=int(d.get("team0_score", 0) or 0),
             team1_score=int(d.get("team1_score", 0) or 0),
             match_length=float(d.get("match_length", 0.0) or 0.0),
+            engine_build=d.get("engine_build"),
+            match_guid=d.get("match_guid"),
+            overtime=d.get("overtime"),
+            mutators=d.get("mutators", {}),
             players=players,
+            goals=goals,
             quality_warnings=warnings,
         )
 
@@ -104,4 +118,3 @@ class RustAdapter(ParserAdapter):
             return NetworkFrames(frame_count=len(frames_list), sample_rate=30.0, frames=frames_list)
         except Exception as e:
             raise NetworkParseError(str(path), f"Rust adapter network parse failed: {e}") from e
-
