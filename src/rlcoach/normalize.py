@@ -280,8 +280,12 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     
                     if hasattr(player_data, 'boost_amount'):
                         boost_amount = max(0, min(100, int(player_data.boost_amount)))
-                    elif isinstance(player_data, dict) and 'boost' in player_data:
-                        boost_amount = max(0, min(100, int(player_data['boost'])))
+                    elif isinstance(player_data, dict):
+                        # Accept both 'boost_amount' (Rust shape) and shorter 'boost'
+                        if 'boost_amount' in player_data:
+                            boost_amount = max(0, min(100, int(player_data['boost_amount'])))
+                        elif 'boost' in player_data:
+                            boost_amount = max(0, min(100, int(player_data['boost'])))
                     
                     # Extract boolean flags with proper handling
                     is_supersonic = False
