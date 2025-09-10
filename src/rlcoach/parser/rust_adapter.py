@@ -53,8 +53,8 @@ class RustAdapter(ParserAdapter):
                     player_team=(int(g.get("player_team")) if g.get("player_team") is not None else None),
                 )
             )
+        # Use warnings as provided by Rust core; avoid adding any *_stub markers
         warnings = list(d.get("quality_warnings", []))
-        warnings.append("parsed_with_rust_core_stub")
         return Header(
             playlist_id=d.get("playlist_id"),
             map_name=d.get("map_name"),
