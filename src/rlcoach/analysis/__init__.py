@@ -14,6 +14,8 @@ from .positioning import analyze_positioning, calculate_rotation_compliance
 from .passing import analyze_passing
 from .challenges import analyze_challenges
 from .kickoffs import analyze_kickoffs
+from .heatmaps import generate_heatmaps
+from .insights import generate_player_insights, generate_team_insights
 from ..parser.types import Header, Frame
 
 
@@ -66,9 +68,14 @@ def aggregate_analysis(
     
     # Generate per-player analysis
     per_player = []
+    per_player_map = {}
     for player_id, team in players.items():
         player_analysis = _analyze_player(frames, events, player_id, team, header)
         per_player.append(player_analysis)
+        per_player_map[player_id] = player_analysis
+    
+    # Generate team-level coaching insights
+    coaching_insights = generate_team_insights(per_team, per_player_map)
     
     # Add data quality warnings
     if not frames and events:
@@ -77,6 +84,7 @@ def aggregate_analysis(
     return {
         "per_team": per_team,
         "per_player": per_player,
+        "coaching_insights": coaching_insights,
         "warnings": warnings
     }
 
@@ -124,8 +132,20 @@ def _analyze_player(frames: list[Frame], events: dict[str, list[Any]],
     passing = analyze_passing(frames, events, player_id=player_id, header=header) 
     challenges = analyze_challenges(frames, events, player_id=player_id, header=header)
     kickoffs = analyze_kickoffs(frames, events, player_id=player_id, header=header)
-    heatmaps = _placeholder_heatmaps()
-    insights = _placeholder_insights()
+    heatmaps = generate_heatmaps(frames, player_id, events)
+    # Generate insights based on complete analysis data
+    complete_analysis = {
+        "player_id": player_id,
+        "fundamentals": fundamentals,
+        "boost": boost,
+        "movement": movement,
+        "positioning": positioning,
+        "passing": passing,
+        "challenges": challenges,
+        "kickoffs": kickoffs,
+        "rotation_compliance": rotation_compliance
+    }
+    insights = generate_player_insights(complete_analysis)
     
     return {
         "player_id": player_id,
@@ -184,7 +204,7 @@ def _placeholder_heatmaps() -> dict[str, Any]:
     return {
         "position_occupancy_grid": None,
         "touch_density_grid": None,
-        "boost_usage_grid": None
+        "boost_pickup_grid": None  # Changed from boost_usage_grid to match schema
     }
 
 

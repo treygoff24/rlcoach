@@ -10,7 +10,6 @@
       "required": ["error", "details"]
     }
   ],
-  "additionalProperties": false,
   "properties": {
     "replay_id": { "type": "string", "description": "Deterministic hash of header bytes + match GUID if present" },
     "source_file": { "type": "string", "description": "Absolute or relative path provided by user" },

@@ -1,0 +1,46 @@
+{
+  "replay_id": "c8f187a3b2d49e6c1a5f8b2e4d7a3c9f1e2b5d8a",
+  "source_file": "examples/sample.replay", 
+  "schema_version": "1.0.0",
+  "generated_at_utc": "2025-09-12T16:28:00Z",
+  "metadata": {
+    "engine_build": "v2.54",
+    "playlist": "STANDARD",
+    "map": "DFH_Stadium", 
+    "team_size": 1,
+    "overtime": false,
+    "mutators": {},
+    "match_guid": "GUID-simple",
+    "started_at_utc": "2025-09-01T20:04:33Z",
+    "duration_seconds": 120.0,
+    "recorded_frame_hz": 30.0,
+    "total_frames": 3600,
+    "coordinate_reference": {
+      "side_wall_x": 4096,
+      "back_wall_y": 5120, 
+      "ceiling_z": 2044
+    }
+  },
+  "quality": {
+    "parser": {
+      "name": "rl-local-core",
+      "version": "0.9.2", 
+      "parsed_header": true,
+      "parsed_network_data": true,
+      "crc_checked": true
+    },
+    "warnings": []
+  },
+  "teams": {
+    "blue": {
+      "name": "BLUE",
+      "score": 1, 
+      "players": ["p1"]
+    },
+    "orange": {
+      "name": "ORANGE",
+      "score": 0,
+      "players": ["p2"]
+    }
+  }
+}

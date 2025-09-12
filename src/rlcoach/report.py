@@ -30,6 +30,7 @@ from .normalize import build_timeline as build_normalized_frames, measure_frame_
 from .parser.types import NetworkFrames as NFType
 from .parser import get_adapter
 from .schema import validate_report
+from .version import get_schema_version
 
 
 def _utc_now_iso() -> str:
@@ -92,7 +93,7 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
 
         # Build top-level fields
         replay_id = ingest_info.get("sha256", "unknown")
-        schema_version = "1.0.0"
+        schema_version = get_schema_version()
 
         # Metadata
         recorded_hz = measure_frame_rate(normalized_frames)
@@ -210,7 +211,7 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         analysis_block = {
             "per_team": per_team,
             "per_player": per_player_map,
-            "coaching_insights": [],
+            "coaching_insights": analysis["coaching_insights"],
         }
 
         report = {
