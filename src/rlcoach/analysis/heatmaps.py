@@ -36,7 +36,9 @@ def generate_heatmaps(
     y_bins = 16
     
     # Generate each heatmap
-    position_grid = _generate_position_heatmap(frames, player_id, x_bins, y_bins, extent)
+    position_grid = _generate_position_heatmap(
+        frames, player_id, x_bins, y_bins, extent
+    )
     touch_grid = _generate_touch_heatmap(events.get("touches", []), player_id, x_bins, y_bins, extent)
     boost_grid = _generate_boost_pickup_heatmap(events.get("boost_pickups", []), player_id, x_bins, y_bins, extent)
     
@@ -63,12 +65,12 @@ def _generate_position_heatmap(
     # Collect player positions
     for frame in frames:
         player_frame = _get_player_frame(frame, player_id)
-        if not player_frame or not player_frame.location:
+        if not player_frame:
             continue
-            
+
         # Convert position to grid coordinates
         x_idx, y_idx = _position_to_grid_coords(
-            player_frame.location, x_bins, y_bins, extent
+            player_frame.position, x_bins, y_bins, extent
         )
         
         if 0 <= x_idx < x_bins and 0 <= y_idx < y_bins:
@@ -90,7 +92,7 @@ def _generate_position_heatmap(
 
 
 def _generate_touch_heatmap(
-    touch_events: list[dict],
+    touch_events: list[Any],
     player_id: str,
     x_bins: int, 
     y_bins: int,
@@ -104,15 +106,26 @@ def _generate_touch_heatmap(
     
     # Process touch events
     for touch in touch_events:
-        if touch.get("player_id") != player_id:
+        # Support both dataclass TouchEvent and dict representation
+        t_pid = None
+        t_loc = None
+        if hasattr(touch, "player_id"):
+            t_pid = getattr(touch, "player_id")
+            t_loc = getattr(touch, "location", None)
+        elif isinstance(touch, dict):
+            t_pid = touch.get("player_id")
+            t_loc = touch.get("location")
+
+        if t_pid != player_id or t_loc is None:
             continue
-            
-        location = touch.get("location")
-        if not location:
-            continue
-            
-        # Convert to Vec3 for consistency
-        pos = Vec3(location["x"], location["y"], location["z"])
+
+        # Convert to Vec3 for consistency (supports dict or any x/y/z object)
+        if isinstance(t_loc, dict):
+            pos = Vec3(t_loc.get("x", 0.0), t_loc.get("y", 0.0), t_loc.get("z", 0.0))
+        elif hasattr(t_loc, "x") and hasattr(t_loc, "y") and hasattr(t_loc, "z"):
+            pos = Vec3(getattr(t_loc, "x"), getattr(t_loc, "y"), getattr(t_loc, "z"))
+        else:
+            pos = Vec3(0.0, 0.0, 0.0)
         
         # Convert to grid coordinates
         x_idx, y_idx = _position_to_grid_coords(pos, x_bins, y_bins, extent)
@@ -138,7 +151,7 @@ def _generate_touch_heatmap(
 
 
 def _generate_boost_pickup_heatmap(
-    boost_events: list[dict],
+    boost_events: list[Any],
     player_id: str,
     x_bins: int,
     y_bins: int, 
@@ -152,22 +165,36 @@ def _generate_boost_pickup_heatmap(
     
     # Process boost pickup events
     for pickup in boost_events:
-        if pickup.get("player_id") != player_id:
+        # Support both dataclass BoostPickupEvent and dict representation
+        p_pid = None
+        p_loc = None
+        p_pad_type = None
+        if hasattr(pickup, "player_id"):
+            p_pid = getattr(pickup, "player_id")
+            p_loc = getattr(pickup, "location", None)
+            p_pad_type = getattr(pickup, "pad_type", None)
+        elif isinstance(pickup, dict):
+            p_pid = pickup.get("player_id")
+            p_loc = pickup.get("location")
+            p_pad_type = pickup.get("pad_type")
+
+        if p_pid != player_id or p_loc is None:
             continue
-            
-        location = pickup.get("location")
-        if not location:
-            continue
-            
-        # Convert to Vec3 for consistency
-        pos = Vec3(location["x"], location["y"], location["z"])
+
+        # Convert to Vec3 for consistency (supports dict or any x/y/z object)
+        if isinstance(p_loc, dict):
+            pos = Vec3(p_loc.get("x", 0.0), p_loc.get("y", 0.0), p_loc.get("z", 0.0))
+        elif hasattr(p_loc, "x") and hasattr(p_loc, "y") and hasattr(p_loc, "z"):
+            pos = Vec3(getattr(p_loc, "x"), getattr(p_loc, "y"), getattr(p_loc, "z"))
+        else:
+            pos = Vec3(0.0, 0.0, 0.0)
         
         # Convert to grid coordinates
         x_idx, y_idx = _position_to_grid_coords(pos, x_bins, y_bins, extent)
         
         if 0 <= x_idx < x_bins and 0 <= y_idx < y_bins:
             # Weight big pads more heavily
-            weight = 2.0 if pickup.get("pad_type") == "BIG" else 1.0
+            weight = 2.0 if p_pad_type == "BIG" else 1.0
             grid[y_idx][x_idx] += weight
             total_pickups += weight
     
@@ -212,6 +239,8 @@ def _position_to_grid_coords(
 
 def _get_player_frame(frame: Frame, player_id: str) -> PlayerFrame | None:
     """Extract player frame from frame data."""
-    if hasattr(frame, 'players') and frame.players:
-        return frame.players.get(player_id)
+    if hasattr(frame, "players") and frame.players:
+        for p in frame.players:
+            if getattr(p, "player_id", None) == player_id:
+                return p
     return None
