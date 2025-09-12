@@ -140,21 +140,25 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
                 # Ball in blue goal, orange team scored  
                 team = "ORANGE"
             
-            # Find scorer from recent touches
+            # Find scorer and potential assist from recent touches
             scorer = None
+            assist = None
             if last_touch_by_player:
                 # Get most recent touch within last 5 seconds
                 recent_touches = [
-                    (pid, player) for pid, player in last_touch_by_player.items()
-                    if frame.timestamp - last_touch_times.get(pid, 0) < 5.0
+                    (pid, last_touch_times.get(pid, 0.0))
+                    for pid in last_touch_by_player.keys()
+                    if frame.timestamp - last_touch_times.get(pid, 0.0) < 5.0
                 ]
                 if recent_touches:
-                    # Use most recent touch
-                    scorer_id, scorer_player = max(
-                        recent_touches, 
-                        key=lambda x: last_touch_times[x[0]]
-                    )
-                    scorer = scorer_id
+                    # Sort by most recent touch time
+                    recent_touches.sort(key=lambda x: x[1], reverse=True)
+                    scorer = recent_touches[0][0]
+                    # Assist is second most recent by a different player
+                    for pid, _t in recent_touches[1:]:
+                        if pid != scorer:
+                            assist = pid
+                            break
             
             # Calculate shot speed from ball velocity
             ball_speed = _vector_magnitude(frame.ball.velocity)
@@ -169,6 +173,7 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
                 frame=i,
                 scorer=scorer,
                 team=team,
+                assist=assist,
                 shot_speed_kph=shot_speed_kph,
                 distance_m=distance_m,
                 on_target=True

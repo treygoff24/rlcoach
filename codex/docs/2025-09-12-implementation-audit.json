@@ -1,0 +1,120 @@
+{
+  "unfulfilled_plan_items": [
+    {
+      "description": "CRC validation is a stub; no real header CRC check implemented.",
+      "location": "src/rlcoach/ingest.py: crc_check_header",
+      "severity": "medium",
+      "code_snippet": "return (True, \"CRC check not yet implemented (assumed valid for well-formed replay)\")",
+      "notes": "Plan requires integrity gates incl. CRC. Currently always assumes valid for format-OK files; consider marking quality.parser.crc_checked=false when stubbed."
+    },
+    {
+      "description": "Parser header enrichment incomplete (playlist, platform IDs, camera, loadout).",
+      "location": "src/rlcoach/parser/null_adapter.py",
+      "severity": "medium",
+      "code_snippet": "header = Header(... players=placeholder_players, quality_warnings=quality_warnings)",
+      "notes": "Plan calls for extracting playlist, camera, loadout, platform IDs. Currently metadata.playlist is \"UNKNOWN\" and player camera/loadout are empty placeholders."
+    },
+    {
+      "description": "Parser header enrichment incomplete (playlist, platform IDs, camera, loadout).",
+      "location": "src/rlcoach/parser/rust_adapter.py::_header_from_rust_dict",
+      "severity": "medium",
+      "code_snippet": "players = [PlayerInfo(name=p.get(\"name\", \"Unknown\"), team=p.get(\"team\")) for p in d.get(\"players\", [])]",
+      "notes": "Extend mapping to include camera/loadout/platform IDs and playlist."
+    },
+    {
+      "description": "Network frames parsing is minimal; lacks structured actor updates and measured sample rate from frames.",
+      "location": "src/rlcoach/parser/rust_adapter.py: parse_network",
+      "severity": "medium",
+      "code_snippet": "frames = _rust.iter_frames(str(path)); return NetworkFrames(frame_count=len(frames), sample_rate=30.0, frames=frames)",
+      "notes": "Plan expects robust network stream extraction (ball/cars, demolishes, boost replication, tickmarks). Current implementation returns raw frames with fixed sample_rate=30."
+    },
+    {
+      "description": "Kickoff approach classification and time-to-first-touch are placeholders.",
+      "location": "src/rlcoach/events.py: detect_kickoffs; src/rlcoach/analysis/kickoffs.py",
+      "severity": "low",
+      "code_snippet": "approach_type=\"UNKNOWN\", time_to_first_touch=None",
+      "notes": "Plan calls for role detection, boost used, approach types (e.g., SPEEDFLIP) and timing."
+    },
+    {
+      "description": "Assist attribution for goals not implemented.",
+      "location": "src/rlcoach/events.py: detect_goals",
+      "severity": "low",
+      "code_snippet": "assist: str | None = None  # field exists but not populated",
+      "notes": "Plan mentions goal/assist details; logic can track second-to-last touch before goal."
+    },
+    {
+      "description": "Playlist detection not implemented (always UNKNOWN in reports).",
+      "location": "src/rlcoach/report.py (metadata construction)",
+      "severity": "low",
+      "code_snippet": "\"playlist\": \"UNKNOWN\",",
+      "notes": "Header adapters should set playlist and report should propagate it."
+    },
+    {
+      "description": "Performance/Extensibility (parallel analyzers, chunked iteration) not implemented.",
+      "location": "src/rlcoach/analysis/* (general)",
+      "severity": "low",
+      "code_snippet": "N/A",
+      "notes": "Plan cites zero-copy/parallelism. Current analyzers are synchronous and single-threaded."
+    }
+  ],
+  "outstanding_errors": [
+    {
+      "description": "Undefined variable 'analysis' used in report assembly (should reference analysis_out).",
+      "location": "src/rlcoach/report.py",
+      "severity": "high",
+      "code_snippet": "\"coaching_insights\": analysis[\"coaching_insights\"]",
+      "notes": "Will raise NameError on success path; swap to analysis_out[\"coaching_insights\"]."
+    },
+    {
+      "description": "Golden fixture mismatch after enabling full heatmaps (24x16 RL field extent vs minimal 4x4 placeholder).",
+      "location": "tests/goldens/synthetic_small.json; tests/test_goldens.py",
+      "severity": "low",
+      "code_snippet": "expected heatmaps: x_bins=4,y_bins=4, extent [-1,1]; actual analyzer outputs 24x16 with RL field extents",
+      "notes": "Functionally correct but goldens predate heatmap implementation. Update golden or downsample during test build."
+    }
+  ],
+  "resolution_plan": [
+    {
+      "action": "Fix report assembly to use analysis_out['coaching_insights'] and add a unit test for generate_report success path.",
+      "related_to": "src/rlcoach/report.py undefined variable",
+      "priority": "high",
+      "notes": "Prevents NameError; ensures coaching insights are included."
+    },
+    {
+      "action": "Implement real CRC header check or mark crc_checked=false with a warning until implemented.",
+      "related_to": "Ingestion CRC validation stub",
+      "priority": "medium",
+      "notes": "Use known header layout to compute CRC; on failure, emit error per contract."
+    },
+    {
+      "action": "Enrich parser adapters to populate playlist, engine_build, match_guid, player camera/loadout/platform IDs.",
+      "related_to": "Parser header enrichment",
+      "priority": "medium",
+      "notes": "Extend Rust adapter dict mapping; keep null adapter conservative. Update report metadata propagation."
+    },
+    {
+      "action": "Improve network frame parsing and normalization (actors, boosts, demolishes, tickmarks) and measure sample rate from frames.",
+      "related_to": "Network frames completeness",
+      "priority": "medium",
+      "notes": "Return structured frames with timestamps; remove hardcoded 30 Hz."
+    },
+    {
+      "action": "Add kickoff approach classification and time-to-first-touch computation.",
+      "related_to": "Kickoff analysis placeholders",
+      "priority": "low",
+      "notes": "Detect SPEEDFLIP/FAKE heuristics; derive first touch timing from touches near kickoff."
+    },
+    {
+      "action": "Attribute assists by tracking penultimate touch before goals within a time window.",
+      "related_to": "Goal assist attribution",
+      "priority": "low",
+      "notes": "Use last two distinct-player touches prior to goal crossing with short timeout."
+    },
+    {
+      "action": "Resolve golden mismatch: either update goldens to full heatmaps or downsample to 4x4 within test helper before compare.",
+      "related_to": "Golden fixture mismatch",
+      "priority": "low",
+      "notes": "Preferred: downsample heatmaps in test build to keep fixtures small."
+    }
+  ]
+}

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from ..ingest import ingest_replay
+from ..normalize import measure_frame_rate
 from .errors import HeaderParseError, NetworkParseError
 from .interface import ParserAdapter
 from .types import Header, NetworkFrames, PlayerInfo, GoalHeader
@@ -41,7 +42,11 @@ class RustAdapter(ParserAdapter):
     def _header_from_rust_dict(self, d: dict[str, Any]) -> Header:
         # Convert rust dict to Header dataclass
         players = [
-            PlayerInfo(name=p.get("name", "Unknown"), team=p.get("team"))
+            PlayerInfo(
+                name=p.get("name", "Unknown"),
+                platform_id=p.get("platform_id"),
+                team=p.get("team"),
+            )
             for p in d.get("players", [])
         ]
         goals = []
@@ -118,7 +123,12 @@ class RustAdapter(ParserAdapter):
                     frames = list(frames)
                 except Exception:
                     frames = []
-            return NetworkFrames(frame_count=len(frames), sample_rate=30.0, frames=frames)
+            # Measure sample rate from timestamps if available
+            try:
+                hz = float(measure_frame_rate(frames))
+            except Exception:
+                hz = 30.0
+            return NetworkFrames(frame_count=len(frames), sample_rate=hz, frames=frames)
         except Exception as e:
             # Degrade gracefully to header-only when network parsing fails
             # (e.g., malformed or synthetic test file)

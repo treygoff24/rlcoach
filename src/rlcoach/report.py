@@ -99,12 +99,12 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         recorded_hz = measure_frame_rate(normalized_frames)
         metadata = {
             "engine_build": getattr(header, "engine_build", None) or "unknown",
-            "playlist": "UNKNOWN",
+            "playlist": (header.playlist_id or "UNKNOWN") if hasattr(header, "playlist_id") else "UNKNOWN",
             "map": header.map_name or "unknown",
             "team_size": max(1, int(header.team_size or 1)),
             "overtime": bool(getattr(header, "overtime", False) or False),
             "mutators": getattr(header, "mutators", {}) or {},
-            "match_guid": "unknown",
+            "match_guid": getattr(header, "match_guid", None) or "unknown",
             "started_at_utc": _utc_now_iso(),
             "duration_seconds": float(header.match_length or 0.0),
             "recorded_frame_hz": float(recorded_hz),
@@ -117,16 +117,24 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         }
 
         # Quality
+        crc_info = ingest_info.get("crc_check", {})
+        crc_msg = str(crc_info.get("message", ""))
+        crc_passed = bool(crc_info.get("passed", False))
+        # Until real CRC is implemented, do not claim it was checked
+        crc_checked_flag = False if "not yet implemented" in crc_msg.lower() else crc_passed
+
         quality = {
             "parser": {
                 "name": adapter.name,
                 "version": "0.1.0",
                 "parsed_header": True,
                 "parsed_network_data": bool(frames_input),
-                "crc_checked": ingest_info.get("crc_check", {}).get("passed", False),
+                "crc_checked": crc_checked_flag,
             },
             "warnings": (header.quality_warnings if hasattr(header, "quality_warnings") else []),
         }
+        if not crc_checked_flag:
+            quality["warnings"] = list(quality["warnings"]) + ["CRC not verified (stubbed)"]
         # Incorporate analysis warnings if present
         if isinstance(analysis_out, dict) and analysis_out.get("warnings"):
             quality["warnings"] = list(quality["warnings"]) + list(analysis_out["warnings"])  # type: ignore[index]
@@ -144,7 +152,7 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
                     "player_id": pid,
                     "display_name": p.name or f"Player {i}",
                     "team": tname,
-                    "platform_ids": {},
+                    "platform_ids": ({"primary": p.platform_id} if getattr(p, "platform_id", None) else {}),
                     "camera": {},
                     "loadout": {},
                 }
@@ -211,7 +219,7 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         analysis_block = {
             "per_team": per_team,
             "per_player": per_player_map,
-            "coaching_insights": analysis["coaching_insights"],
+            "coaching_insights": analysis_out.get("coaching_insights", []),
         }
 
         report = {
