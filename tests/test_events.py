@@ -8,7 +8,7 @@ from rlcoach.events import (
     detect_touches, detect_challenge_events, build_timeline,
     GoalEvent, DemoEvent, KickoffEvent, BoostPickupEvent, TouchEvent,
     ChallengeEvent, TimelineEvent,
-    GOAL_LINE_THRESHOLD, TOUCH_PROXIMITY_THRESHOLD, BOOST_PAD_PROXIMITY_THRESHOLD
+    GOAL_LINE_THRESHOLD, TOUCH_PROXIMITY_THRESHOLD
 )
 from rlcoach.field_constants import Vec3, FIELD
 from rlcoach.parser.types import Header, PlayerInfo, Frame, PlayerFrame, BallFrame
@@ -57,15 +57,15 @@ class TestGoalDetection:
         frames = [
             create_test_frame(
                 1.0, 
-                Vec3(0.0, 4800.0, 100.0),  # Well before goal line
+                Vec3(0.0, 4100.0, 100.0),  # In the field of play
                 Vec3(0.0, 500.0, 0.0),     # Moving toward goal
-                [create_test_player("player_1", 0, Vec3(0.0, 4700.0, 17.0))]  # Blue player near ball
+                [create_test_player("player_1", 0, Vec3(0.0, 4020.0, 17.0))]  # Blue player near ball
             ),
             create_test_frame(
                 1.1,
-                Vec3(0.0, 5200.0, 100.0),  # Ball crosses goal line
+                Vec3(0.0, 4350.0, 100.0),  # Ball crosses goal line
                 Vec3(0.0, 500.0, 0.0),
-                [create_test_player("player_1", 0, Vec3(0.0, 4900.0, 17.0))]
+                [create_test_player("player_1", 0, Vec3(0.0, 4250.0, 17.0))]
             )
         ]
         
@@ -83,15 +83,15 @@ class TestGoalDetection:
         frames = [
             create_test_frame(
                 2.0,
-                Vec3(0.0, -4800.0, 100.0),  # Well before blue goal
+                Vec3(0.0, -4100.0, 100.0),  # In the field of play
                 Vec3(0.0, -500.0, 0.0),     # Moving toward goal
-                [create_test_player("player_2", 1, Vec3(0.0, -4700.0, 17.0))]  # Orange player near ball
+                [create_test_player("player_2", 1, Vec3(0.0, -4020.0, 17.0))]  # Orange player near ball
             ),
             create_test_frame(
                 2.1,
-                Vec3(0.0, -5200.0, 100.0),  # Ball crosses goal line
+                Vec3(0.0, -4350.0, 100.0),  # Ball crosses goal line
                 Vec3(0.0, -500.0, 0.0),
-                [create_test_player("player_2", 1, Vec3(0.0, -4900.0, 17.0))]
+                [create_test_player("player_2", 1, Vec3(0.0, -4250.0, 17.0))]
             )
         ]
         
@@ -128,14 +128,78 @@ class TestGoalDetection:
             ),
             create_test_frame(
                 1.1,
-                Vec3(0.0, 4500.0, 100.0),  # Still in field
+                Vec3(0.0, 4200.0, 100.0),  # Still in field (below threshold)
                 Vec3(0.0, 100.0, 0.0),
-                [create_test_player("player_1", 0, Vec3(0.0, 4300.0, 17.0))]
+                [create_test_player("player_1", 0, Vec3(0.0, 4000.0, 17.0))]
             )
         ]
         
         goals = detect_goals(frames)
         assert goals == []
+
+    def test_goal_emitted_once_until_ball_clears(self):
+        """Ball lingering inside goal volume does not create duplicate events."""
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, GOAL_LINE_THRESHOLD - 50.0, 100.0),
+                Vec3(0.0, 500.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 120.0, 17.0))],
+            ),
+            create_test_frame(
+                0.1,
+                Vec3(0.0, GOAL_LINE_THRESHOLD + 120.0, 100.0),
+                Vec3(0.0, 450.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 20.0, 17.0))],
+            ),
+            create_test_frame(
+                0.2,
+                Vec3(0.0, GOAL_LINE_THRESHOLD + 260.0, 105.0),
+                Vec3(0.0, 100.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 20.0, 17.0))],
+            ),
+        ]
+
+        goals = detect_goals(frames)
+        assert len(goals) == 1
+
+    def test_goal_requires_exit_before_retrigger(self):
+        """Ball must leave the goal volume before another goal is recorded."""
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, GOAL_LINE_THRESHOLD - 80.0, 100.0),
+                Vec3(0.0, 400.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 200.0, 17.0))],
+            ),
+            create_test_frame(
+                0.1,
+                Vec3(0.0, GOAL_LINE_THRESHOLD + 150.0, 100.0),
+                Vec3(0.0, 450.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 40.0, 17.0))],
+            ),
+            create_test_frame(
+                0.2,
+                Vec3(0.0, GOAL_LINE_THRESHOLD + 220.0, 110.0),
+                Vec3(0.0, 50.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 40.0, 17.0))],
+            ),
+            create_test_frame(
+                0.5,
+                Vec3(0.0, GOAL_LINE_THRESHOLD - 400.0, 100.0),
+                Vec3(0.0, -200.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 420.0, 17.0))],
+            ),
+            create_test_frame(
+                0.6,
+                Vec3(0.0, GOAL_LINE_THRESHOLD + 180.0, 100.0),
+                Vec3(0.0, 450.0, 0.0),
+                [create_test_player("player_1", 0, Vec3(0.0, GOAL_LINE_THRESHOLD - 50.0, 17.0))],
+            ),
+        ]
+
+        goals = detect_goals(frames)
+        assert len(goals) == 2
 
 
 class TestDemoDetection:
@@ -326,13 +390,13 @@ class TestBoostPickupDetection:
                 1.0,
                 Vec3(0.0, 0.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
-                [create_test_player("p1", 0, Vec3(-3584.0, -4240.0, 17.0), boost=20)]  # Near corner boost
+                [create_test_player("p1", 0, Vec3(-3584.0, -4096.0, 17.0), boost=20)]  # Corner boost
             ),
             create_test_frame(
                 1.1,
                 Vec3(0.0, 0.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
-                [create_test_player("p1", 0, Vec3(-3584.0, -4240.0, 17.0), boost=100)]  # Got 100 boost
+                [create_test_player("p1", 0, Vec3(-3584.0, -4096.0, 17.0), boost=100)]  # Got 100 boost
             )
         ]
         
@@ -344,6 +408,7 @@ class TestBoostPickupDetection:
         assert pickup.player_id == "p1"
         assert pickup.pad_type == "BIG"
         assert pickup.stolen is False  # Blue player in blue corner
+        assert pickup.pad_id == 0
     
     def test_small_boost_pickup(self):
         """Small boost increase detected as small pad pickup."""
@@ -352,13 +417,13 @@ class TestBoostPickupDetection:
                 2.0,
                 Vec3(0.0, 0.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
-                [create_test_player("p1", 0, Vec3(1788.0, 0.0, 17.0), boost=50)]  # Near mid boost
+                [create_test_player("p1", 0, Vec3(0.0, -2816.0, 17.0), boost=50)]  # Centre small pad
             ),
             create_test_frame(
                 2.1,
                 Vec3(0.0, 0.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
-                [create_test_player("p1", 0, Vec3(1788.0, 0.0, 17.0), boost=62)]  # Got 12 boost
+                [create_test_player("p1", 0, Vec3(0.0, -2816.0, 17.0), boost=62)]  # Got 12 boost
             )
         ]
         
@@ -367,6 +432,7 @@ class TestBoostPickupDetection:
         
         pickup = pickups[0]
         assert pickup.pad_type == "SMALL"
+        assert pickup.pad_id == 11
     
     def test_stolen_boost_detection(self):
         """Boost pickup on opponent half detected as stolen."""
@@ -375,19 +441,20 @@ class TestBoostPickupDetection:
                 3.0,
                 Vec3(0.0, 0.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
-                [create_test_player("blue_p", 0, Vec3(3584.0, 4240.0, 17.0), boost=10)]  # Blue in orange corner
+                [create_test_player("blue_p", 0, Vec3(3584.0, 4096.0, 17.0), boost=10)]  # Blue in orange corner
             ),
             create_test_frame(
                 3.1,
                 Vec3(0.0, 0.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
-                [create_test_player("blue_p", 0, Vec3(3584.0, 4240.0, 17.0), boost=100)]  # Boost stolen
+                [create_test_player("blue_p", 0, Vec3(3584.0, 4096.0, 17.0), boost=100)]  # Boost stolen
             )
         ]
         
         pickups = detect_boost_pickups(frames)
         assert len(pickups) == 1
         assert pickups[0].stolen is True
+        assert pickups[0].pad_id == 3
     
     def test_no_boost_increase_no_pickup(self):
         """No boost change means no pickup event."""
@@ -408,6 +475,32 @@ class TestBoostPickupDetection:
         
         pickups = detect_boost_pickups(frames)
         assert pickups == []
+
+    def test_all_boost_pads_match(self):
+        """Every canonical boost pad resolves to a concrete pad id."""
+        for pad in FIELD.BOOST_PADS:
+            base_boost = 0 if pad.is_big else 20
+            delta = 100 if pad.is_big else 12
+            frames = [
+                create_test_frame(
+                    pad.pad_id,
+                    Vec3(0.0, 0.0, 93.15),
+                    Vec3(0.0, 0.0, 0.0),
+                    [create_test_player(f"player_{pad.pad_id}", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=base_boost)],
+                ),
+                create_test_frame(
+                    pad.pad_id + 0.1,
+                    Vec3(0.0, 0.0, 93.15),
+                    Vec3(0.0, 0.0, 0.0),
+                    [create_test_player(f"player_{pad.pad_id}", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=base_boost + delta)],
+                ),
+            ]
+
+            pickups = detect_boost_pickups(frames)
+            assert len(pickups) == 1
+            event = pickups[0]
+            assert event.pad_id == pad.pad_id
+            assert event.location == pad.position
 
 
 class TestTouchDetection:
@@ -503,6 +596,32 @@ class TestTouchDetection:
         touches = detect_touches(frames)
         assert touches == []
 
+    def test_touch_debounced_for_repeated_contacts(self):
+        """Repeated frames at the same spot with low speed collapse to one touch."""
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(50.0, 0.0, 0.0),
+                [create_test_player("p1", 0, Vec3(10.0, 0.0, 17.0))],
+            ),
+            create_test_frame(
+                0.05,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(40.0, 0.0, 0.0),
+                [create_test_player("p1", 0, Vec3(10.0, 0.0, 17.0))],
+            ),
+            create_test_frame(
+                0.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(30.0, 0.0, 0.0),
+                [create_test_player("p1", 0, Vec3(10.0, 0.0, 17.0))],
+            ),
+        ]
+
+        touches = detect_touches(frames)
+        assert len(touches) == 1
+
 
 class TestChallengeDetection:
     """Test detection of 50/50 challenge events."""
@@ -512,34 +631,37 @@ class TestChallengeDetection:
         frames = [
             create_test_frame(
                 0.0,
-                Vec3(0.0, 0.0, 93.15),
-                Vec3(0.0, 0.0, 0.0),
+                Vec3(0.0, -200.0, 93.15),
+                Vec3(0.0, 900.0, 0.0),
                 [
-                    create_test_player("blue", 0, Vec3(0.0, -120.0, 17.0)),
-                    create_test_player("orange", 1, Vec3(1200.0, 120.0, 17.0)),
+                    create_test_player("blue", 0, Vec3(0.0, -210.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(300.0, 200.0, 17.0)),
                 ],
             ),
             create_test_frame(
                 0.25,
-                Vec3(0.0, -80.0, 93.15),
-                Vec3(0.0, 600.0, 0.0),
+                Vec3(0.0, 60.0, 93.15),
+                Vec3(0.0, 960.0, 0.0),
                 [
-                    create_test_player("blue", 0, Vec3(0.0, -90.0, 17.0)),
-                    create_test_player("orange", 1, Vec3(20.0, -60.0, 17.0)),
+                    create_test_player("blue", 0, Vec3(0.0, 50.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(10.0, 80.0, 17.0)),
                 ],
             ),
             create_test_frame(
                 0.6,
-                Vec3(0.0, 120.0, 93.15),
-                Vec3(0.0, 900.0, 0.0),
+                Vec3(0.0, 320.0, 93.15),
+                Vec3(0.0, 1000.0, 0.0),
                 [
-                    create_test_player("blue", 0, Vec3(-200.0, 0.0, 17.0)),
-                    create_test_player("orange", 1, Vec3(0.0, 130.0, 17.0)),
+                    create_test_player("blue", 0, Vec3(-200.0, 100.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, 330.0, 17.0)),
                 ],
             ),
         ]
 
-        touches = detect_touches(frames)
+        touches = [
+            TouchEvent(t=0.0, player_id="blue", location=Vec3(0.0, -200.0, 17.0), ball_speed_kph=80.0),
+            TouchEvent(t=0.4, player_id="orange", location=Vec3(0.0, 40.0, 17.0), ball_speed_kph=85.0),
+        ]
         challenges = detect_challenge_events(frames, touches)
         assert len(challenges) == 1
 
@@ -556,34 +678,38 @@ class TestChallengeDetection:
         frames = [
             create_test_frame(
                 0.0,
-                Vec3(0.0, 0.0, 93.15),
-                Vec3(0.0, 0.0, 0.0),
+                Vec3(0.0, -120.0, 93.15),
+                Vec3(0.0, 900.0, 0.0),
                 [
-                    create_test_player("blue", 0, Vec3(0.0, -100.0, 17.0)),
-                    create_test_player("orange", 1, Vec3(0.0, 100.0, 17.0)),
+                    create_test_player("blue", 0, Vec3(0.0, -130.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, 110.0, 17.0)),
                 ],
             ),
             create_test_frame(
                 0.2,
-                Vec3(0.0, -60.0, 93.15),
-                Vec3(0.0, 500.0, 0.0),
+                Vec3(0.0, 80.0, 93.15),
+                Vec3(0.0, 960.0, 0.0),
                 [
-                    create_test_player("blue", 0, Vec3(0.0, -70.0, 17.0)),
-                    create_test_player("orange", 1, Vec3(0.0, -40.0, 17.0)),
+                    create_test_player("blue", 0, Vec3(0.0, 70.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, 90.0, 17.0)),
                 ],
             ),
             create_test_frame(
                 0.35,
-                Vec3(0.0, -55.0, 93.15),
-                Vec3(0.0, -200.0, 0.0),
+                Vec3(0.0, 60.0, 93.15),
+                Vec3(0.0, -300.0, 0.0),
                 [
-                    create_test_player("blue", 0, Vec3(0.0, -65.0, 17.0)),
-                    create_test_player("orange", 1, Vec3(0.0, -45.0, 17.0)),
+                    create_test_player("blue", 0, Vec3(0.0, 55.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, 65.0, 17.0)),
                 ],
             ),
         ]
 
-        touches = detect_touches(frames)
+        touches = [
+            TouchEvent(t=0.0, player_id="blue", location=Vec3(0.0, -280.0, 17.0), ball_speed_kph=82.0),
+            TouchEvent(t=0.2, player_id="orange", location=Vec3(0.0, 40.0, 17.0), ball_speed_kph=95.0),
+            TouchEvent(t=0.3, player_id="blue", location=Vec3(0.0, 35.0, 17.0), ball_speed_kph=90.0),
+        ]
         challenges = detect_challenge_events(frames, touches)
         assert len(challenges) >= 1
         assert any(ch.outcome == "NEUTRAL" for ch in challenges)

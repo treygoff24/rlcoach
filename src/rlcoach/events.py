@@ -16,16 +16,16 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .field_constants import FIELD, Vec3
+from .field_constants import FIELD, Vec3, BoostPad
 from .normalize import measure_frame_rate
 from .parser.types import Header, Frame, PlayerFrame, BallFrame
 
 
 # Detection thresholds - explicitly documented
-GOAL_LINE_THRESHOLD = FIELD.BACK_WALL_Y * 0.99  # 5069 units from center
+GOAL_LINE_THRESHOLD = FIELD.BACK_WALL_Y - FIELD.GOAL_DEPTH  # Front plane of goal
+GOAL_EXIT_THRESHOLD = GOAL_LINE_THRESHOLD - 200.0
 BALL_STATIONARY_THRESHOLD = 50.0  # Ball speed for kickoff detection (units/s)
 TOUCH_PROXIMITY_THRESHOLD = 200.0  # Distance for player-ball contact (units)
-BOOST_PAD_PROXIMITY_THRESHOLD = 150.0  # Distance to match boost pad pickup (units)
 DEMO_POSITION_TOLERANCE = 500.0  # Max distance for demo attacker detection (units)
 
 # Kickoff heuristics
@@ -37,6 +37,8 @@ KICKOFF_MIN_COOLDOWN = 5.0
 # Challenge detection heuristics (shared with analyzers)
 CHALLENGE_WINDOW_S = 1.2
 CHALLENGE_RADIUS_UU = 1000.0
+CHALLENGE_MIN_DISTANCE_UU = 200.0
+CHALLENGE_MIN_BALL_SPEED_KPH = 15.0
 NEUTRAL_RETOUCH_WINDOW_S = 0.25
 
 RISK_LOW_BOOST_THRESHOLD = 20
@@ -172,56 +174,55 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
     frame_rate = measure_frame_rate(frames) if frames else 30.0
     goal_index = 0
     
+    ball_inside_goal: str | None = None
+
     for i, frame in enumerate(frames):
         ball_y = frame.ball.position.y
-        
-        # Update last touch tracking (only if ball hasn't crossed goal line yet)
+
+        # Update last touch tracking when ball is in the field of play.
         if abs(ball_y) <= GOAL_LINE_THRESHOLD:
             for player in frame.players:
-                # Simple proximity check for ball contact
                 distance = _distance_3d(player.position, frame.ball.position)
                 if distance < TOUCH_PROXIMITY_THRESHOLD:
                     last_touch_by_player[player.player_id] = player
                     last_touch_times[player.player_id] = frame.timestamp
-        
-        # Check for goal line crossing
-        if abs(ball_y) > GOAL_LINE_THRESHOLD:
-            # Determine scoring team based on ball Y position
-            if ball_y > 0:
-                # Ball in orange goal, blue team scored
-                team = "BLUE"
-            else:
-                # Ball in blue goal, orange team scored  
-                team = "ORANGE"
-            
-            # Find scorer and potential assist from recent touches
+
+        # Determine whether ball currently resides inside a goal volume.
+        goal_team: str | None = None
+        if ball_y > GOAL_LINE_THRESHOLD:
+            goal_team = "BLUE"
+        elif ball_y < -GOAL_LINE_THRESHOLD:
+            goal_team = "ORANGE"
+
+        # Reset goal gating once the ball fully leaves the goal.
+        if goal_team is None and ball_inside_goal is not None and abs(ball_y) <= GOAL_EXIT_THRESHOLD:
+            ball_inside_goal = None
+
+        if goal_team is not None and ball_inside_goal is None:
+            ball_inside_goal = goal_team
+
             scorer = None
             assist = None
             if last_touch_by_player:
-                # Get most recent touch within last 5 seconds
                 recent_touches = [
                     (pid, last_touch_times.get(pid, 0.0))
                     for pid in last_touch_by_player.keys()
                     if frame.timestamp - last_touch_times.get(pid, 0.0) < 5.0
                 ]
                 if recent_touches:
-                    # Sort by most recent touch time
                     recent_touches.sort(key=lambda x: x[1], reverse=True)
                     scorer = recent_touches[0][0]
-                    # Assist is second most recent by a different player
                     for pid, _t in recent_touches[1:]:
                         if pid != scorer:
                             assist = pid
                             break
-            
-            # Calculate shot speed from ball velocity
+
             ball_speed = _vector_magnitude(frame.ball.velocity)
-            shot_speed_kph = ball_speed * 3.6  # Convert to km/h
-            
-            # Calculate distance (simplified)
-            goal_line_y = GOAL_LINE_THRESHOLD if ball_y > 0 else -GOAL_LINE_THRESHOLD
-            distance_m = abs(ball_y - goal_line_y) / 100.0  # Convert to meters
-            
+            shot_speed_kph = ball_speed * 3.6
+
+            goal_line_y = GOAL_LINE_THRESHOLD if goal_team == "BLUE" else -GOAL_LINE_THRESHOLD
+            distance_m = abs(ball_y - goal_line_y) / 100.0
+
             header_goal_frame = (
                 header_goal_frames[goal_index]
                 if goal_index < len(header_goal_frames)
@@ -247,7 +248,7 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
                 t=frame.timestamp,
                 frame=i,
                 scorer=scorer,
-                team=team,
+                team=goal_team,
                 assist=assist,
                 shot_speed_kph=shot_speed_kph,
                 distance_m=distance_m,
@@ -256,8 +257,7 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
             )
             goals.append(goal)
             goal_index += 1
-            
-            # Clear touch tracking after goal
+
             last_touch_by_player.clear()
             last_touch_times.clear()
     
@@ -399,58 +399,63 @@ def detect_boost_pickups(frames: list[Frame]) -> list[BoostPickupEvent]:
     
     pickups = []
     previous_boost_amounts = {}
-    
+    big_pads = [pad for pad in FIELD.BOOST_PADS if pad.is_big]
+    small_pads = [pad for pad in FIELD.BOOST_PADS if not pad.is_big]
+
     for i, frame in enumerate(frames):
         for player in frame.players:
             player_id = player.player_id
             current_boost = player.boost_amount
             previous_boost = previous_boost_amounts.get(player_id, current_boost)
-            
+
             # Detect boost increase
             boost_increase = current_boost - previous_boost
             if boost_increase > 0:
                 # Determine pad type from boost increase
                 if boost_increase >= 80:  # Large pad (100 boost minus tolerance for rounding)
                     pad_type = "BIG"
-                    boost_positions = FIELD.CORNER_BOOST_POSITIONS
+                    candidate_pads = big_pads
                 elif boost_increase >= 10:  # Small pad (12 boost minus tolerance)
                     pad_type = "SMALL"
-                    boost_positions = FIELD.SMALL_BOOST_POSITIONS
+                    candidate_pads = small_pads
                 else:
                     # Ignore small incremental increases
                     previous_boost_amounts[player_id] = current_boost
                     continue
-                
+
                 # Find nearest boost pad
-                nearest_pad_id = -1
-                nearest_distance = float('inf')
-                nearest_location = player.position
-                
-                for pad_id, pad_pos in enumerate(boost_positions):
-                    distance = _distance_3d(player.position, pad_pos)
-                    if distance < BOOST_PAD_PROXIMITY_THRESHOLD and distance < nearest_distance:
+                matched_pad: BoostPad | None = None
+                nearest_distance = float("inf")
+
+                for pad in candidate_pads:
+                    distance = _distance_3d(player.position, pad.position)
+                    if distance <= pad.radius and distance < nearest_distance:
+                        matched_pad = pad
                         nearest_distance = distance
-                        nearest_pad_id = pad_id
-                        nearest_location = pad_pos
-                
+
                 # Determine if stolen (simplified - check field half)
+                if matched_pad is None:
+                    previous_boost_amounts[player_id] = current_boost
+                    continue
+
                 is_stolen = False
-                if player.team == 0:  # Blue team
-                    is_stolen = player.position.y > 1000.0  # In orange half
-                elif player.team == 1:  # Orange team
-                    is_stolen = player.position.y < -1000.0  # In blue half
-                
+                pad_half = "ORANGE" if matched_pad.position.y > 0 else "BLUE"
+                if player.team == 0:
+                    is_stolen = pad_half == "ORANGE"
+                elif player.team == 1:
+                    is_stolen = pad_half == "BLUE"
+
                 pickup = BoostPickupEvent(
                     t=frame.timestamp,
                     player_id=player_id,
                     pad_type=pad_type,
                     stolen=is_stolen,
-                    pad_id=nearest_pad_id,
-                    location=nearest_location,
+                    pad_id=matched_pad.pad_id,
+                    location=matched_pad.position,
                     frame=i,
                 )
                 pickups.append(pickup)
-            
+
             previous_boost_amounts[player_id] = current_boost
     
     return pickups
@@ -660,7 +665,7 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
         return []
 
     touches: list[TouchEvent] = []
-    last_touch_time: dict[str, float] = {}
+    last_touch_event: dict[str, TouchEvent] = {}
     prev_ball_velocity: Vec3 | None = None
     prev_ball_position: Vec3 | None = None
 
@@ -673,9 +678,16 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
             if distance >= TOUCH_PROXIMITY_THRESHOLD:
                 continue
 
-            prev_time = last_touch_time.get(player.player_id)
-            if prev_time is not None and frame.timestamp - prev_time < 0.05:
-                continue
+            prev_event = last_touch_event.get(player.player_id)
+            if prev_event is not None:
+                delta_t = frame.timestamp - prev_event.t
+                if delta_t < 0.05:
+                    continue
+                same_area = _distance_3d(player.position, prev_event.location) <= TOUCH_LOCATION_EPS
+                if same_area and delta_t < TOUCH_DEBOUNCE_TIME:
+                    relative_speed = _relative_speed(player.velocity, frame.ball.velocity)
+                    if ball_speed < MIN_BALL_SPEED_FOR_TOUCH and relative_speed < MIN_RELATIVE_SPEED_FOR_TOUCH:
+                        continue
 
             outcome, is_save = _classify_touch_outcome(
                 player,
@@ -694,7 +706,7 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
                 is_save=is_save,
             )
             touches.append(touch)
-            last_touch_time[player.player_id] = frame.timestamp
+            last_touch_event[player.player_id] = touch
 
         prev_ball_velocity = ball_velocity
         prev_ball_position = frame.ball.position
@@ -742,7 +754,15 @@ def detect_challenge_events(frames: list[Frame], touches: list[TouchEvent] | Non
             i += 1
             continue
 
-        if _distance_3d(first.location, second.location) > CHALLENGE_RADIUS_UU:
+        separation = _distance_3d(first.location, second.location)
+        if separation > CHALLENGE_RADIUS_UU or separation < CHALLENGE_MIN_DISTANCE_UU:
+            i += 1
+            continue
+
+        if (
+            first.ball_speed_kph < CHALLENGE_MIN_BALL_SPEED_KPH
+            and second.ball_speed_kph < CHALLENGE_MIN_BALL_SPEED_KPH
+        ):
             i += 1
             continue
 
@@ -1046,3 +1066,15 @@ def _distance_3d(pos1: Vec3, pos2: Vec3) -> float:
 def _vector_magnitude(vec: Vec3) -> float:
     """Calculate magnitude of a 3D vector."""
     return math.sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z)
+
+
+def _relative_speed(player_velocity: Vec3, ball_velocity: Vec3) -> float:
+    """Calculate magnitude of the relative velocity between player and ball."""
+    dvx = player_velocity.x - ball_velocity.x
+    dvy = player_velocity.y - ball_velocity.y
+    dvz = player_velocity.z - ball_velocity.z
+    return math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz)
+TOUCH_DEBOUNCE_TIME = 0.2  # seconds
+TOUCH_LOCATION_EPS = 120.0  # uu
+MIN_BALL_SPEED_FOR_TOUCH = 120.0  # uu/s
+MIN_RELATIVE_SPEED_FOR_TOUCH = 180.0  # uu/s

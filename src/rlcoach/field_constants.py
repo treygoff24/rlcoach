@@ -26,6 +26,16 @@ class Vec3(NamedTuple):
         return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
 
 
+@dataclass(frozen=True)
+class BoostPad:
+    """Boost pad metadata for classification of pickups."""
+
+    pad_id: int
+    position: Vec3
+    is_big: bool
+    radius: float
+
+
 class FieldConstants:
     """Standard RLBot field dimensions and coordinate system.
     
@@ -46,28 +56,54 @@ class FieldConstants:
     GOAL_HEIGHT: float = 642.775
     GOAL_DEPTH: float = 880.0
     
-    # Boost pads - Large corner boost (100%)
-    CORNER_BOOST_POSITIONS: tuple[Vec3, ...] = (
-        Vec3(-3584.0, -4240.0, 73.0),  # Blue left corner
-        Vec3(3584.0, -4240.0, 73.0),   # Blue right corner  
-        Vec3(-3584.0, 4240.0, 73.0),   # Orange left corner
-        Vec3(3584.0, 4240.0, 73.0),    # Orange right corner
+    # Boost pad pickup radii (uu)
+    SMALL_BOOST_RADIUS: float = 170.0
+    BIG_BOOST_RADIUS: float = 250.0
+
+    # Boost pads - Large (100%) including corners and back-wall pads
+    BIG_BOOST_POSITIONS: tuple[Vec3, ...] = (
+        Vec3(-3584.0, -4096.0, 73.0),
+        Vec3(3584.0, -4096.0, 73.0),
+        Vec3(-3584.0, 4096.0, 73.0),
+        Vec3(3584.0, 4096.0, 73.0),
+        Vec3(0.0, -4608.0, 73.0),
+        Vec3(0.0, 4608.0, 73.0),
     )
-    
-    # Small boost pads (12%) - simplified set of key positions
+
+    CORNER_BOOST_POSITIONS: tuple[Vec3, ...] = BIG_BOOST_POSITIONS[:4]
+
+    # Small boost pads (12%) - full RLBot reference table
     SMALL_BOOST_POSITIONS: tuple[Vec3, ...] = (
-        # Mid-field small boosts
-        Vec3(-1788.0, 0.0, 70.0),
-        Vec3(1788.0, 0.0, 70.0),
-        Vec3(0.0, -2816.0, 70.0),
-        Vec3(0.0, 2816.0, 70.0),
-        # Additional strategic positions
+        Vec3(0.0, -4240.0, 70.0),
+        Vec3(-1792.0, -4184.0, 70.0),
+        Vec3(1792.0, -4184.0, 70.0),
         Vec3(-940.0, -3308.0, 70.0),
         Vec3(940.0, -3308.0, 70.0),
-        Vec3(-940.0, 3308.0, 70.0), 
+        Vec3(0.0, -2816.0, 70.0),
+        Vec3(-3584.0, -2484.0, 70.0),
+        Vec3(3584.0, -2484.0, 70.0),
+        Vec3(-1788.0, -2300.0, 70.0),
+        Vec3(1788.0, -2300.0, 70.0),
+        Vec3(-2048.0, -1036.0, 70.0),
+        Vec3(0.0, -1024.0, 70.0),
+        Vec3(2048.0, -1036.0, 70.0),
+        Vec3(-1024.0, 0.0, 70.0),
+        Vec3(1024.0, 0.0, 70.0),
+        Vec3(-2048.0, 1036.0, 70.0),
+        Vec3(0.0, 1024.0, 70.0),
+        Vec3(2048.0, 1036.0, 70.0),
+        Vec3(-1788.0, 2300.0, 70.0),
+        Vec3(1788.0, 2300.0, 70.0),
+        Vec3(-3584.0, 2484.0, 70.0),
+        Vec3(3584.0, 2484.0, 70.0),
+        Vec3(0.0, 2816.0, 70.0),
+        Vec3(-940.0, 3310.0, 70.0),
         Vec3(940.0, 3308.0, 70.0),
+        Vec3(-1792.0, 4184.0, 70.0),
+        Vec3(1792.0, 4184.0, 70.0),
+        Vec3(0.0, 4240.0, 70.0),
     )
-    
+
     @classmethod
     def is_in_bounds(cls, pos: Vec3) -> bool:
         """Check if position is within field boundaries."""
@@ -106,6 +142,25 @@ class FieldConstants:
         goal_y = -cls.BACK_WALL_Y if defending_team == 0 else cls.BACK_WALL_Y
         return abs(pos.y - goal_y)
 
+
+# Combined boost pad table (6 big + 28 small)
+BOOST_PAD_TABLE: tuple[BoostPad, ...] = tuple(
+    [
+        BoostPad(idx, pos, True, FieldConstants.BIG_BOOST_RADIUS)
+        for idx, pos in enumerate(FieldConstants.BIG_BOOST_POSITIONS)
+    ]
+    + [
+        BoostPad(
+            idx + len(FieldConstants.BIG_BOOST_POSITIONS),
+            pos,
+            False,
+            FieldConstants.SMALL_BOOST_RADIUS,
+        )
+        for idx, pos in enumerate(FieldConstants.SMALL_BOOST_POSITIONS)
+    ]
+)
+
+FieldConstants.BOOST_PADS = BOOST_PAD_TABLE
 
 # Export commonly used constants
 FIELD = FieldConstants()

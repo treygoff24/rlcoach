@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::fs::File;
 use std::io::Read;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 // Boxcars parsing
 use boxcars::{ParserBuilder, HeaderProp, Replay};
@@ -343,20 +343,17 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         next_by_team.insert(0, team_zero);
         next_by_team.insert(1, team_one);
 
-        // Helper: inline assignment logic
-        let mut total_players = header_players.len();
-
-        let mut frames_out = PyList::empty(py);
+        let frames_out = PyList::empty(py);
 
         // Helper: classify actors using object/class names
         fn classify_object_name(name: &str) -> ActorKind {
             let lname = name.to_ascii_lowercase();
             let is_ball = lname.contains("ball_ta") || lname.ends_with("ball") || lname.contains("ball_");
-            // Vehicle classes vary across builds; accept common substrings conservatively
-            let is_car = lname.contains("vehicle_ta")
-                || lname.contains("car_ta")
-                || lname.contains("default__car")
-                || (lname.contains("car") && !is_ball);
+            let is_car = (
+                lname.contains("archetypes.car.car_")
+                    || lname.contains("default__car_ta")
+                    || lname.contains("default__carbody")
+            ) && !lname.contains("carcomponent");
             ActorKind { is_ball, is_car }
         }
 
@@ -408,6 +405,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         Attribute::TeamPaint(tp) => {
                             let t = (tp.team as i64).clamp(0, 1);
                             car_team.insert(aid, t);
+                            if actor_kind.get(&aid).map(|kind| !kind.is_car).unwrap_or(true) {
+                                continue;
+                            }
                             if !actor_to_player_index.contains_key(&aid) {
                                 if let Some(v) = next_by_team.get_mut(&t) {
                                     if let Some(idx) = v.first().cloned() {
@@ -450,11 +450,12 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 for k in car_team.keys() { actors.insert(*k); }
                 if let Some(ball_id) = ball_actor { actors.remove(&ball_id); }
                 // Filter using classification when available; otherwise keep for fallback
-                actors = actors.into_iter().filter(|aid| {
-                    if let Some(kind) = actor_kind.get(aid) { !kind.is_ball && (kind.is_car || true) } else { true }
-                }).collect();
+                actors = actors
+                    .into_iter()
+                    .filter(|aid| actor_kind.get(aid).map(|kind| kind.is_car).unwrap_or(false))
+                    .collect();
 
-                let players = PyList::empty(py);
+                let mut players_map: BTreeMap<usize, PyObject> = BTreeMap::new();
                 for aid in actors {
                     let (x,y,z) = car_pos.get(&aid).cloned().unwrap_or((0.0,0.0,17.0));
                     // Determine team: prefer decoded team_paint else infer by y position sign
@@ -463,13 +464,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         team = if y > 0.0 { 1 } else { 0 };
                     }
                     // Assign player index if not assigned and team known
-                    if !actor_to_player_index.contains_key(&aid) {
+                    if !actor_to_player_index.contains_key(&aid) && team >= 0 {
                         if let Some(v) = next_by_team.get_mut(&team) {
                             if let Some(idx) = v.first().cloned() {
                                 v.remove(0);
-                                actor_to_player_index.insert(aid, idx);
-                            } else {
-                                let idx = actor_to_player_index.len().min(total_players.saturating_sub(1));
                                 actor_to_player_index.insert(aid, idx);
                             }
                         }
@@ -504,8 +502,12 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         p.set_item("is_supersonic", speed2.sqrt() > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
-                        players.append(p)?;
+                        players_map.entry(idx).or_insert_with(|| p.into_py(py));
                     }
+                }
+                let players = PyList::empty(py);
+                for (_idx, pobj) in players_map.iter() {
+                    players.append(pobj.as_ref(py))?;
                 }
                 f.set_item("players", players)?;
 
@@ -527,7 +529,7 @@ fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> {
             .parse()
             .map_err(|e| PyValueError::new_err(format!("Failed to parse network frames: {e}")))?;
 
-        let mut out = PyList::empty(py);
+        let out = PyList::empty(py);
         let objects = &replay.objects;
         if let Some(net) = replay.network_frames {
             for (i, nf) in net.frames.into_iter().enumerate() {
@@ -578,7 +580,7 @@ fn net_frame_count(path: &str) -> PyResult<usize> {
 }
 
 #[pymodule]
-fn rlreplay_rust(py: Python, m: &PyModule) -> PyResult<()> {
+fn rlreplay_rust(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_header, m)?)?;
     m.add_function(wrap_pyfunction!(iter_frames, m)?)?;
     m.add_function(wrap_pyfunction!(header_property_keys, m)?)?;

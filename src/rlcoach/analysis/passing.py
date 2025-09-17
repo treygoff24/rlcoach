@@ -22,6 +22,7 @@ All calculations are local-only and reproducible across runs.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -34,7 +35,7 @@ from ..events import TouchEvent, detect_touches
 POSSESSION_TAU_S = 2.0
 OWN_HALF_HIGH_SPEED_UU_S = 1200.0
 PASS_WINDOW_S = 2.0
-FORWARD_DELTA_MIN_UU = 200.0
+FORWARD_DELTA_MIN_UU = 80.0
 GIVE_AND_GO_WINDOW_S = 3.0
 
 
@@ -281,16 +282,18 @@ def _compute_pass_metrics(
 
 
 def _is_forward_progress(pos_from: Vec3, pos_to: Vec3, team_idx: int) -> bool:
-    """Check if movement from pos_from to pos_to advances toward opponent goal.
+    """Check if movement from pos_from to pos_to advances toward opponent goal."""
 
-    BLUE (team_idx=0) attacks +Y; ORANGE (team_idx=1) attacks -Y.
-    Require minimum delta along attack direction.
-    """
-    dy = pos_to.y - pos_from.y
-    if team_idx == 0:  # BLUE attacks +Y
-        return dy >= FORWARD_DELTA_MIN_UU
-    else:  # ORANGE attacks -Y
-        return dy <= -FORWARD_DELTA_MIN_UU
+    delta_x = pos_to.x - pos_from.x
+    delta_y = pos_to.y - pos_from.y
+    attack_vector = (0.0, 1.0) if team_idx == 0 else (0.0, -1.0)
+    forward_component = delta_x * attack_vector[0] + delta_y * attack_vector[1]
+
+    if forward_component < FORWARD_DELTA_MIN_UU:
+        return False
+
+    planar_distance = math.hypot(delta_x, delta_y)
+    return planar_distance >= FORWARD_DELTA_MIN_UU
 
 
 def _extract_players_from_frames(frames: Iterable[Frame]) -> dict[str, str]:
@@ -316,4 +319,3 @@ def _empty_passing() -> dict[str, Any]:
         "give_and_go_count": 0,
         "possession_time_s": 0.0,
     }
-

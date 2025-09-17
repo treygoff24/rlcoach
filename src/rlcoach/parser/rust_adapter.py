@@ -229,6 +229,24 @@ class RustAdapter(ParserAdapter):
                     frames = list(frames)
                 except Exception:
                     frames = []
+            # Deduplicate per-frame player entries keyed by player_id to guard
+            # against duplicate car component actors leaking through the bridge.
+            for frame in frames:
+                players = frame.get("players") if isinstance(frame, dict) else None
+                if not isinstance(players, list):
+                    continue
+                seen: set[str] = set()
+                unique_players = []
+                for player in players:
+                    pid = None
+                    if isinstance(player, dict):
+                        pid = player.get("player_id")
+                    if isinstance(pid, str):
+                        if pid in seen:
+                            continue
+                        seen.add(pid)
+                    unique_players.append(player)
+                frame["players"] = unique_players
             # Measure sample rate from timestamps if available
             try:
                 from ..normalize import measure_frame_rate

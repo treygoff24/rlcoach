@@ -37,16 +37,16 @@ class TestChallengesAnalysis:
 
         # Frames near touch times for risk computation
         frames = [
-            make_frame(0.9, Vec3(0.0, -500.0, 93.0), [a, b, c]),
-            make_frame(1.5, Vec3(0.0, -480.0, 93.0), [a, b, c]),
-            make_frame(2.0, Vec3(0.0, -460.0, 93.0), [a, b, c]),
+            make_frame(0.9, Vec3(0.0, -620.0, 93.0), [a, b, c]),
+            make_frame(1.5, Vec3(0.0, -400.0, 93.0), [a, b, c]),
+            make_frame(2.0, Vec3(0.0, -250.0, 93.0), [a, b, c]),
         ]
 
         # Touch sequence forming a contest between BLUE (A) and ORANGE (C)
         touches = [
-            TouchEvent(t=1.0, player_id="A", location=Vec3(0.0, -500.0, 17.0)),
-            TouchEvent(t=1.4, player_id="C", location=Vec3(0.0, -460.0, 17.0)),
-            TouchEvent(t=1.9, player_id="A", location=Vec3(0.0, -430.0, 17.0)),
+            TouchEvent(t=1.0, player_id="A", location=Vec3(0.0, -600.0, 17.0), ball_speed_kph=60.0),
+            TouchEvent(t=1.4, player_id="C", location=Vec3(0.0, -350.0, 17.0), ball_speed_kph=65.0),
+            TouchEvent(t=1.9, player_id="A", location=Vec3(0.0, -200.0, 17.0), ball_speed_kph=55.0),
         ]
         events = {"touches": touches}
 
@@ -74,10 +74,10 @@ class TestChallengesAnalysis:
     def test_player_scoped_metrics(self):
         a = make_player("A", 0, Vec3(0.0, -100.0, 17.0))
         c = make_player("C", 1, Vec3(0.0, -120.0, 17.0))
-        frames = [make_frame(0.0, Vec3(0.0, -100.0, 93.0), [a, c])]
+        frames = [make_frame(0.0, Vec3(0.0, -150.0, 93.0), [a, c])]
         touches = [
-            TouchEvent(t=0.1, player_id="A", location=Vec3(0.0, -100.0, 17.0)),
-            TouchEvent(t=0.3, player_id="C", location=Vec3(0.0, -110.0, 17.0)),
+            TouchEvent(t=0.1, player_id="A", location=Vec3(0.0, -220.0, 17.0), ball_speed_kph=70.0),
+            TouchEvent(t=0.3, player_id="C", location=Vec3(0.0, 10.0, 17.0), ball_speed_kph=68.0),
         ]
         events = {"touches": touches}
 

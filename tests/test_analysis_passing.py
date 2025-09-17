@@ -92,3 +92,21 @@ class TestPassingAnalysis:
         assert result_B["passes_attempted"] == 1
         assert result_B["passes_completed"] == 1
         assert result_B["passes_received"] == 1
+
+    def test_diagonal_forward_progress_is_counted(self):
+        pA0 = make_player("A", 0, Vec3(-200.0, -800.0, 17.0))
+        pB0 = make_player("B", 0, Vec3(200.0, -720.0, 17.0))
+
+        frames = [
+            make_frame(0.0, Vec3(0.0, -820.0, 93.0), Vec3(0.0, 0.0, 0.0), [pA0, pB0]),
+            make_frame(0.5, Vec3(0.0, -700.0, 93.0), Vec3(0.0, 0.0, 0.0), [pA0, pB0]),
+        ]
+
+        touches = [
+            TouchEvent(t=0.0, player_id="A", location=Vec3(-200.0, -820.0, 17.0)),
+            TouchEvent(t=0.4, player_id="B", location=Vec3(120.0, -700.0, 17.0)),
+        ]
+
+        result_blue = analyze_passing(frames, {"touches": touches}, team="BLUE")
+        assert result_blue["passes_completed"] == 1
+        assert result_blue["passes_attempted"] == 1
