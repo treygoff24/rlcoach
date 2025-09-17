@@ -235,18 +235,20 @@ class RustAdapter(ParserAdapter):
                 players = frame.get("players") if isinstance(frame, dict) else None
                 if not isinstance(players, list):
                     continue
-                seen: set[str] = set()
-                unique_players = []
+                unique_by_key: dict[str, Any] = {}
+                order: list[str] = []
+                anonymous_index = 0
                 for player in players:
-                    pid = None
-                    if isinstance(player, dict):
-                        pid = player.get("player_id")
-                    if isinstance(pid, str):
-                        if pid in seen:
-                            continue
-                        seen.add(pid)
-                    unique_players.append(player)
-                frame["players"] = unique_players
+                    key: str
+                    if isinstance(player, dict) and isinstance(player.get("player_id"), str):
+                        key = player["player_id"]  # keep stable key per player id
+                    else:
+                        key = f"__anon_{anonymous_index}"
+                        anonymous_index += 1
+                    if key not in unique_by_key:
+                        order.append(key)
+                    unique_by_key[key] = player
+                frame["players"] = [unique_by_key[k] for k in order]
             # Measure sample rate from timestamps if available
             try:
                 from ..normalize import measure_frame_rate

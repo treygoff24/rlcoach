@@ -327,6 +327,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut car_pos: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_vel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
+        let mut component_owner: HashMap<i32, i32> = HashMap::new();
         let mut ball_actor: Option<i32> = None;
         let mut ball_pos: (f32, f32, f32) = (0.0, 0.0, 93.15);
         let mut ball_vel: (f32, f32, f32) = (0.0, 0.0, 0.0);
@@ -358,9 +359,30 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         }
 
         if let Some(net) = replay.network_frames {
-            for nf in net.frames {
-                // Update actor_object_name mapping with new actors in this frame
-                for NewActor { actor_id, object_id, .. } in nf.new_actors {
+                for nf in net.frames {
+                // Prune actors that were deleted before processing updates to avoid stale telemetry
+                for deleted in nf.deleted_actors {
+                    let aid: i32 = deleted.into();
+                    let team_for_return = car_team.get(&aid).copied();
+                    if let Some(idx) = actor_to_player_index.remove(&aid) {
+                        if let Some(team) = team_for_return {
+                            if let Some(queue) = next_by_team.get_mut(&team) {
+                                queue.push(idx);
+                            }
+                        }
+                    }
+                    actor_object_name.remove(&aid);
+                    actor_kind.remove(&aid);
+                    car_team.remove(&aid);
+                    car_boost.remove(&aid);
+                    car_pos.remove(&aid);
+                    car_vel.remove(&aid);
+                    car_demo.remove(&aid);
+                    component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
+                }
+
+                    // Update actor_object_name mapping with new actors in this frame
+                    for NewActor { actor_id, object_id, .. } in nf.new_actors {
                     let oid: usize = object_id.into();
                     let obj_name = objects.get(oid).cloned().unwrap_or_default();
                     let aid: i32 = actor_id.into();
@@ -374,6 +396,13 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 for upd in nf.updated_actors {
                     let aid: i32 = upd.actor_id.into();
                     match upd.attribute {
+                        Attribute::ActiveActor(active) => {
+                            let obj_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
+                            if obj_name.to_ascii_lowercase().contains("carcomponent") {
+                                let owner_id: i32 = active.actor.into();
+                                component_owner.insert(aid, owner_id);
+                            }
+                        }
                         // Primary physics carrier observed across builds
                         Attribute::RigidBody(rb) => {
                             let obj_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
@@ -420,7 +449,8 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         // Boost value replication (0..=255) → scale to 0..=100
                         Attribute::ReplicatedBoost(rb) => {
                             let amt = ((rb.boost_amount as f64) * (100.0 / 255.0)).round() as i64;
-                            car_boost.insert(aid, amt.clamp(0, 100));
+                            let target = component_owner.get(&aid).cloned().unwrap_or(aid);
+                            car_boost.insert(target, amt.clamp(0, 100));
                         }
                         // Demolition signals (varies by build)
                         Attribute::Demolish(_) | Attribute::DemolishExtended(_) | Attribute::DemolishFx(_) => {
@@ -472,10 +502,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             }
                         }
                     }
-                    if let Some(idx) = actor_to_player_index.get(&aid).cloned() {
-                        let p = PyDict::new(py);
-                        p.set_item("player_id", format!("player_{}", idx))?;
-                        p.set_item("team", team)?;
+                        if let Some(idx) = actor_to_player_index.get(&aid).cloned() {
+                            let p = PyDict::new(py);
+                            p.set_item("player_id", format!("player_{}", idx))?;
+                            p.set_item("team", team)?;
                         let ppos = PyDict::new(py); ppos.set_item("x", x)?; ppos.set_item("y", y)?; ppos.set_item("z", z)?;
                         let v = car_vel.get(&aid).cloned().unwrap_or((0.0, 0.0, 0.0));
                         let pvel = PyDict::new(py); pvel.set_item("x", v.0)?; pvel.set_item("y", v.1)?; pvel.set_item("z", v.2)?;
@@ -502,7 +532,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         p.set_item("is_supersonic", speed2.sqrt() > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
-                        players_map.entry(idx).or_insert_with(|| p.into_py(py));
+                        players_map.insert(idx, p.into_py(py));
                     }
                 }
                 let players = PyList::empty(py);
