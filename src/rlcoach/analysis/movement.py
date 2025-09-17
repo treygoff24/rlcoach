@@ -108,34 +108,20 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     in_aerial = False
     aerial_start = 0.0
     
-    for frame in frames:
+    for idx, frame in enumerate(frames):
         player_frame = _find_player_in_frame(frame, player_id)
         if not player_frame:
             continue
-        
+
         # Calculate speed and height
         speed = _calculate_speed(player_frame.velocity)
         height = player_frame.position.z
         total_speed += speed
         frame_count += 1
         
-        # Calculate frame duration for this frame
-        is_final_frame = (frame == frames[-1])
-        
-        if is_final_frame:
-            # Final frame: estimate duration from previous interval or use default
-            if len(frames) >= 2 and prev_timestamp is not None:
-                # Use same duration as the previous interval
-                prev_interval = frame.timestamp - prev_timestamp
-                frame_dt = prev_interval
-            else:
-                frame_dt = 0.033  # Default for single frame
-        else:
-            # Non-final frame: use time to next frame
-            current_index = frames.index(frame)
-            next_frame = frames[current_index + 1]
-            frame_dt = next_frame.timestamp - frame.timestamp
-        
+        # Calculate frame duration for this frame without repeated index scans
+        frame_dt = _frame_duration(frames, idx, prev_timestamp)
+
         # Speed bucket classification using current frame's state
         if speed <= SLOW_SPEED_UU_S:
             time_slow += frame_dt
@@ -188,14 +174,14 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     # All frame handling is done in the main loop now
     
     # Handle ongoing powerslide at end
-    if in_powerslide and prev_timestamp:
+    if in_powerslide and prev_timestamp is not None:
         slide_duration = prev_timestamp - powerslide_start
         if slide_duration >= MIN_POWERSLIDE_DURATION:
             powerslide_count += 1
             powerslide_duration += slide_duration
-    
+
     # Handle ongoing aerial at end
-    if in_aerial and prev_timestamp:
+    if in_aerial and prev_timestamp is not None:
         air_duration = prev_timestamp - aerial_start
         if air_duration >= MIN_AERIAL_DURATION:
             aerial_count += 1
@@ -285,7 +271,7 @@ def _detect_powerslide(current: PlayerFrame, previous: PlayerFrame | None) -> bo
     """Detect if player is currently powersliding based on frame data."""
     if not previous or not current.is_on_ground:
         return False
-    
+
     # Calculate angular velocity magnitude from rotation difference
     dt = 0.033  # Approximate frame time
     yaw_diff = abs(current.rotation.y - previous.rotation.y)
@@ -316,3 +302,31 @@ def _empty_movement() -> dict[str, Any]:
         "aerial_count": 0,
         "aerial_time_s": 0.0
     }
+
+
+def _frame_duration(
+    frames: list[Frame],
+    index: int,
+    prev_timestamp: float | None,
+) -> float:
+    """Compute the duration represented by a frame.
+
+    Uses the next timestamp when available; falls back to the previous interval or
+    a conservative default so the analyzer always progresses. This avoids
+    repeated list scans (``frames.index``) that become quadratic on long replays.
+    """
+
+    # Prefer the delta to the next frame when positive
+    if index < len(frames) - 1:
+        next_dt = frames[index + 1].timestamp - frames[index].timestamp
+        if next_dt > 0:
+            return next_dt
+
+    # Otherwise reuse the previous interval if available
+    if prev_timestamp is not None:
+        prev_dt = frames[index].timestamp - prev_timestamp
+        if prev_dt > 0:
+            return prev_dt
+
+    # Fallback default (roughly one replay tick)
+    return 0.033

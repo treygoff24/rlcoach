@@ -86,3 +86,21 @@ class TestChallengesAnalysis:
         assert res_a["losses"] in (0, 1)  # depends on neutral/win heuristic; at least present
         assert 0.0 <= res_a["risk_index_avg"] <= 1.0
 
+    def test_consecutive_same_player_touches_do_not_loop(self):
+        # Touch list where the same player hits the ball twice before the opponent
+        a = make_player("A", 0, Vec3(0.0, 0.0, 17.0))
+        b = make_player("B", 1, Vec3(0.0, 100.0, 17.0))
+        frames = [make_frame(0.0, Vec3(0.0, 0.0, 93.0), [a, b])]
+        touches = [
+            TouchEvent(t=0.2, player_id="A", location=Vec3(0.0, 0.0, 17.0)),
+            TouchEvent(t=0.4, player_id="A", location=Vec3(0.0, 10.0, 17.0)),
+            # Opponent touch happens later than the contest window, so no contest should register
+            TouchEvent(t=2.0, player_id="B", location=Vec3(0.0, 90.0, 17.0)),
+        ]
+
+        events = {"touches": touches}
+
+        result = analyze_challenges(frames, events, team="BLUE")
+
+        # No contests should be registered when the opponent touch is outside the window
+        assert result["contests"] == 0

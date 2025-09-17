@@ -100,12 +100,16 @@ def analyze_challenges(
     while i < len(touches) - 1:
         a = touches[i]
         b = touches[i + 1]
+
+        # Always advance by at least one when skipping a pair to ensure progress
         if a.player_id == b.player_id:
+            i += 1
             continue
 
         a_team = player_team_idx.get(a.player_id)
         b_team = player_team_idx.get(b.player_id)
         if a_team is None or b_team is None or a_team == b_team:
+            i += 1
             continue
 
         dt = b.t - a.t

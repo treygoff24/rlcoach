@@ -178,7 +178,20 @@ class TestMovementAnalysis:
         # Should detect one aerial that meets minimum duration
         assert result["aerial_count"] >= 1
         assert result["aerial_time_s"] > 0.5
-    
+
+    def test_frame_duration_fallback_for_duplicate_timestamps(self):
+        """Ensure duration fallback keeps analysis progressing when timestamps repeat."""
+        frames = [
+            create_test_frame(0.0, [create_test_player("player1", 0)]),
+            create_test_frame(0.0, [create_test_player("player1", 0)]),
+            create_test_frame(0.0, [create_test_player("player1", 0)]),
+        ]
+
+        result = analyze_movement(frames, {}, player_id="player1")
+
+        # Each frame should fall back to the default duration
+        assert result["time_slow_s"] == pytest.approx(0.1, rel=1e-3)
+
     def test_team_analysis_aggregation(self):
         """Test team analysis aggregates all players correctly."""
         # Create players with different movement patterns

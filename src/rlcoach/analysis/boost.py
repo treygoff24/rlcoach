@@ -14,7 +14,8 @@ for comprehensive boost economy assessment.
 from __future__ import annotations
 
 import math
-from typing import Any
+from bisect import bisect_left
+from typing import Any, Sequence
 from ..events import BoostPickupEvent
 from ..parser.types import Header, Frame
 from ..field_constants import Vec3
@@ -64,20 +65,26 @@ def analyze_boost(
     """
     # Extract boost pickup events
     boost_pickups = events.get('boost_pickups', [])
-    
+
     # Calculate match duration from frames
     match_duration = frames[-1].timestamp - frames[0].timestamp if frames else 0.0
-    
+    frame_timestamps = [frame.timestamp for frame in frames]
+
     if player_id:
-        return _analyze_player_boost(frames, boost_pickups, player_id, match_duration)
+        return _analyze_player_boost(frames, frame_timestamps, boost_pickups, player_id, match_duration)
     elif team:
-        return _analyze_team_boost(frames, boost_pickups, team, match_duration)
+        return _analyze_team_boost(frames, frame_timestamps, boost_pickups, team, match_duration)
     else:
         return _empty_boost()
 
 
-def _analyze_player_boost(frames: list[Frame], pickups: list[BoostPickupEvent], 
-                         player_id: str, match_duration: float) -> dict[str, Any]:
+def _analyze_player_boost(
+    frames: list[Frame],
+    frame_timestamps: Sequence[float],
+    pickups: list[BoostPickupEvent],
+    player_id: str,
+    match_duration: float,
+) -> dict[str, Any]:
     """Analyze boost metrics for a specific player."""
     
     # Initialize counters
@@ -164,7 +171,7 @@ def _analyze_player_boost(frames: list[Frame], pickups: list[BoostPickupEvent],
                 stolen_small_pads += 1
                 
         # Calculate overfill - find player's boost at pickup time
-        pickup_frame = _find_frame_at_time(frames, pickup.t)
+        pickup_frame = _find_frame_at_time(frames, frame_timestamps, pickup.t)
         if pickup_frame:
             player_frame = _find_player_in_frame(pickup_frame, player_id)
             if player_frame and player_frame.boost_amount > OVERFILL_THRESHOLD:
@@ -197,8 +204,13 @@ def _analyze_player_boost(frames: list[Frame], pickups: list[BoostPickupEvent],
     }
 
 
-def _analyze_team_boost(frames: list[Frame], pickups: list[BoostPickupEvent],
-                       team: str, match_duration: float) -> dict[str, Any]:
+def _analyze_team_boost(
+    frames: list[Frame],
+    frame_timestamps: Sequence[float],
+    pickups: list[BoostPickupEvent],
+    team: str,
+    match_duration: float,
+) -> dict[str, Any]:
     """Analyze aggregated boost metrics for a team."""
     
     # Get all player IDs for this team from frames
@@ -218,7 +230,7 @@ def _analyze_team_boost(frames: list[Frame], pickups: list[BoostPickupEvent],
     player_count = len(team_players)
     
     for player_id in team_players:
-        player_metrics = _analyze_player_boost(frames, pickups, player_id, match_duration)
+        player_metrics = _analyze_player_boost(frames, frame_timestamps, pickups, player_id, match_duration)
         
         # Sum most metrics
         team_metrics["amount_collected"] += player_metrics["amount_collected"]
@@ -276,25 +288,28 @@ def _find_player_in_frame(frame: Frame, player_id: str) -> Any | None:
     return None
 
 
-def _find_frame_at_time(frames: list[Frame], timestamp: float) -> Frame | None:
-    """Find frame closest to given timestamp."""
+def _find_frame_at_time(
+    frames: list[Frame],
+    timestamps: Sequence[float],
+    timestamp: float,
+) -> Frame | None:
+    """Find frame closest to given timestamp using binary search."""
     if not frames:
         return None
-        
-    # Binary search for closest frame
-    best_frame = frames[0]
-    best_diff = abs(frames[0].timestamp - timestamp)
-    
-    for frame in frames:
-        diff = abs(frame.timestamp - timestamp)
-        if diff < best_diff:
-            best_diff = diff
-            best_frame = frame
-        elif diff > best_diff:
-            # Frames are ordered, so we can break early
-            break
-            
-    return best_frame
+
+    idx = bisect_left(timestamps, timestamp)
+
+    if idx <= 0:
+        return frames[0]
+    if idx >= len(frames):
+        return frames[-1]
+
+    prev_frame = frames[idx - 1]
+    next_frame = frames[idx]
+
+    if timestamp - prev_frame.timestamp <= next_frame.timestamp - timestamp:
+        return prev_frame
+    return next_frame
 
 
 def _calculate_speed(velocity: Vec3) -> float:

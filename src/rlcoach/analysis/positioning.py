@@ -108,38 +108,21 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
         if player_frame:
             player_team = player_frame.team
             break
-    
+
     if player_team is None:
         return _empty_positioning()
-    
-    for frame in frames:
+
+    prev_timestamp: float | None = None
+
+    for idx, frame in enumerate(frames):
         player_frame = _find_player_in_frame(frame, player_id)
         if not player_frame:
             continue
-        
+
         total_frames += 1
-        
-        # Calculate frame duration for this frame  
-        is_final_frame = (frame == frames[-1])
-        
-        if is_final_frame:
-            # Final frame: estimate duration from previous interval or use default
-            if len(frames) >= 2:
-                # Find previous frame to calculate interval
-                current_index = frames.index(frame)
-                if current_index > 0:
-                    prev_frame = frames[current_index - 1]
-                    prev_interval = frame.timestamp - prev_frame.timestamp
-                    frame_dt = prev_interval
-                else:
-                    frame_dt = 0.033
-            else:
-                frame_dt = 0.033  # Default for single frame
-        else:
-            # Non-final frame: use time to next frame
-            current_index = frames.index(frame)
-            next_frame = frames[current_index + 1]
-            frame_dt = next_frame.timestamp - frame.timestamp
+
+        # Calculate frame duration for this frame without repeated list scans
+        frame_dt = _frame_duration(frames, idx, prev_timestamp)
         
         # Field occupancy analysis
         player_pos = player_frame.position
@@ -219,6 +202,8 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
         else:
             # No teammates - player is always first man
             first_man_frames += 1
+
+        prev_timestamp = frame.timestamp
     
     # Calculate percentages and averages
     if total_frames == 0:
@@ -463,3 +448,23 @@ def _empty_positioning() -> dict[str, Any]:
         "second_man_pct": 0.0,
         "third_man_pct": 0.0
     }
+
+
+def _frame_duration(
+    frames: list[Frame],
+    index: int,
+    prev_timestamp: float | None,
+) -> float:
+    """Compute the duration represented by a frame for positioning analysis."""
+
+    if index < len(frames) - 1:
+        next_dt = frames[index + 1].timestamp - frames[index].timestamp
+        if next_dt > 0:
+            return next_dt
+
+    if prev_timestamp is not None:
+        prev_dt = frames[index].timestamp - prev_timestamp
+        if prev_dt > 0:
+            return prev_dt
+
+    return 0.033

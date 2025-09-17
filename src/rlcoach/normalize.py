@@ -226,7 +226,8 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             )
             
             # Extract player states
-            player_frames = []
+            # Collect latest player state per player_id to avoid duplicates
+            player_frames_map: dict[str, PlayerFrame] = {}
             players_data = []
             
             if hasattr(frame_data, 'players'):
@@ -319,17 +320,18 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         is_demolished=is_demolished
                     )
                     
-                    player_frames.append(player_frame)
-                
+                    # Keep the latest state seen in this frame for each unique player ID
+                    player_frames_map[player_id] = player_frame
+
                 except (ValueError, TypeError, AttributeError):
                     # Skip malformed player data
                     continue
-            
+
             # Create normalized frame
             normalized_frame = Frame(
                 timestamp=timestamp,
                 ball=ball_frame,
-                players=player_frames
+                players=list(player_frames_map.values())
             )
             
             normalized_frames.append(normalized_frame)

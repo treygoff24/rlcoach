@@ -33,8 +33,60 @@ from .schema import validate_report
 from .version import get_schema_version
 
 
+_ALLOWED_PLAYLISTS = {
+    "DUEL",
+    "DOUBLES",
+    "STANDARD",
+    "CHAOS",
+    "PRIVATE",
+    "EXTRA_MODE",
+    "UNKNOWN",
+}
+
+
 def _utc_now_iso() -> str:
     return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+def _normalize_playlist_id(raw_value: Any) -> tuple[str, list[str]]:
+    """Normalize playlist identifiers to schema enum, collect warnings."""
+    if raw_value is None:
+        return "UNKNOWN", []
+
+    playlist_str = str(raw_value).strip()
+    if not playlist_str:
+        return "UNKNOWN", []
+
+    normalized = playlist_str.upper().replace("-", "_").replace(" ", "_")
+    if normalized in _ALLOWED_PLAYLISTS:
+        return normalized, []
+
+    warning = f"unrecognized_playlist_value:{playlist_str}"
+    return "UNKNOWN", [warning]
+
+
+def _serialize_value(obj: Any) -> Any:
+    if hasattr(obj, "__dict__"):
+        d = {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+        for kk, vv in list(d.items()):
+            if hasattr(vv, "_asdict"):
+                d[kk] = vv._asdict()
+        return d
+    if hasattr(obj, "_asdict"):
+        return {k: _serialize_value(v) for k, v in obj._asdict().items()}
+    return obj
+
+
+def _timeline_event_to_dict(ev: Any) -> dict[str, Any]:
+    entry: dict[str, Any] = {}
+    for key in ("t", "type", "frame", "player_id", "team", "data"):
+        if not hasattr(ev, key):
+            continue
+        value = getattr(ev, key)
+        if value is None and key not in {"t", "type"}:
+            continue
+        entry[key] = _serialize_value(value)
+    return entry
 
 
 def generate_report(replay_path: Path, header_only: bool = False, adapter_name: str = "rust") -> dict[str, Any]:
@@ -97,9 +149,13 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
 
         # Metadata
         recorded_hz = measure_frame_rate(normalized_frames)
+        playlist_value, playlist_warnings = _normalize_playlist_id(
+            getattr(header, "playlist_id", None) if hasattr(header, "playlist_id") else None
+        )
+
         metadata = {
             "engine_build": getattr(header, "engine_build", None) or "unknown",
-            "playlist": (header.playlist_id or "UNKNOWN") if hasattr(header, "playlist_id") else "UNKNOWN",
+            "playlist": playlist_value,
             "map": header.map_name or "unknown",
             "team_size": max(1, int(header.team_size or 1)),
             "overtime": bool(getattr(header, "overtime", False) or False),
@@ -133,6 +189,8 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             },
             "warnings": (header.quality_warnings if hasattr(header, "quality_warnings") else []),
         }
+        if playlist_warnings:
+            quality["warnings"] = list(quality["warnings"]) + playlist_warnings
         if not crc_checked_flag:
             quality["warnings"] = list(quality["warnings"]) + ["CRC not verified (stubbed)"]
         # Incorporate analysis warnings if present
@@ -178,30 +236,17 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         }
 
         # Events block (serialize dataclasses to dicts)
-        def _asdict(obj: Any) -> Any:
-            if hasattr(obj, "__dict__"):
-                d = {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
-                # Convert Vec3 NamedTuples to plain dicts
-                for kk, vv in list(d.items()):
-                    if hasattr(vv, "_asdict"):
-                        d[kk] = vv._asdict()
-                return d
-            return obj
-
         events_block = {
-            "timeline": [
-                {k: _asdict(getattr(ev, k)) for k in ("t", "frame", "type", "player_id", "team", "data") if hasattr(ev, k)}
-                for ev in timeline
-            ],
-            "goals": [{k: _asdict(getattr(g, k)) for k in g.__dataclass_fields__.keys()} for g in goals],  # type: ignore[attr-defined]
-            "demos": [{k: _asdict(getattr(d, k)) for k in d.__dataclass_fields__.keys()} for d in demos],  # type: ignore[attr-defined]
+            "timeline": [_timeline_event_to_dict(ev) for ev in timeline],
+            "goals": [{k: _serialize_value(getattr(g, k)) for k in g.__dataclass_fields__.keys()} for g in goals],  # type: ignore[attr-defined]
+            "demos": [{k: _serialize_value(getattr(d, k)) for k in d.__dataclass_fields__.keys()} for d in demos],  # type: ignore[attr-defined]
             "kickoffs": [
-                {k: _asdict(getattr(kf, k)) for k in kf.__dataclass_fields__.keys()} for kf in kickoffs  # type: ignore[attr-defined]
+                {k: _serialize_value(getattr(kf, k)) for k in kf.__dataclass_fields__.keys()} for kf in kickoffs  # type: ignore[attr-defined]
             ],
             "boost_pickups": [
-                {k: _asdict(getattr(bp, k)) for k in bp.__dataclass_fields__.keys()} for bp in pickups  # type: ignore[attr-defined]
+                {k: _serialize_value(getattr(bp, k)) for k in bp.__dataclass_fields__.keys()} for bp in pickups  # type: ignore[attr-defined]
             ],
-            "touches": [{k: _asdict(getattr(t, k)) for k in t.__dataclass_fields__.keys()} for t in touches],  # type: ignore[attr-defined]
+            "touches": [{k: _serialize_value(getattr(t, k)) for k in t.__dataclass_fields__.keys()} for t in touches],  # type: ignore[attr-defined]
         }
 
         # Analysis block: adapt per_player list -> mapping keyed by player_id
@@ -212,9 +257,7 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             pid = p.get("player_id", None)
             if pid is None:
                 continue
-            pp = dict(p)
-            pp.pop("player_id", None)
-            per_player_map[str(pid)] = pp
+            per_player_map[str(pid)] = dict(p)
 
         analysis_block = {
             "per_team": per_team,

@@ -75,6 +75,7 @@ class BoostPickupEvent:
     stolen: bool = False  # True if on opponent half
     pad_id: int = -1  # Index in boost pad arrays
     location: Vec3 | None = None
+    frame: int | None = None
 
 
 @dataclass(frozen=True)
@@ -168,10 +169,12 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
             goal_line_y = GOAL_LINE_THRESHOLD if ball_y > 0 else -GOAL_LINE_THRESHOLD
             distance_m = abs(ball_y - goal_line_y) / 100.0  # Convert to meters
             
+            scorer_id = scorer if scorer is not None else f"{team}_UNKNOWN_SCORER"
+
             goal = GoalEvent(
                 t=frame.timestamp,
                 frame=i,
-                scorer=scorer,
+                scorer=scorer_id,
                 team=team,
                 assist=assist,
                 shot_speed_kph=shot_speed_kph,
@@ -357,7 +360,7 @@ def detect_boost_pickups(frames: list[Frame]) -> list[BoostPickupEvent]:
                 # Find nearest boost pad
                 nearest_pad_id = -1
                 nearest_distance = float('inf')
-                nearest_location = None
+                nearest_location = player.position
                 
                 for pad_id, pad_pos in enumerate(boost_positions):
                     distance = _distance_3d(player.position, pad_pos)
@@ -379,7 +382,8 @@ def detect_boost_pickups(frames: list[Frame]) -> list[BoostPickupEvent]:
                     pad_type=pad_type,
                     stolen=is_stolen,
                     pad_id=nearest_pad_id,
-                    location=nearest_location
+                    location=nearest_location,
+                    frame=i,
                 )
                 pickups.append(pickup)
             
