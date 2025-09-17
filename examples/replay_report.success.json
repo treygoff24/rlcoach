@@ -170,7 +170,8 @@
         "ball_speed_kph": 94.0,
         "outcome": "PASS"
       }
-    ]
+    ],
+    "challenges": []
   },
   "analysis": {
     "per_team": {

@@ -19,6 +19,7 @@ from typing import Any
 from .analysis import aggregate_analysis
 from .events import (
     detect_boost_pickups,
+    detect_challenge_events,
     detect_demos,
     detect_goals,
     detect_kickoffs,
@@ -124,19 +125,22 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             frames_input = raw_frames
 
         normalized_frames = build_normalized_frames(header, frames_input)
+        network_data_available = bool(frames_input)
 
         # Events detection (can be empty in header-only)
+        touches = detect_touches(normalized_frames)
         goals = detect_goals(normalized_frames, header)
         demos = detect_demos(normalized_frames)
         kickoffs = detect_kickoffs(normalized_frames, header)
         pickups = detect_boost_pickups(normalized_frames)
-        touches = detect_touches(normalized_frames)
+        challenges = detect_challenge_events(normalized_frames, touches)
         events_dict: dict[str, list[Any]] = {
             "goals": goals,
             "demos": demos,
             "kickoffs": kickoffs,
             "boost_pickups": pickups,
             "touches": touches,
+            "challenges": challenges,
         }
         timeline = build_timeline(events_dict)
 
@@ -184,7 +188,7 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
                 "name": adapter.name,
                 "version": "0.1.0",
                 "parsed_header": True,
-                "parsed_network_data": bool(frames_input),
+                "parsed_network_data": network_data_available,
                 "crc_checked": crc_checked_flag,
             },
             "warnings": (header.quality_warnings if hasattr(header, "quality_warnings") else []),
@@ -193,6 +197,10 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             quality["warnings"] = list(quality["warnings"]) + playlist_warnings
         if not crc_checked_flag:
             quality["warnings"] = list(quality["warnings"]) + ["CRC not verified (stubbed)"]
+        if adapter.supports_network_parsing and not network_data_available:
+            quality["warnings"] = list(quality["warnings"]) + [
+                "network_data_unavailable_fell_back_to_header_only"
+            ]
         # Incorporate analysis warnings if present
         if isinstance(analysis_out, dict) and analysis_out.get("warnings"):
             quality["warnings"] = list(quality["warnings"]) + list(analysis_out["warnings"])  # type: ignore[index]
@@ -201,18 +209,24 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         # Construct minimal players array based on header
         team_players: dict[str, list[str]] = {"BLUE": [], "ORANGE": []}
         players_block = []
-        for i, p in enumerate(header.players or []):
-            pid = f"player_{i}"
-            tname = "BLUE" if (p.team or 0) == 0 else "ORANGE"
+        for idx, p in enumerate(header.players or []):
+            pid = f"player_{idx}"
+            team_index = 0 if (p.team or 0) == 0 else 1
+            tname = "BLUE" if team_index == 0 else "ORANGE"
+            platform_ids = dict(getattr(p, "platform_ids", {}) or {})
+
+            camera_payload = getattr(p, "camera_settings", None) or {}
+            loadout_payload = getattr(p, "loadout", None) or {}
+
             team_players[tname].append(pid)
             players_block.append(
                 {
                     "player_id": pid,
-                    "display_name": p.name or f"Player {i}",
+                    "display_name": p.name or f"Player {idx}",
                     "team": tname,
-                    "platform_ids": ({"primary": p.platform_id} if getattr(p, "platform_id", None) else {}),
-                    "camera": {},
-                    "loadout": {},
+                    "platform_ids": platform_ids,
+                    "camera": camera_payload,
+                    "loadout": loadout_payload,
                 }
             )
 
@@ -236,9 +250,16 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         }
 
         # Events block (serialize dataclasses to dicts)
+        goal_dicts: list[dict[str, Any]] = []
+        for g in goals:
+            data = {k: _serialize_value(getattr(g, k)) for k in g.__dataclass_fields__.keys()}  # type: ignore[attr-defined]
+            if data.get("scorer") is None:
+                data["scorer"] = "UNKNOWN"
+            goal_dicts.append(data)
+
         events_block = {
             "timeline": [_timeline_event_to_dict(ev) for ev in timeline],
-            "goals": [{k: _serialize_value(getattr(g, k)) for k in g.__dataclass_fields__.keys()} for g in goals],  # type: ignore[attr-defined]
+            "goals": goal_dicts,
             "demos": [{k: _serialize_value(getattr(d, k)) for k in d.__dataclass_fields__.keys()} for d in demos],  # type: ignore[attr-defined]
             "kickoffs": [
                 {k: _serialize_value(getattr(kf, k)) for k in kf.__dataclass_fields__.keys()} for kf in kickoffs  # type: ignore[attr-defined]
@@ -246,7 +267,20 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             "boost_pickups": [
                 {k: _serialize_value(getattr(bp, k)) for k in bp.__dataclass_fields__.keys()} for bp in pickups  # type: ignore[attr-defined]
             ],
-            "touches": [{k: _serialize_value(getattr(t, k)) for k in t.__dataclass_fields__.keys()} for t in touches],  # type: ignore[attr-defined]
+            "touches": [
+                {
+                    "t": t.t,
+                    "frame": t.frame,
+                    "player_id": t.player_id,
+                    "location": _serialize_value(t.location),
+                    "ball_speed_kph": t.ball_speed_kph,
+                    "outcome": t.outcome,
+                }
+                for t in touches
+            ],
+            "challenges": [
+                {k: _serialize_value(getattr(ch, k)) for k in ch.__dataclass_fields__.keys()} for ch in challenges  # type: ignore[attr-defined]
+            ],
         }
 
         # Analysis block: adapt per_player list -> mapping keyed by player_id

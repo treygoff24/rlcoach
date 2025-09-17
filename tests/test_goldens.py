@@ -16,6 +16,7 @@ from rlcoach.events import (
     detect_kickoffs,
     detect_boost_pickups,
     detect_touches,
+    detect_challenge_events,
     build_timeline,
 )
 from rlcoach.field_constants import Vec3
@@ -47,12 +48,14 @@ def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> di
     kickoffs = detect_kickoffs(frames, header)
     pickups = detect_boost_pickups(frames)
     touches = detect_touches(frames)
+    challenges = detect_challenge_events(frames, touches)
     events_dict: dict[str, list[Any]] = {
         "goals": goals,
         "demos": demos,
         "kickoffs": kickoffs,
         "boost_pickups": pickups,
         "touches": touches,
+        "challenges": challenges,
     }
     timeline = build_timeline(events_dict)
 
@@ -120,6 +123,7 @@ def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> di
         "kickoffs": _event_dict_list(kickoffs),
         "boost_pickups": _event_dict_list(pickups),
         "touches": _event_dict_list(touches),
+        "challenges": _event_dict_list(challenges),
     }
 
     # Analysis per_player mapping

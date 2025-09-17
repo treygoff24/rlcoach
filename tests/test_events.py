@@ -4,9 +4,10 @@ import pytest
 from unittest.mock import Mock
 
 from rlcoach.events import (
-    detect_goals, detect_demos, detect_kickoffs, detect_boost_pickups, 
-    detect_touches, build_timeline,
-    GoalEvent, DemoEvent, KickoffEvent, BoostPickupEvent, TouchEvent, TimelineEvent,
+    detect_goals, detect_demos, detect_kickoffs, detect_boost_pickups,
+    detect_touches, detect_challenge_events, build_timeline,
+    GoalEvent, DemoEvent, KickoffEvent, BoostPickupEvent, TouchEvent,
+    ChallengeEvent, TimelineEvent,
     GOAL_LINE_THRESHOLD, TOUCH_PROXIMITY_THRESHOLD, BOOST_PAD_PROXIMITY_THRESHOLD
 )
 from rlcoach.field_constants import Vec3, FIELD
@@ -465,7 +466,29 @@ class TestTouchDetection:
         touches = detect_touches(frames)
         assert len(touches) == 1
         assert touches[0].outcome == "DRIBBLE"
-    
+
+    def test_save_flagged_with_clear_outcome(self):
+        """Touch that stops shot toward own net is flagged as save."""
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, -3000.0, 100.0),
+                Vec3(0.0, -1200.0, 0.0),
+                []
+            ),
+            create_test_frame(
+                0.2,
+                Vec3(0.0, -2500.0, 100.0),
+                Vec3(0.0, 800.0, 0.0),
+                [create_test_player("p_blue", 0, Vec3(50.0, -2500.0, 17.0))]
+            )
+        ]
+
+        touches = detect_touches(frames)
+        assert len(touches) == 1
+        assert touches[0].outcome == "CLEAR"
+        assert touches[0].is_save is True
+
     def test_player_far_from_ball_no_touch(self):
         """Player far from ball doesn't create touch event."""
         frames = [
@@ -479,6 +502,91 @@ class TestTouchDetection:
         
         touches = detect_touches(frames)
         assert touches == []
+
+
+class TestChallengeDetection:
+    """Test detection of 50/50 challenge events."""
+
+    def test_basic_challenge_detection(self):
+        """Opposing sequential touches produce a challenge event."""
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("blue", 0, Vec3(0.0, -120.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(1200.0, 120.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                0.25,
+                Vec3(0.0, -80.0, 93.15),
+                Vec3(0.0, 600.0, 0.0),
+                [
+                    create_test_player("blue", 0, Vec3(0.0, -90.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(20.0, -60.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                0.6,
+                Vec3(0.0, 120.0, 93.15),
+                Vec3(0.0, 900.0, 0.0),
+                [
+                    create_test_player("blue", 0, Vec3(-200.0, 0.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, 130.0, 17.0)),
+                ],
+            ),
+        ]
+
+        touches = detect_touches(frames)
+        challenges = detect_challenge_events(frames, touches)
+        assert len(challenges) == 1
+
+        challenge = challenges[0]
+        assert challenge.first_player == "blue"
+        assert challenge.second_player == "orange"
+        assert challenge.first_team == "BLUE"
+        assert challenge.second_team == "ORANGE"
+        assert 0.0 <= challenge.risk_first <= 1.0
+        assert 0.0 <= challenge.risk_second <= 1.0
+
+    def test_neutral_challenge_with_immediate_retouch(self):
+        """Third touch quickly after contest marks the challenge neutral."""
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("blue", 0, Vec3(0.0, -100.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, 100.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                0.2,
+                Vec3(0.0, -60.0, 93.15),
+                Vec3(0.0, 500.0, 0.0),
+                [
+                    create_test_player("blue", 0, Vec3(0.0, -70.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, -40.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                0.35,
+                Vec3(0.0, -55.0, 93.15),
+                Vec3(0.0, -200.0, 0.0),
+                [
+                    create_test_player("blue", 0, Vec3(0.0, -65.0, 17.0)),
+                    create_test_player("orange", 1, Vec3(0.0, -45.0, 17.0)),
+                ],
+            ),
+        ]
+
+        touches = detect_touches(frames)
+        challenges = detect_challenge_events(frames, touches)
+        assert len(challenges) >= 1
+        assert any(ch.outcome == "NEUTRAL" for ch in challenges)
 
 
 class TestTimelineAggregation:
@@ -525,6 +633,40 @@ class TestTimelineAggregation:
         assert event.player_id == "p1"
         assert event.team == "BLUE"
         assert event.data["shot_speed_kph"] == 120.0
+
+    def test_shot_and_save_timeline_entries(self):
+        """Touches tagged as shot/save emit additional timeline markers."""
+        touch_shot = TouchEvent(
+            t=2.0,
+            frame=20,
+            player_id="shooter",
+            location=Vec3(0.0, 2000.0, 100.0),
+            ball_speed_kph=150.0,
+            outcome="SHOT",
+        )
+        touch_save = TouchEvent(
+            t=3.0,
+            frame=30,
+            player_id="saver",
+            location=Vec3(0.0, -3000.0, 100.0),
+            ball_speed_kph=80.0,
+            outcome="CLEAR",
+            is_save=True,
+        )
+
+        events = {
+            'goals': [],
+            'demos': [],
+            'kickoffs': [],
+            'boost_pickups': [],
+            'touches': [touch_shot, touch_save],
+            'challenges': [],
+        }
+
+        timeline = build_timeline(events)
+        event_types = [ev.type for ev in timeline]
+        assert "SHOT" in event_types
+        assert "SAVE" in event_types
     
     def test_same_timestamp_stable_sort(self):
         """Events with same timestamp sorted by type for stability."""

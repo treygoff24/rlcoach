@@ -6,7 +6,12 @@ for kickoff and touch events.
 """
 
 from rlcoach.normalize import build_timeline, measure_frame_rate
-from rlcoach.events import detect_kickoffs, detect_touches, build_timeline as build_events_timeline
+from rlcoach.events import (
+    detect_kickoffs,
+    detect_touches,
+    detect_challenge_events,
+    build_timeline as build_events_timeline,
+)
 from rlcoach.parser.types import Header, PlayerInfo
 
 
@@ -94,16 +99,23 @@ def test_normalization_and_events_from_rust_like_frames():
     # Detect events
     kos = detect_kickoffs(normalized, header)
     touches = detect_touches(normalized)
+    challenge_events = detect_challenge_events(normalized, touches)
 
     assert len(kos) >= 1
     assert len(touches) >= 1
+    assert kos[0].players  # enriched kickoff payload
+    assert isinstance(kos[0].players[0].get("boost_used"), float)
 
     # Timeline includes KICKOFF and TOUCH entries
     timeline = build_events_timeline({
+        "goals": [],
+        "demos": [],
         "kickoffs": kos,
+        "boost_pickups": [],
         "touches": touches,
+        "challenges": challenge_events,
     })
     kinds = [t.type for t in timeline]
     assert "KICKOFF" in kinds
     assert "TOUCH" in kinds
-
+    assert "SHOT" in kinds or "TOUCH" in kinds  # shot emission optional in synthetic data

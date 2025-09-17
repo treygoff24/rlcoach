@@ -36,7 +36,7 @@ def test_type_error_has_validator():
         "quality": {"parser": {"name": "x", "version": "1", "parsed_header": True, "parsed_network_data": True}, "warnings": []},
         "teams": {"blue": {"name": "BLUE", "score": 0, "players": []}, "orange": {"name": "ORANGE", "score": 0, "players": []}},
         "players": [],
-        "events": {"timeline": [], "goals": [], "demos": [], "kickoffs": [], "boost_pickups": [], "touches": []},
+        "events": {"timeline": [], "goals": [], "demos": [], "kickoffs": [], "boost_pickups": [], "touches": [], "challenges": []},
         "analysis": {"per_team": {"blue": {}, "orange": {}}, "per_player": {}, "coaching_insights": []},
     }
 
@@ -58,7 +58,7 @@ def test_schema_version_pattern_has_validator():
         "quality": {"parser": {"name": "x", "version": "1", "parsed_header": True, "parsed_network_data": True}, "warnings": []},
         "teams": {"blue": {"name": "BLUE", "score": 0, "players": []}, "orange": {"name": "ORANGE", "score": 0, "players": []}},
         "players": [],
-        "events": {"timeline": [], "goals": [], "demos": [], "kickoffs": [], "boost_pickups": [], "touches": []},
+        "events": {"timeline": [], "goals": [], "demos": [], "kickoffs": [], "boost_pickups": [], "touches": [], "challenges": []},
         "analysis": {"per_team": {"blue": {}, "orange": {}}, "per_player": {}, "coaching_insights": []},
     }
     try:

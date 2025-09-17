@@ -134,6 +134,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
+                "challenges": []
             },
             "analysis": {
                 "per_team": {
@@ -366,6 +367,7 @@ class TestSchemaValidation:
                     "kickoffs": [],
                     "boost_pickups": [],
                     "touches": [],
+                    "challenges": []
                 },
                 "analysis": {
                     "per_team": {
@@ -602,6 +604,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
+                "challenges": []
             },
             "analysis": {
                 "per_team": {
@@ -866,6 +869,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
+                "challenges": []
             },
             "analysis": {
                 "per_team": {
@@ -1089,6 +1093,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
+                "challenges": []
             },
             "analysis": {
                 "per_team": {
@@ -1325,6 +1330,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
+                "challenges": []
             },
             "analysis": {
                 "per_team": {
@@ -1565,6 +1571,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
+                "challenges": []
             },
             "analysis": {
                 "per_team": {
@@ -1814,6 +1821,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
+                "challenges": []
             },
             "analysis": {
                 "per_team": {

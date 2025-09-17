@@ -88,7 +88,7 @@
 
     "events": {
       "type": "object",
-      "required": ["timeline", "goals", "demos", "kickoffs", "boost_pickups", "touches"],
+      "required": ["timeline", "goals", "demos", "kickoffs", "boost_pickups", "touches", "challenges"],
       "properties": {
         "timeline": {
           "type": "array",
@@ -99,7 +99,8 @@
         "demos": { "type": "array", "items": { "$ref": "#/definitions/demoEvent" } },
         "kickoffs": { "type": "array", "items": { "$ref": "#/definitions/kickoffEvent" } },
         "boost_pickups": { "type": "array", "items": { "$ref": "#/definitions/boostPickupEvent" } },
-        "touches": { "type": "array", "items": { "$ref": "#/definitions/touchEvent" } }
+        "touches": { "type": "array", "items": { "$ref": "#/definitions/touchEvent" } },
+        "challenges": { "type": "array", "items": { "$ref": "#/definitions/challengeEvent" } }
       },
       "additionalProperties": false
     },
@@ -238,7 +239,9 @@
             }
           }
         },
-        "outcome": { "type": "string", "enum": ["FIRST_POSSESSION_BLUE","FIRST_POSSESSION_ORANGE","NEUTRAL","GOAL_AGAINST","GOAL_FOR"] }
+        "outcome": { "type": "string", "enum": ["FIRST_POSSESSION_BLUE","FIRST_POSSESSION_ORANGE","NEUTRAL","GOAL_AGAINST","GOAL_FOR"] },
+        "first_touch_player": { "type": ["string","null"] },
+        "time_to_first_touch": { "type": ["number","null"] }
       }
     },
 
@@ -264,6 +267,25 @@
         "location": { "$ref": "#/definitions/vec3" },
         "ball_speed_kph": { "type": "number" },
         "outcome": { "type": "string", "enum": ["SHOT","CLEAR","PASS","DRIBBLE","50","NEUTRAL"] }
+      }
+    },
+
+    "challengeEvent": {
+      "type": "object",
+      "required": ["t","first_player","second_player","first_team","second_team","outcome","location","depth_m","duration","risk_first","risk_second"],
+      "properties": {
+        "t": { "type": "number" },
+        "first_player": { "type": "string" },
+        "second_player": { "type": "string" },
+        "first_team": { "type": "string", "enum": ["BLUE","ORANGE"] },
+        "second_team": { "type": "string", "enum": ["BLUE","ORANGE"] },
+        "outcome": { "type": "string", "enum": ["WIN","LOSS","NEUTRAL"] },
+        "winner_team": { "type": ["string","null"], "enum": ["BLUE","ORANGE", null] },
+        "location": { "$ref": "#/definitions/vec3" },
+        "depth_m": { "type": "number" },
+        "duration": { "type": "number" },
+        "risk_first": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "risk_second": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
       }
     },
 

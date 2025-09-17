@@ -30,84 +30,706 @@
     "warnings": []
   },
   "teams": {
-    "blue": {"name": "BLUE", "score": 0, "players": ["player_0"]},
-    "orange": {"name": "ORANGE", "score": 0, "players": ["player_1"]}
+    "blue": {
+      "name": "BLUE",
+      "score": 0,
+      "players": [
+        "player_0"
+      ]
+    },
+    "orange": {
+      "name": "ORANGE",
+      "score": 0,
+      "players": [
+        "player_1"
+      ]
+    }
   },
   "players": [
-    {"player_id": "player_0", "display_name": "Alpha", "team": "BLUE", "platform_ids": {}, "camera": {}, "loadout": {}},
-    {"player_id": "player_1", "display_name": "Bravo", "team": "ORANGE", "platform_ids": {}, "camera": {}, "loadout": {}}
+    {
+      "player_id": "player_0",
+      "display_name": "Alpha",
+      "team": "BLUE",
+      "platform_ids": {},
+      "camera": {},
+      "loadout": {}
+    },
+    {
+      "player_id": "player_1",
+      "display_name": "Bravo",
+      "team": "ORANGE",
+      "platform_ids": {},
+      "camera": {},
+      "loadout": {}
+    }
   ],
   "events": {
     "timeline": [
-      {"t": 0.0, "type": "KICKOFF", "data": {"phase": "INITIAL", "players": [{"player_id": "A", "role": "GO", "boost_used": 0.0, "approach_type": "UNKNOWN", "time_to_first_touch": null}, {"player_id": "B", "role": "BACK", "boost_used": 0.0, "approach_type": "UNKNOWN", "time_to_first_touch": null}], "outcome": "NEUTRAL"}},
-      {"t": 1.1, "frame": 2, "type": "TOUCH", "player_id": "A", "data": {"location": {"x": 0.0, "y": 160.0, "z": 17.0}, "ball_speed_kph": 3240.0, "outcome": "PASS"}}
+      {
+        "t": 0.0,
+        "type": "KICKOFF",
+        "data": {
+          "phase": "INITIAL",
+          "players": [
+            {
+              "player_id": "A",
+              "role": "GO",
+              "boost_used": 0.0,
+              "approach_type": "FAKE",
+              "time_to_first_touch": null
+            },
+            {
+              "player_id": "B",
+              "role": "GO",
+              "boost_used": 0.0,
+              "approach_type": "FAKE",
+              "time_to_first_touch": null
+            }
+          ],
+          "outcome": "NEUTRAL"
+        }
+      },
+      {
+        "t": 1.1,
+        "frame": 2,
+        "type": "TOUCH",
+        "player_id": "A",
+        "data": {
+          "location": {
+            "x": 0.0,
+            "y": 160.0,
+            "z": 17.0
+          },
+          "ball_speed_kph": 3240.0,
+          "outcome": "PASS"
+        }
+      }
     ],
     "goals": [],
     "demos": [],
     "kickoffs": [
-      {"phase": "INITIAL", "t_start": 0.0, "players": [{"player_id": "A", "role": "GO", "boost_used": 0.0, "approach_type": "UNKNOWN", "time_to_first_touch": null}, {"player_id": "B", "role": "BACK", "boost_used": 0.0, "approach_type": "UNKNOWN", "time_to_first_touch": null}], "outcome": "NEUTRAL"}
+      {
+        "phase": "INITIAL",
+        "t_start": 0.0,
+        "players": [
+          {
+            "player_id": "A",
+            "role": "GO",
+            "boost_used": 0.0,
+            "approach_type": "FAKE",
+            "time_to_first_touch": null
+          },
+          {
+            "player_id": "B",
+            "role": "GO",
+            "boost_used": 0.0,
+            "approach_type": "FAKE",
+            "time_to_first_touch": null
+          }
+        ],
+        "outcome": "NEUTRAL",
+        "first_touch_player": null,
+        "time_to_first_touch": null
+      }
     ],
     "boost_pickups": [],
     "touches": [
-      {"t": 1.1, "frame": 2, "player_id": "A", "location": {"x": 0.0, "y": 160.0, "z": 17.0}, "ball_speed_kph": 3240.0, "outcome": "PASS"}
-    ]
+      {
+        "t": 1.1,
+        "player_id": "A",
+        "location": {
+          "x": 0.0,
+          "y": 160.0,
+          "z": 17.0
+        },
+        "frame": 2,
+        "ball_speed_kph": 3240.0,
+        "outcome": "PASS",
+        "is_save": false
+      }
+    ],
+    "challenges": []
   },
   "analysis": {
     "per_team": {
       "blue": {
-        "fundamentals": {"goals": 0, "assists": 0, "shots": 0, "saves": 0, "demos_inflicted": 0, "demos_taken": 0, "score": 0, "shooting_percentage": 0.0},
-        "boost": {"bpm": 0.0, "bcpm": 0.0, "avg_boost": 50.0, "time_zero_boost_s": 0.0, "time_hundred_boost_s": 0.0, "amount_collected": 0.0, "amount_stolen": 0.0, "big_pads": 0, "small_pads": 0, "stolen_big_pads": 0, "stolen_small_pads": 0, "overfill": 0.0, "waste": 0.0},
-        "movement": {"avg_speed_kph": 0.0, "time_slow_s": 1.2, "time_boost_speed_s": 0.0, "time_supersonic_s": 0.0, "time_ground_s": 1.2, "time_low_air_s": 0.0, "time_high_air_s": 0.0, "powerslide_count": 0, "powerslide_duration_s": 0.0, "aerial_count": 0, "aerial_time_s": 0.0},
-        "positioning": {"time_offensive_half_s": 0.1, "time_defensive_half_s": 1.1, "time_offensive_third_s": 0.0, "time_middle_third_s": 1.2, "time_defensive_third_s": 0.0, "behind_ball_pct": 66.67, "ahead_ball_pct": 0.0, "avg_distance_to_ball_m": 4.02, "avg_distance_to_teammate_m": 0.0, "first_man_pct": 100.0, "second_man_pct": 0.0, "third_man_pct": 0.0},
-        "passing": {"passes_completed": 0, "passes_attempted": 0, "passes_received": 0, "turnovers": 0, "give_and_go_count": 0, "possession_time_s": 0.1},
-        "challenges": {"contests": 0, "wins": 0, "losses": 0, "neutral": 0, "first_to_ball_pct": 0.0, "challenge_depth_m": 0.0, "risk_index_avg": 0.0},
-        "kickoffs": {"count": 1, "first_possession": 0, "neutral": 1, "goals_for": 0, "goals_against": 0, "avg_time_to_first_touch_s": 0.0, "approach_types": {"STANDARD": 0, "SPEEDFLIP": 0, "FAKE": 0, "DELAY": 0, "UNKNOWN": 1}}
+        "fundamentals": {
+          "goals": 0,
+          "assists": 0,
+          "shots": 0,
+          "saves": 0,
+          "demos_inflicted": 0,
+          "demos_taken": 0,
+          "score": 0,
+          "shooting_percentage": 0.0
+        },
+        "boost": {
+          "bpm": 0.0,
+          "bcpm": 0.0,
+          "avg_boost": 50.0,
+          "time_zero_boost_s": 0.0,
+          "time_hundred_boost_s": 0.0,
+          "amount_collected": 0.0,
+          "amount_stolen": 0.0,
+          "big_pads": 0,
+          "small_pads": 0,
+          "stolen_big_pads": 0,
+          "stolen_small_pads": 0,
+          "overfill": 0.0,
+          "waste": 0.0
+        },
+        "movement": {
+          "avg_speed_kph": 0.0,
+          "time_slow_s": 1.2,
+          "time_boost_speed_s": 0.0,
+          "time_supersonic_s": 0.0,
+          "time_ground_s": 1.2,
+          "time_low_air_s": 0.0,
+          "time_high_air_s": 0.0,
+          "powerslide_count": 0,
+          "powerslide_duration_s": 0.0,
+          "aerial_count": 0,
+          "aerial_time_s": 0.0
+        },
+        "positioning": {
+          "time_offensive_half_s": 0.1,
+          "time_defensive_half_s": 1.1,
+          "time_offensive_third_s": 0.0,
+          "time_middle_third_s": 1.2,
+          "time_defensive_third_s": 0.0,
+          "behind_ball_pct": 66.67,
+          "ahead_ball_pct": 0.0,
+          "avg_distance_to_ball_m": 4.02,
+          "avg_distance_to_teammate_m": 0.0,
+          "first_man_pct": 100.0,
+          "second_man_pct": 0.0,
+          "third_man_pct": 0.0
+        },
+        "passing": {
+          "passes_completed": 0,
+          "passes_attempted": 0,
+          "passes_received": 0,
+          "turnovers": 0,
+          "give_and_go_count": 0,
+          "possession_time_s": 0.1
+        },
+        "challenges": {
+          "contests": 0,
+          "wins": 0,
+          "losses": 0,
+          "neutral": 0,
+          "first_to_ball_pct": 0.0,
+          "challenge_depth_m": 0.0,
+          "risk_index_avg": 0.0
+        },
+        "kickoffs": {
+          "count": 1,
+          "first_possession": 0,
+          "neutral": 1,
+          "goals_for": 0,
+          "goals_against": 0,
+          "avg_time_to_first_touch_s": 0.0,
+          "approach_types": {
+            "STANDARD": 0,
+            "SPEEDFLIP": 0,
+            "FAKE": 1,
+            "DELAY": 0,
+            "UNKNOWN": 0
+          }
+        }
       },
       "orange": {
-        "fundamentals": {"goals": 0, "assists": 0, "shots": 0, "saves": 0, "demos_inflicted": 0, "demos_taken": 0, "score": 0, "shooting_percentage": 0.0},
-        "boost": {"bpm": 0.0, "bcpm": 0.0, "avg_boost": 50.0, "time_zero_boost_s": 0.0, "time_hundred_boost_s": 0.0, "amount_collected": 0.0, "amount_stolen": 0.0, "big_pads": 0, "small_pads": 0, "stolen_big_pads": 0, "stolen_small_pads": 0, "overfill": 0.0, "waste": 0.0},
-        "movement": {"avg_speed_kph": 0.0, "time_slow_s": 1.2, "time_boost_speed_s": 0.0, "time_supersonic_s": 0.0, "time_ground_s": 1.2, "time_low_air_s": 0.0, "time_high_air_s": 0.0, "powerslide_count": 0, "powerslide_duration_s": 0.0, "aerial_count": 0, "aerial_time_s": 0.0},
-        "positioning": {"time_offensive_half_s": 0.0, "time_defensive_half_s": 1.2, "time_offensive_third_s": 0.0, "time_middle_third_s": 1.2, "time_defensive_third_s": 0.0, "behind_ball_pct": 100.0, "ahead_ball_pct": 0.0, "avg_distance_to_ball_m": 9.13, "avg_distance_to_teammate_m": 0.0, "first_man_pct": 100.0, "second_man_pct": 0.0, "third_man_pct": 0.0},
-        "passing": {"passes_completed": 0, "passes_attempted": 0, "passes_received": 0, "turnovers": 0, "give_and_go_count": 0, "possession_time_s": 0.0},
-        "challenges": {"contests": 0, "wins": 0, "losses": 0, "neutral": 0, "first_to_ball_pct": 0.0, "challenge_depth_m": 0.0, "risk_index_avg": 0.0},
-        "kickoffs": {"count": 1, "first_possession": 0, "neutral": 1, "goals_for": 0, "goals_against": 0, "avg_time_to_first_touch_s": 0.0, "approach_types": {"STANDARD": 0, "SPEEDFLIP": 0, "FAKE": 0, "DELAY": 0, "UNKNOWN": 1}}
+        "fundamentals": {
+          "goals": 0,
+          "assists": 0,
+          "shots": 0,
+          "saves": 0,
+          "demos_inflicted": 0,
+          "demos_taken": 0,
+          "score": 0,
+          "shooting_percentage": 0.0
+        },
+        "boost": {
+          "bpm": 0.0,
+          "bcpm": 0.0,
+          "avg_boost": 50.0,
+          "time_zero_boost_s": 0.0,
+          "time_hundred_boost_s": 0.0,
+          "amount_collected": 0.0,
+          "amount_stolen": 0.0,
+          "big_pads": 0,
+          "small_pads": 0,
+          "stolen_big_pads": 0,
+          "stolen_small_pads": 0,
+          "overfill": 0.0,
+          "waste": 0.0
+        },
+        "movement": {
+          "avg_speed_kph": 0.0,
+          "time_slow_s": 1.2,
+          "time_boost_speed_s": 0.0,
+          "time_supersonic_s": 0.0,
+          "time_ground_s": 1.2,
+          "time_low_air_s": 0.0,
+          "time_high_air_s": 0.0,
+          "powerslide_count": 0,
+          "powerslide_duration_s": 0.0,
+          "aerial_count": 0,
+          "aerial_time_s": 0.0
+        },
+        "positioning": {
+          "time_offensive_half_s": 0.0,
+          "time_defensive_half_s": 1.2,
+          "time_offensive_third_s": 0.0,
+          "time_middle_third_s": 1.2,
+          "time_defensive_third_s": 0.0,
+          "behind_ball_pct": 100.0,
+          "ahead_ball_pct": 0.0,
+          "avg_distance_to_ball_m": 9.13,
+          "avg_distance_to_teammate_m": 0.0,
+          "first_man_pct": 100.0,
+          "second_man_pct": 0.0,
+          "third_man_pct": 0.0
+        },
+        "passing": {
+          "passes_completed": 0,
+          "passes_attempted": 0,
+          "passes_received": 0,
+          "turnovers": 0,
+          "give_and_go_count": 0,
+          "possession_time_s": 0.0
+        },
+        "challenges": {
+          "contests": 0,
+          "wins": 0,
+          "losses": 0,
+          "neutral": 0,
+          "first_to_ball_pct": 0.0,
+          "challenge_depth_m": 0.0,
+          "risk_index_avg": 0.0
+        },
+        "kickoffs": {
+          "count": 1,
+          "first_possession": 0,
+          "neutral": 1,
+          "goals_for": 0,
+          "goals_against": 0,
+          "avg_time_to_first_touch_s": 0.0,
+          "approach_types": {
+            "STANDARD": 0,
+            "SPEEDFLIP": 0,
+            "FAKE": 1,
+            "DELAY": 0,
+            "UNKNOWN": 0
+          }
+        }
       }
     },
     "per_player": {
       "A": {
         "player_id": "A",
-        "fundamentals": {"goals": 0, "assists": 0, "shots": 0, "saves": 0, "demos_inflicted": 0, "demos_taken": 0, "score": 0, "shooting_percentage": 0.0},
-        "boost": {"bpm": 0.0, "bcpm": 0.0, "avg_boost": 50.0, "time_zero_boost_s": 0.0, "time_hundred_boost_s": 0.0, "amount_collected": 0.0, "amount_stolen": 0.0, "big_pads": 0, "small_pads": 0, "stolen_big_pads": 0, "stolen_small_pads": 0, "overfill": 0.0, "waste": 0.0},
-        "movement": {"avg_speed_kph": 0.0, "time_slow_s": 1.2, "time_boost_speed_s": 0.0, "time_supersonic_s": 0.0, "time_ground_s": 1.2, "time_low_air_s": 0.0, "time_high_air_s": 0.0, "powerslide_count": 0, "powerslide_duration_s": 0.0, "aerial_count": 0, "aerial_time_s": 0.0},
-        "positioning": {"time_offensive_half_s": 0.1, "time_defensive_half_s": 1.1, "time_offensive_third_s": 0.0, "time_middle_third_s": 1.2, "time_defensive_third_s": 0.0, "behind_ball_pct": 66.67, "ahead_ball_pct": 0.0, "avg_distance_to_ball_m": 4.02, "avg_distance_to_teammate_m": 0.0, "first_man_pct": 100.0, "second_man_pct": 0.0, "third_man_pct": 0.0},
-        "passing": {"passes_completed": 0, "passes_attempted": 0, "passes_received": 0, "turnovers": 0, "give_and_go_count": 0, "possession_time_s": 0.1},
-        "challenges": {"contests": 0, "wins": 0, "losses": 0, "neutral": 0, "first_to_ball_pct": 0.0, "challenge_depth_m": 0.0, "risk_index_avg": 0.0},
-        "kickoffs": {"count": 1, "first_possession": 0, "neutral": 1, "goals_for": 0, "goals_against": 0, "avg_time_to_first_touch_s": 0.0, "approach_types": {"STANDARD": 0, "SPEEDFLIP": 0, "FAKE": 0, "DELAY": 0, "UNKNOWN": 1}},
+        "fundamentals": {
+          "goals": 0,
+          "assists": 0,
+          "shots": 0,
+          "saves": 0,
+          "demos_inflicted": 0,
+          "demos_taken": 0,
+          "score": 0,
+          "shooting_percentage": 0.0
+        },
+        "boost": {
+          "bpm": 0.0,
+          "bcpm": 0.0,
+          "avg_boost": 50.0,
+          "time_zero_boost_s": 0.0,
+          "time_hundred_boost_s": 0.0,
+          "amount_collected": 0.0,
+          "amount_stolen": 0.0,
+          "big_pads": 0,
+          "small_pads": 0,
+          "stolen_big_pads": 0,
+          "stolen_small_pads": 0,
+          "overfill": 0.0,
+          "waste": 0.0
+        },
+        "movement": {
+          "avg_speed_kph": 0.0,
+          "time_slow_s": 1.2,
+          "time_boost_speed_s": 0.0,
+          "time_supersonic_s": 0.0,
+          "time_ground_s": 1.2,
+          "time_low_air_s": 0.0,
+          "time_high_air_s": 0.0,
+          "powerslide_count": 0,
+          "powerslide_duration_s": 0.0,
+          "aerial_count": 0,
+          "aerial_time_s": 0.0
+        },
+        "positioning": {
+          "time_offensive_half_s": 0.1,
+          "time_defensive_half_s": 1.1,
+          "time_offensive_third_s": 0.0,
+          "time_middle_third_s": 1.2,
+          "time_defensive_third_s": 0.0,
+          "behind_ball_pct": 66.67,
+          "ahead_ball_pct": 0.0,
+          "avg_distance_to_ball_m": 4.02,
+          "avg_distance_to_teammate_m": 0.0,
+          "first_man_pct": 100.0,
+          "second_man_pct": 0.0,
+          "third_man_pct": 0.0
+        },
+        "passing": {
+          "passes_completed": 0,
+          "passes_attempted": 0,
+          "passes_received": 0,
+          "turnovers": 0,
+          "give_and_go_count": 0,
+          "possession_time_s": 0.1
+        },
+        "challenges": {
+          "contests": 0,
+          "wins": 0,
+          "losses": 0,
+          "neutral": 0,
+          "first_to_ball_pct": 0.0,
+          "challenge_depth_m": 0.0,
+          "risk_index_avg": 0.0
+        },
+        "kickoffs": {
+          "count": 1,
+          "first_possession": 0,
+          "neutral": 1,
+          "goals_for": 0,
+          "goals_against": 0,
+          "avg_time_to_first_touch_s": 0.0,
+          "approach_types": {
+            "STANDARD": 0,
+            "SPEEDFLIP": 0,
+            "FAKE": 1,
+            "DELAY": 0,
+            "UNKNOWN": 0
+          }
+        },
         "heatmaps": {
-          "position_occupancy_grid": {"x_bins": 4, "y_bins": 4, "extent": {"xmin": -1.0, "xmax": 1.0, "ymin": -1.0, "ymax": 1.0}, "values": [[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]]},
-          "touch_density_grid": {"x_bins": 4, "y_bins": 4, "extent": {"xmin": -1.0, "xmax": 1.0, "ymin": -1.0, "ymax": 1.0}, "values": [[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]]},
-          "boost_pickup_grid": {"x_bins": 4, "y_bins": 4, "extent": {"xmin": -1.0, "xmax": 1.0, "ymin": -1.0, "ymax": 1.0}, "values": [[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]]},
+          "position_occupancy_grid": {
+            "x_bins": 4,
+            "y_bins": 4,
+            "extent": {
+              "xmin": -1.0,
+              "xmax": 1.0,
+              "ymin": -1.0,
+              "ymax": 1.0
+            },
+            "values": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          "touch_density_grid": {
+            "x_bins": 4,
+            "y_bins": 4,
+            "extent": {
+              "xmin": -1.0,
+              "xmax": 1.0,
+              "ymin": -1.0,
+              "ymax": 1.0
+            },
+            "values": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          "boost_pickup_grid": {
+            "x_bins": 4,
+            "y_bins": 4,
+            "extent": {
+              "xmin": -1.0,
+              "xmax": 1.0,
+              "ymin": -1.0,
+              "ymax": 1.0
+            },
+            "values": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
           "boost_usage_grid": null
         },
-        "rotation_compliance": {"score_0_to_100": 100.0, "flags": []},
+        "rotation_compliance": {
+          "score_0_to_100": 100.0,
+          "flags": []
+        },
         "insights": []
       },
       "B": {
         "player_id": "B",
-        "fundamentals": {"goals": 0, "assists": 0, "shots": 0, "saves": 0, "demos_inflicted": 0, "demos_taken": 0, "score": 0, "shooting_percentage": 0.0},
-        "boost": {"bpm": 0.0, "bcpm": 0.0, "avg_boost": 50.0, "time_zero_boost_s": 0.0, "time_hundred_boost_s": 0.0, "amount_collected": 0.0, "amount_stolen": 0.0, "big_pads": 0, "small_pads": 0, "stolen_big_pads": 0, "stolen_small_pads": 0, "overfill": 0.0, "waste": 0.0},
-        "movement": {"avg_speed_kph": 0.0, "time_slow_s": 1.2, "time_boost_speed_s": 0.0, "time_supersonic_s": 0.0, "time_ground_s": 1.2, "time_low_air_s": 0.0, "time_high_air_s": 0.0, "powerslide_count": 0, "powerslide_duration_s": 0.0, "aerial_count": 0, "aerial_time_s": 0.0},
-        "positioning": {"time_offensive_half_s": 0.0, "time_defensive_half_s": 1.2, "time_offensive_third_s": 0.0, "time_middle_third_s": 1.2, "time_defensive_third_s": 0.0, "behind_ball_pct": 100.0, "ahead_ball_pct": 0.0, "avg_distance_to_ball_m": 9.13, "avg_distance_to_teammate_m": 0.0, "first_man_pct": 100.0, "second_man_pct": 0.0, "third_man_pct": 0.0},
-        "passing": {"passes_completed": 0, "passes_attempted": 0, "passes_received": 0, "turnovers": 0, "give_and_go_count": 0, "possession_time_s": 0.0},
-        "challenges": {"contests": 0, "wins": 0, "losses": 0, "neutral": 0, "first_to_ball_pct": 0.0, "challenge_depth_m": 0.0, "risk_index_avg": 0.0},
-        "kickoffs": {"count": 1, "first_possession": 0, "neutral": 1, "goals_for": 0, "goals_against": 0, "avg_time_to_first_touch_s": 0.0, "approach_types": {"STANDARD": 0, "SPEEDFLIP": 0, "FAKE": 0, "DELAY": 0, "UNKNOWN": 1}},
+        "fundamentals": {
+          "goals": 0,
+          "assists": 0,
+          "shots": 0,
+          "saves": 0,
+          "demos_inflicted": 0,
+          "demos_taken": 0,
+          "score": 0,
+          "shooting_percentage": 0.0
+        },
+        "boost": {
+          "bpm": 0.0,
+          "bcpm": 0.0,
+          "avg_boost": 50.0,
+          "time_zero_boost_s": 0.0,
+          "time_hundred_boost_s": 0.0,
+          "amount_collected": 0.0,
+          "amount_stolen": 0.0,
+          "big_pads": 0,
+          "small_pads": 0,
+          "stolen_big_pads": 0,
+          "stolen_small_pads": 0,
+          "overfill": 0.0,
+          "waste": 0.0
+        },
+        "movement": {
+          "avg_speed_kph": 0.0,
+          "time_slow_s": 1.2,
+          "time_boost_speed_s": 0.0,
+          "time_supersonic_s": 0.0,
+          "time_ground_s": 1.2,
+          "time_low_air_s": 0.0,
+          "time_high_air_s": 0.0,
+          "powerslide_count": 0,
+          "powerslide_duration_s": 0.0,
+          "aerial_count": 0,
+          "aerial_time_s": 0.0
+        },
+        "positioning": {
+          "time_offensive_half_s": 0.0,
+          "time_defensive_half_s": 1.2,
+          "time_offensive_third_s": 0.0,
+          "time_middle_third_s": 1.2,
+          "time_defensive_third_s": 0.0,
+          "behind_ball_pct": 100.0,
+          "ahead_ball_pct": 0.0,
+          "avg_distance_to_ball_m": 9.13,
+          "avg_distance_to_teammate_m": 0.0,
+          "first_man_pct": 100.0,
+          "second_man_pct": 0.0,
+          "third_man_pct": 0.0
+        },
+        "passing": {
+          "passes_completed": 0,
+          "passes_attempted": 0,
+          "passes_received": 0,
+          "turnovers": 0,
+          "give_and_go_count": 0,
+          "possession_time_s": 0.0
+        },
+        "challenges": {
+          "contests": 0,
+          "wins": 0,
+          "losses": 0,
+          "neutral": 0,
+          "first_to_ball_pct": 0.0,
+          "challenge_depth_m": 0.0,
+          "risk_index_avg": 0.0
+        },
+        "kickoffs": {
+          "count": 1,
+          "first_possession": 0,
+          "neutral": 1,
+          "goals_for": 0,
+          "goals_against": 0,
+          "avg_time_to_first_touch_s": 0.0,
+          "approach_types": {
+            "STANDARD": 0,
+            "SPEEDFLIP": 0,
+            "FAKE": 1,
+            "DELAY": 0,
+            "UNKNOWN": 0
+          }
+        },
         "heatmaps": {
-          "position_occupancy_grid": {"x_bins": 4, "y_bins": 4, "extent": {"xmin": -1.0, "xmax": 1.0, "ymin": -1.0, "ymax": 1.0}, "values": [[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]]},
-          "touch_density_grid": {"x_bins": 4, "y_bins": 4, "extent": {"xmin": -1.0, "xmax": 1.0, "ymin": -1.0, "ymax": 1.0}, "values": [[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]]},
-          "boost_pickup_grid": {"x_bins": 4, "y_bins": 4, "extent": {"xmin": -1.0, "xmax": 1.0, "ymin": -1.0, "ymax": 1.0}, "values": [[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]]},
+          "position_occupancy_grid": {
+            "x_bins": 4,
+            "y_bins": 4,
+            "extent": {
+              "xmin": -1.0,
+              "xmax": 1.0,
+              "ymin": -1.0,
+              "ymax": 1.0
+            },
+            "values": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          "touch_density_grid": {
+            "x_bins": 4,
+            "y_bins": 4,
+            "extent": {
+              "xmin": -1.0,
+              "xmax": 1.0,
+              "ymin": -1.0,
+              "ymax": 1.0
+            },
+            "values": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          "boost_pickup_grid": {
+            "x_bins": 4,
+            "y_bins": 4,
+            "extent": {
+              "xmin": -1.0,
+              "xmax": 1.0,
+              "ymin": -1.0,
+              "ymax": 1.0
+            },
+            "values": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
           "boost_usage_grid": null
         },
-        "rotation_compliance": {"score_0_to_100": 100.0, "flags": []},
+        "rotation_compliance": {
+          "score_0_to_100": 100.0,
+          "flags": []
+        },
         "insights": []
       }
     },
