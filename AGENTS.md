@@ -1,37 +1,22 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `codex/Plans/` — single source of truth for scope. Start with `codex/Plans/rlcoach_implementation_plan.md` before proposing changes.
-- `codex/docs/` — design notes and workflow guides. Keep docs self‑contained; cross‑link related sections.
-- `codex/tickets/` — work items. Create from `TICKET_TEMPLATE.md` (e.g., `codex/tickets/2025-09-08-add-replay-parser.md`).
-- `codex/logs/` — engineering logs; date‑prefixed files (e.g., `2025-09-08-session.md`).
-- `src/` — future code; tests mirror under `tests/`. JSON schemas in `schemas/`. Large replays in `assets/replays/` (use Git LFS).
+Core logic resides in `src/rlcoach`, grouped by ingest, parsing, events, analysis, and reporting stages; mirror any new module with a counterpart under `tests/`. The Rust replay bridge lives in `parsers/rlreplay_rust` and is compiled alongside Python bindings. Planning docs stay in `codex/Plans/`—always review `codex/Plans/rlcoach_implementation_plan.md` before proposing scope changes. Use `codex/docs/` for design notes, `codex/logs/` for session journals, and `codex/tickets/` (kebab-case filenames) for work items. Large fixture replays belong in `assets/replays/` and must go through Git LFS; JSON schemas reside in `schemas/`.
 
 ## Build, Test, and Development Commands
-- `make install-dev` — install dev deps (pytest, ruff, black).
-- `make test` — run pytest quickly (`-q`).
-- `make fmt` — format code with Black (88 cols).
-- `make lint` — static checks via Ruff.
-- `make clean` — remove caches and build artifacts.
-- Docs helpers: `cp codex/tickets/TICKET_TEMPLATE.md codex/tickets/2025-09-08-short-title.md` and `cp codex/logs/LOG_TEMPLATE.md codex/logs/2025-09-08-yourname.md`.
+Run `make install-dev` on first setup to install Black, Ruff, pytest, and maturin helpers. `make test` (or `pytest -q`) executes the full suite; target focused files with `pytest tests/test_ingest.py -q` when iterating. Use `make fmt` for Black formatting and `make lint` for Ruff. Rebuild the Rust adapter with `make rust-dev` before validating parser changes, and `make clean` clears caches when test state drifts.
+
+## Markdown Report Generation
+Use `python -m rlcoach.cli report-md path/to/replay.replay --out out --pretty` to produce both the JSON schema payload and the Markdown dossier in one call. The command writes `<stem>.json` and `<stem>.md` atomically; the Markdown composer can still emit an error summary when parsing fails. Golden fixtures under `tests/goldens/*.md` illustrate the expected table layout.
 
 ## Coding Style & Naming Conventions
-- Markdown: Title Case headings; kebab‑case filenames (e.g., `gpt5-agentic-workflow-guide.md`).
-- JSON: 2‑space indent, snake_case keys, deterministic field order; include minimal examples.
-- Python: modules/functions `snake_case`, types `PascalCase`; favor small, pure functions.
-- Tooling: Black + Ruff; keep patches minimal and focused.
+Python code follows Black (88 columns) and Ruff defaults; prefer compact, pure functions and explicit return types. Modules, functions, and variables use `snake_case`; classes use `PascalCase`; constants are upper snake. Markdown headings are Title Case and files use kebab-case. JSON artifacts use 2-space indentation, snake_case keys, and deterministic field ordering—include minimal, real-sample payloads in docs.
 
 ## Testing Guidelines
-- Framework: pytest; name tests `test_*.py` and mirror `src/` paths.
-- Targets: ≥80% coverage for analyzers and schema validators.
-- Fixtures: keep small; store sample replays in `assets/replays/`.
-- Run: `make test` or `pytest -q`. Include one happy path and one degraded/fallback case per feature.
+All tests run under pytest; name files `test_*.py` mirroring the `src/` tree. Provide both successful and degraded scenarios (e.g., header-only fallback) for new analyzers or ingest paths. Maintain ≥80% coverage for analyzers and schema validators, and store shared replay fixtures in `assets/replays/`.
 
 ## Commit & Pull Request Guidelines
-- Conventional Commits (e.g., `feat(parser): add header-only fallback`).
-- One logical change per PR; include rationale and before/after artifacts (e.g., sample JSON).
-- Link tickets (e.g., `Relates-to: codex/tickets/2025-09-08-add-replay-parser.md`). Update docs/schemas alongside code.
+Use Conventional Commits such as `feat(parser): add kickoff outcomes`. Keep each PR focused, document rationale and before/after JSON snippets, and link tickets with `Relates-to: codex/tickets/yyyy-mm-dd-title.md`. Update related docs and schemas alongside code, and include `make test` results in the PR description.
 
 ## Security & Agent Notes
-- All‑local analysis; avoid network calls in core analyzers. Do not commit large or sensitive replays; use Git LFS for big assets.
-- For Codex CLI agents: read `codex/Plans/rlcoach_implementation_plan.md` first, update plans as you work, prefer targeted tests over broad refactors, and avoid unrelated reformatting.
+Analysis stays fully local—avoid remote calls in parsers or analyzers. Do not commit raw ladder replays; reference Git LFS pointers instead. Codex CLI agents must log progress in `codex/logs/`, refresh the active plan if scope shifts, and prefer targeted tests over broad refactors to match repository expectations.

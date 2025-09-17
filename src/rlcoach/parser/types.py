@@ -21,6 +21,9 @@ class PlayerInfo:
     platform_id: str | None = None
     team: int | None = None  # 0 or 1
     score: int = 0
+    platform_ids: dict[str, str] = field(default_factory=dict)
+    camera_settings: dict[str, float | int] | None = None
+    loadout: dict[str, int | str | float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,7 @@ class Header:
 
     # Goals from header (not full event list; minimal info)
     goals: list["GoalHeader"] = field(default_factory=list)
+    highlights: list["Highlight"] = field(default_factory=list)
 
     # Quality and warnings
     quality_warnings: list[str] = field(default_factory=list)
@@ -73,6 +77,15 @@ class GoalHeader:
     frame: int | None = None
     player_name: str | None = None
     player_team: int | None = None
+
+
+@dataclass(frozen=True)
+class Highlight:
+    """Replay highlight tick mark information."""
+
+    frame: int | None = None
+    ball_name: str | None = None
+    car_name: str | None = None
 
 
 @dataclass(frozen=True)

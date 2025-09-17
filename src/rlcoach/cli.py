@@ -9,6 +9,7 @@ from . import __version__
 from .errors import RLCoachError
 from .ingest import ingest_replay
 from .report import generate_report, write_report_atomically
+from .report_markdown import write_markdown
 
 
 def handle_ingest_command(args) -> int:
@@ -138,6 +139,35 @@ def main() -> int:
         help="Pretty-print JSON output",
     )
 
+    report_md_parser = subparsers.add_parser(
+        "report-md",
+        help="Analyze a replay and emit both JSON and Markdown dossiers",
+    )
+    report_md_parser.add_argument("replay_file", type=str, help="Path to the .replay file")
+    report_md_parser.add_argument(
+        "--header-only",
+        action="store_true",
+        help="Use header-only mode (no network parsing)",
+    )
+    report_md_parser.add_argument(
+        "--adapter",
+        type=str,
+        choices=["rust", "null"],
+        default="rust",
+        help="Parser adapter to use (default: rust)",
+    )
+    report_md_parser.add_argument(
+        "--out",
+        type=str,
+        default="out",
+        help="Directory where JSON and Markdown reports will be written (default: out)",
+    )
+    report_md_parser.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty-print JSON output",
+    )
+
     args = parser.parse_args()
 
     # Route to appropriate handler
@@ -170,6 +200,32 @@ def main() -> int:
 
         # Print path for convenience
         print(str(out_file))
+        return 0 if not is_error else 1
+    elif args.command == "report-md":
+        replay_path = Path(args.replay_file)
+        report = generate_report(replay_path, header_only=args.header_only, adapter_name=args.adapter)
+
+        out_dir = Path(args.out)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        json_path = out_dir / (replay_path.stem + ".json")
+        markdown_path = out_dir / (replay_path.stem + ".md")
+
+        is_error = "error" in report
+
+        if not is_error:
+            try:
+                from .schema import validate_report
+
+                validate_report(report)
+            except Exception as e:
+                print(f"Validation failed: {e}", file=sys.stderr)
+                return 1
+
+        write_report_atomically(report, json_path, pretty=args.pretty)
+        write_markdown(report, markdown_path)
+
+        print(f"JSON: {json_path}")
+        print(f"Markdown: {markdown_path}")
         return 0 if not is_error else 1
     else:
         # No subcommand provided, show help

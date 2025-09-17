@@ -1,10 +1,9 @@
 """Tests for the replay ingestion and validation module."""
 
 import hashlib
-import json
+import struct
 import tempfile
 from pathlib import Path
-from unittest import mock
 
 import pytest
 
@@ -20,6 +19,7 @@ from rlcoach.ingest import (
     MAX_REPLAY_SIZE,
     MIN_REPLAY_SIZE,
     REPLAY_MAGIC_SEQUENCES,
+    _calc_replay_crc,
     basic_format_check,
     bounds_check,
     crc_check_header,
@@ -28,6 +28,56 @@ from rlcoach.ingest import (
     ingest_replay,
     read_replay_bytes,
 )
+
+
+def _encode_text(value: str) -> bytes:
+    data = value.encode("windows-1252")
+    return struct.pack("<i", len(data) + 1) + data + b"\x00"
+
+
+def _encode_str(value: str) -> bytes:
+    data = value.encode("utf-8")
+    return struct.pack("<i", len(data) + 1) + data + b"\x00"
+
+
+def build_minimal_replay(
+    *,
+    major: int = 868,
+    minor: int = 23,
+    net_version: int | None = None,
+    include_magic: bool = True,
+    content_payload: bytes = b"",
+    pad_to_min_size: bool = True,
+) -> bytes:
+    """Construct a minimal, CRC-valid Rocket League replay payload for tests."""
+
+    header_parts = [
+        struct.pack("<i", major),
+        struct.pack("<i", minor),
+    ]
+
+    if net_version is not None:
+        header_parts.append(struct.pack("<i", net_version))
+
+    game_type = "TAGame.Replay_Soccar_TA" if include_magic else "UNKNOWN.REPLAY"
+    header_parts.append(_encode_text(game_type))
+    # Terminate property list immediately
+    header_parts.append(_encode_str("None"))
+
+    header_bytes = b"".join(header_parts)
+    header_crc = _calc_replay_crc(header_bytes)
+
+    content_crc = _calc_replay_crc(content_payload)
+
+    replay_bytes = (
+        struct.pack("<iI", len(header_bytes), header_crc)
+        + header_bytes
+        + struct.pack("<iI", len(content_payload), content_crc)
+        + content_payload
+    )
+    if pad_to_min_size and len(replay_bytes) < MIN_REPLAY_SIZE:
+        replay_bytes += b"\x00" * (MIN_REPLAY_SIZE - len(replay_bytes))
+    return replay_bytes
 
 
 class TestFileSize:
@@ -138,26 +188,44 @@ class TestCRCCheck:
     def test_crc_check_too_short(self):
         """Test CRC check with too short data."""
         data = b"short"
-        valid, message = crc_check_header(data)
+        valid, message, _ = crc_check_header(data)
         assert valid is False
-        assert "too short" in message.lower()
+        assert "truncated" in message.lower()
 
     def test_crc_check_valid_format(self):
         """Test CRC check with valid replay format."""
-        # Create data that passes format check
-        magic = REPLAY_MAGIC_SEQUENCES[0]
-        data = b"\x00" * 100 + magic + b"\x00" * 1000
+        data = build_minimal_replay()
 
-        valid, message = crc_check_header(data)
+        valid, message, details = crc_check_header(data)
         assert valid is True
-        assert "not yet implemented" in message.lower()
+        assert "passed" in message.lower()
+        versions = details["versions"]
+        assert versions["major"] == 868
+        assert versions["minor"] == 23
+        assert details["header"]["passed"] is True
+        assert details["content"]["passed"] is True
 
     def test_crc_check_invalid_format(self):
         """Test CRC check with invalid format."""
         data = b"This is text data" + b"\x00" * 200
-        valid, message = crc_check_header(data)
+        valid, message, _ = crc_check_header(data)
         assert valid is False
-        assert "cannot validate crc" in message.lower()
+        assert "trunc" in message.lower()
+
+    def test_crc_check_content_mismatch(self):
+        """CRC check should fail when content payload is tampered."""
+        data = bytearray(build_minimal_replay(content_payload=b"abc", pad_to_min_size=False))
+        header_size = struct.unpack_from("<i", data, 0)[0]
+        header_total = 8 + header_size
+        content_size = struct.unpack_from("<i", data, header_total)[0]
+        assert content_size > 0
+        content_start = header_total + 8
+        data[content_start] ^= 0xFF  # Flip byte within content to force mismatch
+
+        valid, message, details = crc_check_header(bytes(data))
+        assert not valid
+        assert "content crc mismatch" in message.lower()
+        assert details["content"]["passed"] is False
 
 
 class TestFileSHA256:
@@ -276,23 +344,19 @@ class TestIngestReplay:
     """Tests for the main ingest_replay function."""
 
     def create_test_replay(
-        self, size: int = 15000, include_magic: bool = True
+        self,
+        *,
+        include_magic: bool = True,
+        content_payload: bytes = b"",
+        major: int = 868,
+        minor: int = 23,
     ) -> bytes:
-        """Create test replay data with specified characteristics."""
-        if include_magic:
-            magic = REPLAY_MAGIC_SEQUENCES[0]
-            # Put magic sequence somewhere in first 2KB
-            header_size = min(1000, size // 2)
-            content = b"\x00" * header_size + magic
-            remaining = size - len(content)
-            if remaining > 0:
-                content += b"\x00" * remaining
-        else:
-            # Binary data without magic (still binary, not text)
-            content = bytes(range(256)) * ((size // 256) + 1)
-            content = content[:size]
-
-        return content
+        return build_minimal_replay(
+            major=major,
+            minor=minor,
+            include_magic=include_magic,
+            content_payload=content_payload,
+        )
 
     def test_ingest_replay_success(self):
         """Test successful replay ingestion."""
@@ -320,8 +384,12 @@ class TestIngestReplay:
                 # Check format check
                 assert result["format_check"]["passed"] is True
 
-                # Check CRC check (stub)
+                # Check CRC check
                 assert result["crc_check"]["passed"] is True
+                assert result["crc_check"]["details"]["header"]["passed"] is True
+                assert result["crc_check"]["details"]["content"]["passed"] is True
+                assert result["header_versions"]["major"] == 868
+                assert result["header_versions"]["minor"] == 23
 
                 # Should have no warnings for valid file
                 assert result["warnings"] == []
@@ -329,10 +397,11 @@ class TestIngestReplay:
             finally:
                 tmp_path.unlink()
 
-    def test_ingest_replay_with_warnings(self):
-        """Test replay ingestion with warnings."""
-        # Create replay that passes format but might have CRC issues
-        content = self.create_test_replay()
+    def test_ingest_replay_crc_failure(self):
+        """Replay ingestion should raise when CRC validation fails."""
+        content = bytearray(self.create_test_replay(content_payload=b"payload"))
+        # Corrupt the stored header CRC (but not the header payload) to trigger mismatch
+        content[4] ^= 0xFF
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".replay") as tmp:
             tmp.write(content)
@@ -340,18 +409,10 @@ class TestIngestReplay:
 
             tmp_path = Path(tmp.name)
             try:
-                # Mock the CRC check to return failure
-                with mock.patch("rlcoach.ingest.crc_check_header") as mock_crc:
-                    mock_crc.return_value = (False, "Mock CRC failure")
+                with pytest.raises(CRCValidationError) as exc_info:
+                    ingest_replay(tmp_path)
 
-                    result = ingest_replay(tmp_path)
-
-                    assert (
-                        result["status"] == "success"
-                    )  # Still success if format is OK
-                    assert len(result["warnings"]) > 0
-                    assert "CRC validation issue" in result["warnings"][0]
-
+                assert exc_info.value.details["section"] == "header"
             finally:
                 tmp_path.unlink()
 

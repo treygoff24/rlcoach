@@ -1,9 +1,14 @@
 """File ingestion and validation for Rocket League replay files."""
 
+from __future__ import annotations
+
 import hashlib
+import struct
 from pathlib import Path
+from typing import Any, Dict, Tuple
 
 from .errors import (
+    CRCValidationError,
     FileTooLargeError,
     FileTooSmallError,
     InvalidReplayFormatError,
@@ -22,6 +27,33 @@ REPLAY_MAGIC_SEQUENCES = [
     b"TAGame.Replay_",  # General replay marker
     b"\x00\x00\x00\x00\x08\x00\x00\x00TAGame",  # Header format variant
 ]
+
+# CRC configuration derived from Rocket League's replay format / Unreal Engine implementation
+_CRC_POLY = 0x04C11DB7
+_CRC_XOR_IN = 0x10340DFE
+_CRC_XOR_OUT = 0xFFFFFFFF
+
+
+def _calc_replay_crc(data: bytes) -> int:
+    """Compute the Rocket League replay CRC for the provided data."""
+
+    crc = _CRC_XOR_IN
+    for byte in data:
+        crc ^= byte << 24
+        for _ in range(8):
+            if crc & 0x8000_0000:
+                crc = ((crc << 1) ^ _CRC_POLY) & 0xFFFFFFFF
+            else:
+                crc = (crc << 1) & 0xFFFFFFFF
+    return crc ^ _CRC_XOR_OUT
+
+
+def _read_i32(data: bytes, offset: int) -> int:
+    return struct.unpack_from("<i", data, offset)[0]
+
+
+def _read_u32(data: bytes, offset: int) -> int:
+    return struct.unpack_from("<I", data, offset)[0]
 
 
 def read_replay_bytes(path: Path) -> bytes:
@@ -177,33 +209,99 @@ def basic_format_check(data: bytes) -> tuple[bool, str]:
     return False, "No known replay format markers found"
 
 
-def crc_check_header(data: bytes) -> tuple[bool, str]:
-    """Stub CRC validation for replay header.
+def crc_check_header(data: bytes) -> Tuple[bool, str, Dict[str, Any]]:
+    """Perform Rocket League replay CRC validation for header and content sections."""
 
-    This is a placeholder implementation. Full CRC validation will be
-    implemented when the parser is added in a later ticket.
+    details: Dict[str, Any] = {}
 
-    Args:
-        data: Raw file bytes
+    min_size = 4 + 4 + 4 + 4  # header_size + header_crc + content_size + content_crc
+    if len(data) < min_size:
+        return False, "Replay file truncated before CRC sections", details
 
-    Returns:
-        Tuple of (check_passed, message)
-    """
-    # For now, just return success with a note that this is not implemented
-    # Real implementation would parse header structure and validate CRC
+    offset = 0
+    try:
+        header_size = _read_i32(data, offset)
+    except struct.error:
+        return False, "Unable to read header size for CRC validation", details
 
-    if len(data) < 100:
-        return False, "File too short for CRC validation"
+    if header_size <= 0:
+        return False, f"Invalid header size {header_size} bytes", details
 
-    # Placeholder: assume CRC is valid for properly formatted files
-    format_ok, format_msg = basic_format_check(data)
-    if format_ok:
-        return (
-            True,
-            "CRC check not yet implemented (assumed valid for well-formed replay)",
+    offset += 4
+    try:
+        header_crc_expected = _read_u32(data, offset)
+    except struct.error:
+        return False, "Unable to read stored header CRC", details
+
+    offset += 4
+    header_end = offset + header_size
+    if header_end > len(data):
+        return False, "Replay file truncated within header section", details
+
+    header_section = data[offset:header_end]
+    header_crc_actual = _calc_replay_crc(header_section)
+
+    versions: Dict[str, Any] = {}
+    if len(header_section) >= 8:
+        major = _read_i32(header_section, 0)
+        minor = _read_i32(header_section, 4)
+        versions = {"major": major, "minor": minor}
+        if major > 865 and minor > 17 and len(header_section) >= 12:
+            versions["net"] = _read_i32(header_section, 8)
+        else:
+            versions["net"] = None
+
+    offset = header_end
+    if len(data) < offset + 8:
+        return False, "Replay file truncated before content CRC section", details
+
+    content_size = _read_i32(data, offset)
+    offset += 4
+    if content_size < 0:
+        return False, f"Invalid content size {content_size} bytes", details
+
+    content_crc_expected = _read_u32(data, offset)
+    offset += 4
+    content_end = offset + content_size
+    if content_end > len(data):
+        return False, "Replay file truncated within content section", details
+
+    content_section = data[offset:content_end]
+    content_crc_actual = _calc_replay_crc(content_section)
+
+    header_passed = header_crc_actual == header_crc_expected
+    content_passed = content_crc_actual == content_crc_expected
+
+    details["header"] = {
+        "size": header_size,
+        "expected": header_crc_expected,
+        "actual": header_crc_actual,
+        "passed": header_passed,
+    }
+    details["content"] = {
+        "size": content_size,
+        "expected": content_crc_expected,
+        "actual": content_crc_actual,
+        "passed": content_passed,
+    }
+    details["versions"] = versions
+
+    if header_passed and content_passed:
+        message = "Header and content CRC validation passed"
+        return True, message, details
+
+    if not header_passed:
+        message = (
+            "Header CRC mismatch: expected 0x"
+            f"{header_crc_expected:08x}, got 0x{header_crc_actual:08x}"
         )
     else:
-        return False, f"Cannot validate CRC: {format_msg}"
+        message = (
+            "Content CRC mismatch: expected 0x"
+            f"{content_crc_expected:08x}, got 0x{content_crc_actual:08x}"
+        )
+
+    return False, message, details
 
 
 def ingest_replay(path: Path) -> dict:
@@ -238,13 +336,32 @@ def ingest_replay(path: Path) -> dict:
     if not format_ok:
         raise InvalidReplayFormatError(path_str, format_msg)
 
-    # Check CRC (stub implementation)
-    crc_ok, crc_msg = crc_check_header(data)
+    crc_ok, crc_msg, crc_details = crc_check_header(data)
 
-    # Collect warnings for non-fatal issues
-    warnings = []
     if not crc_ok:
-        warnings.append(f"CRC validation issue: {crc_msg}")
+        failing_section = "header"
+        section_info = crc_details.get("header", {})
+        if section_info.get("passed", True):
+            failing_section = "content"
+            section_info = crc_details.get("content", {})
+
+        raise CRCValidationError(
+            path_str,
+            expected_crc=section_info.get("expected"),
+            actual_crc=section_info.get("actual"),
+            section=failing_section,
+        )
+
+    # Collect warnings for non-fatal issues (e.g., unusual versions)
+    warnings = []
+    header_versions = crc_details.get("versions", {})
+    if header_versions:
+        major = header_versions.get("major")
+        minor = header_versions.get("minor")
+        if major is not None and minor is not None and (major <= 0 or minor <= 0):
+            warnings.append(
+                f"Unexpected replay version detected (major={major}, minor={minor})"
+            )
 
     return {
         "file_path": path_str,
@@ -253,7 +370,12 @@ def ingest_replay(path: Path) -> dict:
         "size_human": format_file_size(file_size),
         "bounds_check": {"passed": bounds_ok, "message": bounds_msg},
         "format_check": {"passed": format_ok, "message": format_msg},
-        "crc_check": {"passed": crc_ok, "message": crc_msg},
+        "crc_check": {
+            "passed": crc_ok,
+            "message": crc_msg,
+            "details": crc_details,
+        },
+        "header_versions": header_versions,
         "warnings": warnings,
         "status": "success" if format_ok and bounds_ok else "degraded",
     }

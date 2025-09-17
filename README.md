@@ -41,9 +41,22 @@ python -m rlcoach.cli analyze path/to/replay.replay --header-only --out out --pr
 # Prefer the Rust adapter (if installed) for richer parsing
 python -m rlcoach.cli analyze path/to/replay.replay --adapter rust --out out --pretty
 
+# Generate JSON + Markdown dossiers
+python -m rlcoach.cli report-md path/to/replay.replay --out out --pretty
+python -m rlcoach.cli report-md path/to/replay.replay --adapter rust --out out --pretty
+
 # View a generated report locally (pretty summary; optional per‑player focus)
 python -m rlcoach.ui view out/replay.json
 python -m rlcoach.ui view out/replay.json --player "DisplayName"
+```
+## Sample Markdown Output
+
+A complete dossier example is stored at `tests/goldens/synthetic_small.md`.
+
+```markdown
+## Team Metrics
+| Metric | Blue | Blue Rate | Orange | Orange Rate | Delta Blue-Orange |
+| Goals  | 0    | 0         | 0      | 0           | 0                 |
 ```
 
 ## Development

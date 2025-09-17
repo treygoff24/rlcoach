@@ -13,10 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from ..ingest import ingest_replay
-from ..normalize import measure_frame_rate
 from .errors import HeaderParseError, NetworkParseError
 from .interface import ParserAdapter
-from .types import Header, NetworkFrames, PlayerInfo, GoalHeader
+from .types import Header, NetworkFrames, PlayerInfo, GoalHeader, Highlight
 
 try:  # best-effort import of Rust core
     import rlreplay_rust as _rust
@@ -41,14 +40,28 @@ class RustAdapter(ParserAdapter):
 
     def _header_from_rust_dict(self, d: dict[str, Any]) -> Header:
         # Convert rust dict to Header dataclass
-        players = [
-            PlayerInfo(
-                name=p.get("name", "Unknown"),
-                platform_id=p.get("platform_id"),
-                team=p.get("team"),
+        players: list[PlayerInfo] = []
+        for raw_player in d.get("players", []) or []:
+            name = raw_player.get("name", "Unknown")
+            team = raw_player.get("team")
+            stats = raw_player.get("stats") or {}
+
+            platform_id, platform_ids = self._extract_platform_ids(stats)
+            camera_settings = self._extract_camera_settings(stats)
+            loadout = self._extract_loadout(stats)
+            score = stats.get("Score") if isinstance(stats.get("Score"), (int, float)) else 0
+
+            players.append(
+                PlayerInfo(
+                    name=name,
+                    team=team,
+                    platform_id=platform_id,
+                    score=int(score or 0),
+                    platform_ids=platform_ids,
+                    camera_settings=camera_settings,
+                    loadout=loadout,
+                )
             )
-            for p in d.get("players", [])
-        ]
         goals = []
         for g in d.get("goals", []) or []:
             goals.append(
@@ -56,6 +69,15 @@ class RustAdapter(ParserAdapter):
                     frame=int(g.get("frame")) if g.get("frame") is not None else None,
                     player_name=g.get("player_name"),
                     player_team=(int(g.get("player_team")) if g.get("player_team") is not None else None),
+                )
+            )
+        highlights = []
+        for h in d.get("highlights", []) or []:
+            highlights.append(
+                Highlight(
+                    frame=int(h.get("frame")) if h.get("frame") is not None else None,
+                    ball_name=h.get("ball_name"),
+                    car_name=h.get("car_name"),
                 )
             )
         # Use warnings as provided by Rust core; avoid adding any *_stub markers
@@ -73,8 +95,92 @@ class RustAdapter(ParserAdapter):
             mutators=d.get("mutators", {}),
             players=players,
             goals=goals,
+            highlights=highlights,
             quality_warnings=warnings,
         )
+
+    @staticmethod
+    def _extract_platform_ids(stats: dict[str, Any]) -> tuple[str | None, dict[str, str]]:
+        platform_map = {
+            "OnlinePlatform_Steam": "steam",
+            "OnlinePlatform_Epic": "epic",
+            "OnlinePlatform_Psn": "psn",
+            "OnlinePlatform_Xbox": "xbox",
+            "OnlinePlatform_Switch": "switch",
+            "OnlinePlatform_WeGame": "wegame",
+        }
+
+        platform_ids: dict[str, str] = {}
+        primary_platform_id: str | None = None
+
+        platform_struct = stats.get("Platform")
+        primary_platform_key = None
+        if isinstance(platform_struct, dict):
+            raw_value = platform_struct.get("value") or platform_struct.get("Platform")
+            if isinstance(raw_value, str):
+                primary_platform_key = platform_map.get(raw_value, raw_value.lower())
+
+        player_id_struct = stats.get("PlayerID")
+        if isinstance(player_id_struct, dict):
+            uid = player_id_struct.get("Uid")
+            if uid is not None:
+                platform_ids.setdefault("steam", str(uid))
+                if primary_platform_key == "steam":
+                    primary_platform_id = str(uid)
+
+            epic_id = player_id_struct.get("EpicAccountId")
+            if epic_id:
+                platform_ids["epic"] = str(epic_id)
+                if primary_platform_key == "epic":
+                    primary_platform_id = str(epic_id)
+
+            npid = player_id_struct.get("NpId")
+            if isinstance(npid, dict):
+                handle = npid.get("Handle")
+                if isinstance(handle, dict):
+                    data = handle.get("Data")
+                    if data:
+                        platform_ids["psn"] = str(data)
+                        if primary_platform_key == "psn":
+                            primary_platform_id = str(data)
+
+        online_id = stats.get("OnlineID")
+        if primary_platform_id is None and online_id is not None:
+            primary_platform_id = str(online_id)
+            if primary_platform_key and primary_platform_key not in platform_ids:
+                platform_ids[primary_platform_key] = primary_platform_id
+
+        return primary_platform_id, platform_ids
+
+    @staticmethod
+    def _extract_camera_settings(stats: dict[str, Any]) -> dict[str, float] | None:
+        camera_struct = stats.get("CameraSettings")
+        if not isinstance(camera_struct, dict):
+            return None
+
+        result: dict[str, float] = {}
+        for key, value in camera_struct.items():
+            if key.startswith("_"):
+                continue
+            if isinstance(value, (int, float)):
+                normalized_key = key.replace("Camera", "").replace("Settings", "").strip("_")
+                normalized_key = normalized_key or key
+                result[normalized_key.lower()] = float(value)
+        return result or None
+
+    @staticmethod
+    def _extract_loadout(stats: dict[str, Any]) -> dict[str, Any]:
+        for key in ("Loadout", "PlayerLoadout", "LoadoutPaint", "LoadoutPaints"):
+            loadout_struct = stats.get(key)
+            if isinstance(loadout_struct, dict):
+                loadout = {}
+                for lk, lv in loadout_struct.items():
+                    if lk.startswith("_"):
+                        continue
+                    loadout[lk.lower()] = lv
+                if loadout:
+                    return loadout
+        return {}
 
     def parse_header(self, path: Path) -> Header:
         try:
@@ -125,6 +231,8 @@ class RustAdapter(ParserAdapter):
                     frames = []
             # Measure sample rate from timestamps if available
             try:
+                from ..normalize import measure_frame_rate
+
                 hz = float(measure_frame_rate(frames))
             except Exception:
                 hz = 30.0

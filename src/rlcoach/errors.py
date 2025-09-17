@@ -92,12 +92,19 @@ class InvalidReplayFormatError(RLCoachError):
 class CRCValidationError(RLCoachError):
     """Raised when CRC validation fails for a replay file."""
 
-    def __init__(self, path: str, expected_crc: str = None, actual_crc: str = None):
-        message = f"CRC validation failed: {path}"
+    def __init__(
+        self,
+        path: str,
+        expected_crc: int | None = None,
+        actual_crc: int | None = None,
+        section: str = "header",
+    ):
+        message = f"CRC validation failed for {section} section: {path}"
         details = {
             "path": path,
-            "expected_crc": expected_crc,
-            "actual_crc": actual_crc,
+            "section": section,
+            "expected_crc": f"0x{expected_crc:08x}" if expected_crc is not None else None,
+            "actual_crc": f"0x{actual_crc:08x}" if actual_crc is not None else None,
             "suggested_action": (
                 "The replay file may be corrupted. Try re-downloading or "
                 "use a different file"

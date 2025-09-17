@@ -30,6 +30,46 @@ fn looks_like_replay_header(bytes: &[u8]) -> bool {
     needles.iter().any(|n| head.windows(n.len()).any(|w| w == *n))
 }
 
+fn header_prop_to_py(py: Python<'_>, prop: &HeaderProp) -> PyResult<PyObject> {
+    Ok(match prop {
+        HeaderProp::Array(arr) => {
+            let list = PyList::empty(py);
+            for inner in arr {
+                let dict = PyDict::new(py);
+                for (k, v) in inner {
+                    let value = header_prop_to_py(py, v)?;
+                    dict.set_item(k.as_str(), value)?;
+                }
+                list.append(dict)?;
+            }
+            list.to_object(py)
+        }
+        HeaderProp::Bool(val) => val.into_py(py),
+        HeaderProp::Byte { kind, value } => {
+            let dict = PyDict::new(py);
+            dict.set_item("kind", kind.as_str())?;
+            match value {
+                Some(v) => dict.set_item("value", v.as_str())?,
+                None => dict.set_item("value", py.None())?,
+            }
+            dict.to_object(py)
+        }
+        HeaderProp::Float(val) => (*val as f64).into_py(py),
+        HeaderProp::Int(val) => (*val).into_py(py),
+        HeaderProp::Name(val) | HeaderProp::Str(val) => val.to_object(py),
+        HeaderProp::QWord(val) => (*val).into_py(py),
+        HeaderProp::Struct { name, fields } => {
+            let dict = PyDict::new(py);
+            dict.set_item("_struct", name.as_str())?;
+            for (k, v) in fields {
+                let value = header_prop_to_py(py, v)?;
+                dict.set_item(k.as_str(), value)?;
+            }
+            dict.to_object(py)
+        }
+    })
+}
+
 #[pyfunction]
 fn parse_header(path: &str) -> PyResult<PyObject> {
     Python::with_gil(|py| {
@@ -43,6 +83,8 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         let mut team1_score: i64 = 0;
         let mut match_length: f64 = 0.0;
         let mut players_vec: Vec<(String, i64)> = Vec::new();
+        let mut players_meta: Vec<PyObject> = Vec::new();
+        let highlights_list = PyList::empty(py);
         let mut team_size: i64 = 0;
         let mut warnings_vec: Vec<String> = Vec::new();
 
@@ -69,6 +111,7 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                             // Each entry is Vec<(String, HeaderProp)>
                             let mut name: Option<String> = None;
                             let mut team: i64 = 0;
+                            let stats_dict = PyDict::new(py);
                             for (k, v) in entry {
                                 match (k.as_str(), v) {
                                     ("Name", hp) | ("PlayerName", hp) => {
@@ -77,10 +120,21 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                                     ("Team", hp) | ("PlayerTeam", hp) => {
                                         if let Some(t) = hp.as_i32() { team = t as i64; }
                                     }
-                                    _ => {}
+                                    _ => {
+                                        let value = header_prop_to_py(py, v)?;
+                                        stats_dict.set_item(k.as_str(), value)?;
+                                    }
                                 }
                             }
-                            if let Some(n) = name { players_vec.push((n, team)); }
+
+                            if let Some(n) = name.clone() {
+                                players_vec.push((n.clone(), team));
+                                let player_dict = PyDict::new(py);
+                                player_dict.set_item("name", n)?;
+                                player_dict.set_item("team", team)?;
+                                player_dict.set_item("stats", stats_dict)?;
+                                players_meta.push(player_dict.to_object(py));
+                            }
                         }
                     }
                 }
@@ -105,6 +159,41 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                             if let Some(nv) = g_name { g.set_item("player_name", nv)?; }
                             if let Some(tv) = g_team { g.set_item("player_team", tv)?; }
                             goals_list.append(g)?;
+                        }
+                    }
+                }
+
+                if let Some(p) = find_prop(&properties, "HighLights") {
+                    if let Some(arr) = p.as_array() {
+                        for entry in arr {
+                            let mut h_frame: Option<i64> = None;
+                            let mut h_ball: Option<String> = None;
+                            let mut h_car: Option<String> = None;
+                            for (k, v) in entry {
+                                match (k.as_str(), v) {
+                                    ("frame", hp) => {
+                                        if let Some(i) = hp.as_i32() {
+                                            h_frame = Some(i as i64);
+                                        }
+                                    }
+                                    ("BallName", hp) | ("Ball", hp) => {
+                                        if let Some(s) = hp.as_string() {
+                                            h_ball = Some(s.to_string());
+                                        }
+                                    }
+                                    ("CarName", hp) | ("Car", hp) => {
+                                        if let Some(s) = hp.as_string() {
+                                            h_car = Some(s.to_string());
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            let h = PyDict::new(py);
+                            if let Some(fv) = h_frame { h.set_item("frame", fv)?; }
+                            if let Some(ball) = h_ball { h.set_item("ball_name", ball)?; }
+                            if let Some(car) = h_car { h.set_item("car_name", car)?; }
+                            highlights_list.append(h)?;
                         }
                     }
                 }
@@ -136,21 +225,59 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         header.set_item("team1_score", team1_score)?;
         header.set_item("match_length", match_length)?;
 
-        let players = PyList::empty(py);
-        for (name, team) in players_vec { let p = PyDict::new(py); p.set_item("name", name)?; p.set_item("team", team)?; players.append(p)?; }
-        header.set_item("players", players)?;
+        if players_meta.is_empty() {
+            let players = PyList::empty(py);
+            for (name, team) in &players_vec {
+                let p = PyDict::new(py);
+                p.set_item("name", name)?;
+                p.set_item("team", team)?;
+                players.append(p)?;
+            }
+            header.set_item("players", players)?;
+        } else {
+            header.set_item("players", PyList::new(py, players_meta))?;
+        }
         // Engine build (if captured in warnings)
         if let Some(build) = warnings_vec.iter().find_map(|w| w.strip_prefix("build_version:")) {
             header.set_item("engine_build", build)?;
         }
-        // Goals list
+        // Goals & highlights lists
         header.set_item("goals", goals_list)?;
+        header.set_item("highlights", highlights_list)?;
         let warnings = PyList::empty(py);
         warnings.append("parsed_with_rust_core")?;
         for w in warnings_vec { warnings.append(w)?; }
         header.set_item("quality_warnings", warnings)?;
 
         Ok(header.to_object(py))
+    })
+}
+
+#[pyfunction]
+fn header_property_keys(path: &str) -> PyResult<Vec<String>> {
+    let data = read_file_bytes(path)?;
+    let replay = ParserBuilder::new(&data)
+        .never_parse_network_data()
+        .parse()
+        .map_err(|e| PyValueError::new_err(format!("Failed to parse replay header: {e}")))?;
+    Ok(replay.properties.iter().map(|(k, _)| k.clone()).collect())
+}
+
+#[pyfunction]
+fn header_property(path: &str, key: &str) -> PyResult<Option<PyObject>> {
+    Python::with_gil(|py| {
+        let data = read_file_bytes(path)?;
+        let replay = ParserBuilder::new(&data)
+            .never_parse_network_data()
+            .parse()
+            .map_err(|e| PyValueError::new_err(format!("Failed to parse replay header: {e}")))?;
+        for (k, v) in replay.properties {
+            if k == key {
+                let value = header_prop_to_py(py, &v)?;
+                return Ok(Some(value));
+            }
+        }
+        Ok(None)
     })
 }
 
@@ -454,6 +581,8 @@ fn net_frame_count(path: &str) -> PyResult<usize> {
 fn rlreplay_rust(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_header, m)?)?;
     m.add_function(wrap_pyfunction!(iter_frames, m)?)?;
+    m.add_function(wrap_pyfunction!(header_property_keys, m)?)?;
+    m.add_function(wrap_pyfunction!(header_property, m)?)?;
     m.add_function(wrap_pyfunction!(net_frame_count, m)?)?;
     m.add_function(wrap_pyfunction!(debug_first_frames, m)?)?;
     // Expose a simple health flag

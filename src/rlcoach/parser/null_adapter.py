@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..errors import CRCValidationError
 from ..ingest import ingest_replay
 from .errors import HeaderParseError
 from .interface import ParserAdapter
@@ -47,12 +48,30 @@ class NullAdapter(ParserAdapter):
         Raises:
             HeaderParseError: If the file cannot be processed
         """
-        try:
-            # Use existing ingest validation to check file
-            ingest_result = ingest_replay(path)
+        warnings_from_ingest: list[str] = []
 
-            # Extract basic file information
-            file_size_mb = ingest_result["size_bytes"] / (1024 * 1024)
+        try:
+            ingest_result = ingest_replay(path)
+            file_size_bytes = ingest_result.get("size_bytes", 0)
+            warnings_from_ingest = ingest_result.get("warnings", [])
+        except CRCValidationError as exc:
+            # Gracefully degrade when CRC validation fails; null adapter is a fallback
+            file_size_bytes = path.stat().st_size if path.exists() else 0
+            warnings_from_ingest = ["ingest_crc_failure_header_only"]
+            section = exc.details.get("section") if exc.details else None
+            if section:
+                warnings_from_ingest.append(f"crc_section:{section}")
+            ingest_result = {
+                "size_bytes": file_size_bytes,
+                "warnings": warnings_from_ingest,
+            }
+        except Exception as exc:
+            raise HeaderParseError(
+                str(path), f"Null adapter failed to process file: {exc}"
+            ) from exc
+
+        try:
+            file_size_mb = file_size_bytes / (1024 * 1024) if file_size_bytes else 0.0
 
             # Create minimal header with placeholders
             quality_warnings = [
@@ -61,8 +80,8 @@ class NullAdapter(ParserAdapter):
             ]
 
             # Add any warnings from ingest
-            if ingest_result.get("warnings"):
-                quality_warnings.extend(ingest_result["warnings"])
+            if warnings_from_ingest:
+                quality_warnings.extend(warnings_from_ingest)
 
             # Create placeholder player info (we don't have real player data)
             placeholder_players = [
