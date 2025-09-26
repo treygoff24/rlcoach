@@ -13,7 +13,7 @@ All detection uses deterministic thresholds and graceful degradation.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .field_constants import FIELD, Vec3, BoostPad
@@ -27,6 +27,8 @@ GOAL_EXIT_THRESHOLD = GOAL_LINE_THRESHOLD - 200.0
 BALL_STATIONARY_THRESHOLD = 50.0  # Ball speed for kickoff detection (units/s)
 TOUCH_PROXIMITY_THRESHOLD = 200.0  # Distance for player-ball contact (units)
 DEMO_POSITION_TOLERANCE = 500.0  # Max distance for demo attacker detection (units)
+BOOST_PICKUP_MIN_GAIN = 1.0  # Minimum net gain to record a pickup event
+CENTERLINE_TOLERANCE = 100.0  # Within this Y range is considered neutral half
 
 # Kickoff heuristics
 KICKOFF_CENTER_POSITION = Vec3(0.0, 0.0, 93.15)
@@ -97,6 +99,9 @@ class BoostPickupEvent:
     pad_id: int = -1  # Index in boost pad arrays
     location: Vec3 | None = None
     frame: int | None = None
+    boost_before: float | None = None
+    boost_after: float | None = None
+    boost_gain: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -397,67 +402,134 @@ def detect_boost_pickups(frames: list[Frame]) -> list[BoostPickupEvent]:
     if not frames:
         return []
     
-    pickups = []
-    previous_boost_amounts = {}
+    pickups: list[BoostPickupEvent] = []
+    previous_boost_amounts: dict[str, float] = {}
+    recent_positions: dict[str, list[tuple[float, Vec3]]] = {}
+    recent_pickup_index: dict[tuple[str, int], tuple[int, float]] = {}
+
+    pad_radius_padding = {True: 150.0, False: 110.0}
     big_pads = [pad for pad in FIELD.BOOST_PADS if pad.is_big]
     small_pads = [pad for pad in FIELD.BOOST_PADS if not pad.is_big]
 
     for i, frame in enumerate(frames):
         for player in frame.players:
             player_id = player.player_id
-            current_boost = player.boost_amount
-            previous_boost = previous_boost_amounts.get(player_id, current_boost)
+            current_boost = float(player.boost_amount)
+            previous_boost = previous_boost_amounts.get(player_id)
 
-            # Detect boost increase
+            history = recent_positions.setdefault(player_id, [])
+            history.append((frame.timestamp, player.position))
+            cutoff = frame.timestamp - 0.4
+            recent_positions[player_id] = [entry for entry in history if entry[0] >= cutoff]
+
+            if previous_boost is None:
+                previous_boost_amounts[player_id] = current_boost
+                continue
+
             boost_increase = current_boost - previous_boost
-            if boost_increase > 0:
-                # Determine pad type from boost increase
-                if boost_increase >= 80:  # Large pad (100 boost minus tolerance for rounding)
-                    pad_type = "BIG"
-                    candidate_pads = big_pads
-                elif boost_increase >= 10:  # Small pad (12 boost minus tolerance)
-                    pad_type = "SMALL"
-                    candidate_pads = small_pads
-                else:
-                    # Ignore small incremental increases
-                    previous_boost_amounts[player_id] = current_boost
-                    continue
+            if boost_increase >= BOOST_PICKUP_MIN_GAIN:
+                within_big: tuple[BoostPad, float, Vec3] | None = None
+                nearest_big: tuple[BoostPad, float, Vec3] | None = None
+                within_small: tuple[BoostPad, float, Vec3] | None = None
+                nearest_small: tuple[BoostPad, float, Vec3] | None = None
 
-                # Find nearest boost pad
+                for pad in big_pads:
+                    pad_padding = pad_radius_padding[True]
+                    for _, position in recent_positions[player_id]:
+                        distance = _distance_3d(position, pad.position)
+                        if nearest_big is None or distance < nearest_big[1]:
+                            nearest_big = (pad, distance, position)
+                        if distance <= pad.radius + pad_padding:
+                            if within_big is None or distance < within_big[1]:
+                                within_big = (pad, distance, position)
+
+                for pad in small_pads:
+                    pad_padding = pad_radius_padding[False]
+                    for _, position in recent_positions[player_id]:
+                        distance = _distance_3d(position, pad.position)
+                        if nearest_small is None or distance < nearest_small[1]:
+                            nearest_small = (pad, distance, position)
+                        if distance <= pad.radius + pad_padding:
+                            if within_small is None or distance < within_small[1]:
+                                within_small = (pad, distance, position)
+
                 matched_pad: BoostPad | None = None
-                nearest_distance = float("inf")
+                pickup_position: Vec3 | None = None
+                cand_big = within_big or nearest_big
+                cand_small = within_small or nearest_small
 
-                for pad in candidate_pads:
-                    distance = _distance_3d(player.position, pad.position)
-                    if distance <= pad.radius and distance < nearest_distance:
-                        matched_pad = pad
-                        nearest_distance = distance
+                if cand_big and cand_small:
+                    pad_big, dist_big, pos_big = cand_big
+                    pad_small, dist_small, pos_small = cand_small
+                    expected_big = min(100.0, max(0.0, 100.0 - previous_boost))
+                    expected_small = min(12.0, max(0.0, 100.0 - previous_boost))
+                    diff_big = abs(boost_increase - expected_big)
+                    diff_small = abs(boost_increase - expected_small)
+                    tolerance = 4.0
+                    if diff_big + tolerance < diff_small:
+                        matched_pad = pad_big
+                        pickup_position = pos_big
+                    elif diff_small + tolerance < diff_big:
+                        matched_pad = pad_small
+                        pickup_position = pos_small
+                    else:
+                        if dist_big <= dist_small:
+                            matched_pad = pad_big
+                            pickup_position = pos_big
+                        else:
+                            matched_pad = pad_small
+                            pickup_position = pos_small
+                elif cand_big:
+                    matched_pad, _, pickup_position = cand_big
+                elif cand_small:
+                    matched_pad, _, pickup_position = cand_small
 
-                # Determine if stolen (simplified - check field half)
                 if matched_pad is None:
                     previous_boost_amounts[player_id] = current_boost
                     continue
 
+                key = (player_id, matched_pad.pad_id)
+                existing = recent_pickup_index.get(key)
+                if existing is not None and frame.timestamp - existing[1] < 0.2:
+                    event_idx, _ = existing
+                    prev_event = pickups[event_idx]
+                    updated_gain = prev_event.boost_gain + max(0.0, boost_increase)
+                    updated_event = replace(
+                        prev_event,
+                        boost_after=current_boost,
+                        boost_gain=updated_gain,
+                    )
+                    pickups[event_idx] = updated_event
+                    recent_pickup_index[key] = (event_idx, frame.timestamp)
+                    previous_boost_amounts[player_id] = current_boost
+                    continue
+
                 is_stolen = False
-                pad_half = "ORANGE" if matched_pad.position.y > 0 else "BLUE"
-                if player.team == 0:
-                    is_stolen = pad_half == "ORANGE"
+                pickup_reference = pickup_position or matched_pad.position
+                if abs(pickup_reference.y) <= CENTERLINE_TOLERANCE:
+                    is_stolen = False
+                elif player.team == 0:
+                    is_stolen = pickup_reference.y > 0
                 elif player.team == 1:
-                    is_stolen = pad_half == "BLUE"
+                    is_stolen = pickup_reference.y < 0
 
                 pickup = BoostPickupEvent(
                     t=frame.timestamp,
                     player_id=player_id,
-                    pad_type=pad_type,
+                    pad_type="BIG" if matched_pad.is_big else "SMALL",
                     stolen=is_stolen,
                     pad_id=matched_pad.pad_id,
                     location=matched_pad.position,
                     frame=i,
+                    boost_before=previous_boost,
+                    boost_after=current_boost,
+                    boost_gain=max(0.0, boost_increase),
                 )
                 pickups.append(pickup)
+                recent_pickup_index[key] = (len(pickups) - 1, frame.timestamp)
 
             previous_boost_amounts[player_id] = current_boost
-    
+
     return pickups
 
 

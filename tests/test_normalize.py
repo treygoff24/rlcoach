@@ -4,13 +4,14 @@ import pytest
 from unittest.mock import Mock
 
 from rlcoach.normalize import (
-    measure_frame_rate, 
-    to_field_coords, 
-    normalize_players, 
-    build_timeline
+    measure_frame_rate,
+    to_field_coords,
+    normalize_players,
+    build_timeline,
+    GOAL_POST_BUFFER_S,
 )
 from rlcoach.field_constants import Vec3, FIELD
-from rlcoach.parser.types import Header, PlayerInfo, NetworkFrames, Frame
+from rlcoach.parser.types import Header, PlayerInfo, NetworkFrames, Frame, GoalHeader
 
 
 class TestFrameRateMeasurement:
@@ -269,10 +270,10 @@ class TestTimelineBuilding:
         frame_data.players = []
         
         timeline = build_timeline(header, [frame_data])
-        
+
         assert len(timeline) == 1
         frame = timeline[0]
-        assert frame.timestamp == 1.5
+        assert frame.timestamp == 0.0
         assert frame.ball.position == Vec3(100.0, 200.0, 300.0)
         assert frame.ball.velocity == Vec3(10.0, 20.0, 30.0)
     
@@ -292,10 +293,10 @@ class TestTimelineBuilding:
         frame2.ball.angular_velocity = Mock(x=0, y=0, z=0)
         
         timeline = build_timeline(header, [frame1, frame2])
-        
+
         assert len(timeline) == 2
-        assert timeline[0].timestamp == 1.0  # Earlier frame first
-        assert timeline[1].timestamp == 2.0
+        assert timeline[0].timestamp == 0.0  # Earlier frame becomes t=0
+        assert timeline[1].timestamp == 1.0
     
     def test_player_frame_extraction(self):
         """Player data extracted correctly from frames."""
@@ -353,10 +354,61 @@ class TestTimelineBuilding:
         bad_frame.timestamp = "not_a_number"  # Invalid timestamp
         
         timeline = build_timeline(header, [good_frame, bad_frame])
-        
+
         assert len(timeline) == 1  # Only good frame
-        assert timeline[0].timestamp == 1.0
-    
+        assert timeline[0].timestamp == 0.0
+
+    def test_post_game_frames_trimmed_by_header_length(self):
+        """Frames beyond header match length are pruned after alignment."""
+        header = Header(match_length=1.0)
+
+        def make_frame(ts: float):
+            ball = Mock()
+            ball.position = Mock(x=0, y=0, z=93.15)
+            ball.velocity = Mock(x=0, y=0, z=0)
+            ball.angular_velocity = Mock(x=0, y=0, z=0)
+            frame = Mock()
+            frame.timestamp = ts
+            frame.ball = ball
+            frame.players = []
+            return frame
+
+        frames = [
+            make_frame(5.0),
+            make_frame(5.5),
+            make_frame(7.0),  # Beyond match length window
+        ]
+
+        timeline = build_timeline(header, frames)
+
+        assert len(timeline) == 2
+        assert timeline[0].timestamp == 0.0
+        assert timeline[1].timestamp == 0.5
+
+    def test_goal_buffer_extends_beyond_header_duration(self):
+        """Goal metadata keeps frames when header duration is too short."""
+        header = Header(match_length=0.5, goals=[GoalHeader(frame=90, player_name="Player", player_team=0)])
+
+        def make_frame(ts: float):
+            ball = Mock()
+            ball.position = Mock(x=0, y=0, z=93.15)
+            ball.velocity = Mock(x=0, y=0, z=0)
+            ball.angular_velocity = Mock(x=0, y=0, z=0)
+            frame = Mock()
+            frame.timestamp = ts
+            frame.ball = ball
+            frame.players = []
+            return frame
+
+        start = 10.0
+        frames = [make_frame(start + i / 30.0) for i in range(120)]
+
+        timeline = build_timeline(header, frames)
+
+        # Without goal metadata we'd clamp near 0.5 seconds; ensure we kept longer span
+        assert timeline[-1].timestamp > GOAL_POST_BUFFER_S / 2
+        assert len(timeline) == len(frames)
+
     def test_dict_format_frames(self):
         """Dict format frames handled correctly."""
         header = Header()
@@ -375,7 +427,7 @@ class TestTimelineBuilding:
         
         assert len(timeline) == 1
         frame = timeline[0]
-        assert frame.timestamp == 1.5
+        assert frame.timestamp == 0.0
         assert frame.ball.position == Vec3(100.0, 200.0, 300.0)
         assert frame.ball.velocity == Vec3(10.0, 20.0, 30.0)
 

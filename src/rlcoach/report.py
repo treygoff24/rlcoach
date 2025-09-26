@@ -157,6 +157,8 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             getattr(header, "playlist_id", None) if hasattr(header, "playlist_id") else None
         )
 
+        match_duration = float(normalized_frames[-1].timestamp if normalized_frames else 0.0)
+
         metadata = {
             "engine_build": getattr(header, "engine_build", None) or "unknown",
             "playlist": playlist_value,
@@ -166,7 +168,7 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             "mutators": getattr(header, "mutators", {}) or {},
             "match_guid": getattr(header, "match_guid", None) or "unknown",
             "started_at_utc": _utc_now_iso(),
-            "duration_seconds": float(header.match_length or 0.0),
+            "duration_seconds": match_duration,
             "recorded_frame_hz": float(recorded_hz),
             "total_frames": max(1, len(normalized_frames)),
             "coordinate_reference": {

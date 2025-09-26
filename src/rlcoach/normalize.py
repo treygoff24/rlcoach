@@ -10,10 +10,15 @@ This module transforms raw parser data into normalized structures with:
 from __future__ import annotations
 
 import statistics
+from dataclasses import replace
 from typing import Any
 
 from .field_constants import FIELD, Vec3
 from .parser.types import Header, NetworkFrames, Frame, PlayerFrame, BallFrame
+
+
+# Seconds to keep after the last recorded goal to account for replays + kickoff
+GOAL_POST_BUFFER_S = 7.0
 
 
 def measure_frame_rate(frames: list[Any]) -> float:
@@ -342,7 +347,10 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
     
     # Sort by timestamp to ensure chronological order
     normalized_frames.sort(key=lambda f: f.timestamp)
-    
+
+    # Align timestamps to the in-game clock (kickoff = 0) and drop postgame junk
+    normalized_frames = _align_match_clock(normalized_frames, header)
+
     # Return frames or minimal fallback
     return normalized_frames if normalized_frames else [
         Frame(
@@ -355,3 +363,61 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             players=[]
         )
     ]
+
+
+def _align_match_clock(frames: list[Frame], header: Header | None) -> list[Frame]:
+    """Shift frame timestamps so kickoff starts at 0 and prune post-game frames."""
+
+    if not frames:
+        return frames
+
+    start_time = frames[0].timestamp
+    end_time = frames[-1].timestamp
+    frame_rate = measure_frame_rate(frames)
+
+    # Collect candidate end times (absolute timestamps) from header metadata
+    candidates: list[float] = []
+    if header is not None:
+        header_duration = float(getattr(header, "match_length", 0.0) or 0.0)
+        if header_duration > 0:
+            candidates.append(start_time + header_duration)
+
+        goal_times: list[float] = []
+        for goal in getattr(header, "goals", []) or []:
+            if goal.frame is None:
+                continue
+            if frame_rate > 0:
+                goal_times.append(start_time + (int(goal.frame) / frame_rate))
+            else:
+                idx = int(goal.frame)
+                if idx < 0:
+                    continue
+                if idx >= len(frames):
+                    idx = len(frames) - 1
+                goal_times.append(frames[idx].timestamp)
+
+        if goal_times:
+            candidates.append(max(goal_times) + GOAL_POST_BUFFER_S)
+
+    if candidates:
+        end_time = min(end_time, max(candidates))
+
+    if end_time <= start_time:
+        end_time = frames[-1].timestamp
+
+    adjusted: list[Frame] = []
+    for frame in frames:
+        t = frame.timestamp
+        if t < start_time - 1e-3:
+            continue
+        if t > end_time + 1e-3:
+            break
+        shifted = t - start_time
+        if abs(shifted) < 1e-6:
+            shifted = 0.0
+        adjusted.append(replace(frame, timestamp=shifted))
+
+    if not adjusted:
+        adjusted.append(replace(frames[0], timestamp=0.0))
+
+    return adjusted
