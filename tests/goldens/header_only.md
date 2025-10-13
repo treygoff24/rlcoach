@@ -46,8 +46,8 @@
 
 | Display Name | Team   | Player ID |
 | ------------ | ------ | --------- |
-| Alpha        | BLUE   | player_0  |
-| Bravo        | ORANGE | player_1  |
+| Alpha        | BLUE   | slug:alpha  |
+| Bravo        | ORANGE | slug:bravo  |
 
 
 ## Team Metrics
@@ -55,8 +55,8 @@
 
 | Team   | Score | Players  |
 | ------ | ----- | -------- |
-| BLUE   | 0     | player_0 |
-| ORANGE | 0     | player_1 |
+| BLUE   | 0     | slug:alpha |
+| ORANGE | 0     | slug:bravo |
 
 
 ### Fundamentals
@@ -179,7 +179,7 @@
 ### Alpha (BLUE)
 
 
-| Player ID       | player_0 |
+| Player ID       | slug:alpha |
 | Platform IDs    | -        |
 | Camera Settings | -        |
 | Loadout         | -        |
@@ -210,7 +210,7 @@
   "kickoffs": {},
   "movement": {},
   "passing": {},
-  "player_id": "player_0",
+  "player_id": "slug:alpha",
   "positioning": {},
   "rotation_compliance": {}
 }
@@ -219,7 +219,7 @@
 ### Bravo (ORANGE)
 
 
-| Player ID       | player_1 |
+| Player ID       | slug:bravo |
 | Platform IDs    | -        |
 | Camera Settings | -        |
 | Loadout         | -        |
@@ -250,7 +250,7 @@
   "kickoffs": {},
   "movement": {},
   "passing": {},
-  "player_id": "player_1",
+  "player_id": "slug:bravo",
   "positioning": {},
   "rotation_compliance": {}
 }
@@ -518,7 +518,7 @@
       "display_name": "Alpha",
       "loadout": {},
       "platform_ids": {},
-      "player_id": "player_0",
+      "player_id": "slug:alpha",
       "team": "BLUE"
     },
     {
@@ -526,7 +526,7 @@
       "display_name": "Bravo",
       "loadout": {},
       "platform_ids": {},
-      "player_id": "player_1",
+      "player_id": "slug:bravo",
       "team": "ORANGE"
     }
   ],
@@ -547,14 +547,14 @@
     "blue": {
       "name": "BLUE",
       "players": [
-        "player_0"
+        "slug:alpha"
       ],
       "score": 0
     },
     "orange": {
       "name": "ORANGE",
       "players": [
-        "player_1"
+        "slug:bravo"
       ],
       "score": 0
     }

@@ -32,6 +32,7 @@ from .parser.types import NetworkFrames as NFType
 from .parser import get_adapter
 from .schema import validate_report
 from .version import get_schema_version
+from .utils.identity import build_player_identities
 
 
 _ALLOWED_PLAYLISTS = {
@@ -210,27 +211,33 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         # Teams block
         # Construct minimal players array based on header
         team_players: dict[str, list[str]] = {"BLUE": [], "ORANGE": []}
-        players_block = []
-        for idx, p in enumerate(header.players or []):
-            pid = f"player_{idx}"
-            team_index = 0 if (p.team or 0) == 0 else 1
-            tname = "BLUE" if team_index == 0 else "ORANGE"
-            platform_ids = dict(getattr(p, "platform_ids", {}) or {})
+        players_block: list[dict[str, Any]] = []
 
-            camera_payload = getattr(p, "camera_settings", None) or {}
-            loadout_payload = getattr(p, "loadout", None) or {}
+        identities = build_player_identities(getattr(header, "players", []))
+        if identities:
+            for identity in identities:
+                player_info = header.players[identity.header_index]
+                implied_team_index = player_info.team if player_info.team is not None else 0
+                team_name = identity.team if identity.team in {"BLUE", "ORANGE"} else (
+                    "BLUE" if implied_team_index == 0 else "ORANGE"
+                )
+                team_players.setdefault(team_name, [])
+                team_players[team_name].append(identity.canonical_id)
 
-            team_players[tname].append(pid)
-            players_block.append(
-                {
-                    "player_id": pid,
-                    "display_name": p.name or f"Player {idx}",
-                    "team": tname,
-                    "platform_ids": platform_ids,
-                    "camera": camera_payload,
-                    "loadout": loadout_payload,
-                }
-            )
+                platform_ids = dict(identity.platform_ids)
+                camera_payload = getattr(player_info, "camera_settings", None) or {}
+                loadout_payload = getattr(player_info, "loadout", None) or {}
+
+                players_block.append(
+                    {
+                        "player_id": identity.canonical_id,
+                        "display_name": identity.display_name,
+                        "team": team_name,
+                        "platform_ids": platform_ids,
+                        "camera": camera_payload,
+                        "loadout": loadout_payload,
+                    }
+                )
 
         if not players_block:
             # Ensure at least one dummy player per schema requirement

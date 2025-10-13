@@ -34,20 +34,20 @@
       "name": "BLUE",
       "score": 0,
       "players": [
-        "player_0"
+        "slug:alpha"
       ]
     },
     "orange": {
       "name": "ORANGE",
       "score": 0,
       "players": [
-        "player_1"
+        "slug:bravo"
       ]
     }
   },
   "players": [
     {
-      "player_id": "player_0",
+      "player_id": "slug:alpha",
       "display_name": "Alpha",
       "team": "BLUE",
       "platform_ids": {},
@@ -55,7 +55,7 @@
       "loadout": {}
     },
     {
-      "player_id": "player_1",
+      "player_id": "slug:bravo",
       "display_name": "Bravo",
       "team": "ORANGE",
       "platform_ids": {},

@@ -15,6 +15,11 @@ from typing import Any
 
 from .field_constants import FIELD, Vec3
 from .parser.types import Header, NetworkFrames, Frame, PlayerFrame, BallFrame
+from .utils.identity import (
+    build_alias_lookup,
+    build_player_identities,
+    sanitize_display_name,
+)
 
 
 # Seconds to keep after the last recorded goal to account for replays + kickoff
@@ -110,58 +115,59 @@ def to_field_coords(vec: Any) -> Vec3:
         return Vec3(0.0, 0.0, 0.0)
 
 
-def normalize_players(header: Header, frames: list[Any]) -> dict[str, dict[str, Any]]:
-    """Create unified player identity mapping across header and frame data.
-    
-    Args:
-        header: Parsed header with player info
-        frames: Network frame data (may be empty)
-        
-    Returns:
-        Dict mapping player_id -> {name, team, platform_id, etc.}
-    """
-    players_index = {}
-    
-    # Start with header player information
-    for i, player_info in enumerate(header.players):
-        player_id = f"player_{i}"
-        if player_info.platform_id:
-            player_id = player_info.platform_id
-        
-        players_index[player_id] = {
-            'name': player_info.name,
-            'team': player_info.team,
-            'platform_id': player_info.platform_id,
-            'score': player_info.score,
-            'header_index': i
+def normalize_players(header: Header | None, frames: list[Any]) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """Create unified player identity mapping across header and frame data."""
+
+    if header is None or not getattr(header, "players", None):
+        return {}, {}
+
+    identities = build_player_identities(header.players)
+    alias_lookup = build_alias_lookup(identities)
+
+    players_index: dict[str, dict[str, Any]] = {}
+    for identity in identities:
+        team_index = 0 if identity.team == "BLUE" else 1 if identity.team == "ORANGE" else 0
+        players_index[identity.canonical_id] = {
+            "name": identity.display_name,
+            "team_index": team_index,
+            "team_name": identity.team,
+            "platform_ids": identity.platform_ids,
+            "header_index": identity.header_index,
+            "aliases": identity.aliases,
+            "slug": identity.slug,
         }
-    
-    # Augment with frame data if available
+
     if frames:
-        # Extract unique player IDs from frames
-        frame_player_ids = set()
-        for frame in frames[:10]:  # Sample first few frames
+        header_ids = [identity.canonical_id for identity in identities]
+        sampled_ids: list[str] = []
+        for frame in frames[:10]:
             try:
-                if hasattr(frame, 'players') and hasattr(frame.players, '__iter__'):
-                    for player in frame.players:
-                        if hasattr(player, 'player_id'):
-                            frame_player_ids.add(player.player_id)
-            except (TypeError, AttributeError):
-                continue  # Skip malformed frames
-        
-        # Match frame players to header players by position/index
-        frame_ids = sorted(frame_player_ids)
-        header_ids = list(players_index.keys())
-        
-        for i, frame_id in enumerate(frame_ids):
-            if i < len(header_ids):
-                header_id = header_ids[i]
-                if frame_id != header_id:
-                    # Create alias mapping
-                    players_index[frame_id] = players_index[header_id].copy()
-                    players_index[frame_id]['alias_for'] = header_id
-    
-    return players_index
+                players = []
+                if hasattr(frame, "players"):
+                    players = frame.players  # type: ignore[assignment]
+                elif isinstance(frame, dict):
+                    players = frame.get("players", [])
+                for player in players:
+                    raw_id = None
+                    if hasattr(player, "player_id"):
+                        raw_id = getattr(player, "player_id")
+                    elif isinstance(player, dict):
+                        raw_id = player.get("player_id")
+                    if raw_id is None:
+                        continue
+                    raw_id_str = str(raw_id)
+                    if raw_id_str and raw_id_str not in sampled_ids:
+                        sampled_ids.append(raw_id_str)
+            except (AttributeError, TypeError):
+                continue
+
+        for idx, raw_id in enumerate(sampled_ids):
+            if raw_id in alias_lookup:
+                continue
+            if idx < len(header_ids):
+                alias_lookup[raw_id] = header_ids[idx]
+
+    return players_index, alias_lookup
 
 
 def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
@@ -189,7 +195,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
         ]
     
     # Get player mapping
-    players_index = normalize_players(header, frames)
+    players_index, alias_lookup = normalize_players(header, frames)
     
     # Convert frames to normalized format
     normalized_frames = []
@@ -248,13 +254,18 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         player_id = str(player_data.player_id)
                     elif isinstance(player_data, dict) and 'player_id' in player_data:
                         player_id = str(player_data['player_id'])
+
+                    canonical_id = alias_lookup.get(player_id, player_id)
+                    if canonical_id != player_id:
+                        alias_lookup.setdefault(player_id, canonical_id)
+                    if canonical_id not in players_index and player_id in players_index:
+                        canonical_id = player_id
                     
                     # Get team from player index or frame data  
                     team = 0
-                    if player_id in players_index:
-                        index_team = players_index[player_id].get('team')
-                        if index_team is not None:
-                            team = int(index_team)
+                    index_entry = players_index.get(canonical_id)
+                    if index_entry and index_entry.get('team_index') is not None:
+                        team = int(index_entry['team_index'])
                     
                     # If no team from index, try frame data
                     if team == 0:  # Only override if still default
@@ -314,7 +325,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         is_demolished = bool(player_data['is_demolished'])
                     
                     player_frame = PlayerFrame(
-                        player_id=player_id,
+                        player_id=canonical_id,
                         team=team,
                         position=position,
                         velocity=velocity,
@@ -326,7 +337,19 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     )
                     
                     # Keep the latest state seen in this frame for each unique player ID
-                    player_frames_map[player_id] = player_frame
+                    player_frames_map[canonical_id] = player_frame
+
+                    if canonical_id not in players_index:
+                        players_index[canonical_id] = {
+                            "name": sanitize_display_name(getattr(player_data, "name", canonical_id)),
+                            "team_index": team,
+                            "team_name": "BLUE" if team == 0 else "ORANGE",
+                            "platform_ids": {},
+                            "header_index": -1,
+                            "aliases": tuple(sorted({canonical_id, player_id})),
+                            "slug": canonical_id,
+                        }
+                    alias_lookup.setdefault(player_id, canonical_id)
 
                 except (ValueError, TypeError, AttributeError):
                     # Skip malformed player data

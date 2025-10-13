@@ -23,6 +23,7 @@ from rlcoach.field_constants import Vec3
 from rlcoach.normalize import measure_frame_rate
 from rlcoach.parser.types import Header, PlayerInfo, Frame, PlayerFrame, BallFrame
 from rlcoach.schema import validate_report
+from rlcoach.utils.identity import build_player_identities
 
 
 def _normalize(obj: Any) -> Any:
@@ -64,21 +65,27 @@ def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> di
 
     # Players and teams from header (mirror report.py behavior)
     team_players: dict[str, list[str]] = {"BLUE": [], "ORANGE": []}
-    players_block = []
-    for i, p in enumerate(header.players or []):
-        pid = f"player_{i}"
-        tname = "BLUE" if (p.team or 0) == 0 else "ORANGE"
-        team_players[tname].append(pid)
-        players_block.append(
-            {
-                "player_id": pid,
-                "display_name": p.name or f"Player {i}",
-                "team": tname,
-                "platform_ids": {},
-                "camera": {},
-                "loadout": {},
-            }
-        )
+    players_block: list[dict[str, Any]] = []
+    identities = build_player_identities(getattr(header, "players", []))
+
+    if identities:
+        for identity in identities:
+            player_info = header.players[identity.header_index]
+            team_name = identity.team if identity.team in {"BLUE", "ORANGE"} else (
+                "BLUE" if (player_info.team or 0) == 0 else "ORANGE"
+            )
+            team_players.setdefault(team_name, [])
+            team_players[team_name].append(identity.canonical_id)
+            players_block.append(
+                {
+                    "player_id": identity.canonical_id,
+                    "display_name": identity.display_name,
+                    "team": team_name,
+                    "platform_ids": dict(identity.platform_ids),
+                    "camera": getattr(player_info, "camera_settings", None) or {},
+                    "loadout": getattr(player_info, "loadout", None) or {},
+                }
+            )
 
     if not players_block:
         players_block = [

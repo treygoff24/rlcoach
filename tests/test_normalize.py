@@ -170,44 +170,48 @@ class TestPlayerNormalization:
         """Player mapping from header only."""
         header = Header(
             players=[
-                PlayerInfo(name="Player1", platform_id="steam_123", team=0, score=100),
-                PlayerInfo(name="Player2", platform_id="epic_456", team=1, score=200),
+                PlayerInfo(name="Player1", platform_ids={"steam": "123"}, team=0, score=100),
+                PlayerInfo(name="Player2", platform_ids={"epic": "456"}, team=1, score=200),
             ]
         )
-        
-        result = normalize_players(header, [])
-        
-        assert "steam_123" in result
-        assert result["steam_123"]["name"] == "Player1"
-        assert result["steam_123"]["team"] == 0
-        assert result["steam_123"]["score"] == 100
-        
-        assert "epic_456" in result
-        assert result["epic_456"]["name"] == "Player2"
-        assert result["epic_456"]["team"] == 1
-    
+
+        players_index, aliases = normalize_players(header, [])
+
+        assert "steam:123" in players_index
+        assert players_index["steam:123"]["name"] == "Player1"
+        assert players_index["steam:123"]["team_index"] == 0
+        assert aliases["player_0"] == "steam:123"
+
+        assert "epic:456" in players_index
+        assert players_index["epic:456"]["name"] == "Player2"
+        assert players_index["epic:456"]["team_index"] == 1
+        assert aliases["player_1"] == "epic:456"
+
     def test_players_without_platform_id(self):
-        """Players without platform_id get positional IDs."""
+        """Players without platform_id get slug-based IDs."""
         header = Header(
             players=[
-                PlayerInfo(name="Player1", team=0),
-                PlayerInfo(name="Player2", team=1),
+                PlayerInfo(name="Player One", team=0),
+                PlayerInfo(name="Player Two", team=1),
             ]
         )
-        
-        result = normalize_players(header, [])
-        
-        assert "player_0" in result
-        assert result["player_0"]["name"] == "Player1"
-        assert "player_1" in result
-        assert result["player_1"]["name"] == "Player2"
-    
+
+        players_index, aliases = normalize_players(header, [])
+
+        assert "slug:player-one" in players_index
+        assert players_index["slug:player-one"]["name"] == "Player One"
+        assert aliases["player_0"] == "slug:player-one"
+
+        assert "slug:player-two" in players_index
+        assert players_index["slug:player-two"]["name"] == "Player Two"
+        assert aliases["player_1"] == "slug:player-two"
+
     def test_empty_header_players(self):
         """Empty player list handled gracefully."""
         header = Header(players=[])
         result = normalize_players(header, [])
-        assert result == {}
-    
+        assert result == ({}, {})
+
     def test_frame_player_augmentation(self):
         """Frame data augments header information."""
         header = Header(
@@ -216,20 +220,24 @@ class TestPlayerNormalization:
                 PlayerInfo(name="Player2", team=1),
             ]
         )
-        
+
         # Mock frame with different player IDs
         frame = Mock()
         frame.players = [
             Mock(player_id="frame_player_0"),
             Mock(player_id="frame_player_1"),
         ]
-        
-        result = normalize_players(header, [frame])
-        
-        # Should have both header and frame mappings
-        assert "player_0" in result
-        assert "frame_player_0" in result
-        assert result["frame_player_0"]["alias_for"] == "player_0"
+
+        players_index, aliases = normalize_players(header, [frame])
+
+        # Should map frame IDs back to canonical header IDs
+        assert "slug:player1" in players_index
+        assert aliases["frame_player_0"] == "slug:player1"
+        assert aliases["player_0"] == "slug:player1"
+
+        assert "slug:player2" in players_index
+        assert aliases["frame_player_1"] == "slug:player2"
+        assert aliases["player_1"] == "slug:player2"
 
 
 class TestTimelineBuilding:
@@ -301,7 +309,7 @@ class TestTimelineBuilding:
     def test_player_frame_extraction(self):
         """Player data extracted correctly from frames."""
         header = Header(
-            players=[PlayerInfo(name="TestPlayer", platform_id="test_123", team=0)]
+            players=[PlayerInfo(name="TestPlayer", platform_ids={"steam": "123"}, team=0)]
         )
         
         # Mock frame with player data
@@ -313,7 +321,7 @@ class TestTimelineBuilding:
         frame_data.ball.angular_velocity = Mock(x=0, y=0, z=0)
         
         player_data = Mock()
-        player_data.player_id = "test_123"
+        player_data.player_id = "steam:123"
         player_data.team = 0
         player_data.position = Mock(x=1000, y=2000, z=17)
         player_data.velocity = Mock(x=500, y=0, z=0)
@@ -332,7 +340,7 @@ class TestTimelineBuilding:
         assert len(frame.players) == 1
         
         player_frame = frame.players[0]
-        assert player_frame.player_id == "test_123"
+        assert player_frame.player_id == "steam:123"
         assert player_frame.team == 0
         assert player_frame.position == Vec3(1000.0, 2000.0, 17.0)
         assert player_frame.velocity == Vec3(500.0, 0.0, 0.0)
@@ -446,8 +454,8 @@ class TestIntegration:
             team1_score=1,
             match_length=300.0,
             players=[
-                PlayerInfo(name="Player1", platform_id="steam_123", team=0, score=250),
-                PlayerInfo(name="Player2", platform_id="epic_456", team=1, score=100),
+                PlayerInfo(name="Player1", platform_ids={"steam": "123"}, team=0, score=250),
+                PlayerInfo(name="Player2", platform_ids={"epic": "456"}, team=1, score=100),
             ]
         )
         
@@ -467,7 +475,7 @@ class TestIntegration:
             
             # Player data
             player1 = Mock()
-            player1.player_id = "steam_123"
+            player1.player_id = "steam:123"
             player1.team = 0
             player1.position = Mock(x=-1000 + i*100, y=-2000 + i*200, z=17)
             player1.velocity = Mock(x=800, y=0, z=0)
@@ -475,7 +483,7 @@ class TestIntegration:
             player1.boost_amount = 100 - i*10
             
             player2 = Mock()
-            player2.player_id = "epic_456"  
+            player2.player_id = "epic:456"
             player2.team = 1
             player2.position = Mock(x=1000 - i*100, y=2000 - i*200, z=17)
             player2.velocity = Mock(x=-600, y=100, z=0)
@@ -489,9 +497,11 @@ class TestIntegration:
         fps = measure_frame_rate(frames)
         assert 29.0 <= fps <= 31.0
         
-        players_index = normalize_players(header, frames)
-        assert "steam_123" in players_index
-        assert "epic_456" in players_index
+        players_index, aliases = normalize_players(header, frames)
+        assert "steam:123" in players_index
+        assert "epic:456" in players_index
+        assert aliases["player_0"] == "steam:123"
+        assert aliases["player_1"] == "epic:456"
         
         timeline = build_timeline(header, frames)
         assert len(timeline) == 5
@@ -507,7 +517,7 @@ class TestIntegration:
         assert last_frame.ball.position.x == 400.0  # 4*100
         
         # Verify player data
-        player1_frame = last_frame.get_player_by_id("steam_123")
+        player1_frame = last_frame.get_player_by_id("steam:123")
         assert player1_frame is not None
         assert player1_frame.team == 0
         assert player1_frame.boost_amount == 60  # 100 - 4*10
@@ -517,5 +527,5 @@ class TestIntegration:
         team1_players = last_frame.get_players_by_team(1)
         assert len(team0_players) == 1
         assert len(team1_players) == 1
-        assert team0_players[0].player_id == "steam_123"
-        assert team1_players[0].player_id == "epic_456"
+        assert team0_players[0].player_id == "steam:123"
+        assert team1_players[0].player_id == "epic:456"
