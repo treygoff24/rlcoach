@@ -51,6 +51,14 @@ class RustAdapter(ParserAdapter):
             loadout = self._extract_loadout(stats)
             score = stats.get("Score") if isinstance(stats.get("Score"), (int, float)) else 0
 
+            normalized_stats: dict[str, Any] = {}
+            if isinstance(stats, dict):
+                for key, value in stats.items():
+                    if isinstance(value, dict) and "value" in value:
+                        normalized_stats[key] = value.get("value")
+                    else:
+                        normalized_stats[key] = value
+
             players.append(
                 PlayerInfo(
                     name=name,
@@ -60,6 +68,7 @@ class RustAdapter(ParserAdapter):
                     platform_ids=platform_ids,
                     camera_settings=camera_settings,
                     loadout=loadout,
+                    stats=normalized_stats,
                 )
             )
         goals = []

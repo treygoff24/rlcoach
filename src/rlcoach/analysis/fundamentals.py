@@ -92,11 +92,6 @@ def analyze_fundamentals(
         elif touch.outcome == "SAVE":
             saves_count += 1
     
-    # Calculate shooting percentage
-    shooting_percentage = 0.0
-    if shots_count > 0:
-        shooting_percentage = (goals_count / shots_count) * 100.0
-    
     # Calculate score using community standard formula
     score = (
         100 * goals_count +
@@ -105,17 +100,28 @@ def analyze_fundamentals(
         75 * saves_count +
         25 * demos_inflicted
     )
-    
-    return {
+
+    result = {
         "goals": goals_count,
         "assists": assists_count,
-        "shots": shots_count, 
+        "shots": shots_count,
         "saves": saves_count,
         "demos_inflicted": demos_inflicted,
         "demos_taken": demos_taken,
         "score": score,
-        "shooting_percentage": round(shooting_percentage, 2)
+        "shooting_percentage": _shooting_percentage(goals_count, shots_count),
     }
+
+    # Override with authoritative header stats when available.
+    header_stats = _extract_header_fundamentals(header, player_id, team)
+    if header_stats:
+        for key in ("goals", "assists", "shots", "saves", "score"):
+            value = header_stats.get(key)
+            if value is not None:
+                result[key] = int(value)
+        result["shooting_percentage"] = _shooting_percentage(result["goals"], result["shots"])
+
+    return result
 
 
 def _empty_fundamentals() -> dict[str, Any]:
@@ -164,3 +170,74 @@ def _infer_team_from_events(player_id: str, goals: list[GoalEvent], demos: list[
             return demo.team_attacker
     
     return None
+
+
+def _shooting_percentage(goals: int, shots: int) -> float:
+    if shots <= 0:
+        return 0.0
+    return round((goals / shots) * 100.0, 2)
+
+
+def _extract_header_fundamentals(
+    header: Header | None,
+    player_id: str | None,
+    team: str | None,
+) -> dict[str, int] | None:
+    if header is None:
+        return None
+
+    if player_id:
+        stats = _lookup_header_player_stats(header, player_id)
+        if not stats:
+            return None
+        return {
+            "goals": _safe_int(stats.get("Goals")),
+            "assists": _safe_int(stats.get("Assists")),
+            "shots": _safe_int(stats.get("Shots")),
+            "saves": _safe_int(stats.get("Saves")),
+            "score": _safe_int(stats.get("Score")),
+        }
+
+    if team:
+        team_idx = 0 if team.upper() == "BLUE" else 1 if team.upper() == "ORANGE" else None
+        if team_idx is None:
+            return None
+
+        aggregates = {
+            "goals": 0,
+            "assists": 0,
+            "shots": 0,
+            "saves": 0,
+            "score": 0,
+        }
+        found = False
+        for info in header.players:
+            if info.team != team_idx or not info.stats:
+                continue
+            found = True
+            aggregates["goals"] += _safe_int(info.stats.get("Goals"))
+            aggregates["assists"] += _safe_int(info.stats.get("Assists"))
+            aggregates["shots"] += _safe_int(info.stats.get("Shots"))
+            aggregates["saves"] += _safe_int(info.stats.get("Saves"))
+            aggregates["score"] += _safe_int(info.stats.get("Score"))
+
+        return aggregates if found else None
+
+    return None
+
+
+def _lookup_header_player_stats(header: Header, player_id: str) -> dict[str, Any] | None:
+    for idx, info in enumerate(header.players):
+        pid = f"player_{idx}"
+        if player_id == pid or (info.platform_id and player_id == info.platform_id):
+            return info.stats or None
+    return None
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        if value is None:
+            return 0
+        return int(value)
+    except (TypeError, ValueError):
+        return 0

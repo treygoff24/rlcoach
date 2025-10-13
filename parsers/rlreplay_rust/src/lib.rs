@@ -364,6 +364,12 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 for deleted in nf.deleted_actors {
                     let aid: i32 = deleted.into();
                     let team_for_return = car_team.get(&aid).copied();
+                    if ball_actor == Some(aid) {
+                        ball_actor = None;
+                        ball_pos = (0.0, 0.0, 93.15);
+                        ball_vel = (0.0, 0.0, 0.0);
+                        ball_angvel = (0.0, 0.0, 0.0);
+                    }
                     if let Some(idx) = actor_to_player_index.remove(&aid) {
                         if let Some(team) = team_for_return {
                             if let Some(queue) = next_by_team.get_mut(&team) {
@@ -388,7 +394,12 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     let aid: i32 = actor_id.into();
                     actor_object_name.insert(aid, obj_name.clone());
                     let kind = classify_object_name(&obj_name);
-                    if kind.is_ball && ball_actor.is_none() { ball_actor = Some(aid); }
+                    if kind.is_ball {
+                        ball_actor = Some(aid);
+                        ball_pos = (0.0, 0.0, 93.15);
+                        ball_vel = (0.0, 0.0, 0.0);
+                        ball_angvel = (0.0, 0.0, 0.0);
+                    }
                     if kind.is_ball || kind.is_car { actor_kind.insert(aid, kind); }
                 }
 

@@ -77,12 +77,39 @@ class TestBoostAnalysis:
         
         events = {
             "boost_pickups": [
-                BoostPickupEvent(t=10.0, player_id="player1", pad_type="BIG", 
-                               stolen=False, pad_id=0, location=Vec3(3584, 0, 73)),
-                BoostPickupEvent(t=20.0, player_id="player1", pad_type="SMALL",
-                               stolen=False, pad_id=5, location=Vec3(0, 2048, 73)),
-                BoostPickupEvent(t=30.0, player_id="player2", pad_type="BIG",
-                               stolen=True, pad_id=1, location=Vec3(-3584, 0, 73)),
+                BoostPickupEvent(
+                    t=10.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=0,
+                    location=Vec3(3584, 0, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),
+                BoostPickupEvent(
+                    t=20.0,
+                    player_id="player1",
+                    pad_type="SMALL",
+                    stolen=False,
+                    pad_id=5,
+                    location=Vec3(0, 2048, 73),
+                    boost_before=50.0,
+                    boost_after=62.0,
+                    boost_gain=12.0,
+                ),
+                BoostPickupEvent(
+                    t=30.0,
+                    player_id="player2",
+                    pad_type="BIG",
+                    stolen=True,
+                    pad_id=1,
+                    location=Vec3(-3584, 0, 73),
+                    boost_before=10.0,
+                    boost_after=100.0,
+                    boost_gain=90.0,
+                ),
             ]
         }
         
@@ -107,12 +134,39 @@ class TestBoostAnalysis:
         
         events = {
             "boost_pickups": [
-                BoostPickupEvent(t=10.0, player_id="player1", pad_type="BIG",
-                               stolen=True, pad_id=0, location=Vec3(3584, 2500, 73)),  # Orange side
-                BoostPickupEvent(t=20.0, player_id="player1", pad_type="SMALL", 
-                               stolen=True, pad_id=5, location=Vec3(0, 3000, 73)),  # Orange side
-                BoostPickupEvent(t=30.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=1, location=Vec3(-3584, -2500, 73)),  # Blue side
+                BoostPickupEvent(
+                    t=10.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=True,
+                    pad_id=0,
+                    location=Vec3(3584, 2500, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),  # Orange side
+                BoostPickupEvent(
+                    t=20.0,
+                    player_id="player1",
+                    pad_type="SMALL",
+                    stolen=True,
+                    pad_id=5,
+                    location=Vec3(0, 3000, 73),
+                    boost_before=10.0,
+                    boost_after=22.0,
+                    boost_gain=12.0,
+                ),  # Orange side
+                BoostPickupEvent(
+                    t=30.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=1,
+                    location=Vec3(-3584, -2500, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),  # Blue side
             ]
         }
         
@@ -157,15 +211,39 @@ class TestBoostAnalysis:
         
         events = {
             "boost_pickups": [
-                # Pickup at t=10 when boost was 85 - should overfill by 85 (100-15)
-                BoostPickupEvent(t=10.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=0, location=Vec3(3584, 0, 73)),
-                # Pickup at t=20 when boost was 95 - should overfill by 95 (100-5)  
-                BoostPickupEvent(t=20.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=1, location=Vec3(-3584, 0, 73)),
-                # Pickup at t=30 when boost was 50 - no overfill
-                BoostPickupEvent(t=30.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=2, location=Vec3(0, 5120, 73)),
+                BoostPickupEvent(
+                    t=10.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=0,
+                    location=Vec3(3584, 0, 73),
+                    boost_before=85.0,
+                    boost_after=100.0,
+                    boost_gain=15.0,
+                ),
+                BoostPickupEvent(
+                    t=20.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=1,
+                    location=Vec3(-3584, 0, 73),
+                    boost_before=95.0,
+                    boost_after=100.0,
+                    boost_gain=5.0,
+                ),
+                BoostPickupEvent(
+                    t=30.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=2,
+                    location=Vec3(0, 5120, 73),
+                    boost_before=20.0,
+                    boost_after=100.0,
+                    boost_gain=80.0,
+                ),
             ]
         }
         
@@ -212,12 +290,39 @@ class TestBoostAnalysis:
         
         events = {
             "boost_pickups": [
-                BoostPickupEvent(t=30.0, player_id="player1", pad_type="BIG", 
-                               stolen=False, pad_id=0, location=Vec3(3584, 0, 73)),
-                BoostPickupEvent(t=60.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=1, location=Vec3(-3584, 0, 73)), 
-                BoostPickupEvent(t=90.0, player_id="player1", pad_type="SMALL",
-                               stolen=False, pad_id=5, location=Vec3(0, 2048, 73)),
+                BoostPickupEvent(
+                    t=30.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=0,
+                    location=Vec3(3584, 0, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),
+                BoostPickupEvent(
+                    t=60.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=1,
+                    location=Vec3(-3584, 0, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),
+                BoostPickupEvent(
+                    t=90.0,
+                    player_id="player1",
+                    pad_type="SMALL",
+                    stolen=False,
+                    pad_id=5,
+                    location=Vec3(0, 2048, 73),
+                    boost_before=40.0,
+                    boost_after=52.0,
+                    boost_gain=12.0,
+                ),
             ]
         }
         
@@ -242,12 +347,39 @@ class TestBoostAnalysis:
         
         events = {
             "boost_pickups": [
-                BoostPickupEvent(t=10.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=0, location=Vec3(3584, 0, 73)),
-                BoostPickupEvent(t=20.0, player_id="player2", pad_type="SMALL", 
-                               stolen=False, pad_id=5, location=Vec3(0, 2048, 73)),
-                BoostPickupEvent(t=30.0, player_id="player3", pad_type="BIG",
-                               stolen=False, pad_id=1, location=Vec3(-3584, 0, 73)),
+                BoostPickupEvent(
+                    t=10.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=0,
+                    location=Vec3(3584, 0, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),
+                BoostPickupEvent(
+                    t=20.0,
+                    player_id="player2",
+                    pad_type="SMALL",
+                    stolen=False,
+                    pad_id=5,
+                    location=Vec3(0, 2048, 73),
+                    boost_before=30.0,
+                    boost_after=42.0,
+                    boost_gain=12.0,
+                ),
+                BoostPickupEvent(
+                    t=30.0,
+                    player_id="player3",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=1,
+                    location=Vec3(-3584, 0, 73),
+                    boost_before=20.0,
+                    boost_after=100.0,
+                    boost_gain=80.0,
+                ),
             ]
         }
         
@@ -290,8 +422,17 @@ class TestBoostAnalysis:
         
         events = {
             "boost_pickups": [
-                BoostPickupEvent(t=10.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=0, location=Vec3(3584, 0, 73)),
+                BoostPickupEvent(
+                    t=10.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=0,
+                    location=Vec3(3584, 0, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),
             ]
         }
         
@@ -310,8 +451,17 @@ class TestBoostAnalysis:
         frames = []
         events = {
             "boost_pickups": [
-                BoostPickupEvent(t=10.0, player_id="player1", pad_type="BIG",
-                               stolen=False, pad_id=0, location=Vec3(3584, 0, 73)),
+                BoostPickupEvent(
+                    t=10.0,
+                    player_id="player1",
+                    pad_type="BIG",
+                    stolen=False,
+                    pad_id=0,
+                    location=Vec3(3584, 0, 73),
+                    boost_before=0.0,
+                    boost_after=100.0,
+                    boost_gain=100.0,
+                ),
             ]
         }
         header = Mock()

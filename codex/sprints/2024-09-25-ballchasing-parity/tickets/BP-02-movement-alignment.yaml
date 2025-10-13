@@ -1,0 +1,63 @@
+title: "[rlcoach] Align movement analyzer with Ballchasing metrics"
+type: bugfix
+priority: P0
+branch: "feature/bp-02-movement-alignment"
+repo:
+  url: https://github.com/treygoff/rlcoach
+  root: .
+  paths_in_scope:
+    - src/rlcoach/analysis/movement.py
+    - src/rlcoach/events.py
+    - tests/analysis/**
+    - tests/goldens/**
+  paths_out_of_scope:
+    - src/rlcoach/analysis/boost.py
+    - src/rlcoach/analysis/kickoffs.py
+context:
+  stack: {lang: Python, framework: pytest, runtime: Python 3.10}
+  versions: {pytest: "7.x"}
+  style_guides: ["codex/docs/gpt5-codex-ticketing-guide.md", "codex/docs/gpt5-prompting-best-practices-guide.md"]
+  related_issues: ["codex/sprints/2024-09-25-ballchasing-parity/tickets/BP-01-parity-harness.yaml"]
+problem_statement: >
+  Movement metrics (avg speed, supersonic/boost/slow buckets, aerial/powerslide counts) are dramatically off versus
+  Ballchasing for the 0925 replay. We need to consume accurate frame velocities/flags, compute times with real frame
+  deltas, and align bucket thresholds with Ballchasing definitions so parity tests pass.
+non_goals:
+  - Do not change boost economy, kickoff, or positioning analyzers.
+  - Do not introduce new external dependencies.
+constraints:
+  - Maintain deterministic rounding to two decimals in JSON output.
+  - Supersonic detection must consider both velocity magnitude and frame supersonic flags where present.
+  - Powerslide detection must leverage angular velocity without O(n^2) frame scans.
+artifacts_expected:
+  output_mode: diff
+  pr_title_template: "[movement] Match Ballchasing speed buckets and aerial metrics"
+  pr_body_sections: ["Context", "Implementation", "Tests", "Risks", "Follow-ups"]
+  decision_log: true
+acceptance_criteria:
+  - [ ] Parity harness shows movement metric deltas within ±2% relative error (or ±2 units for counts) for all players on the 0925 replay.
+  - [ ] Movement analyzer uses per-frame `dt` derived from normalized timeline and handles missing frames gracefully.
+  - [ ] Supersonic, boost-speed, and slow buckets match Ballchasing definitions (threshold docs captured in code comments).
+  - [ ] Powerslide and aerial counters rely on angular velocity / altitude thresholds documented in our plan.
+  - [ ] Add/refresh golden JSON snippets or targeted unit tests covering edge cases (e.g., sustained supersonic, brief aerial).
+verification:
+  repro_steps: |
+    python -m rlcoach.cli report-md Replay_files/0925.replay --out out --pretty
+  checks:
+    - cmd: "pytest tests/analysis/test_ballchasing_parity.py -q"
+    - cmd: "pytest tests/analysis/test_movement.py -q"
+workflow_expectations:
+  - plan-first
+  - implement
+  - self-check
+  - emit_patch
+  - run_verification
+  - summarize
+codex:
+  approvals: on-request
+  sandbox: workspace-write
+  web_search: false
+  progress: brief
+  review:
+    ask_for_diff_format: unified
+  agents_md: true

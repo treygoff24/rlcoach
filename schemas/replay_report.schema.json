@@ -254,7 +254,10 @@
         "pad_type": { "type": "string", "enum": ["SMALL","BIG"] },
         "stolen": { "type": "boolean", "description": "True if pickup occurred on opponent half (excluding mid boosts)" },
         "pad_id": { "type": "integer" },
-        "location": { "$ref": "#/definitions/vec3" }
+        "location": { "$ref": "#/definitions/vec3" },
+        "boost_before": { "type": ["number","null"], "description": "Player boost immediately before pickup" },
+        "boost_after": { "type": ["number","null"], "description": "Player boost immediately after pickup" },
+        "boost_gain": { "type": "number", "description": "Net boost gained from this pickup" }
       }
     },
 

@@ -152,15 +152,43 @@ def _analyze_player_boost(
     for pickup in pickups:
         if pickup.player_id != player_id:
             continue
-            
-        # Determine pickup amount based on pad type
-        pickup_amount = 100.0 if pickup.pad_type == "BIG" else 12.0
+
+        pad_capacity = 100.0 if pickup.pad_type == "BIG" else 12.0
+
+        boost_after = getattr(pickup, "boost_after", None)
+        boost_before = getattr(pickup, "boost_before", None)
+        boost_gain = getattr(pickup, "boost_gain", 0.0) or 0.0
+
+        if boost_before is None and boost_after is not None:
+            boost_before = boost_after - boost_gain if boost_gain else None
+
+        if boost_after is None and boost_before is not None:
+            boost_after = boost_before + boost_gain if boost_gain else None
+
+        if boost_gain <= 0.0 and boost_before is not None and boost_after is not None:
+            boost_gain = max(0.0, float(boost_after) - float(boost_before))
+
+        if boost_gain <= 0.0 or boost_before is None or boost_after is None:
+            pickup_frame = _find_frame_at_time(frames, frame_timestamps, pickup.t)
+            if pickup_frame:
+                player_frame = _find_player_in_frame(pickup_frame, player_id)
+                if player_frame:
+                    boost_after = float(player_frame.boost_amount)
+                    if pickup.frame is not None and pickup.frame > 0:
+                        prev_frame = frames[max(0, pickup.frame - 1)]
+                        prev_player_frame = _find_player_in_frame(prev_frame, player_id)
+                        if prev_player_frame:
+                            boost_before = float(prev_player_frame.boost_amount)
+                    if boost_before is None:
+                        boost_before = max(0.0, boost_after - pad_capacity)
+                    boost_gain = max(0.0, boost_after - boost_before)
+
+        pickup_amount = min(boost_gain, pad_capacity) if boost_gain > 0.0 else pad_capacity
         amount_collected += pickup_amount
-        
+
         if pickup.stolen:
             amount_stolen += pickup_amount
-            
-        # Count pad types
+
         if pickup.pad_type == "BIG":
             big_pads += 1
             if pickup.stolen:
@@ -169,15 +197,9 @@ def _analyze_player_boost(
             small_pads += 1
             if pickup.stolen:
                 stolen_small_pads += 1
-                
-        # Calculate overfill - find player's boost at pickup time
-        pickup_frame = _find_frame_at_time(frames, frame_timestamps, pickup.t)
-        if pickup_frame:
-            player_frame = _find_player_in_frame(pickup_frame, player_id)
-            if player_frame and player_frame.boost_amount > OVERFILL_THRESHOLD:
-                excess = min(pickup_amount, 100.0 - player_frame.boost_amount)
-                if excess < pickup_amount:
-                    overfill += pickup_amount - excess
+
+        if boost_before is not None and boost_before >= OVERFILL_THRESHOLD:
+            overfill += max(0.0, pad_capacity - pickup_amount)
     
     # Calculate rates (per minute)
     minutes = max(match_duration / 60.0, 1.0)  # Avoid division by zero

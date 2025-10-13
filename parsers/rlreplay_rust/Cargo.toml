@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.21", features = ["extension-module", "abi3-py38"] }
-boxcars = "0.10.6"
+boxcars = "0.10.7"
 
 [package.metadata.maturin]
 name = "rlreplay_rust"

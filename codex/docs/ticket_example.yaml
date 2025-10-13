@@ -1,0 +1,64 @@
+title: "[Atlas Civic OS] Define MVP OpenAPI contracts"
+type: feature
+priority: P0
+branch: "feature/sprint-0-openapi-contracts"
+repo:
+  url: https://github.com/treygoff24/Atlas_Civic_OS
+  root: .
+  paths_in_scope:
+    - package.json
+    - pnpm-workspace.yaml
+    - packages/types/**
+    - specs/openapi.yaml
+  paths_out_of_scope:
+    - apps/api/src/**
+    - docs/
+context:
+  stack: {lang: YAML, framework: OpenAPI 3.1, runtime: Node 20, package_manager: pnpm 8}
+  versions: {openapi: "3.1.0"}
+  style_guides: ["docs/planning/gpt5-codex-ticketing-guide.md"]
+  related_issues: ["docs/tickets/sprint-0/S0-01-monorepo-bootstrap.yaml"]
+problem_statement: >
+  Sprint 0 requires contract definitions before implementation so teams can work in parallel. Produce an OpenAPI 3.1 specification capturing the MVP endpoints (health check, list bills, fetch single bill, list people) and generate shared TypeScript types that other packages can import.
+non_goals:
+  - Do not implement API handlers—only contracts and generated types.
+  - Do not cover future phase endpoints (stick to Sprint 1 scope).
+constraints:
+  - OpenAPI spec must include schemas with provenance fields (source URI, retrieved_at) per planning docs.
+  - Keep spec organized with reusable components and error schema.
+  - Generated types should live in `packages/types/src/generated.ts` and be published via workspace package.
+artifacts_expected:
+  output_mode: diff
+  pr_title_template: "[contracts] Add MVP OpenAPI spec and generated types"
+  pr_body_sections: ["Context", "Implementation", "Tests", "Risks", "Follow-ups"]
+  decision_log: true
+acceptance_criteria:
+  - [ ] `specs/openapi.yaml` defines `GET /health`, `GET /bills`, `GET /bills/{id}`, and `GET /people/{id}` with 200/4xx responses and shared schemas for Bill, Person, Pagination, and Error.
+  - [ ] Schemas include fields for `id`, `title`, `summary`, `source_uri`, `retrieved_at`, and `provenance` metadata aligned with planning docs.
+  - [ ] Root `package.json` adds scripts: `gen:types` (runs openapi-typescript) and `check:types` (ensures generated file up to date).
+  - [ ] Workspace package `packages/types` created with `package.json`, `src/generated.ts`, and index exporting generated types.
+  - [ ] Running `pnpm gen:types` regenerates types without diff and `pnpm check:types` passes.
+verification:
+  repro_steps: |
+    pnpm install
+    pnpm gen:types
+    pnpm check:types
+  checks:
+    - cmd: "pnpm install"
+    - cmd: "pnpm gen:types"
+    - cmd: "pnpm check:types"
+workflow_expectations:
+  - plan-first
+  - implement
+  - self-check
+  - emit_patch
+  - run_verification
+  - summarize
+codex:
+  approvals: Full
+  web_search: true
+  progress: brief
+  review:
+    ask_for_diff_format: unified
+    pr_template: "docs/planning/gpt5-codex-ticketing-guide.md"
+  agents_md: true

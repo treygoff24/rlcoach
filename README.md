@@ -8,11 +8,12 @@ rlcoach is designed to provide detailed analysis of Rocket League replays withou
 
 ## Project Status
 
-- CLI, analyzers, and report generator are implemented with tests.
-- Parser layer is pluggable:
-  - "null" adapter (header‑only fallback; always available)
-  - optional "rust" adapter (pyo3 + boxcars) for richer header parsing and network frames
-- A minimal offline UI is available to view generated JSON reports.
+- End-to-end CLI pipeline (ingest → normalize → events → analyzers → JSON/Markdown) is implemented with tests.
+- Parser adapters are pluggable:
+  - `null` adapter (header-only fallback; always available)
+  - optional `rust` adapter (pyo3 + boxcars) for richer header parsing and network frames
+- Markdown dossier generator mirrors the JSON schema and ships with golden fixtures.
+- Offline CLI viewer renders summaries from previously generated JSON reports.
 
 See the [implementation plan](codex/Plans/rlcoach_implementation_plan.md) for scope and roadmap.
 
@@ -23,6 +24,9 @@ See the [implementation plan](codex/Plans/rlcoach_implementation_plan.md) for sc
 ```bash
 # Install development dependencies
 make install-dev
+
+# (Optional) Build the Rust replay adapter
+make rust-dev
 ```
 
 ### Usage
@@ -45,10 +49,19 @@ python -m rlcoach.cli analyze path/to/replay.replay --adapter rust --out out --p
 python -m rlcoach.cli report-md path/to/replay.replay --out out --pretty
 python -m rlcoach.cli report-md path/to/replay.replay --adapter rust --out out --pretty
 
-# View a generated report locally (pretty summary; optional per‑player focus)
+# View a generated report locally (pretty summary; optional per-player focus)
 python -m rlcoach.ui view out/replay.json
 python -m rlcoach.ui view out/replay.json --player "DisplayName"
 ```
+
+### Features
+
+- **Replay ingest**: Validates file bounds, surface CRC status, and captures deterministic file metadata.
+- **Pluggable parsing**: Header-only fallback plus optional Rust bridge for network frames.
+- **Normalization & events**: Builds a consolidated timeline and detects goals, demos, touches, challenges, boost pickups, and kickoffs.
+- **Analysis modules**: Fundamentals, boost economy, movement, positioning, passing, challenges, kickoffs, heatmaps, and rotation compliance.
+- **Reporting**: Emits schema-conformant JSON and a Markdown dossier with identical coverage.
+- **Offline viewer**: `python -m rlcoach.ui` renders summaries without network dependencies.
 ## Sample Markdown Output
 
 A complete dossier example is stored at `tests/goldens/synthetic_small.md`.
@@ -73,6 +86,9 @@ make fmt
 # Lint code  
 make lint
 
+# Regenerate the optional Rust adapter artifacts
+make rust-dev
+
 # Clean build artifacts
 make clean
 ```
@@ -87,6 +103,13 @@ make clean
 - `codex/logs/` — Engineering logs
 - `codex/docs/` — Developer docs (e.g., parser adapter, UI)
 - `parsers/rlreplay_rust/` — Optional Rust parser adapter (pyo3)
+
+## Documentation
+
+- [Implementation plan](codex/Plans/rlcoach_implementation_plan.md) — architecture and scope.
+- [Markdown mapping](codex/docs/json-report-markdown-mapping.md) — JSON → Markdown coverage matrix.
+- [Markdown composer plan](codex/docs/json-to-markdown-report-plan.md) — report generation roadmap.
+- [Offline UI guide](codex/docs/ui.md) — CLI viewer usage.
 
 ## Architecture
 
@@ -117,8 +140,6 @@ maturin develop
 maturin build -r
 pip install target/wheels/*.whl
 ```
-
-See `codex/docs/parser_adapter.md` for details.
 
 ## Offline UI (CLI)
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NamedTuple
+from typing import NamedTuple, Any
 
 
 class Vec3(NamedTuple):
@@ -24,6 +24,7 @@ class PlayerInfo:
     platform_ids: dict[str, str] = field(default_factory=dict)
     camera_settings: dict[str, float | int] | None = None
     loadout: dict[str, int | str | float] = field(default_factory=dict)
+    stats: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

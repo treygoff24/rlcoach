@@ -43,4 +43,4 @@
 - Do we include optional CSV/JSON sidecars for easy ingestion by downstream analytics pipelines?
 - Should we expose configuration flags to toggle verbose sections (e.g., full event log) for users who want slimmer reports?
 
-  python -m rlcoach.cli report-md /Users/treygoff/Development/rlcoach/Replay_files/4985385d-2a6a-4bea-a312-8e539c7fd098.replay --out out --pretty
+  python -m rlcoach.cli report-md path/to/replay.replay --out out --pretty

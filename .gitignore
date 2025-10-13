@@ -187,3 +187,8 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Replay analysis outputs
+out/
+Replay_files/**/*.json
+Replay_files/**/*.md
