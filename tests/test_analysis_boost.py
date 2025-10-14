@@ -183,10 +183,10 @@ class TestBoostAnalysis:
         """Test tracking time spent at 0 and 100 boost."""
         frames = [
             create_test_frame(0.0, [create_test_player("player1", 0, boost=2)]),   # Zero boost
-            create_test_frame(10.0, [create_test_player("player1", 0, boost=3)]),  # Still zero
+            create_test_frame(10.0, [create_test_player("player1", 0, boost=1)]),  # Still zero
             create_test_frame(20.0, [create_test_player("player1", 0, boost=50)]), # Normal
-            create_test_frame(30.0, [create_test_player("player1", 0, boost=96)]), # Full
-            create_test_frame(40.0, [create_test_player("player1", 0, boost=98)]), # Still full
+            create_test_frame(30.0, [create_test_player("player1", 0, boost=99)]), # Full
+            create_test_frame(40.0, [create_test_player("player1", 0, boost=100)]), # Still full
             create_test_frame(50.0, [create_test_player("player1", 0, boost=100)]), # Max full
             create_test_frame(60.0, [create_test_player("player1", 0, boost=30)]),  # Normal
         ]
@@ -197,7 +197,7 @@ class TestBoostAnalysis:
         
         assert result["time_zero_boost_s"] == 20.0   # 0-20s at zero boost  
         assert result["time_hundred_boost_s"] == 30.0 # 30-60s at full boost
-        assert abs(result["avg_boost"] - 54.14) < 0.1  # Average of all boost amounts (allow small rounding)
+        assert abs(result["avg_boost"] - 54.57) < 0.1  # Average of all boost amounts (allow small rounding)
     
     def test_overfill_detection(self):
         """Test overfill calculation when collecting boost above threshold."""
@@ -249,15 +249,7 @@ class TestBoostAnalysis:
         
         result = analyze_boost(frames, events, player_id="player1")
         
-        # Overfill = (100-15) + (100-5) = 85 + 95 = 180
-        # But this is wrong - overfill should be waste, not the calculation above
-        # Let me recalculate: overfill when boost_before > 80
-        # t=10: boost=85, pickup=100, overfill = 100-15 = 85
-        # t=20: boost=95, pickup=100, overfill = 100-5 = 95  
-        # But the logic should be: if boost_before + pickup > 100, then overfill = (boost_before + pickup) - 100
-        # Actually, looking at schema: "Sum of (100 - boost_before) for pickups that exceed 100"
-        # This is confusing. Let me implement it as wasted boost due to overfill.
-        assert result["overfill"] >= 0.0  # Just check it's calculated
+        assert result["overfill"] == 180.0  # 85 wasted + 95 wasted on two big-pad pickups
     
     def test_boost_waste_detection(self):
         """Test boost waste detection during supersonic speeds."""

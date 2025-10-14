@@ -73,6 +73,7 @@ Event breakdown
 	•	Goal/assist/shot/save timeline with frame & seconds; “on-target” shots via ball trajectory intersection with goal plane and post-collision states. (Tickmarks help show ramp-up context.)  ￼
 	•	Demos (inflicted/taken; who, whom, where, time since last touch). Boxcars surfaces Demolish and Explosion events.  ￼
 	•	Boost pickups (pad id/location; big/small; team-half; “stolen” if on opponent half). Uses RLBot boost pad coordinates.  ￼
+	•	Boost pickup heuristics: retain 0.45 s position trail per player, expand radii (+220 uu big, +140 uu small), and respect pad cooldowns (10 s big, 4 s small) when selecting pad ids; classify stolen strictly by pad Y vs ±1200 uu centreline with frame-position confirmation. Analyzer thresholds: zero boost <3, full boost ≥99, overfill measured as unused pad capacity.
 	•	Touches (player, contact speed, outcome classification: shot/clear/pass/dribble/50/neutral).
 
 Fundamentals summary (per player & team)

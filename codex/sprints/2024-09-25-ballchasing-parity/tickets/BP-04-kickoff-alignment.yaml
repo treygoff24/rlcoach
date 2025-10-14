@@ -53,9 +53,9 @@ workflow_expectations:
   - run_verification
   - summarize
 codex:
-  approvals: on-request
+  approvals: all
   sandbox: workspace-write
-  web_search: false
+  web_search: true
   progress: brief
   review:
     ask_for_diff_format: unified

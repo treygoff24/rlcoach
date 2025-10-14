@@ -433,6 +433,31 @@ class TestBoostPickupDetection:
         pickup = pickups[0]
         assert pickup.pad_type == "SMALL"
         assert pickup.pad_id == 11
+
+    def test_small_pad_preferred_over_big_for_small_gain(self):
+        """Ensure nearby small pad is chosen instead of distant big pad for small boosts."""
+        pad_small = FIELD.BOOST_PADS[27]  # (3584, 2484)
+        pos = Vec3(pad_small.position.x, pad_small.position.y - 134.0, 17.0)  # Within radius
+        frames = [
+            create_test_frame(
+                1.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("p1", 0, pos, boost=60)],
+            ),
+            create_test_frame(
+                1.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("p1", 0, pos, boost=66)],
+            ),
+        ]
+
+        pickups = detect_boost_pickups(frames)
+        assert len(pickups) == 1
+        pickup = pickups[0]
+        assert pickup.pad_type == "SMALL"
+        assert pickup.pad_id == pad_small.pad_id
     
     def test_stolen_boost_detection(self):
         """Boost pickup on opponent half detected as stolen."""

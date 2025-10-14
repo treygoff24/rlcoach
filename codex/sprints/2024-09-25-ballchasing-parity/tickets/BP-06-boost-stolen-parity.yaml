@@ -1,0 +1,68 @@
+title: "[rlcoach] Reconcile stolen boost metrics with Ballchasing baseline"
+type: bugfix
+priority: P1
+branch: "feature/bp-06-boost-stolen-parity"
+repo:
+  url: https://github.com/treygoff/rlcoach
+  root: .
+  paths_in_scope:
+    - src/rlcoach/events.py
+    - src/rlcoach/analysis/boost.py
+    - tests/analysis/**
+    - tests/test_analysis_boost.py
+  paths_out_of_scope:
+    - src/rlcoach/analysis/movement.py
+    - src/rlcoach/analysis/passing.py
+context:
+  stack: {lang: Python, framework: pytest, runtime: Python 3.10}
+  versions: {pytest: "7.x"}
+  style_guides: ["codex/docs/gpt5-codex-ticketing-guide.md", "codex/docs/gpt5-prompting-best-practices-guide.md"]
+  related_issues:
+    - "codex/sprints/2024-09-25-ballchasing-parity/tickets/BP-01-parity-harness.yaml"
+    - "codex/sprints/2024-09-25-ballchasing-parity/tickets/BP-03-boost-alignment.yaml"
+problem_statement: >
+  After landing BP-03 we now classify pad pickups deterministically and match total boost collected within ~2–4%,
+  but stolen metrics still diverge sharply from Ballchasing. Blue team shows 1,184 stolen boost vs the expected 813,
+  and individual players (e.g., mrtn 559 vs 433, Skillz 600 vs 522) remain well outside the ±3% / ≤5 units tolerance
+  defined for parity. The current heuristics over-count midfield steals and fail to cap small-pad steals when the
+  player is already near neutral territory. We need to tighten the stolen classification and analyzer aggregation so
+  team/player stolen totals align with the Ballchasing export for Replay_files/0925.replay.
+non_goals:
+  - Do not revisit movement or kickoff analyzers in this ticket.
+  - Do not alter boost waste or overfill formulas beyond what is required for stolen accuracy.
+constraints:
+  - Keep boost pickup detection O(n) per replay; reuse the existing position history window rather than adding global searches.
+  - Stolen determination must rely on field coordinates only; do not introduce opponent state heuristics that depend on network IDs.
+  - Maintain backwards compatibility of BoostPickupEvent fields (`pad_id`, `pad_type`, `boost_before/after/gain`) for downstream analyzers.
+artifacts_expected:
+  output_mode: diff
+  pr_title_template: "[boost] Tighten stolen heuristics to match Ballchasing"
+  pr_body_sections: ["Context", "Implementation", "Tests", "Risks", "Follow-ups"]
+  decision_log: true
+acceptance_criteria:
+  - [ ] Parity harness shows each player's `amount_stolen` within ±3% or ≤5 boost units of Ballchasing for Replay_files/0925.replay.
+  - [ ] Team-level `amount_stolen`, `stolen_big_pads`, and `stolen_small_pads` fall within the same tolerances.
+  - [ ] Midfield pads (y within ±1200 uu) never count as stolen unless Ballchasing does; document the exact stolen boundary logic in plan docs.
+  - [ ] Add targeted unit tests that cover border-line pads (midfield small pads, corner steals, respawn-limited repeats) and assert the updated stolen counts.
+verification:
+  repro_steps: |
+    python -m rlcoach.cli report-md Replay_files/0925.replay --out out --pretty
+  checks:
+    - cmd: "pytest tests/analysis/test_ballchasing_parity.py -q"
+    - cmd: "pytest tests/analysis/test_boost.py -q"
+    - cmd: "pytest tests/test_analysis_boost.py -q"
+workflow_expectations:
+  - plan-first
+  - implement
+  - self-check
+  - emit_patch
+  - run_verification
+  - summarize
+codex:
+  approvals: all
+  sandbox: workspace-write
+  web_search: true
+  progress: brief
+  review:
+    ask_for_diff_format: unified
+  agents_md: true
