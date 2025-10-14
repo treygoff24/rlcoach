@@ -74,8 +74,8 @@ class TestMovementAnalysis:
         players = [
             # Slow speed (200 UU/s)
             create_test_player("player1", 0, velocity=Vec3(200.0, 0.0, 0.0)),
-            # Boost speed (1000 UU/s)  
-            create_test_player("player1", 0, velocity=Vec3(1000.0, 0.0, 0.0)),
+            # Boost speed (ground speed 1800 UU/s)
+            create_test_player("player1", 0, velocity=Vec3(1800.0, 0.0, 0.0)),
             # Supersonic speed (2500 UU/s)
             create_test_player("player1", 0, velocity=Vec3(2500.0, 0.0, 0.0), is_supersonic=True),
         ]
@@ -94,7 +94,7 @@ class TestMovementAnalysis:
         assert result["time_supersonic_s"] == 1.0
         
         # Average speed calculation
-        avg_speed_uu_s = (200.0 + 1000.0 + 2500.0) / 3
+        avg_speed_uu_s = (200.0 + 1800.0 + 2500.0) / 3
         expected_avg_kph = _uu_s_to_kph(avg_speed_uu_s)
         assert abs(result["avg_speed_kph"] - expected_avg_kph) < 0.01
     
@@ -216,8 +216,8 @@ class TestMovementAnalysis:
         
         # Should aggregate blue team players (player1 and player2)
         # Blue team has 2 players, so time metrics should be summed
-        assert result["time_slow_s"] == 1.0  # player1 slow in frame 0 (500 <= 500)
-        assert result["time_boost_speed_s"] == 3.0  # player1 frame 1 (600) + player2 both frames (1500, 1600)
+        assert result["time_slow_s"] == 2.0  # player1 slow in both frames
+        assert result["time_boost_speed_s"] == 2.0  # player2 contributes in each frame
         
         # Average speed should be average of the two blue players
         player1_avg = (500.0 + 600.0) / 2
@@ -268,7 +268,7 @@ class TestMovementAnalysis:
     def test_frame_duration_handling(self):
         """Test proper handling of variable frame durations."""
         players = [
-            create_test_player("player1", 0, velocity=Vec3(1000.0, 0.0, 0.0)),
+            create_test_player("player1", 0, velocity=Vec3(1800.0, 0.0, 0.0)),
         ]
         
         frames = [
@@ -301,10 +301,23 @@ class TestMovementAnalysis:
         assert result["time_supersonic_s"] == 2.0  # Both frames get 1s each
         assert result["time_boost_speed_s"] == 0.0
     
+    def test_supersonic_hysteresis_handles_minor_dips(self):
+        """Supersonic state should persist through small horizontal speed drops."""
+        frames = [
+            create_test_frame(0.0, [create_test_player("player1", 0, velocity=Vec3(2300.0, 0.0, 0.0))]),
+            create_test_frame(1.0, [create_test_player("player1", 0, velocity=Vec3(2150.0, 0.0, 0.0))]),
+            create_test_frame(2.0, [create_test_player("player1", 0, velocity=Vec3(2000.0, 0.0, 0.0))]),
+        ]
+
+        result = analyze_movement(frames, {}, player_id="player1")
+
+        assert result["time_supersonic_s"] == pytest.approx(2.0, rel=1e-3)
+        assert result["time_boost_speed_s"] == pytest.approx(1.0, rel=1e-3)
+    
     def test_demolished_player_handling(self):
         """Test handling of demolished players in frames."""
         players = [
-            create_test_player("player1", 0, velocity=Vec3(1000.0, 0.0, 0.0), is_demolished=False),
+            create_test_player("player1", 0, velocity=Vec3(1800.0, 0.0, 0.0), is_demolished=False),
             create_test_player("player1", 0, velocity=Vec3(0.0, 0.0, 0.0), is_demolished=True),
         ]
         
@@ -339,26 +352,26 @@ class TestMovementAnalysis:
         """Test complex scenario with multiple movement patterns."""
         players = [
             # Ground, slow
-            create_test_player("player1", 0, 
-                             position=Vec3(0.0, 0.0, 17.0),
-                             velocity=Vec3(300.0, 0.0, 0.0),
-                             is_on_ground=True),
+            create_test_player("player1", 0,
+                               position=Vec3(0.0, 0.0, 17.0),
+                               velocity=Vec3(300.0, 0.0, 0.0),
+                               is_on_ground=True),
             # Ground, boost speed
             create_test_player("player1", 0,
-                             position=Vec3(0.0, 0.0, 17.0),
-                             velocity=Vec3(1200.0, 0.0, 0.0),
-                             is_on_ground=True),
+                               position=Vec3(0.0, 0.0, 17.0),
+                               velocity=Vec3(1800.0, 0.0, 0.0),
+                               is_on_ground=True),
             # Air, supersonic
             create_test_player("player1", 0,
-                             position=Vec3(0.0, 0.0, 300.0),
-                             velocity=Vec3(2400.0, 0.0, 0.0),
-                             is_supersonic=True,
-                             is_on_ground=False),
+                               position=Vec3(0.0, 0.0, 300.0),
+                               velocity=Vec3(2400.0, 0.0, 0.0),
+                               is_supersonic=True,
+                               is_on_ground=False),
             # High air, medium speed
             create_test_player("player1", 0,
-                             position=Vec3(0.0, 0.0, 600.0),
-                             velocity=Vec3(800.0, 0.0, 0.0),
-                             is_on_ground=False),
+                               position=Vec3(0.0, 0.0, 600.0),
+                               velocity=Vec3(800.0, 0.0, 0.0),
+                               is_on_ground=False),
         ]
         
         frames = [
@@ -371,9 +384,9 @@ class TestMovementAnalysis:
         result = analyze_movement(frames, {}, player_id="player1")
         
         # Verify speed buckets
-        assert result["time_slow_s"] == 1.0
-        assert result["time_boost_speed_s"] == 2.0  # frames 1 and 3
-        assert result["time_supersonic_s"] == 1.0
+        assert result["time_slow_s"] == 2.0  # frames 0 and 3
+        assert result["time_boost_speed_s"] == 1.0  # frame 1
+        assert result["time_supersonic_s"] == 1.0  # frame 2
         
         # Verify height classifications
         assert result["time_ground_s"] == 2.0  # frames 0 and 1
@@ -381,7 +394,7 @@ class TestMovementAnalysis:
         assert result["time_high_air_s"] == 1.0  # frame 3
         
         # Calculate expected average speed
-        speeds = [300.0, 1200.0, 2400.0, 800.0]
+        speeds = [300.0, 1800.0, 2400.0, 800.0]
         expected_avg_uu_s = sum(speeds) / len(speeds)
         expected_avg_kph = _uu_s_to_kph(expected_avg_uu_s)
         assert abs(result["avg_speed_kph"] - expected_avg_kph) < 0.01

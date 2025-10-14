@@ -15,27 +15,37 @@ from __future__ import annotations
 
 import math
 from typing import Any
-from ..parser.types import Header, Frame, PlayerFrame
+
 from ..field_constants import Vec3
+from ..parser.types import Frame, Header, PlayerFrame
 
 
-# Movement analysis constants (deterministic thresholds)
-SLOW_SPEED_UU_S = 500.0  # Unreal Units per second - slow movement
-BOOST_SPEED_UU_S = 1410.0  # Speed when boost provides significant benefit
-SUPERSONIC_SPEED_UU_S = 2300.0  # Supersonic threshold
+# Movement analysis thresholds mirror Ballchasing definitions:
+# - slow speed: < 1400 uu/s
+# - boost speed: 1400–2200 uu/s
+# - supersonic: >= 2200 uu/s (flag aware with graceful hysteresis)
+SLOW_SPEED_MAX_UU_S = 1400.0
+BOOST_SPEED_MAX_UU_S = 2200.0
+SUPERSONIC_ENTRY_UU_S = 2200.0
+SUPERSONIC_EXIT_UU_S = 2100.0  # tolerate brief dips without dropping the state
+SUPERSONIC_DERIVATIVE_ENTRY_UU_S = 2800.0  # derivative-based spike guard
 
-# Height thresholds for air/ground classification
-GROUND_HEIGHT = 25.0  # Below this is considered ground
-LOW_AIR_HEIGHT = 200.0  # Low air threshold
-HIGH_AIR_HEIGHT = 500.0  # High air threshold
+# Height thresholds for air/ground classification (from project plan)
+GROUND_HEIGHT = 25.0
+LOW_AIR_HEIGHT = 200.0
+HIGH_AIR_HEIGHT = 500.0
 
 # Powerslide detection thresholds
-MIN_POWERSLIDE_DURATION = 0.1  # Minimum seconds for powerslide detection
-MIN_POWERSLIDE_ANGULAR_VELOCITY = 2.0  # Radians per second
+MIN_POWERSLIDE_DURATION = 0.1  # seconds
+MIN_POWERSLIDE_ANGULAR_VELOCITY = 2.0  # radians per second
 
-# Aerial detection thresholds  
-MIN_AERIAL_HEIGHT = 200.0  # Minimum height to consider aerial
-MIN_AERIAL_DURATION = 0.5  # Minimum seconds airborne to count as aerial
+# Aerial detection thresholds (documented in plan)
+MIN_AERIAL_HEIGHT = 200.0
+MIN_AERIAL_DURATION = 0.5  # seconds
+
+# Frame duration fallbacks
+DEFAULT_FRAME_DT = 1.0 / 30.0  # conservative per-replay tick
+MIN_FRAME_DT = 1e-3
 
 
 def analyze_movement(
@@ -81,13 +91,38 @@ def analyze_movement(
         return _empty_movement()
 
 
+def _compute_frame_durations(frames: list[Frame]) -> list[float]:
+    """Pre-compute per-frame durations with graceful fallbacks.
+
+    Ballchasing integrates speed buckets using the replay sampling cadence
+    (~30 Hz). We follow the normalized timeline timestamps when available and
+    fall back to the previous good delta or a conservative default to avoid
+    gaps on duplicated timestamps.
+    """
+    durations: list[float] = []
+    prev_dt = DEFAULT_FRAME_DT
+
+    for idx, frame in enumerate(frames):
+        dt = prev_dt
+        if idx < len(frames) - 1:
+            next_dt = frames[idx + 1].timestamp - frame.timestamp
+            if next_dt > MIN_FRAME_DT:
+                dt = next_dt
+        durations.append(max(dt, MIN_FRAME_DT))
+        prev_dt = durations[-1]
+
+    return durations
+
+
 def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, Any]:
     """Analyze movement metrics for a specific player."""
-    
+
+    frame_durations = _compute_frame_durations(frames)
+
     # Initialize counters
-    total_speed = 0.0
-    frame_count = 0
-    
+    total_distance = 0.0
+    total_time = 0.0
+
     time_slow = 0.0
     time_boost_speed = 0.0
     time_supersonic = 0.0
@@ -107,7 +142,10 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     powerslide_start = 0.0
     in_aerial = False
     aerial_start = 0.0
-    
+    supersonic_active = False
+
+    prev_dt = DEFAULT_FRAME_DT
+
     for idx, frame in enumerate(frames):
         player_frame = _find_player_in_frame(frame, player_id)
         if not player_frame:
@@ -115,23 +153,48 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
 
         # Calculate speed and height
         speed = _calculate_speed(player_frame.velocity)
+        ground_speed = _horizontal_speed(player_frame.velocity)
         height = player_frame.position.z
-        total_speed += speed
-        frame_count += 1
-        
-        # Calculate frame duration for this frame without repeated index scans
-        frame_dt = _frame_duration(frames, idx, prev_timestamp)
+        frame_dt = frame_durations[idx]
+        if prev_timestamp is not None:
+            prev_dt = frame.timestamp - prev_timestamp
+            if prev_dt <= 0:
+                prev_dt = frame_dt
+        else:
+            prev_dt = frame_dt
+
+        total_distance += speed * frame_dt
+        total_time += frame_dt
 
         # Speed bucket classification using current frame's state
-        if speed <= SLOW_SPEED_UU_S:
-            time_slow += frame_dt
-        elif speed < BOOST_SPEED_UU_S:
-            time_boost_speed += frame_dt
-        elif speed >= SUPERSONIC_SPEED_UU_S or player_frame.is_supersonic:
+        derivative_speed = 0.0
+        if prev_player_frame is not None and prev_dt > 0.0:
+            derivative_speed = _estimate_derivative_speed(
+                player_frame.position,
+                prev_player_frame.position,
+                prev_dt,
+            )
+
+        supersonic_active = _update_supersonic_state(
+            supersonic_active,
+            speed,
+            ground_speed,
+            derivative_speed,
+            player_frame.is_supersonic,
+        )
+
+        if supersonic_active:
             time_supersonic += frame_dt
-        else:
+        elif speed < SLOW_SPEED_MAX_UU_S:
+            time_slow += frame_dt
+        elif speed < BOOST_SPEED_MAX_UU_S:
             time_boost_speed += frame_dt
-        
+        else:
+            # When we cross BOOST_SPEED_MAX_UU_S without supersonic state,
+            # treat the frame as boost-speed. This happens when the flag
+            # flickers off mid-transition.
+            time_boost_speed += frame_dt
+
         # Height classification using current frame's state
         if height <= GROUND_HEIGHT or player_frame.is_on_ground:
             time_ground += frame_dt
@@ -139,9 +202,9 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
             time_low_air += frame_dt
         else:  # height > 500
             time_high_air += frame_dt
-        
+
         # Powerslide detection
-        is_powersliding = _detect_powerslide(player_frame, prev_player_frame)
+        is_powersliding = _detect_powerslide(player_frame, prev_player_frame, prev_dt)
         if is_powersliding and not in_powerslide:
             # Starting powerslide
             in_powerslide = True
@@ -161,18 +224,16 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
             in_aerial = True
             aerial_start = frame.timestamp
         elif not is_aerial and in_aerial:
-            # Ending aerial
-            air_duration = frame.timestamp - aerial_start
-            if air_duration >= MIN_AERIAL_DURATION:
-                aerial_count += 1
-                aerial_time += air_duration
-            in_aerial = False
+            aerial_count, aerial_time, in_aerial = _close_aerial(
+                frame.timestamp,
+                aerial_start,
+                aerial_count,
+                aerial_time,
+            )
         
         prev_player_frame = player_frame
         prev_timestamp = frame.timestamp
-    
-    # All frame handling is done in the main loop now
-    
+
     # Handle ongoing powerslide at end
     if in_powerslide and prev_timestamp is not None:
         slide_duration = prev_timestamp - powerslide_start
@@ -182,15 +243,17 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
 
     # Handle ongoing aerial at end
     if in_aerial and prev_timestamp is not None:
-        air_duration = prev_timestamp - aerial_start
-        if air_duration >= MIN_AERIAL_DURATION:
-            aerial_count += 1
-            aerial_time += air_duration
+        aerial_count, aerial_time, _ = _close_aerial(
+            prev_timestamp,
+            aerial_start,
+            aerial_count,
+            aerial_time,
+        )
     
     # Calculate average speed in kph
     avg_speed_kph = 0.0
-    if frame_count > 0:
-        avg_speed_uu_s = total_speed / frame_count
+    if total_time > 0:
+        avg_speed_uu_s = total_distance / total_time
         avg_speed_kph = _uu_s_to_kph(avg_speed_uu_s)
     
     return {
@@ -267,18 +330,84 @@ def _calculate_speed(velocity: Vec3) -> float:
     return math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2)
 
 
-def _detect_powerslide(current: PlayerFrame, previous: PlayerFrame | None) -> bool:
+def _horizontal_speed(velocity: Vec3) -> float:
+    """Ground-plane speed magnitude."""
+    return math.hypot(velocity.x, velocity.y)
+
+
+def _detect_powerslide(
+    current: PlayerFrame,
+    previous: PlayerFrame | None,
+    frame_dt: float,
+) -> bool:
     """Detect if player is currently powersliding based on frame data."""
-    if not previous or not current.is_on_ground:
+    if not previous or not current.is_on_ground or frame_dt <= 0.0:
         return False
 
-    # Calculate angular velocity magnitude from rotation difference
-    dt = 0.033  # Approximate frame time
-    yaw_diff = abs(current.rotation.y - previous.rotation.y)
-    angular_velocity = yaw_diff / dt
-    
+    yaw_diff = _angle_delta(current.rotation.y, previous.rotation.y)
+    angular_velocity = abs(yaw_diff) / max(frame_dt, MIN_FRAME_DT)
+
     # Powerslide detected if high angular velocity while on ground
     return angular_velocity >= MIN_POWERSLIDE_ANGULAR_VELOCITY
+
+
+def _angle_delta(current: float, previous: float) -> float:
+    """Shortest delta between two yaw angles."""
+    diff = current - previous
+    while diff > math.pi:
+        diff -= 2 * math.pi
+    while diff < -math.pi:
+        diff += 2 * math.pi
+    return diff
+
+
+def _close_aerial(
+    end_timestamp: float,
+    start_timestamp: float,
+    aerial_count: int,
+    aerial_time: float,
+) -> tuple[int, float, bool]:
+    """Finalize aerial bookkeeping if minimum duration satisfied."""
+    air_duration = end_timestamp - start_timestamp
+    if air_duration >= MIN_AERIAL_DURATION:
+        aerial_count += 1
+        aerial_time += air_duration
+    return aerial_count, aerial_time, False
+
+
+def _update_supersonic_state(
+    supersonic_active: bool,
+    linear_speed: float,
+    horizontal_speed: float,
+    derivative_speed: float,
+    supersonic_flag: bool,
+) -> bool:
+    """Return updated supersonic state with hysteresis and flag awareness."""
+    if supersonic_flag:
+        return True
+    if horizontal_speed >= SUPERSONIC_ENTRY_UU_S:
+        return True
+    if supersonic_active and derivative_speed >= SUPERSONIC_DERIVATIVE_ENTRY_UU_S and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
+        return True
+    if linear_speed >= SUPERSONIC_ENTRY_UU_S and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
+        return True
+    if supersonic_active and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
+        return True
+    return False
+
+
+def _estimate_derivative_speed(
+    current_position: Vec3,
+    previous_position: Vec3,
+    frame_dt: float,
+) -> float:
+    """Approximate speed from positional delta when velocity spikes are missed."""
+    if frame_dt <= MIN_FRAME_DT:
+        return 0.0
+    dx = current_position.x - previous_position.x
+    dy = current_position.y - previous_position.y
+    dz = current_position.z - previous_position.z
+    return math.sqrt(dx * dx + dy * dy + dz * dz) / frame_dt
 
 
 def _uu_s_to_kph(speed_uu_s: float) -> float:
@@ -302,31 +431,3 @@ def _empty_movement() -> dict[str, Any]:
         "aerial_count": 0,
         "aerial_time_s": 0.0
     }
-
-
-def _frame_duration(
-    frames: list[Frame],
-    index: int,
-    prev_timestamp: float | None,
-) -> float:
-    """Compute the duration represented by a frame.
-
-    Uses the next timestamp when available; falls back to the previous interval or
-    a conservative default so the analyzer always progresses. This avoids
-    repeated list scans (``frames.index``) that become quadratic on long replays.
-    """
-
-    # Prefer the delta to the next frame when positive
-    if index < len(frames) - 1:
-        next_dt = frames[index + 1].timestamp - frames[index].timestamp
-        if next_dt > 0:
-            return next_dt
-
-    # Otherwise reuse the previous interval if available
-    if prev_timestamp is not None:
-        prev_dt = frames[index].timestamp - prev_timestamp
-        if prev_dt > 0:
-            return prev_dt
-
-    # Fallback default (roughly one replay tick)
-    return 0.033
