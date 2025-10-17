@@ -1,19 +1,21 @@
+mod pads;
+
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
 use std::io::Read;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 // Boxcars parsing
-use boxcars::{ParserBuilder, HeaderProp, Replay};
-use boxcars::{NewActor, Vector3f, Attribute};
+use boxcars::{Attribute, NewActor, Vector3f};
+use boxcars::{HeaderProp, ParserBuilder, Replay};
+
+use pads::{PadEvent, PadRegistry};
 
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
-    let mut file = File::open(path).map_err(|e| PyIOError::new_err(format!(
-        "Failed to open replay file '{}': {}",
-        path, e
-    )))?;
+    let mut file = File::open(path)
+        .map_err(|e| PyIOError::new_err(format!("Failed to open replay file '{}': {}", path, e)))?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)
         .map_err(|e| PyIOError::new_err(format!("Failed to read replay file '{}': {}", path, e)))?;
@@ -26,8 +28,14 @@ fn looks_like_replay_header(bytes: &[u8]) -> bool {
         b"TAGame.Replay_",
         b"\x00\x00\x00\x00\x08\x00\x00\x00TAGame",
     ];
-    let head = if bytes.len() > 2048 { &bytes[..2048] } else { bytes };
-    needles.iter().any(|n| head.windows(n.len()).any(|w| w == *n))
+    let head = if bytes.len() > 2048 {
+        &bytes[..2048]
+    } else {
+        bytes
+    };
+    needles
+        .iter()
+        .any(|n| head.windows(n.len()).any(|w| w == *n))
 }
 
 fn header_prop_to_py(py: Python<'_>, prop: &HeaderProp) -> PyResult<PyObject> {
@@ -74,7 +82,9 @@ fn header_prop_to_py(py: Python<'_>, prop: &HeaderProp) -> PyResult<PyObject> {
 fn parse_header(path: &str) -> PyResult<PyObject> {
     Python::with_gil(|py| {
         let data = read_file_bytes(path)?;
-        if data.len() < 100 { return Err(PyValueError::new_err("File too short to be a valid replay")); }
+        if data.len() < 100 {
+            return Err(PyValueError::new_err("File too short to be a valid replay"));
+        }
 
         // Parsed fields
         let mut playlist_id: Option<String> = None;
@@ -89,7 +99,10 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         let mut warnings_vec: Vec<String> = Vec::new();
 
         // Helper: get prop by key
-        fn find_prop<'a>(props: &'a Vec<(String, HeaderProp)>, key: &str) -> Option<&'a HeaderProp> {
+        fn find_prop<'a>(
+            props: &'a Vec<(String, HeaderProp)>,
+            key: &str,
+        ) -> Option<&'a HeaderProp> {
             props.iter().find(|(k, _)| k == key).map(|(_, v)| v)
         }
 
@@ -98,12 +111,36 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
 
         match ParserBuilder::new(&data).never_parse_network_data().parse() {
             Ok(Replay { properties, .. }) => {
-                if let Some(p) = find_prop(&properties, "MapName") { if let Some(s) = p.as_string() { map_name = Some(s.to_string()); } }
-                if let Some(p) = find_prop(&properties, "PlaylistID") { if let Some(s) = p.as_string() { playlist_id = Some(s.to_string()); } }
-                if let Some(p) = find_prop(&properties, "BuildVersion") { if let Some(s) = p.as_string() { warnings_vec.push(format!("build_version:{}", s)); } }
-                if let Some(p) = find_prop(&properties, "NumFrames") { if let Some(fr) = p.as_i32() { match_length = (fr as f64) / 30.0; } }
-                if let Some(p) = find_prop(&properties, "Team0Score") { if let Some(s0) = p.as_i32() { team0_score = s0 as i64; } }
-                if let Some(p) = find_prop(&properties, "Team1Score") { if let Some(s1) = p.as_i32() { team1_score = s1 as i64; } }
+                if let Some(p) = find_prop(&properties, "MapName") {
+                    if let Some(s) = p.as_string() {
+                        map_name = Some(s.to_string());
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "PlaylistID") {
+                    if let Some(s) = p.as_string() {
+                        playlist_id = Some(s.to_string());
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "BuildVersion") {
+                    if let Some(s) = p.as_string() {
+                        warnings_vec.push(format!("build_version:{}", s));
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "NumFrames") {
+                    if let Some(fr) = p.as_i32() {
+                        match_length = (fr as f64) / 30.0;
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "Team0Score") {
+                    if let Some(s0) = p.as_i32() {
+                        team0_score = s0 as i64;
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "Team1Score") {
+                    if let Some(s1) = p.as_i32() {
+                        team1_score = s1 as i64;
+                    }
+                }
 
                 if let Some(p) = find_prop(&properties, "PlayerStats") {
                     if let Some(arr) = p.as_array() {
@@ -115,10 +152,14 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                             for (k, v) in entry {
                                 match (k.as_str(), v) {
                                     ("Name", hp) | ("PlayerName", hp) => {
-                                        if let Some(s) = hp.as_string() { name = Some(s.to_string()); }
+                                        if let Some(s) = hp.as_string() {
+                                            name = Some(s.to_string());
+                                        }
                                     }
                                     ("Team", hp) | ("PlayerTeam", hp) => {
-                                        if let Some(t) = hp.as_i32() { team = t as i64; }
+                                        if let Some(t) = hp.as_i32() {
+                                            team = t as i64;
+                                        }
                                     }
                                     _ => {
                                         let value = header_prop_to_py(py, v)?;
@@ -148,16 +189,34 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                             let mut g_team: Option<i64> = None;
                             for (k, v) in entry {
                                 match (k.as_str(), v) {
-                                    ("frame", hp) => { if let Some(i) = hp.as_i32() { g_frame = Some(i as i64); } }
-                                    ("PlayerName", hp) => { if let Some(s) = hp.as_string() { g_name = Some(s.to_string()); } }
-                                    ("PlayerTeam", hp) => { if let Some(i) = hp.as_i32() { g_team = Some(i as i64); } }
+                                    ("frame", hp) => {
+                                        if let Some(i) = hp.as_i32() {
+                                            g_frame = Some(i as i64);
+                                        }
+                                    }
+                                    ("PlayerName", hp) => {
+                                        if let Some(s) = hp.as_string() {
+                                            g_name = Some(s.to_string());
+                                        }
+                                    }
+                                    ("PlayerTeam", hp) => {
+                                        if let Some(i) = hp.as_i32() {
+                                            g_team = Some(i as i64);
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }
                             let g = PyDict::new(py);
-                            if let Some(fv) = g_frame { g.set_item("frame", fv)?; }
-                            if let Some(nv) = g_name { g.set_item("player_name", nv)?; }
-                            if let Some(tv) = g_team { g.set_item("player_team", tv)?; }
+                            if let Some(fv) = g_frame {
+                                g.set_item("frame", fv)?;
+                            }
+                            if let Some(nv) = g_name {
+                                g.set_item("player_name", nv)?;
+                            }
+                            if let Some(tv) = g_team {
+                                g.set_item("player_team", tv)?;
+                            }
                             goals_list.append(g)?;
                         }
                     }
@@ -190,9 +249,15 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                                 }
                             }
                             let h = PyDict::new(py);
-                            if let Some(fv) = h_frame { h.set_item("frame", fv)?; }
-                            if let Some(ball) = h_ball { h.set_item("ball_name", ball)?; }
-                            if let Some(car) = h_car { h.set_item("car_name", car)?; }
+                            if let Some(fv) = h_frame {
+                                h.set_item("frame", fv)?;
+                            }
+                            if let Some(ball) = h_ball {
+                                h.set_item("ball_name", ball)?;
+                            }
+                            if let Some(car) = h_car {
+                                h.set_item("car_name", car)?;
+                            }
                             highlights_list.append(h)?;
                         }
                     }
@@ -200,7 +265,9 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
 
                 if !players_vec.is_empty() {
                     let mut team_counts: HashMap<i64, i64> = HashMap::new();
-                    for (_, t) in &players_vec { *team_counts.entry(*t).or_insert(0) += 1; }
+                    for (_, t) in &players_vec {
+                        *team_counts.entry(*t).or_insert(0) += 1;
+                    }
                     team_size = team_counts.values().cloned().max().unwrap_or(1);
                 } else {
                     warnings_vec.push("boxcars_no_playerstats".to_string());
@@ -209,7 +276,9 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
             Err(e) => {
                 warnings_vec.push(format!("boxcars_parse_error: {}", e));
                 let looks_like = looks_like_replay_header(&data);
-                if !looks_like { warnings_vec.push("rust_core_suspect_format".to_string()); }
+                if !looks_like {
+                    warnings_vec.push("rust_core_suspect_format".to_string());
+                }
                 players_vec.push(("Unknown Player 1".to_string(), 0));
                 players_vec.push(("Unknown Player 2".to_string(), 1));
                 team_size = 1;
@@ -218,8 +287,14 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
 
         // Build Python dict
         let header = PyDict::new(py);
-        header.set_item("playlist_id", playlist_id.unwrap_or_else(|| "unknown".to_string()))?;
-        header.set_item("map_name", map_name.unwrap_or_else(|| "unknown".to_string()))?;
+        header.set_item(
+            "playlist_id",
+            playlist_id.unwrap_or_else(|| "unknown".to_string()),
+        )?;
+        header.set_item(
+            "map_name",
+            map_name.unwrap_or_else(|| "unknown".to_string()),
+        )?;
         header.set_item("team_size", team_size)?;
         header.set_item("team0_score", team0_score)?;
         header.set_item("team1_score", team1_score)?;
@@ -238,7 +313,10 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
             header.set_item("players", PyList::new(py, players_meta))?;
         }
         // Engine build (if captured in warnings)
-        if let Some(build) = warnings_vec.iter().find_map(|w| w.strip_prefix("build_version:")) {
+        if let Some(build) = warnings_vec
+            .iter()
+            .find_map(|w| w.strip_prefix("build_version:"))
+        {
             header.set_item("engine_build", build)?;
         }
         // Goals & highlights lists
@@ -246,7 +324,9 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         header.set_item("highlights", highlights_list)?;
         let warnings = PyList::empty(py);
         warnings.append("parsed_with_rust_core")?;
-        for w in warnings_vec { warnings.append(w)?; }
+        for w in warnings_vec {
+            warnings.append(w)?;
+        }
         header.set_item("quality_warnings", warnings)?;
 
         Ok(header.to_object(py))
@@ -302,15 +382,21 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         for (kk, vv) in entry {
                             match (kk.as_str(), vv) {
                                 ("Name", hp) | ("PlayerName", hp) => {
-                                    if let Some(s) = hp.as_string() { name = Some(s.to_string()); }
+                                    if let Some(s) = hp.as_string() {
+                                        name = Some(s.to_string());
+                                    }
                                 }
                                 ("Team", hp) | ("PlayerTeam", hp) => {
-                                    if let Some(t) = hp.as_i32() { team = t as i64; }
+                                    if let Some(t) = hp.as_i32() {
+                                        team = t as i64;
+                                    }
                                 }
                                 _ => {}
                             }
                         }
-                        if let Some(n) = name { header_players.push((n, team)); }
+                        if let Some(n) = name {
+                            header_players.push((n, team));
+                        }
                     }
                 }
             }
@@ -320,7 +406,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let objects = &replay.objects;
         let mut actor_object_name: HashMap<i32, String> = HashMap::new();
         #[derive(Clone, Default)]
-        struct ActorKind { is_ball: bool, is_car: bool }
+        struct ActorKind {
+            is_ball: bool,
+            is_car: bool,
+        }
         let mut actor_kind: HashMap<i32, ActorKind> = HashMap::new();
         let mut car_team: HashMap<i32, i64> = HashMap::new();
         let mut car_boost: HashMap<i32, i64> = HashMap::new(); // 0-100
@@ -328,6 +417,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut car_vel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut component_owner: HashMap<i32, i32> = HashMap::new();
+        let mut pad_registry = PadRegistry::new();
         let mut ball_actor: Option<i32> = None;
         let mut ball_pos: (f32, f32, f32) = (0.0, 0.0, 93.15);
         let mut ball_vel: (f32, f32, f32) = (0.0, 0.0, 0.0);
@@ -339,7 +429,11 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut team_zero: Vec<usize> = Vec::new();
         let mut team_one: Vec<usize> = Vec::new();
         for (idx, (_, team)) in header_players.iter().enumerate() {
-            if *team == 0 { team_zero.push(idx); } else { team_one.push(idx); }
+            if *team == 0 {
+                team_zero.push(idx);
+            } else {
+                team_one.push(idx);
+            }
         }
         next_by_team.insert(0, team_zero);
         next_by_team.insert(1, team_one);
@@ -349,17 +443,18 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         // Helper: classify actors using object/class names
         fn classify_object_name(name: &str) -> ActorKind {
             let lname = name.to_ascii_lowercase();
-            let is_ball = lname.contains("ball_ta") || lname.ends_with("ball") || lname.contains("ball_");
-            let is_car = (
-                lname.contains("archetypes.car.car_")
-                    || lname.contains("default__car_ta")
-                    || lname.contains("default__carbody")
-            ) && !lname.contains("carcomponent");
+            let is_ball =
+                lname.contains("ball_ta") || lname.ends_with("ball") || lname.contains("ball_");
+            let is_car = (lname.contains("archetypes.car.car_")
+                || lname.contains("default__car_ta")
+                || lname.contains("default__carbody"))
+                && !lname.contains("carcomponent");
             ActorKind { is_ball, is_car }
         }
 
         if let Some(net) = replay.network_frames {
-                for nf in net.frames {
+            for nf in net.frames {
+                let mut frame_pad_events: Vec<PadEvent> = Vec::new();
                 // Prune actors that were deleted before processing updates to avoid stale telemetry
                 for deleted in nf.deleted_actors {
                     let aid: i32 = deleted.into();
@@ -385,10 +480,16 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     car_vel.remove(&aid);
                     car_demo.remove(&aid);
                     component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
+                    pad_registry.remove_actor(aid);
                 }
 
-                    // Update actor_object_name mapping with new actors in this frame
-                    for NewActor { actor_id, object_id, .. } in nf.new_actors {
+                // Update actor_object_name mapping with new actors in this frame
+                for NewActor {
+                    actor_id,
+                    object_id,
+                    ..
+                } in nf.new_actors
+                {
                     let oid: usize = object_id.into();
                     let obj_name = objects.get(oid).cloned().unwrap_or_default();
                     let aid: i32 = actor_id.into();
@@ -400,7 +501,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         ball_vel = (0.0, 0.0, 0.0);
                         ball_angvel = (0.0, 0.0, 0.0);
                     }
-                    if kind.is_ball || kind.is_car { actor_kind.insert(aid, kind); }
+                    if kind.is_ball || kind.is_car {
+                        actor_kind.insert(aid, kind);
+                    }
+                    pad_registry.track_new_actor(aid, &obj_name);
                 }
 
                 // Process updates
@@ -418,8 +522,16 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         Attribute::RigidBody(rb) => {
                             let obj_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
                             let loc = rb.location;
-                            let vel = rb.linear_velocity.unwrap_or(Vector3f { x: 0.0, y: 0.0, z: 0.0 });
-                            let ang = rb.angular_velocity.unwrap_or(Vector3f { x: 0.0, y: 0.0, z: 0.0 });
+                            let vel = rb.linear_velocity.unwrap_or(Vector3f {
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            });
+                            let ang = rb.angular_velocity.unwrap_or(Vector3f {
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            });
                             // Update ball or car state depending on classification and fallback
                             let is_ball = Some(aid) == ball_actor || obj_name.contains("Ball_TA");
                             if is_ball {
@@ -431,6 +543,8 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                                 car_vel.insert(aid, (vel.x, vel.y, vel.z));
                             }
+                            let events = pad_registry.update_position(aid, (loc.x, loc.y, loc.z));
+                            frame_pad_events.extend(events);
                         }
                         // Some builds carry these separately
                         Attribute::Location(loc) => {
@@ -439,13 +553,50 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             } else {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                             }
+                            let events = pad_registry.update_position(aid, (loc.x, loc.y, loc.z));
+                            frame_pad_events.extend(events);
                         }
-                        
+
+                        Attribute::PickupNew(pickup) => {
+                            let mut raw_actor_opt: Option<i32> = None;
+                            let mut resolved_actor: Option<i32> = None;
+                            if let Some(instigator) = pickup.instigator {
+                                let raw_actor: i32 = instigator.into();
+                                raw_actor_opt = Some(raw_actor);
+                                let mut resolved = raw_actor;
+                                let mut guard = 0;
+                                while let Some(owner) = component_owner.get(&resolved) {
+                                    if *owner == resolved {
+                                        break;
+                                    }
+                                    resolved = *owner;
+                                    guard += 1;
+                                    if guard > 8 {
+                                        break;
+                                    }
+                                }
+                                resolved_actor = Some(resolved);
+                            }
+
+                            let events = pad_registry.handle_pickup(
+                                aid,
+                                pickup.picked_up,
+                                nf.time as f32,
+                                raw_actor_opt,
+                                resolved_actor,
+                                resolved_actor.and_then(|actor| car_pos.get(&actor).copied()),
+                            );
+                            frame_pad_events.extend(events);
+                        }
                         // Team + visual paint data (use team assignment if present)
                         Attribute::TeamPaint(tp) => {
                             let t = (tp.team as i64).clamp(0, 1);
                             car_team.insert(aid, t);
-                            if actor_kind.get(&aid).map(|kind| !kind.is_car).unwrap_or(true) {
+                            if actor_kind
+                                .get(&aid)
+                                .map(|kind| !kind.is_car)
+                                .unwrap_or(true)
+                            {
                                 continue;
                             }
                             if !actor_to_player_index.contains_key(&aid) {
@@ -464,32 +615,52 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             car_boost.insert(target, amt.clamp(0, 100));
                         }
                         // Demolition signals (varies by build)
-                        Attribute::Demolish(_) | Attribute::DemolishExtended(_) | Attribute::DemolishFx(_) => {
+                        Attribute::Demolish(_)
+                        | Attribute::DemolishExtended(_)
+                        | Attribute::DemolishFx(_) => {
                             car_demo.insert(aid, true);
                         }
                         _ => {}
                     }
                 }
 
+                frame_pad_events.extend(pad_registry.flush_ready_events());
+
                 // Emit frame dict
                 let f = PyDict::new(py);
                 f.set_item("timestamp", nf.time as f64)?;
                 let ball = PyDict::new(py);
                 let bpos = PyDict::new(py);
-                bpos.set_item("x", ball_pos.0)?; bpos.set_item("y", ball_pos.1)?; bpos.set_item("z", ball_pos.2)?;
+                bpos.set_item("x", ball_pos.0)?;
+                bpos.set_item("y", ball_pos.1)?;
+                bpos.set_item("z", ball_pos.2)?;
                 let bvel = PyDict::new(py);
-                bvel.set_item("x", ball_vel.0)?; bvel.set_item("y", ball_vel.1)?; bvel.set_item("z", ball_vel.2)?;
-                ball.set_item("position", bpos)?; ball.set_item("velocity", bvel)?; 
-                let ang = PyDict::new(py); ang.set_item("x", ball_angvel.0)?; ang.set_item("y", ball_angvel.1)?; ang.set_item("z", ball_angvel.2)?; 
+                bvel.set_item("x", ball_vel.0)?;
+                bvel.set_item("y", ball_vel.1)?;
+                bvel.set_item("z", ball_vel.2)?;
+                ball.set_item("position", bpos)?;
+                ball.set_item("velocity", bvel)?;
+                let ang = PyDict::new(py);
+                ang.set_item("x", ball_angvel.0)?;
+                ang.set_item("y", ball_angvel.1)?;
+                ang.set_item("z", ball_angvel.2)?;
                 ball.set_item("angular_velocity", ang)?;
                 f.set_item("ball", ball)?;
 
                 // Players: union of actors that have position or boost info
                 let mut actors: BTreeSet<i32> = BTreeSet::new();
-                for k in car_pos.keys() { actors.insert(*k); }
-                for k in car_boost.keys() { actors.insert(*k); }
-                for k in car_team.keys() { actors.insert(*k); }
-                if let Some(ball_id) = ball_actor { actors.remove(&ball_id); }
+                for k in car_pos.keys() {
+                    actors.insert(*k);
+                }
+                for k in car_boost.keys() {
+                    actors.insert(*k);
+                }
+                for k in car_team.keys() {
+                    actors.insert(*k);
+                }
+                if let Some(ball_id) = ball_actor {
+                    actors.remove(&ball_id);
+                }
                 // Filter using classification when available; otherwise keep for fallback
                 actors = actors
                     .into_iter()
@@ -498,7 +669,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
 
                 let mut players_map: BTreeMap<usize, PyObject> = BTreeMap::new();
                 for aid in actors {
-                    let (x,y,z) = car_pos.get(&aid).cloned().unwrap_or((0.0,0.0,17.0));
+                    let (x, y, z) = car_pos.get(&aid).cloned().unwrap_or((0.0, 0.0, 17.0));
                     // Determine team: prefer decoded team_paint else infer by y position sign
                     let mut team = *car_team.get(&aid).unwrap_or(&-1);
                     if team < 0 {
@@ -513,13 +684,19 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             }
                         }
                     }
-                        if let Some(idx) = actor_to_player_index.get(&aid).cloned() {
-                            let p = PyDict::new(py);
-                            p.set_item("player_id", format!("player_{}", idx))?;
-                            p.set_item("team", team)?;
-                        let ppos = PyDict::new(py); ppos.set_item("x", x)?; ppos.set_item("y", y)?; ppos.set_item("z", z)?;
+                    if let Some(idx) = actor_to_player_index.get(&aid).cloned() {
+                        let p = PyDict::new(py);
+                        p.set_item("player_id", format!("player_{}", idx))?;
+                        p.set_item("team", team)?;
+                        let ppos = PyDict::new(py);
+                        ppos.set_item("x", x)?;
+                        ppos.set_item("y", y)?;
+                        ppos.set_item("z", z)?;
                         let v = car_vel.get(&aid).cloned().unwrap_or((0.0, 0.0, 0.0));
-                        let pvel = PyDict::new(py); pvel.set_item("x", v.0)?; pvel.set_item("y", v.1)?; pvel.set_item("z", v.2)?;
+                        let pvel = PyDict::new(py);
+                        pvel.set_item("x", v.0)?;
+                        pvel.set_item("y", v.1)?;
+                        pvel.set_item("z", v.2)?;
                         // Approximate rotation from velocity vector if available (yaw/pitch in radians)
                         let speed2 = v.0 * v.0 + v.1 * v.1 + v.2 * v.2;
                         let mut pitch = 0.0f64;
@@ -533,7 +710,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         }
                         let prot = PyDict::new(py);
                         prot.set_item("x", pitch)?; // pitch
-                        prot.set_item("y", yaw)?;   // yaw
+                        prot.set_item("y", yaw)?; // yaw
                         prot.set_item("z", 0.0f64)?; // roll unknown
                         p.set_item("position", ppos)?;
                         p.set_item("velocity", pvel)?;
@@ -551,6 +728,43 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     players.append(pobj.as_ref(py))?;
                 }
                 f.set_item("players", players)?;
+
+                let pad_list = PyList::empty(py);
+                for event in frame_pad_events {
+                    let pad_dict = PyDict::new(py);
+                    pad_dict.set_item("pad_id", event.pad_id as i64)?;
+                    pad_dict.set_item("is_big", event.is_big)?;
+                    pad_dict.set_item("status", event.status.as_str())?;
+                    pad_dict.set_item("object_name", event.object_name.clone())?;
+                    pad_dict.set_item("raw_state", event.raw_state)?;
+                    pad_dict.set_item("timestamp", event.timestamp as f64)?;
+
+                    let pos_dict = PyDict::new(py);
+                    pos_dict.set_item("x", event.position.0)?;
+                    pos_dict.set_item("y", event.position.1)?;
+                    pos_dict.set_item("z", event.position.2)?;
+                    pad_dict.set_item("position", pos_dict)?;
+
+                    if let Some(raw_actor) = event.instigator_actor_id {
+                        pad_dict.set_item("instigator_actor_id", raw_actor)?;
+                    }
+                    if let Some(resolved) = event.resolved_actor_id {
+                        pad_dict.set_item("actor_id", resolved)?;
+                        if let Some(idx) = actor_to_player_index.get(&resolved) {
+                            pad_dict.set_item("player_index", *idx as i64)?;
+                            pad_dict.set_item("player_id", format!("player_{}", idx))?;
+                        }
+                        if let Some(team) = car_team.get(&resolved) {
+                            pad_dict.set_item("player_team", *team)?;
+                        }
+                    }
+                    if let Some(distance) = event.snap_distance {
+                        pad_dict.set_item("snap_distance", distance as f64)?;
+                    }
+
+                    pad_list.append(pad_dict)?;
+                }
+                f.set_item("boost_pad_events", pad_list)?;
 
                 frames_out.append(f)?;
             }
@@ -574,7 +788,9 @@ fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> {
         let objects = &replay.objects;
         if let Some(net) = replay.network_frames {
             for (i, nf) in net.frames.into_iter().enumerate() {
-                if i >= max_frames { break; }
+                if i >= max_frames {
+                    break;
+                }
                 let f = PyDict::new(py);
                 f.set_item("timestamp", nf.time as f64)?;
 
@@ -632,7 +848,10 @@ fn rlreplay_rust(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("RUST_CORE", true)?;
 
     // Module docstring
-    m.add("__doc__", "Rust-backed RL replay parser (boxcars): header + network frames")?;
+    m.add(
+        "__doc__",
+        "Rust-backed RL replay parser (boxcars): header + network frames",
+    )?;
 
     // Ensure module is treated as Python extension module
     pyo3::prepare_freethreaded_python();

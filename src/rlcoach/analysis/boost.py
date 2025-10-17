@@ -14,11 +14,10 @@ for comprehensive boost economy assessment.
 from __future__ import annotations
 
 import math
-from bisect import bisect_left
 from typing import Any, Sequence
-from ..events import BoostPickupEvent, CENTERLINE_TOLERANCE
+from ..events import BoostPickupEvent, PAD_NEUTRAL_TOLERANCE
 from ..parser.types import Header, Frame
-from ..field_constants import Vec3
+from ..field_constants import Vec3, FIELD
 
 
 # Boost analysis thresholds (aligned with Ballchasing parity)
@@ -27,6 +26,13 @@ FULL_BOOST_THRESHOLD = 99.0  # Consider >= 99 as "full boost"
 OVERFILL_THRESHOLD = 80.0  # Overfill when collecting above this amount
 SUPERSONIC_SPEED_THRESHOLD = 2300.0  # Speed at which boost provides minimal benefit
 WASTE_DETECTION_MIN_BOOST = 10.0  # Minimum boost to consider for waste detection
+BIG_GAIN_THRESHOLD = 70.0
+SMALL_PAD_UNIT = 12.0
+RESPAWN_GAIN = 33.0
+PAD_EVENT_MATCH_WINDOW = 1.1
+PAD_GAIN_MISMATCH_TOLERANCE = 24.0
+FALLBACK_BIG_GAIN_THRESHOLD = 45.0
+PAD_POSITION_TRUST_RADIUS_SQ = 600.0 * 600.0
 
 
 def analyze_boost(
@@ -149,51 +155,127 @@ def _analyze_player_boost(
     stolen_small_pads = 0
     overfill = 0.0
     player_team = _infer_player_team(frames, player_id)
-    
-    for pickup in pickups:
-        if pickup.player_id != player_id:
-            continue
 
-        pad_capacity = 100.0 if pickup.pad_type == "BIG" else 12.0
-        pickup_gain, boost_before, boost_after = _resolve_pickup_amount(
-            pickup,
-            pad_capacity,
-            frames,
-            frame_timestamps,
-            player_id,
-        )
+    player_pickups = [p for p in pickups if p.player_id == player_id]
+    delta_events = _collect_boost_delta_events(frames, player_id)
 
-        effective_gain = min(pickup_gain, pad_capacity)
-        amount_collected += effective_gain
+    if delta_events:
+        used_pickups: set[int] = set()
+        for event in delta_events:
+            gain = event["gain"]
+            if gain <= 0.5:
+                continue
 
-        pickup_is_stolen = bool(pickup.stolen)
-        if pickup_is_stolen and player_team is not None:
-            y_candidates: list[float] = []
-            if getattr(pickup, "location", None) is not None:
-                loc_y = getattr(pickup.location, "y", None)
-                if isinstance(loc_y, (int, float)):
-                    y_candidates.append(float(loc_y))
-            if pickup.frame is not None and 0 <= pickup.frame < len(frames):
-                frame_player = _find_player_in_frame(frames[pickup.frame], player_id)
-                if frame_player is not None:
-                    y_candidates.append(frame_player.position.y)
-            if y_candidates and all(not _is_on_opponent_half(y_val, player_team) for y_val in y_candidates):
-                pickup_is_stolen = False
+            match_result = _match_pickup_for_delta(
+                event["timestamp"],
+                player_pickups,
+                used_pickups,
+                window=PAD_EVENT_MATCH_WINDOW,
+            )
 
-        if pickup_is_stolen:
-            amount_stolen += effective_gain
+            pickup_match: BoostPickupEvent | None = None
+            match_before = None
+            match_after = None
+            event_pos = event.get("position")
+            pos_y: float | None = event_pos.y if event_pos is not None else None
 
-        if pickup.pad_type == "BIG":
-            big_pads += 1
-            if pickup_is_stolen:
-                stolen_big_pads += 1
-        else:
-            small_pads += 1
-            if pickup_is_stolen:
-                stolen_small_pads += 1
+            if match_result is not None:
+                match_idx, candidate = match_result
+                raw_candidate_gain = _to_float(candidate.boost_gain)
+                candidate_gain = raw_candidate_gain if raw_candidate_gain is not None else _resolve_pickup_gain(candidate)
+                if abs(candidate_gain - gain) > PAD_GAIN_MISMATCH_TOLERANCE:
+                    pickup_match = None
+                else:
+                    used_pickups.add(match_idx)
+                    pickup_match = candidate
+                    match_before = candidate.boost_before
+                    match_after = candidate.boost_after
 
-        if boost_before is not None and boost_before >= OVERFILL_THRESHOLD:
-            overfill += max(0.0, pad_capacity - effective_gain)
+            if pickup_match is not None:
+                pad_type = pickup_match.pad_type
+                pad_meta = None
+                try:
+                    pad_idx = int(getattr(pickup_match, "pad_id", -1))
+                    if 0 <= pad_idx < len(FIELD.BOOST_PADS):
+                        pad_meta = FIELD.BOOST_PADS[pad_idx]
+                except (TypeError, ValueError):
+                    pad_meta = None
+                if pad_meta is not None:
+                    if pos_y is None:
+                        pos_y = pad_meta.position.y
+            else:
+                if abs(gain - RESPAWN_GAIN) <= 1.5 and event["before"] <= 1.0:
+                    continue
+                inferred_pad, pad_dist_sq = _infer_pad_from_position(event_pos)
+                pad_trusted = inferred_pad is not None and pad_dist_sq <= PAD_POSITION_TRUST_RADIUS_SQ
+                if pad_trusted and inferred_pad is not None:
+                    pad_is_big = inferred_pad.is_big
+                    override_big = False
+                    if not pad_is_big and gain >= FALLBACK_BIG_GAIN_THRESHOLD:
+                        pad_is_big = True
+                        override_big = True
+                    pad_type = "BIG" if pad_is_big else "SMALL"
+                    if pos_y is None:
+                        if override_big:
+                            pos_y = event_pos.y if event_pos is not None else None
+                        else:
+                            pos_y = inferred_pad.position.y
+                else:
+                    pad_type = "BIG" if gain >= FALLBACK_BIG_GAIN_THRESHOLD else "SMALL"
+                    if pos_y is None and event_pos is not None:
+                        pos_y = event_pos.y
+                if pos_y is None:
+                    pos_y = 0.0
+                match_before = event["before"]
+                match_after = event["after"]
+
+            if pos_y is None:
+                pos_y = 0.0
+            stolen = _position_is_stolen(pos_y, player_team)
+
+            amount_collected += gain
+            if stolen:
+                amount_stolen += gain
+
+            if pad_type == "BIG":
+                big_pads += 1
+                if stolen:
+                    stolen_big_pads += 1
+            else:
+                small_count = max(1, int(round(gain / SMALL_PAD_UNIT))) if gain >= 6.0 else 1
+                small_pads += small_count
+                if stolen:
+                    stolen_small_pads += small_count
+
+            before_val = _to_float(match_before)
+            after_val = _to_float(match_after)
+            if before_val is None:
+                before_val = event["before"]
+            if after_val is None:
+                after_val = event["after"]
+            if before_val is not None and before_val >= OVERFILL_THRESHOLD:
+                overfill += max(0.0, (before_val + gain) - 100.0)
+    else:
+        for pickup in player_pickups:
+            gain = _resolve_pickup_gain(pickup)
+            amount_collected += gain
+            if pickup.stolen:
+                amount_stolen += gain
+
+            if pickup.pad_type == "BIG":
+                big_pads += 1
+                if pickup.stolen:
+                    stolen_big_pads += 1
+            else:
+                small_pads += 1
+                if pickup.stolen:
+                    stolen_small_pads += 1
+
+            before = _to_float(pickup.boost_before)
+            after = _to_float(pickup.boost_after)
+            if before is not None and before >= OVERFILL_THRESHOLD:
+                projected_after = after if after is not None else min(100.0, before + gain)
+                overfill += max(0.0, projected_after - 100.0)
     
     # Calculate rates (per minute)
     minutes = max(match_duration / 60.0, 1.0)  # Avoid division by zero
@@ -220,51 +302,125 @@ def _analyze_player_boost(
     }
 
 
-def _resolve_pickup_amount(
-    pickup: BoostPickupEvent,
-    pad_capacity: float,
-    frames: list[Frame],
-    frame_timestamps: Sequence[float],
-    player_id: str,
-) -> tuple[float, float | None, float | None]:
-    """Resolve boost amount collected for a pickup event with fallbacks."""
-
-    boost_before = _to_float(getattr(pickup, "boost_before", None))
-    boost_after = _to_float(getattr(pickup, "boost_after", None))
-    boost_gain = _to_float(getattr(pickup, "boost_gain", None))
-
-    if boost_before is not None and boost_after is not None:
-        gain = boost_after - boost_before
-    elif boost_gain is not None:
-        gain = boost_gain
-        if boost_before is not None and boost_after is None:
-            boost_after = boost_before + gain
-        elif boost_after is not None and boost_before is None:
-            boost_before = max(0.0, boost_after - gain)
-    else:
+def _resolve_pickup_gain(pickup: BoostPickupEvent) -> float:
+    """Determine boost gain for a pickup event with fallbacks for partial data."""
+    pad_capacity = 100.0 if pickup.pad_type == "BIG" else SMALL_PAD_UNIT
+    gain = _to_float(pickup.boost_gain)
+    if gain is None:
         gain = 0.0
 
-    if (boost_before is None or boost_after is None) and frames:
-        frame = _find_frame_at_time(frames, frame_timestamps, pickup.t)
-        if frame is not None:
-            player_frame = _find_player_in_frame(frame, player_id)
-            if player_frame is not None:
-                boost_after = float(player_frame.boost_amount)
-                if pickup.frame is not None and pickup.frame > 0:
-                    prev_idx = max(0, min(len(frames) - 1, pickup.frame - 1))
-                    prev_frame = frames[prev_idx]
-                    prev_player_frame = _find_player_in_frame(prev_frame, player_id)
-                    if prev_player_frame is not None:
-                        boost_before = float(prev_player_frame.boost_amount)
-                if boost_before is None:
-                    boost_before = max(0.0, boost_after - pad_capacity)
-                gain = boost_after - boost_before
+    before = _to_float(pickup.boost_before)
+    after = _to_float(pickup.boost_after)
 
-    gain = max(0.0, gain)
-    if gain == 0.0 and boost_gain is not None:
-        gain = max(0.0, boost_gain)
-    gain = min(gain, 100.0)
-    return gain, boost_before, boost_after
+    if gain >= 0.5:
+        return float(gain)
+
+    if before is not None and after is not None:
+        diff = after - before
+        if diff > 0.5:
+            return float(diff)
+        available = max(0.0, 100.0 - before)
+        if available > 0.5:
+            return float(min(pad_capacity, available))
+        return 0.0
+
+    if before is not None:
+        available = max(0.0, 100.0 - before)
+        if available > 0.5:
+            return float(min(pad_capacity, available))
+        return 0.0
+
+    if after is not None:
+        estimated_before = max(0.0, after - pad_capacity)
+        diff = after - estimated_before
+        if diff > 0.5:
+            return float(diff)
+        available = max(0.0, 100.0 - estimated_before)
+        if available > 0.5:
+            return float(min(pad_capacity, available))
+        return 0.0
+
+    return float(pad_capacity)
+
+
+# Boost pickup helpers --------------------------------------------------------
+
+def _infer_pad_from_position(position: Vec3 | None) -> tuple[Any | None, float]:
+    """Return the nearest boost pad metadata and squared distance for a position."""
+    if position is None:
+        return None, float("inf")
+
+    best_pad = None
+    best_dist_sq = float("inf")
+    for pad in FIELD.BOOST_PADS:
+        dx = position.x - pad.position.x
+        dy = position.y - pad.position.y
+        dz = position.z - pad.position.z
+        dist_sq = dx * dx + dy * dy + dz * dz
+        if dist_sq < best_dist_sq:
+            best_dist_sq = dist_sq
+            best_pad = pad
+    return best_pad, best_dist_sq
+
+def _collect_boost_delta_events(frames: list[Frame], player_id: str) -> list[dict[str, Any]]:
+    """Collect positive boost deltas for a player across frames."""
+    events: list[dict[str, Any]] = []
+    prev_boost: float | None = None
+    prev_timestamp: float | None = None
+
+    for frame in frames:
+        player_frame = _find_player_in_frame(frame, player_id)
+        if player_frame is None:
+            continue
+        current_boost = float(player_frame.boost_amount)
+        if prev_boost is not None and prev_timestamp is not None:
+            gain = current_boost - prev_boost
+            if gain > 0.5:
+                events.append(
+                    {
+                        "timestamp": frame.timestamp,
+                        "gain": gain,
+                        "before": prev_boost,
+                        "after": current_boost,
+                        "position": player_frame.position,
+                        "team": player_frame.team,
+                    }
+                )
+        prev_boost = current_boost
+        prev_timestamp = frame.timestamp
+    return events
+
+
+def _match_pickup_for_delta(
+    timestamp: float,
+    pickups: list[BoostPickupEvent],
+    used: set[int],
+    window: float = 0.15,
+) -> tuple[int, BoostPickupEvent] | None:
+    """Match a delta event to the nearest detected pickup."""
+    best_idx: int | None = None
+    best_diff = float("inf")
+    for idx, pickup in enumerate(pickups):
+        if idx in used:
+            continue
+        diff = abs(pickup.t - timestamp)
+        if diff <= window and diff < best_diff:
+            best_idx = idx
+            best_diff = diff
+    if best_idx is not None:
+        return best_idx, pickups[best_idx]
+    return None
+
+
+def _position_is_stolen(y_value: float, player_team: int | None) -> bool:
+    """Determine stolen classification based on position."""
+    if player_team not in (0, 1):
+        return False
+    if abs(y_value) <= PAD_NEUTRAL_TOLERANCE:
+        return False
+    if player_team == 0:
+        return y_value > PAD_NEUTRAL_TOLERANCE
+    return y_value < -PAD_NEUTRAL_TOLERANCE
 
 
 def _to_float(value: Any) -> float | None:
@@ -284,17 +440,6 @@ def _infer_player_team(frames: list[Frame], player_id: str) -> int | None:
         if player_frame is not None:
             return player_frame.team
     return None
-
-
-def _is_on_opponent_half(y_value: float, player_team: int) -> bool:
-    """Check whether a Y coordinate lies on the opponent half for the given team."""
-    if abs(y_value) <= CENTERLINE_TOLERANCE:
-        return False
-    if player_team == 0:
-        return y_value > 0
-    if player_team == 1:
-        return y_value < 0
-    return False
 
 
 def _analyze_team_boost(
@@ -379,30 +524,6 @@ def _find_player_in_frame(frame: Frame, player_id: str) -> Any | None:
         if player.player_id == player_id:
             return player
     return None
-
-
-def _find_frame_at_time(
-    frames: list[Frame],
-    timestamps: Sequence[float],
-    timestamp: float,
-) -> Frame | None:
-    """Find frame closest to given timestamp using binary search."""
-    if not frames:
-        return None
-
-    idx = bisect_left(timestamps, timestamp)
-
-    if idx <= 0:
-        return frames[0]
-    if idx >= len(frames):
-        return frames[-1]
-
-    prev_frame = frames[idx - 1]
-    next_frame = frames[idx]
-
-    if timestamp - prev_frame.timestamp <= next_frame.timestamp - timestamp:
-        return prev_frame
-    return next_frame
 
 
 def _calculate_speed(velocity: Vec3) -> float:

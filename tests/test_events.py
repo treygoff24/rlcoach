@@ -480,6 +480,29 @@ class TestBoostPickupDetection:
         assert len(pickups) == 1
         assert pickups[0].stolen is True
         assert pickups[0].pad_id == 3
+
+    def test_center_pad_not_stolen(self):
+        """Pads on the midfield line should not be marked stolen."""
+        pad_center = FIELD.BOOST_PADS[19]  # Midfield small pad
+        frames = [
+            create_test_frame(
+                5.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("blue_mid", 0, Vec3(pad_center.position.x, pad_center.position.y, 17.0), boost=20)],
+            ),
+            create_test_frame(
+                5.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("blue_mid", 0, Vec3(pad_center.position.x, pad_center.position.y, 17.0), boost=32)],
+            ),
+        ]
+
+        pickups = detect_boost_pickups(frames)
+        assert len(pickups) == 1
+        assert pickups[0].stolen is False
+        assert pickups[0].pad_id == pad_center.pad_id
     
     def test_no_boost_increase_no_pickup(self):
         """No boost change means no pickup event."""
@@ -526,6 +549,73 @@ class TestBoostPickupDetection:
             event = pickups[0]
             assert event.pad_id == pad.pad_id
             assert event.location == pad.position
+
+    def test_small_pad_respawn_allows_recollection(self):
+        """Small pads should allow recollection once respawn timer elapses."""
+        pad = FIELD.BOOST_PADS[27]
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=20)],
+            ),
+            create_test_frame(
+                0.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=32)],
+            ),
+            create_test_frame(
+                4.2,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=32)],
+            ),
+            create_test_frame(
+                4.3,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=44)],
+            ),
+        ]
+
+        pickups = detect_boost_pickups(frames)
+        assert len(pickups) == 2
+        assert all(event.pad_id == pad.pad_id for event in pickups)
+
+    def test_big_pad_requires_full_respawn(self):
+        """Big pads should not be reassigned before their respawn window."""
+        pad = FIELD.BOOST_PADS[0]
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=0)],
+            ),
+            create_test_frame(
+                0.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=100)],
+            ),
+            create_test_frame(
+                5.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=100)],
+            ),
+            create_test_frame(
+                5.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("player", 0, Vec3(pad.position.x, pad.position.y, 17.0), boost=100)],
+            ),
+        ]
+
+        pickups = detect_boost_pickups(frames)
+        assert len(pickups) == 1
 
 
 class TestTouchDetection:

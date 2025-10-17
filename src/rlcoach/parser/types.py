@@ -136,12 +136,31 @@ class BallFrame:
 
 
 @dataclass(frozen=True)
+class BoostPadEventFrame:
+    """Boost pad event emitted by the parser layer."""
+
+    pad_id: int
+    status: str  # "COLLECTED" or "RESPAWNED"
+    is_big: bool
+    player_id: str | None = None
+    player_team: int | None = None
+    player_index: int | None = None
+    actor_id: int | None = None
+    instigator_actor_id: int | None = None
+    raw_state: int | None = None
+    position: Vec3 | None = None
+    timestamp: float | None = None
+    object_name: str | None = None
+
+
+@dataclass(frozen=True)
 class Frame:
     """Normalized frame containing all game state at a specific time."""
     
     timestamp: float  # seconds from match start
     ball: BallFrame
     players: list[PlayerFrame] = field(default_factory=list)
+    boost_pad_events: list[BoostPadEventFrame] = field(default_factory=list)
     
     def get_player_by_id(self, player_id: str) -> PlayerFrame | None:
         """Get player frame by ID, or None if not found."""

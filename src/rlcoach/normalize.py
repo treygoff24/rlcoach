@@ -15,7 +15,14 @@ from dataclasses import replace
 from typing import Any
 
 from .field_constants import FIELD, Vec3
-from .parser.types import Header, NetworkFrames, Frame, PlayerFrame, BallFrame
+from .parser.types import (
+    Header,
+    NetworkFrames,
+    Frame,
+    PlayerFrame,
+    BallFrame,
+    BoostPadEventFrame,
+)
 from .utils.identity import (
     build_alias_lookup,
     build_player_identities,
@@ -196,7 +203,8 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     velocity=Vec3(0.0, 0.0, 0.0),
                     angular_velocity=Vec3(0.0, 0.0, 0.0)
                 ),
-                players=[]
+                players=[],
+                boost_pad_events=[],
             )
         ]
     
@@ -397,11 +405,111 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     # Skip malformed player data
                     continue
 
+            pad_events: list[BoostPadEventFrame] = []
+            raw_pad_events: list[Any] = []
+            if hasattr(frame_data, "boost_pad_events"):
+                candidate = getattr(frame_data, "boost_pad_events")
+                if isinstance(candidate, list):
+                    raw_pad_events = candidate
+                elif isinstance(candidate, tuple):
+                    raw_pad_events = list(candidate)
+                elif candidate is None:
+                    raw_pad_events = []
+            elif isinstance(frame_data, dict) and "boost_pad_events" in frame_data:
+                raw_value = frame_data.get("boost_pad_events", [])
+                if isinstance(raw_value, list):
+                    raw_pad_events = raw_value
+
+            for raw_event in raw_pad_events:
+                if not isinstance(raw_event, dict):
+                    continue
+                pad_id_raw = raw_event.get("pad_id")
+                if pad_id_raw is None:
+                    continue
+                try:
+                    pad_id = int(pad_id_raw)
+                except (TypeError, ValueError):
+                    continue
+
+                status = str(raw_event.get("status", "UNKNOWN")).upper()
+                if status not in {"COLLECTED", "RESPAWNED"}:
+                    status = "COLLECTED" if "COLLECT" in status else status
+                is_big = bool(raw_event.get("is_big", False))
+
+                player_id_value = raw_event.get("player_id")
+                player_index_value = raw_event.get("player_index")
+                canonical_player_id: str | None = None
+                if isinstance(player_id_value, str) and player_id_value:
+                    canonical_player_id = alias_lookup.get(player_id_value, player_id_value)
+                    alias_lookup.setdefault(player_id_value, canonical_player_id)
+                elif player_index_value is not None:
+                    try:
+                        idx_value = int(player_index_value)
+                    except (TypeError, ValueError):
+                        idx_value = None
+                    if idx_value is not None:
+                        candidate = f"player_{idx_value}"
+                        canonical_player_id = alias_lookup.get(candidate, candidate)
+                        alias_lookup.setdefault(candidate, canonical_player_id)
+                player_team_value = raw_event.get("player_team")
+                try:
+                    player_team = int(player_team_value) if player_team_value is not None else None
+                except (TypeError, ValueError):
+                    player_team = None
+
+                actor_id_value = raw_event.get("actor_id")
+                try:
+                    actor_id = int(actor_id_value) if actor_id_value is not None else None
+                except (TypeError, ValueError):
+                    actor_id = None
+
+                instigator_value = raw_event.get("instigator_actor_id")
+                try:
+                    instigator_actor_id = int(instigator_value) if instigator_value is not None else None
+                except (TypeError, ValueError):
+                    instigator_actor_id = None
+
+                raw_state_value = raw_event.get("raw_state")
+                try:
+                    raw_state = int(raw_state_value) if raw_state_value is not None else None
+                except (TypeError, ValueError):
+                    raw_state = None
+
+                position_value = raw_event.get("position")
+                position = to_field_coords(position_value) if position_value else None
+
+                event_timestamp = raw_event.get("timestamp")
+                try:
+                    event_time = float(event_timestamp) if event_timestamp is not None else None
+                except (TypeError, ValueError):
+                    event_time = None
+
+                object_name = raw_event.get("object_name")
+                object_name_str = str(object_name) if isinstance(object_name, str) and object_name else None
+
+                pad_events.append(
+                    BoostPadEventFrame(
+                        pad_id=pad_id,
+                        status=status,
+                        is_big=is_big,
+                        player_id=canonical_player_id,
+                        player_team=player_team,
+                        player_index=int(player_index_value) if isinstance(player_index_value, (int, float)) else None,
+                        actor_id=actor_id,
+                        instigator_actor_id=instigator_actor_id,
+                        raw_state=raw_state,
+                        position=position,
+                        timestamp=event_time,
+                        object_name=object_name_str,
+                    )
+                )
+
             # Create normalized frame
             normalized_frame = Frame(
                 timestamp=timestamp,
                 ball=ball_frame,
-                players=list(player_frames_map.values())
+                players=list(player_frames_map.values()),
+                boost_pad_events=pad_events,
             )
             
             normalized_frames.append(normalized_frame)
@@ -425,7 +533,8 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 velocity=Vec3(0.0, 0.0, 0.0),
                 angular_velocity=Vec3(0.0, 0.0, 0.0)
             ),
-            players=[]
+            players=[],
+            boost_pad_events=[],
         )
     ]
 
@@ -480,7 +589,28 @@ def _align_match_clock(frames: list[Frame], header: Header | None) -> list[Frame
         shifted = t - start_time
         if abs(shifted) < 1e-6:
             shifted = 0.0
-        adjusted.append(replace(frame, timestamp=shifted))
+        normalized_events: list[BoostPadEventFrame] = []
+        for event in getattr(frame, "boost_pad_events", []) or []:
+            event_time = getattr(event, "timestamp", None)
+            new_time: float | None
+            if event_time is None:
+                new_time = None
+            else:
+                try:
+                    new_time = float(event_time) - start_time
+                except (TypeError, ValueError):
+                    new_time = None
+            if new_time is not None and abs(new_time) < 1e-6:
+                new_time = 0.0
+            normalized_events.append(replace(event, timestamp=new_time))
+
+        adjusted.append(
+            replace(
+                frame,
+                timestamp=shifted,
+                boost_pad_events=normalized_events,
+            )
+        )
 
     if not adjusted:
         adjusted.append(replace(frames[0], timestamp=0.0))
