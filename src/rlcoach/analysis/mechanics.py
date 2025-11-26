@@ -245,8 +245,22 @@ def detect_mechanics_for_player(
                     )
 
                     if total_rot_rate > FLIP_ANGULAR_THRESHOLD:
-                        # This is a flip/dodge
+                        # This is a flip/dodge - but a flip requires a jump first!
+                        # In RL, you jump then flip, so we count the jump too
                         if not state.has_flipped:
+                            # First, count the jump that preceded this flip
+                            # (flips consume the second jump, so this is effectively the second jump)
+                            if not state.has_jumped:
+                                state.has_jumped = True
+                                events.append(MechanicEvent(
+                                    timestamp=timestamp,
+                                    player_id=player_id,
+                                    mechanic_type=MechanicType.JUMP,
+                                    position=pos,
+                                    velocity=vel,
+                                    height=pos.z,
+                                ))
+
                             state.has_flipped = True
                             state.flip_start_time = timestamp
                             state.flip_cancel_detected = False

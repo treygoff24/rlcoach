@@ -72,8 +72,9 @@ class TestPositioningAnalysis:
         assert result["avg_distance_to_teammate_m"] == 0.0
         assert result["first_man_pct"] == 0.0
         assert result["second_man_pct"] == 0.0
-        assert result["third_man_pct"] == 0.0
-    
+        # third_man_pct is None when team_size < 3 (empty frames = team_size 0)
+        assert result["third_man_pct"] is None
+
     def test_field_half_classification_blue_team(self):
         """Test field half classification for blue team (team 0)."""
         ball_pos = Vec3(0.0, 0.0, 93.15)
@@ -384,13 +385,14 @@ class TestPositioningAnalysis:
         ]
         
         result = analyze_positioning(frames, {}, player_id="player1")
-        
+
         # Should handle gracefully without teammates
         assert result["avg_distance_to_teammate_m"] == 0.0
         assert result["first_man_pct"] == 100.0  # Only player, so always first man
         assert result["second_man_pct"] == 0.0
-        assert result["third_man_pct"] == 0.0
-    
+        # third_man_pct is None for 1v1 (team_size=1 < 3)
+        assert result["third_man_pct"] is None
+
     def test_calculate_distance_utility(self):
         """Test distance calculation utility function."""
         # Test zero distance

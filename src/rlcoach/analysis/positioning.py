@@ -78,35 +78,38 @@ def analyze_positioning(
 
 def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str, Any]:
     """Analyze positioning metrics for a specific player."""
-    
+
     # Initialize counters
     total_frames = 0
     total_distance_to_ball = 0.0
     total_distance_to_teammates = 0.0
     teammate_distance_count = 0
-    
+
     # Field occupancy counters
     time_offensive_half = 0.0
     time_defensive_half = 0.0
     time_offensive_third = 0.0
     time_middle_third = 0.0
     time_defensive_third = 0.0
-    
+
     # Ball relationship counters
     behind_ball_frames = 0
     ahead_ball_frames = 0
-    
+
     # Role counters
     first_man_frames = 0
     second_man_frames = 0
     third_man_frames = 0
-    
-    # Determine player's team from first frame
+
+    # Determine player's team and team size from first valid frame
     player_team = None
+    team_size = 0
     for frame in frames:
         player_frame = _find_player_in_frame(frame, player_id)
         if player_frame:
             player_team = player_frame.team
+            # Count teammates (including this player)
+            team_size = sum(1 for p in frame.players if p.team == player_team)
             break
 
     if player_team is None:
@@ -219,8 +222,9 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
     
     first_man_pct = (first_man_frames / total_frames) * 100.0
     second_man_pct = (second_man_frames / total_frames) * 100.0
-    third_man_pct = (third_man_frames / total_frames) * 100.0
-    
+    # Third man is only meaningful in 3v3 (team_size >= 3)
+    third_man_pct = (third_man_frames / total_frames) * 100.0 if team_size >= 3 else None
+
     return {
         "time_offensive_half_s": round(time_offensive_half, 2),
         "time_defensive_half_s": round(time_defensive_half, 2),
@@ -233,26 +237,28 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
         "avg_distance_to_teammate_m": round(avg_distance_to_teammate_m, 2),
         "first_man_pct": round(first_man_pct, 2),
         "second_man_pct": round(second_man_pct, 2),
-        "third_man_pct": round(third_man_pct, 2)
+        "third_man_pct": round(third_man_pct, 2) if third_man_pct is not None else None
     }
 
 
 def _analyze_team_positioning(frames: list[Frame], team: str) -> dict[str, Any]:
     """Analyze positioning metrics for a team (aggregate all players)."""
-    
-    # Get all unique player IDs for the team
+
+    # Get all unique player IDs for the team and determine team size
     team_players = set()
     team_id = 0 if team == "BLUE" else 1
-    
+
     for frame in frames:
         for player in frame.players:
             if player.team == team_id:
                 team_players.add(player.player_id)
-    
-    if not team_players:
-        return _empty_positioning()
-    
+
+    team_size = len(team_players)
+    if team_size == 0:
+        return _empty_positioning(team_size=0)
+
     # Aggregate metrics from all team members
+    # third_man_pct is only meaningful for 3v3 (team_size >= 3)
     team_metrics = {
         "time_offensive_half_s": 0.0,
         "time_defensive_half_s": 0.0,
@@ -265,21 +271,19 @@ def _analyze_team_positioning(frames: list[Frame], team: str) -> dict[str, Any]:
         "avg_distance_to_teammate_m": 0.0,
         "first_man_pct": 0.0,
         "second_man_pct": 0.0,
-        "third_man_pct": 0.0
+        "third_man_pct": 0.0 if team_size >= 3 else None
     }
-    
-    player_count = len(team_players)
-    
+
     for player_id in team_players:
         player_metrics = _analyze_player_positioning(frames, player_id)
-        
+
         # Sum time-based metrics
         team_metrics["time_offensive_half_s"] += player_metrics["time_offensive_half_s"]
         team_metrics["time_defensive_half_s"] += player_metrics["time_defensive_half_s"]
         team_metrics["time_offensive_third_s"] += player_metrics["time_offensive_third_s"]
         team_metrics["time_middle_third_s"] += player_metrics["time_middle_third_s"]
         team_metrics["time_defensive_third_s"] += player_metrics["time_defensive_third_s"]
-        
+
         # Average percentage and distance metrics
         team_metrics["behind_ball_pct"] += player_metrics["behind_ball_pct"]
         team_metrics["ahead_ball_pct"] += player_metrics["ahead_ball_pct"]
@@ -287,18 +291,21 @@ def _analyze_team_positioning(frames: list[Frame], team: str) -> dict[str, Any]:
         team_metrics["avg_distance_to_teammate_m"] += player_metrics["avg_distance_to_teammate_m"]
         team_metrics["first_man_pct"] += player_metrics["first_man_pct"]
         team_metrics["second_man_pct"] += player_metrics["second_man_pct"]
-        team_metrics["third_man_pct"] += player_metrics["third_man_pct"]
-    
+        # Only aggregate third_man_pct if it's meaningful (3v3)
+        if team_size >= 3 and player_metrics["third_man_pct"] is not None:
+            team_metrics["third_man_pct"] += player_metrics["third_man_pct"]
+
     # Calculate team averages for percentage metrics
-    if player_count > 0:
-        team_metrics["behind_ball_pct"] = round(team_metrics["behind_ball_pct"] / player_count, 2)
-        team_metrics["ahead_ball_pct"] = round(team_metrics["ahead_ball_pct"] / player_count, 2)
-        team_metrics["avg_distance_to_ball_m"] = round(team_metrics["avg_distance_to_ball_m"] / player_count, 2)
-        team_metrics["avg_distance_to_teammate_m"] = round(team_metrics["avg_distance_to_teammate_m"] / player_count, 2)
-        team_metrics["first_man_pct"] = round(team_metrics["first_man_pct"] / player_count, 2)
-        team_metrics["second_man_pct"] = round(team_metrics["second_man_pct"] / player_count, 2)
-        team_metrics["third_man_pct"] = round(team_metrics["third_man_pct"] / player_count, 2)
-    
+    if team_size > 0:
+        team_metrics["behind_ball_pct"] = round(team_metrics["behind_ball_pct"] / team_size, 2)
+        team_metrics["ahead_ball_pct"] = round(team_metrics["ahead_ball_pct"] / team_size, 2)
+        team_metrics["avg_distance_to_ball_m"] = round(team_metrics["avg_distance_to_ball_m"] / team_size, 2)
+        team_metrics["avg_distance_to_teammate_m"] = round(team_metrics["avg_distance_to_teammate_m"] / team_size, 2)
+        team_metrics["first_man_pct"] = round(team_metrics["first_man_pct"] / team_size, 2)
+        team_metrics["second_man_pct"] = round(team_metrics["second_man_pct"] / team_size, 2)
+        if team_size >= 3:
+            team_metrics["third_man_pct"] = round(team_metrics["third_man_pct"] / team_size, 2)
+
     return team_metrics
 
 
@@ -432,8 +439,12 @@ def _calculate_distance(pos1: Vec3, pos2: Vec3) -> float:
     return math.sqrt(dx ** 2 + dy ** 2 + dz ** 2)
 
 
-def _empty_positioning() -> dict[str, Any]:
-    """Return empty positioning dict for degraded scenarios."""
+def _empty_positioning(team_size: int = 0) -> dict[str, Any]:
+    """Return empty positioning dict for degraded scenarios.
+
+    Args:
+        team_size: Number of players on the team. If < 3, third_man_pct is None.
+    """
     return {
         "time_offensive_half_s": 0.0,
         "time_defensive_half_s": 0.0,
@@ -446,7 +457,7 @@ def _empty_positioning() -> dict[str, Any]:
         "avg_distance_to_teammate_m": 0.0,
         "first_man_pct": 0.0,
         "second_man_pct": 0.0,
-        "third_man_pct": 0.0
+        "third_man_pct": 0.0 if team_size >= 3 else None
     }
 
 

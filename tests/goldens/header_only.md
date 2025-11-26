@@ -124,7 +124,7 @@
 | Avg Dist To Teammate (m) | 0    | -         | 0      | -           | 0                 |
 | First Man %              | 0%   | -         | 0%     | -           | 0%                |
 | Second Man %             | 0%   | -         | 0%     | -           | 0%                |
-| Third Man %              | 0%   | -         | 0%     | -           | 0%                |
+| Third Man %              | -%   | -         | -%     | -           | 0%                |
 
 
 ### Possession & Passing
@@ -430,7 +430,7 @@
           "behind_ball_pct": 0.0,
           "first_man_pct": 0.0,
           "second_man_pct": 0.0,
-          "third_man_pct": 0.0,
+          "third_man_pct": null,
           "time_defensive_half_s": 0.0,
           "time_defensive_third_s": 0.0,
           "time_middle_third_s": 0.0,
@@ -534,7 +534,7 @@
           "behind_ball_pct": 0.0,
           "first_man_pct": 0.0,
           "second_man_pct": 0.0,
-          "third_man_pct": 0.0,
+          "third_man_pct": null,
           "time_defensive_half_s": 0.0,
           "time_defensive_third_s": 0.0,
           "time_middle_third_s": 0.0,

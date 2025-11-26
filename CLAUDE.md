@@ -74,7 +74,7 @@ The parser layer uses pluggable adapters (`parser/interface.py`):
 
 - `codex/Plans/` — Read `rlcoach_implementation_plan.md` before scope changes
 - `src/rlcoach/` — Main package: `ingest.py`, `parser/`, `normalize.py`, `events.py`, `analysis/`, `report*.py`, `cli.py`, `ui.py`
-- `tests/` — Pytest suite mirroring `src/` layout (256 tests)
+- `tests/` — Pytest suite mirroring `src/` layout (261 tests)
 - `schemas/` — JSON schema definitions (Draft-07)
 - `parsers/rlreplay_rust/` — Optional Rust adapter (maturin build)
 
@@ -169,3 +169,8 @@ Key constants are centralized:
 - Added `DEFAULT_FRAME_RATE` constant for consistent fallback values
 - Removed deprecated placeholder functions from analysis module
 - Fixed import consistency (Vec3 from field_constants)
+- Fixed `third_man_pct` to return `None` for 2v2/1v1 matches (only meaningful in 3v3)
+- Fixed xG module to only count SHOT outcomes (was incorrectly counting PASS touches)
+- Fixed recovery momentum to cap at 100% for summary stats
+- Fixed recovery detection thresholds to catch more recoveries in fast-paced play
+- Fixed mechanics jump detection to count jumps that precede flips (jumps >= flips now)

@@ -96,10 +96,10 @@ def _analyze_positioning_insights(positioning: dict, player_id: str) -> list[dic
             }
         })
     
-    # Not enough third man presence in 3v3
-    if third_man_pct < 25:
+    # Not enough third man presence in 3v3 (only applies when third_man_pct is available)
+    if third_man_pct is not None and third_man_pct < 25:
         insights.append({
-            "severity": "SUGGESTION", 
+            "severity": "SUGGESTION",
             "message": "Increase back-post coverage and third man rotation presence for better defensive structure.",
             "evidence": {
                 "third_man_pct": third_man_pct

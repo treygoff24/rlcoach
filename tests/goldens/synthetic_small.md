@@ -124,7 +124,7 @@
 | Avg Dist To Teammate (m) | 0      | -         | 0      | -           | 0                 |
 | First Man %              | 100%   | -         | 100%   | -           | 0%                |
 | Second Man %             | 0%     | -         | 0%     | -           | 0%                |
-| Third Man %              | 0%     | -         | 0%     | -           | 0%                |
+| Third Man %              | -%     | -         | -%     | -           | 0%                |
 
 
 ### Possession & Passing
@@ -571,7 +571,7 @@
           "behind_ball_pct": 66.67,
           "first_man_pct": 100.0,
           "second_man_pct": 0.0,
-          "third_man_pct": 0.0,
+          "third_man_pct": null,
           "time_defensive_half_s": 1.1,
           "time_defensive_third_s": 0.0,
           "time_middle_third_s": 1.2,
@@ -597,29 +597,8 @@
           "score_0_to_100": 100.0
         },
         "xg": {
-          "shots": [
-            {
-              "angle_degrees": 177.5,
-              "ball_speed_kph": 61.6,
-              "defender_coverage": 0.0,
-              "distance_m": 52.75,
-              "factors": {
-                "angle_factor": 0.15,
-                "base_xg": 0.12,
-                "defender_factor": 1.5,
-                "distance_factor": 0.593,
-                "speed_factor": 0.952
-              },
-              "is_open_net": true,
-              "outcome": "PASS",
-              "player_id": "A",
-              "shot_type": "ground",
-              "timestamp": 1.1,
-              "xg": 0.0153
-            }
-          ],
-          "total_shots": 1,
-          "total_xg": 0.0153
+          "total_shots": 0,
+          "total_xg": 0.0
         }
       },
       "B": {
@@ -850,7 +829,7 @@
           "behind_ball_pct": 100.0,
           "first_man_pct": 100.0,
           "second_man_pct": 0.0,
-          "third_man_pct": 0.0,
+          "third_man_pct": null,
           "time_defensive_half_s": 1.2,
           "time_defensive_third_s": 0.0,
           "time_middle_third_s": 1.2,
@@ -979,7 +958,7 @@
           "behind_ball_pct": 66.67,
           "first_man_pct": 100.0,
           "second_man_pct": 0.0,
-          "third_man_pct": 0.0,
+          "third_man_pct": null,
           "time_defensive_half_s": 1.1,
           "time_defensive_third_s": 0.0,
           "time_middle_third_s": 1.2,
@@ -1084,7 +1063,7 @@
           "behind_ball_pct": 100.0,
           "first_man_pct": 100.0,
           "second_man_pct": 0.0,
-          "third_man_pct": 0.0,
+          "third_man_pct": null,
           "time_defensive_half_s": 1.2,
           "time_defensive_third_s": 0.0,
           "time_middle_third_s": 1.2,

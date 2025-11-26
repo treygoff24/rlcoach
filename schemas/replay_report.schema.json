@@ -403,7 +403,7 @@
 
     "positioning": {
       "type": "object",
-      "required": ["time_offensive_half_s","time_defensive_half_s","time_offensive_third_s","time_middle_third_s","time_defensive_third_s","behind_ball_pct","ahead_ball_pct","avg_distance_to_ball_m","avg_distance_to_teammate_m","first_man_pct","second_man_pct","third_man_pct"],
+      "required": ["time_offensive_half_s","time_defensive_half_s","time_offensive_third_s","time_middle_third_s","time_defensive_third_s","behind_ball_pct","ahead_ball_pct","avg_distance_to_ball_m","avg_distance_to_teammate_m","first_man_pct","second_man_pct"],
       "properties": {
         "time_offensive_half_s": { "type": "number" },
         "time_defensive_half_s": { "type": "number" },
@@ -416,7 +416,7 @@
         "avg_distance_to_teammate_m": { "type": "number" },
         "first_man_pct": { "type": "number", "minimum": 0, "maximum": 100 },
         "second_man_pct": { "type": "number", "minimum": 0, "maximum": 100 },
-        "third_man_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+        "third_man_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
       }
     },
 

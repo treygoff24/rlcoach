@@ -444,8 +444,9 @@ def analyze_shots_xg(
     Returns:
         Dict with xG analysis results
     """
-    # Filter for shots (outcomes indicating shot-like touches)
-    shot_outcomes = {"SHOT", "PASS"}  # PASS can be shooting pass
+    # Only count actual SHOT outcomes for xG calculation
+    # Previously included PASS which inflated shot counts
+    shot_outcomes = {"SHOT"}
 
     shots_xg: list[dict] = []
     per_player: dict[str, dict] = {}

@@ -80,7 +80,7 @@ source .venv/bin/activate
 make install-dev              # Install Black, Ruff, pytest, dev dependencies
 make rust-dev                 # (Optional) Build Rust adapter with maturin
 
-# Running tests (256 tests, ~8 seconds)
+# Running tests (261 tests, ~8 seconds)
 source .venv/bin/activate && PYTHONPATH=src pytest -q           # Full suite
 source .venv/bin/activate && PYTHONPATH=src pytest tests/test_foo.py -q  # Single file
 make test                     # Alternative (handles venv internally)
@@ -158,3 +158,8 @@ Analysis stays fully local—avoid remote calls in parsers or analyzers. Do not 
 - Added `DEFAULT_FRAME_RATE` constant for consistent fallback values
 - Removed deprecated placeholder functions from analysis module
 - Fixed import consistency (Vec3 from field_constants)
+- Fixed `third_man_pct` to return `None` for 2v2/1v1 matches (only meaningful in 3v3)
+- Fixed xG module to only count SHOT outcomes (was incorrectly counting PASS touches)
+- Fixed recovery momentum to cap at 100% for summary stats
+- Fixed recovery detection thresholds to catch more recoveries in fast-paced play
+- Fixed mechanics jump detection to count jumps that precede flips (jumps >= flips now)

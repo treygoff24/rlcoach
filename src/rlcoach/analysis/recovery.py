@@ -32,7 +32,7 @@ class RecoveryEvent:
     peak_height: float  # Maximum height reached during airborne phase
     speed_at_landing: float  # Speed when touching down
     speed_after_recovery: float  # Speed after regaining control
-    momentum_retained: float  # Ratio of post-recovery to pre-landing speed (0-1+)
+    momentum_retained: float  # Ratio of post-recovery to pre-landing speed (can exceed 1.0 with boost/wavedash)
     was_wavedash: bool = False  # True if recovery included a wavedash
 
 
@@ -59,11 +59,11 @@ class PlayerRecoveryState:
 # Detection thresholds
 GROUND_HEIGHT_THRESHOLD = 30.0  # Car is on ground if z < this
 AIRBORNE_MIN_HEIGHT = 50.0  # Minimum height to count as meaningful airborne
-STABLE_VELOCITY_THRESHOLD = 100.0  # Velocity change threshold for "stable"
-STABLE_FRAMES_REQUIRED = 3  # Frames of stable movement = control regained
+STABLE_VELOCITY_THRESHOLD = 200.0  # Velocity change threshold for "stable" (was 100, too strict for fast players)
+STABLE_FRAMES_REQUIRED = 2  # Frames of stable movement = control regained (was 3, reduced for faster detection)
 WAVEDASH_WINDOW = 0.3  # Seconds after landing to detect wavedash
 WAVEDASH_SPEED_BOOST = 1.15  # Speed increase ratio indicating wavedash
-MIN_AIRBORNE_TIME = 0.2  # Minimum airborne time to count as meaningful
+MIN_AIRBORNE_TIME = 0.15  # Minimum airborne time to count as meaningful (was 0.2, reduced to catch more recoveries)
 
 
 def _calculate_speed(velocity: Vec3) -> float:
@@ -188,6 +188,12 @@ def detect_recoveries_for_player(
             state.recovery_complete = False
             state.wavedash_detected = False
             state.stable_frames = 0
+            # If we were tracking a landing but player jumped again before recovery completed,
+            # abandon the previous recovery tracking
+            if state.landed_time is not None:
+                state.landed_time = None
+                state.landing_position = None
+                state.landing_velocity = None
 
         elif state.is_airborne:
             # Still airborne - track peak height
@@ -324,13 +330,17 @@ def analyze_recoveries(frames: list[Frame]) -> dict:
                 })
 
             avg_momentum = total_momentum / len(events) if events else 0.0
+            # Cap average_momentum_retained at 1.0 for summary statistics
+            # Individual events can exceed 1.0 (boost/wavedash during recovery)
+            # but the "average retained" metric should reflect momentum kept, not gained
+            avg_momentum_capped = min(avg_momentum, 1.0)
 
             per_player[player_id] = {
                 "total_recoveries": len(events),
                 "quality_distribution": quality_counts,
                 "excellent_count": quality_counts.get("excellent", 0),
                 "poor_count": quality_counts.get("poor", 0) + quality_counts.get("failed", 0),
-                "average_momentum_retained": round(avg_momentum, 3),
+                "average_momentum_retained": round(avg_momentum_capped, 3),
                 "wavedash_count": wavedash_count,
             }
         else:
