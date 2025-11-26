@@ -41,6 +41,10 @@ RESPAWN_BOOST_AMOUNT = 33.0
 RESPAWN_DISTANCE_THRESHOLD = 800.0
 CHAIN_PAD_RADIUS = 1500.0
 
+# Shot velocity detection for goals (to avoid post-goal physics reset)
+GOAL_LOOKBACK_WINDOW_S = 1.0  # Look back up to 1 second before goal frame
+MIN_SHOT_VELOCITY_UU_S = 500.0  # Minimum velocity to consider as valid shot speed
+
 # Boost pickup heuristics (aligned with Ballchasing parity harness)
 BOOST_HISTORY_WINDOW_S = 0.45
 BOOST_HISTORY_MAX_SAMPLES = 18
@@ -355,6 +359,46 @@ def _detect_boost_pickups_from_pad_events(frames: list[Frame]) -> list[BoostPick
     return pickups
 
 
+def _find_shot_velocity_before_goal(
+    frames: list[Frame],
+    goal_frame_idx: int,
+    frame_rate: float,
+) -> Vec3:
+    """Find ball velocity before goal explosion physics reset.
+
+    When a goal is scored, the game engine resets ball physics, often
+    resulting in zero or near-zero velocity at the goal frame. This function
+    scans backwards to find the actual shot velocity.
+
+    Args:
+        frames: List of normalized frames
+        goal_frame_idx: Index of the goal frame
+        frame_rate: Frame rate (frames per second)
+
+    Returns:
+        Ball velocity vector representing actual shot speed
+    """
+    if not frames or goal_frame_idx < 0:
+        return Vec3(0.0, 0.0, 0.0)
+
+    lookback_frames = int(GOAL_LOOKBACK_WINDOW_S * frame_rate)
+    start_idx = max(0, goal_frame_idx - lookback_frames)
+
+    # Scan backwards from the goal frame to find significant velocity
+    for i in range(goal_frame_idx - 1, start_idx - 1, -1):
+        if i < 0 or i >= len(frames):
+            continue
+        velocity = frames[i].ball.velocity
+        speed = _vector_magnitude(velocity)
+        if speed >= MIN_SHOT_VELOCITY_UU_S:
+            return velocity
+
+    # Fallback: return velocity at goal frame if no significant velocity found
+    if 0 <= goal_frame_idx < len(frames):
+        return frames[goal_frame_idx].ball.velocity
+    return Vec3(0.0, 0.0, 0.0)
+
+
 def detect_goals(frames: list[Frame], header: Header | None = None) -> list[GoalEvent]:
     """Detect goal events, preferring authoritative header metadata."""
 
@@ -433,7 +477,8 @@ def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalE
                 goal_time,
             )
 
-            ball_velocity = frame_ref.ball.velocity if frame_ref else Vec3(0.0, 0.0, 0.0)
+            # Use lookback to find actual shot velocity (avoids post-goal physics reset)
+            ball_velocity = _find_shot_velocity_before_goal(frames, frame_ref_idx, frame_rate)
             ball_pos = frame_ref.ball.position if frame_ref else Vec3(0.0, 0.0, 0.0)
             goal_line_y = FIELD.BACK_WALL_Y if scorer_team == "BLUE" else -FIELD.BACK_WALL_Y
             distance_m = abs(goal_line_y - ball_pos.y) / 100.0
@@ -487,7 +532,8 @@ def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalE
             delta_frames = max(0, frame_idx - highlight_frame)
             tickmark_lead = delta_frames / frame_rate
 
-        ball_velocity = frame_ref.ball.velocity if frame_ref else Vec3(0.0, 0.0, 0.0)
+        # Use lookback to find actual shot velocity (avoids post-goal physics reset)
+        ball_velocity = _find_shot_velocity_before_goal(frames, frame_ref_idx, frame_rate)
         ball_pos = frame_ref.ball.position if frame_ref else Vec3(0.0, 0.0, 0.0)
         goal_line_y = FIELD.BACK_WALL_Y if scorer_team == "BLUE" else -FIELD.BACK_WALL_Y
         distance_m = abs(goal_line_y - ball_pos.y) / 100.0
@@ -618,7 +664,9 @@ def _detect_goals_from_ball_path(frames: list[Frame], header: Header | None) -> 
                             assist = pid
                             break
 
-            ball_speed = _vector_magnitude(frame.ball.velocity)
+            # Use lookback to find actual shot velocity (avoids post-goal physics reset)
+            ball_velocity = _find_shot_velocity_before_goal(frames, i, frame_rate)
+            ball_speed = _vector_magnitude(ball_velocity)
             shot_speed_kph = ball_speed * 3.6
 
             goal_line_y = GOAL_LINE_THRESHOLD if goal_team == "BLUE" else -GOAL_LINE_THRESHOLD
@@ -1323,6 +1371,16 @@ def _start_kickoff(frame: Frame) -> dict[str, Any]:
             "max_distance": 0.0,
             "first_touch_time": None,
             "role": "BACK",  # Placeholder until assigned from spawn ordering
+            # New tracking fields for improved classification
+            "velocities": [],  # List of (t, speed) tuples
+            "max_speed": 0.0,
+            "speed_at_contact": 0.0,
+            "positions": [],  # List of (t, Vec3) for path analysis
+            "distance_to_ball_min": float("inf"),
+            "reached_ball": False,
+            "moved_toward_ball": False,
+            "moved_away_from_ball": False,
+            "jumped": False,
         }
 
     _assign_kickoff_roles(player_states)
@@ -1358,6 +1416,8 @@ def _update_kickoff_state(state: dict[str, Any], frame: Frame) -> None:
 
     ball = frame.ball
     t = frame.timestamp
+    t_start = state["t_start"]
+    rel_time = t - t_start
 
     for player in frame.players:
         pid = player.player_id
@@ -1374,12 +1434,40 @@ def _update_kickoff_state(state: dict[str, Any], frame: Frame) -> None:
         if pdata["movement_start_time"] is None and distance_from_start > 150.0:
             pdata["movement_start_time"] = t
 
-        # Detect per-player first touch during kickoff window
+        # Track velocity for delay/speedflip detection
+        speed = _vector_magnitude(player.velocity)
+        pdata["velocities"].append((rel_time, speed))
+        pdata["max_speed"] = max(pdata["max_speed"], speed)
+
+        # Track position trajectory
+        pdata["positions"].append((rel_time, player.position))
+
+        # Track minimum distance to ball
         separation = _distance_3d(player.position, ball.position)
+        pdata["distance_to_ball_min"] = min(pdata["distance_to_ball_min"], separation)
+
+        # Track if player reached ball proximity
+        if separation < TOUCH_PROXIMITY_THRESHOLD * 1.2:
+            pdata["reached_ball"] = True
+
+        # Track directional movement relative to ball (at center)
+        ball_center = KICKOFF_CENTER_POSITION
+        start_dist_to_ball = _distance_3d(pdata["start_pos"], ball_center)
+        current_dist_to_ball = _distance_3d(player.position, ball_center)
+        if current_dist_to_ball < start_dist_to_ball - 100.0:
+            pdata["moved_toward_ball"] = True
+        if current_dist_to_ball > start_dist_to_ball + 100.0:
+            pdata["moved_away_from_ball"] = True
+
+        # Track if player has jumped (for aerial/flip detection)
+        if not player.is_on_ground and player.position.z > 30.0:
+            pdata["jumped"] = True
+
+        # Detect per-player first touch during kickoff window
         if separation < TOUCH_PROXIMITY_THRESHOLD * 0.9:
-            rel_time = t - state["t_start"]
             if pdata["first_touch_time"] is None:
                 pdata["first_touch_time"] = rel_time
+                pdata["speed_at_contact"] = speed
 
             first_touch = state.get("first_touch")
             if first_touch is None or rel_time < first_touch["time"]:
@@ -1454,26 +1542,204 @@ def _classify_kickoff_role(position: Vec3, team: int, ordinal: int) -> str:
     return "BACK"
 
 
-def _classify_approach_type(pdata: dict[str, Any], kickoff_start_time: float) -> str:
-    """Infer kickoff approach type from movement timing and boost usage."""
+# New approach type keys for kickoff classification
+APPROACH_TYPE_KEYS = [
+    "SPEEDFLIP",
+    "STANDARD_FRONTFLIP",
+    "STANDARD_DIAGONAL",
+    "STANDARD_WAVEDASH",
+    "STANDARD_BOOST",
+    "DELAY",
+    "FAKE_STATIONARY",
+    "FAKE_HALFFLIP",
+    "FAKE_AGGRESSIVE",
+    "STANDARD",  # Generic fallback
+    "UNKNOWN",
+]
 
-    boost_used = max(0.0, pdata["start_boost"] - pdata["min_boost"])
-    movement_start = pdata.get("movement_start_time")
+
+def _is_speedflip_kickoff(pdata: dict[str, Any]) -> bool:
+    """Detect speedflip from fast time to ball + high speed profile.
+
+    Speedflip is characterized by:
+    - Fast first touch time from diagonal spawn (~2.4-2.6s)
+    - High boost usage during kickoff
+    - High max speed achieved
+    - Player jumped (flip required)
+
+    Without mechanics data, we use timing and speed heuristics.
+    """
     first_touch_time = pdata.get("first_touch_time")
+    max_speed = pdata.get("max_speed", 0.0)
+    boost_used = max(0.0, pdata["start_boost"] - pdata["min_boost"])
+    jumped = pdata.get("jumped", False)
+
+    # Speedflip requires a flip
+    if not jumped:
+        return False
+
+    # Must have used significant boost
+    if boost_used < 20.0:
+        return False
+
+    # High max speed is indicative (speedflip maintains supersonic)
+    # Supersonic threshold is ~2200 uu/s
+    if max_speed < 2000.0:
+        return False
+
+    # Fast time to first touch is the key indicator
+    # Pro speedflips from diagonal: ~2.4-2.6s
+    # Non-speedflip from diagonal: ~2.8-3.2s
+    if first_touch_time is not None and first_touch_time <= 2.7:
+        return True
+
+    return False
+
+
+def _is_delay_kickoff(pdata: dict[str, Any]) -> bool:
+    """Detect delay kickoff from deceleration near contact.
+
+    Delay kickoff = normal approach but brake right before 50/50.
+    Key signature: high speed followed by sudden drop near contact.
+    """
+    velocities = pdata.get("velocities", [])
+    contact_time = pdata.get("first_touch_time")
+    max_speed = pdata.get("max_speed", 0.0)
+
+    if not velocities or contact_time is None:
+        return False
+
+    # Must have approached at high speed (was going fast)
+    if max_speed < 1800.0:
+        return False
+
+    # Find velocity profile near contact (last 0.5s before touch)
+    pre_contact_velocities = [
+        (t, v) for t, v in velocities
+        if contact_time - 0.5 < t < contact_time
+    ]
+
+    if len(pre_contact_velocities) < 3:
+        return False
+
+    # Look for deceleration spike
+    local_max_speed = max(v for _, v in pre_contact_velocities)
+    final_speed = pre_contact_velocities[-1][1]
+
+    # Significant deceleration (>30% speed drop) near contact
+    if local_max_speed > 0:
+        speed_drop = (local_max_speed - final_speed) / local_max_speed
+        return speed_drop > 0.30 and local_max_speed > 1500.0
+
+    return False
+
+
+def _is_fake_kickoff(pdata: dict[str, Any]) -> tuple[bool, str]:
+    """Detect fake kickoff and classify subtype.
+
+    Fake types:
+    1. FAKE_STATIONARY: Didn't move at all
+    2. FAKE_HALFFLIP: Moved backward (half-flip to grab corner boost)
+    3. FAKE_AGGRESSIVE: Moved but didn't contest ball
+
+    Returns:
+        Tuple of (is_fake, fake_type or "")
+    """
+    reached_ball = pdata.get("reached_ball", False)
+    max_distance = pdata.get("max_distance", 0.0)
+    moved_away = pdata.get("moved_away_from_ball", False)
+    moved_toward = pdata.get("moved_toward_ball", False)
+    boost_used = max(0.0, pdata["start_boost"] - pdata["min_boost"])
+    first_touch_time = pdata.get("first_touch_time")
+
+    # If player touched the ball, not a fake
+    if first_touch_time is not None:
+        return False, ""
+
+    # Type 1: Stationary fake - barely moved
+    if max_distance < 100.0 and boost_used < 5.0:
+        return True, "FAKE_STATIONARY"
+
+    # Type 2: Half-flip backward (common on diagonal)
+    # Moved significant distance but AWAY from ball
+    if moved_away and not moved_toward and max_distance > 300.0:
+        return True, "FAKE_HALFFLIP"
+
+    # Type 3: Aggressive fake - moved toward but didn't reach ball
+    # This happens when they go to intercept where opponent hits ball
+    if not reached_ball and moved_toward and max_distance > 500.0:
+        return True, "FAKE_AGGRESSIVE"
+
+    # Type 3b: Just didn't contest despite moving
+    if not reached_ball and max_distance > 300.0:
+        return True, "FAKE_AGGRESSIVE"
+
+    return False, ""
+
+
+def _classify_standard_kickoff(pdata: dict[str, Any]) -> str:
+    """Classify standard kickoff subtype based on movement pattern.
+
+    Subtypes:
+    - STANDARD_FRONTFLIP: Jumped, moved toward ball
+    - STANDARD_DIAGONAL: High speed diagonal approach
+    - STANDARD_WAVEDASH: Would need mechanics data
+    - STANDARD_BOOST: No jump, just boost to ball
+    """
+    jumped = pdata.get("jumped", False)
+    boost_used = max(0.0, pdata["start_boost"] - pdata["min_boost"])
+    max_speed = pdata.get("max_speed", 0.0)
+
+    # Without detailed flip direction data, we use simpler heuristics
+    if not jumped:
+        # No flip = boost-only kickoff
+        if boost_used > 10.0:
+            return "STANDARD_BOOST"
+        return "STANDARD"
+
+    # High speed suggests diagonal flip or speedflip attempt
+    if max_speed > 2100.0:
+        return "STANDARD_DIAGONAL"
+
+    # Default to frontflip if they jumped
+    return "STANDARD_FRONTFLIP"
+
+
+def _classify_approach_type(pdata: dict[str, Any], kickoff_start_time: float) -> str:
+    """Classify kickoff approach type from movement, velocity, and timing data.
+
+    Classification priority:
+    1. Fake - didn't contest the ball
+    2. Delay - contested but braked before contact
+    3. Speedflip - fast time with flip characteristics
+    4. Standard subtypes - based on flip/boost pattern
+    """
+    boost_used = max(0.0, pdata["start_boost"] - pdata["min_boost"])
     max_distance = pdata.get("max_distance", 0.0)
 
-    if first_touch_time is not None and first_touch_time <= 0.45 and boost_used >= 25.0:
+    # 1. Check for fake first (didn't contest)
+    is_fake, fake_type = _is_fake_kickoff(pdata)
+    if is_fake:
+        return fake_type
+
+    # 2. Check for delay (contested but braked)
+    if _is_delay_kickoff(pdata):
+        return "DELAY"
+
+    # 3. Check for speedflip
+    if _is_speedflip_kickoff(pdata):
         return "SPEEDFLIP"
 
-    if movement_start is not None:
-        delay = movement_start - kickoff_start_time
-        if delay >= 0.8:
-            return "DELAY"
+    # 4. Classify standard subtypes
+    standard_type = _classify_standard_kickoff(pdata)
+    if standard_type != "STANDARD":
+        return standard_type
 
-    if max_distance < 250.0 and boost_used < 5.0:
-        return "FAKE"
+    # Fallback
+    if boost_used > 0.0 or max_distance > 150.0:
+        return "STANDARD"
 
-    return "STANDARD" if boost_used > 0.0 or max_distance > 150.0 else "UNKNOWN"
+    return "UNKNOWN"
 
 
 def _determine_kickoff_phase(kickoff_start: float, header: Header | None) -> str:

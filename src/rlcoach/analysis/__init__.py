@@ -76,8 +76,8 @@ def aggregate_analysis(
 
     # Generate per-team analysis using cached results
     per_team = {
-        "blue": _analyze_team(frames, events, "BLUE", header, cached_defense),
-        "orange": _analyze_team(frames, events, "ORANGE", header, cached_defense)
+        "blue": _analyze_team(frames, events, "BLUE", header, cached_defense, cached_mechanics),
+        "orange": _analyze_team(frames, events, "ORANGE", header, cached_defense, cached_mechanics)
     }
 
     # Generate per-player analysis using cached results
@@ -113,6 +113,7 @@ def _analyze_team(
     team: str,
     header: Header | None,
     cached_defense: dict[str, Any] | None = None,
+    cached_mechanics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate complete analysis for a team."""
 
@@ -133,6 +134,11 @@ def _analyze_team(
     team_key = "blue" if team == "BLUE" else "orange"
     defense_team = cached_defense.get("per_team", {}).get(team_key, {})
 
+    # Aggregate team-level mechanics from cached per-player data
+    if cached_mechanics is None:
+        cached_mechanics = analyze_mechanics(frames)
+    team_mechanics = _aggregate_team_mechanics(frames, team, cached_mechanics)
+
     return {
         "fundamentals": fundamentals,
         "boost": boost,
@@ -142,6 +148,49 @@ def _analyze_team(
         "challenges": challenges,
         "kickoffs": kickoffs,
         "defense": defense_team,
+        "mechanics": team_mechanics,
+    }
+
+
+def _aggregate_team_mechanics(
+    frames: list[Frame],
+    team: str,
+    cached_mechanics: dict[str, Any],
+) -> dict[str, Any]:
+    """Aggregate mechanics counts for a team from per-player data."""
+    # Build team player mapping
+    team_idx = 0 if team == "BLUE" else 1
+    team_player_ids: set[str] = set()
+    for frame in frames:
+        for player in frame.players:
+            if player.team == team_idx:
+                team_player_ids.add(player.player_id)
+
+    # Aggregate mechanics counts
+    total_wavedashes = 0
+    total_halfflips = 0
+    total_speedflips = 0
+    total_aerials = 0
+    total_flips = 0
+    total_flip_cancels = 0
+
+    per_player = cached_mechanics.get("per_player", {})
+    for player_id in team_player_ids:
+        player_mech = per_player.get(player_id, {})
+        total_wavedashes += player_mech.get("wavedash_count", 0)
+        total_halfflips += player_mech.get("halfflip_count", 0)
+        total_speedflips += player_mech.get("speedflip_count", 0)
+        total_aerials += player_mech.get("aerial_count", 0)
+        total_flips += player_mech.get("flip_count", 0)
+        total_flip_cancels += player_mech.get("flip_cancel_count", 0)
+
+    return {
+        "total_wavedashes": total_wavedashes,
+        "total_halfflips": total_halfflips,
+        "total_speedflips": total_speedflips,
+        "total_aerials": total_aerials,
+        "total_flips": total_flips,
+        "total_flip_cancels": total_flip_cancels,
     }
 
 
@@ -184,6 +233,9 @@ def _analyze_player(
         "flip_count": 0,
         "wavedash_count": 0,
         "aerial_count": 0,
+        "halfflip_count": 0,
+        "speedflip_count": 0,
+        "flip_cancel_count": 0,
         "total_mechanics": 0,
     })
 

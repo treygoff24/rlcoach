@@ -234,7 +234,7 @@
               "player_id": { "type": "string" },
               "role": { "type": "string", "enum":["GO","CHEAT","WING","BACK"] },
               "boost_used": { "type": "number" },
-              "approach_type": { "type": "string", "enum":["STANDARD","SPEEDFLIP","FAKE","DELAY","UNKNOWN"] },
+              "approach_type": { "type": "string", "enum":["SPEEDFLIP","STANDARD_FRONTFLIP","STANDARD_DIAGONAL","STANDARD_WAVEDASH","STANDARD_BOOST","DELAY","FAKE_STATIONARY","FAKE_HALFFLIP","FAKE_AGGRESSIVE","STANDARD","UNKNOWN"] },
               "time_to_first_touch": { "type": ["number","null"] }
             }
           }
@@ -303,7 +303,8 @@
         "passing": { "$ref": "#/definitions/passing" },
         "challenges": { "$ref": "#/definitions/challenges" },
         "kickoffs": { "$ref": "#/definitions/kickoffs" },
-        "defense": { "$ref": "#/definitions/teamDefense" }
+        "defense": { "$ref": "#/definitions/teamDefense" },
+        "mechanics": { "$ref": "#/definitions/teamMechanics" }
       }
     },
 
@@ -459,10 +460,16 @@
         "approach_types": {
           "type": "object",
           "properties": {
-            "STANDARD": { "type": "integer" },
             "SPEEDFLIP": { "type": "integer" },
-            "FAKE": { "type": "integer" },
+            "STANDARD_FRONTFLIP": { "type": "integer" },
+            "STANDARD_DIAGONAL": { "type": "integer" },
+            "STANDARD_WAVEDASH": { "type": "integer" },
+            "STANDARD_BOOST": { "type": "integer" },
             "DELAY": { "type": "integer" },
+            "FAKE_STATIONARY": { "type": "integer" },
+            "FAKE_HALFFLIP": { "type": "integer" },
+            "FAKE_AGGRESSIVE": { "type": "integer" },
+            "STANDARD": { "type": "integer" },
             "UNKNOWN": { "type": "integer" }
           }
         }
@@ -523,7 +530,22 @@
         "flip_count": { "type": "integer", "minimum": 0 },
         "wavedash_count": { "type": "integer", "minimum": 0 },
         "aerial_count": { "type": "integer", "minimum": 0 },
+        "halfflip_count": { "type": "integer", "minimum": 0 },
+        "speedflip_count": { "type": "integer", "minimum": 0 },
+        "flip_cancel_count": { "type": "integer", "minimum": 0 },
         "total_mechanics": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "teamMechanics": {
+      "type": "object",
+      "properties": {
+        "total_wavedashes": { "type": "integer", "minimum": 0 },
+        "total_halfflips": { "type": "integer", "minimum": 0 },
+        "total_speedflips": { "type": "integer", "minimum": 0 },
+        "total_aerials": { "type": "integer", "minimum": 0 },
+        "total_flips": { "type": "integer", "minimum": 0 },
+        "total_flip_cancels": { "type": "integer", "minimum": 0 }
       }
     },
 

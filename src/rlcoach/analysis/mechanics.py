@@ -23,6 +23,8 @@ class MechanicType(Enum):
     WAVEDASH = "wavedash"
     FLIP_CANCEL = "flip_cancel"
     AERIAL = "aerial"
+    HALF_FLIP = "half_flip"
+    SPEEDFLIP = "speedflip"
 
 
 @dataclass(frozen=True)
@@ -62,9 +64,15 @@ class PlayerMechanicsState:
     # Flip tracking
     flip_start_time: Optional[float] = None
     flip_initial_rotation: Optional[tuple[float, float, float]] = None
+    flip_direction: Optional[str] = None  # Direction of most recent flip
+    flip_cancel_detected: bool = False  # Was flip cancelled?
 
     # Landing detection
     last_velocity_z: float = 0.0
+
+    # Half-flip/speedflip tracking
+    initial_yaw: float = 0.0  # Yaw at flip start for 180° detection
+    prev_yaw: float = 0.0  # Previous yaw for rotation tracking
 
 
 # Physics constants for detection thresholds
@@ -75,6 +83,13 @@ FLIP_ANGULAR_THRESHOLD = 5.0  # Radians/second rotation rate for flip detection
 JUMP_COOLDOWN = 0.1  # Minimum time between jump detections (seconds)
 AERIAL_HEIGHT_THRESHOLD = 200.0  # Height threshold for aerial classification
 WAVEDASH_LANDING_WINDOW = 0.2  # Time window after flip to detect wavedash
+
+# Half-flip and speedflip detection constants
+FLIP_CANCEL_PITCH_REVERSAL_THRESHOLD = 3.0  # rad/s pitch rate reversal for flip cancel
+FLIP_CANCEL_WINDOW = 0.25  # Time window after flip to detect cancel
+HALF_FLIP_YAW_CHANGE_THRESHOLD = 2.5  # ~143 degrees in radians for half-flip
+HALF_FLIP_DETECTION_WINDOW = 0.6  # Time window to complete half-flip
+SPEEDFLIP_CANCEL_WINDOW = 0.20  # Speedflip cancel must be nearly immediate
 
 
 def _get_rotation_values(rotation: Rotation | Vec3) -> tuple[float, float, float]:
@@ -119,6 +134,15 @@ def _get_flip_direction(
     else:
         # Mixed or diagonal flip
         return "diagonal"
+
+
+def _normalize_angle(angle: float) -> float:
+    """Normalize angle to [-pi, pi] range."""
+    while angle > math.pi:
+        angle -= 2 * math.pi
+    while angle < -math.pi:
+        angle += 2 * math.pi
+    return angle
 
 
 def detect_mechanics_for_player(
@@ -225,11 +249,14 @@ def detect_mechanics_for_player(
                         if not state.has_flipped:
                             state.has_flipped = True
                             state.flip_start_time = timestamp
+                            state.flip_cancel_detected = False
                             flip_dir = _get_flip_direction(
                                 vel,
                                 (pitch_rate, yaw_rate, roll_rate),
                                 yaw
                             )
+                            state.flip_direction = flip_dir
+                            state.initial_yaw = yaw
 
                             mechanic_type = MechanicType.FLIP
 
@@ -286,6 +313,81 @@ def detect_mechanics_for_player(
                             height=pos.z,
                         ))
 
+                # Flip cancel detection (pitch rate reversal after flip)
+                if (state.has_flipped and
+                    state.flip_start_time is not None and
+                    not state.flip_cancel_detected):
+                    flip_elapsed = timestamp - state.flip_start_time
+                    if flip_elapsed < FLIP_CANCEL_WINDOW:
+                        # Check for pitch rate reversal (flip cancel)
+                        # In a flip, pitch rate should maintain direction
+                        # Cancel shows as sudden reversal
+                        prev_pitch_rate = state.prev_angular_x
+                        pitch_rate_change = abs(pitch_rate - prev_pitch_rate)
+                        if pitch_rate_change > FLIP_CANCEL_PITCH_REVERSAL_THRESHOLD:
+                            state.flip_cancel_detected = True
+                            events.append(MechanicEvent(
+                                timestamp=timestamp,
+                                player_id=player_id,
+                                mechanic_type=MechanicType.FLIP_CANCEL,
+                                position=pos,
+                                velocity=vel,
+                                direction=state.flip_direction,
+                                height=pos.z,
+                            ))
+
+                # Half-flip and speedflip detection
+                if (state.has_flipped and
+                    state.flip_start_time is not None and
+                    state.flip_cancel_detected):
+                    flip_elapsed = timestamp - state.flip_start_time
+
+                    # Check for half-flip (backward flip + cancel + 180° turn)
+                    if (state.flip_direction == "backward" and
+                        flip_elapsed < HALF_FLIP_DETECTION_WINDOW):
+                        # Calculate yaw change from flip start
+                        yaw_change = abs(_normalize_angle(yaw - state.initial_yaw))
+                        if yaw_change > HALF_FLIP_YAW_CHANGE_THRESHOLD:
+                            # This is a half-flip
+                            if not any(
+                                e.mechanic_type == MechanicType.HALF_FLIP
+                                and e.player_id == player_id
+                                and abs(timestamp - e.timestamp) < 0.3
+                                for e in events
+                            ):
+                                events.append(MechanicEvent(
+                                    timestamp=timestamp,
+                                    player_id=player_id,
+                                    mechanic_type=MechanicType.HALF_FLIP,
+                                    position=pos,
+                                    velocity=vel,
+                                    direction="backward",
+                                    height=pos.z,
+                                    duration=flip_elapsed,
+                                ))
+
+                    # Check for speedflip (diagonal flip + cancel)
+                    elif (state.flip_direction == "diagonal" and
+                          flip_elapsed < SPEEDFLIP_CANCEL_WINDOW * 2):
+                        # Speedflip = diagonal flip with immediate cancel
+                        # Already detected cancel, now classify as speedflip
+                        if not any(
+                            e.mechanic_type == MechanicType.SPEEDFLIP
+                            and e.player_id == player_id
+                            and abs(timestamp - e.timestamp) < 0.3
+                            for e in events
+                        ):
+                            events.append(MechanicEvent(
+                                timestamp=timestamp,
+                                player_id=player_id,
+                                mechanic_type=MechanicType.SPEEDFLIP,
+                                position=pos,
+                                velocity=vel,
+                                direction="diagonal",
+                                height=pos.z,
+                                duration=flip_elapsed,
+                            ))
+
         # Update state for next frame
         state.prev_z_velocity = vel.z
         state.prev_z_position = pos.z
@@ -293,6 +395,11 @@ def detect_mechanics_for_player(
         state.prev_rotation_yaw = yaw
         state.prev_rotation_roll = roll
         state.last_velocity_z = vel.z
+        state.prev_yaw = yaw
+
+        # Store pitch rate for flip cancel detection
+        if prev_player is not None and prev_frame is not None:
+            state.prev_angular_x = pitch_rate
 
         prev_frame = frame
         prev_player = player
@@ -346,6 +453,9 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
             "flip_count": counts.get("flip", 0),
             "wavedash_count": counts.get("wavedash", 0),
             "aerial_count": counts.get("aerial", 0),
+            "halfflip_count": counts.get("half_flip", 0),
+            "speedflip_count": counts.get("speedflip", 0),
+            "flip_cancel_count": counts.get("flip_cancel", 0),
             "total_mechanics": sum(counts.values()),
         }
 
@@ -358,4 +468,7 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
         "total_jumps": sum(p.get("jump_count", 0) for p in per_player.values()),
         "total_flips": sum(p.get("flip_count", 0) for p in per_player.values()),
         "total_aerials": sum(p.get("aerial_count", 0) for p in per_player.values()),
+        "total_wavedashes": sum(p.get("wavedash_count", 0) for p in per_player.values()),
+        "total_halfflips": sum(p.get("halfflip_count", 0) for p in per_player.values()),
+        "total_speedflips": sum(p.get("speedflip_count", 0) for p in per_player.values()),
     }

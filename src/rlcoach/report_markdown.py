@@ -277,6 +277,14 @@ class _MarkdownComposer:
                 "goals_against": ("Goals Against", "count"),
                 "avg_time_to_first_touch_s": ("Avg Time To First Touch (s)", "seconds"),
             }),
+            ("Mechanics", "mechanics", {
+                "total_flips": ("Total Flips", "count"),
+                "total_aerials": ("Total Aerials", "count"),
+                "total_wavedashes": ("Total Wavedashes", "count"),
+                "total_halfflips": ("Total Half-Flips", "count"),
+                "total_speedflips": ("Total Speedflips", "count"),
+                "total_flip_cancels": ("Total Flip Cancels", "count"),
+            }),
         )
 
         per_team = self.analysis.get("per_team", {})
@@ -327,6 +335,7 @@ class _MarkdownComposer:
             self._emit(self._player_metric_section("Possession & Passing", pdata.get("passing", {})))
             self._emit(self._player_metric_section("Challenges", pdata.get("challenges", {})))
             self._emit(self._player_metric_section("Kickoffs", pdata.get("kickoffs", {}), extra=self._player_kickoff_breakdown(pdata.get("kickoffs", {}))))
+            self._emit(self._player_mechanics_section(pdata.get("mechanics", {})))
             rotation = pdata.get("rotation_compliance", {})
             self._emit(self._player_rotation_section(rotation))
             insights = pdata.get("insights", []) or []
@@ -561,12 +570,15 @@ class _MarkdownComposer:
         b_approach = blue.get("approach_types", {}) or {}
         o_approach = orange.get("approach_types", {}) or {}
         labels = sorted({*b_approach.keys(), *o_approach.keys()})
+        # Use total_approaches as denominator (total per-player entries), not kickoff count
+        b_total = blue.get("total_approaches", sum(b_approach.values()) or 1)
+        o_total = orange.get("total_approaches", sum(o_approach.values()) or 1)
         rows = []
         for label in labels:
             b_value = b_approach.get(label, 0)
             o_value = o_approach.get(label, 0)
-            b_share = self._percentage_share(b_value, blue.get("count", 0))
-            o_share = self._percentage_share(o_value, orange.get("count", 0))
+            b_share = self._percentage_share(b_value, b_total)
+            o_share = self._percentage_share(o_value, o_total)
             rows.append((label, self._fmt_num(b_value), f"{b_share}", self._fmt_num(o_value), f"{o_share}"))
         return self._tabulate(rows, headers=("Approach", "Blue Count", "Blue %", "Orange Count", "Orange %"))
 
@@ -652,13 +664,33 @@ class _MarkdownComposer:
         if not kickoffs:
             return ""
         approaches = kickoffs.get("approach_types", {}) or {}
+        # For per-player, the denominator is the player's total kickoffs (count)
+        # since each player has exactly one approach per kickoff
+        total = kickoffs.get("count", sum(approaches.values()) or 1)
         rows = []
         for approach, count in sorted(approaches.items()):
-            share = self._percentage_share(count, kickoffs.get("count", 0))
+            share = self._percentage_share(count, total)
             rows.append((approach.title(), self._fmt_num(count), share))
         if rows:
             return self._tabulate(rows, headers=("Approach", "Count", "Share"))
         return ""
+
+    def _player_mechanics_section(self, mechanics: dict[str, Any]) -> str:
+        """Render player mechanics table."""
+        if not mechanics:
+            return "**Mechanics:** no data\n"
+        rows = [
+            ("Jumps", self._fmt_num(mechanics.get("jump_count", 0))),
+            ("Double Jumps", self._fmt_num(mechanics.get("double_jump_count", 0))),
+            ("Flips", self._fmt_num(mechanics.get("flip_count", 0))),
+            ("Wavedashes", self._fmt_num(mechanics.get("wavedash_count", 0))),
+            ("Aerials", self._fmt_num(mechanics.get("aerial_count", 0))),
+            ("Half-Flips", self._fmt_num(mechanics.get("halfflip_count", 0))),
+            ("Speedflips", self._fmt_num(mechanics.get("speedflip_count", 0))),
+            ("Flip Cancels", self._fmt_num(mechanics.get("flip_cancel_count", 0))),
+            ("Total Mechanics", self._fmt_num(mechanics.get("total_mechanics", 0))),
+        ]
+        return self._tabulate(rows, headers=("Mechanic", "Count"))
 
     def _player_rotation_section(self, rotation: dict[str, Any]) -> str:
         if not rotation:

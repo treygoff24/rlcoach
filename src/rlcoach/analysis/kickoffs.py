@@ -13,7 +13,19 @@ from ..parser.types import Header, Frame
 from ..events import KickoffEvent
 
 
-APPROACH_KEYS = ["STANDARD", "SPEEDFLIP", "FAKE", "DELAY", "UNKNOWN"]
+APPROACH_KEYS = [
+    "SPEEDFLIP",
+    "STANDARD_FRONTFLIP",
+    "STANDARD_DIAGONAL",
+    "STANDARD_WAVEDASH",
+    "STANDARD_BOOST",
+    "DELAY",
+    "FAKE_STATIONARY",
+    "FAKE_HALFFLIP",
+    "FAKE_AGGRESSIVE",
+    "STANDARD",  # Generic fallback for backwards compatibility
+    "UNKNOWN",
+]
 
 
 def analyze_kickoffs(
@@ -122,6 +134,7 @@ def _analyze_kickoffs_for_team(
     goals_against = 0
     times: list[float] = []
     approach_types = {k: 0 for k in APPROACH_KEYS}
+    total_approaches = 0
 
     for ko in kickoffs:
         # Outcomes
@@ -144,6 +157,7 @@ def _analyze_kickoffs_for_team(
                 continue
             if player_team_name.get(pid) != team_name:
                 continue
+            total_approaches += 1
             tft = entry.get("time_to_first_touch")
             if isinstance(tft, (int, float)):
                 times.append(float(tft))
@@ -161,5 +175,6 @@ def _analyze_kickoffs_for_team(
         "goals_against": goals_against,
         "avg_time_to_first_touch_s": round(avg_time, 2),
         "approach_types": approach_types,
+        "total_approaches": total_approaches,
     }
 

@@ -165,13 +165,31 @@
 
 
 
-| Approach  | Blue Count | Blue % | Orange Count | Orange % |
-| --------- | ---------- | ------ | ------------ | -------- |
-| DELAY     | 0          | 0.0%   | 0            | 0.0%     |
-| FAKE      | 1          | 100.0% | 1            | 100.0%   |
-| SPEEDFLIP | 0          | 0.0%   | 0            | 0.0%     |
-| STANDARD  | 0          | 0.0%   | 0            | 0.0%     |
-| UNKNOWN   | 0          | 0.0%   | 0            | 0.0%     |
+| Approach           | Blue Count | Blue % | Orange Count | Orange % |
+| ------------------ | ---------- | ------ | ------------ | -------- |
+| DELAY              | 0          | 0.0%   | 0            | 0.0%     |
+| FAKE_AGGRESSIVE    | 0          | 0.0%   | 0            | 0.0%     |
+| FAKE_HALFFLIP      | 0          | 0.0%   | 0            | 0.0%     |
+| FAKE_STATIONARY    | 1          | 100.0% | 1            | 100.0%   |
+| SPEEDFLIP          | 0          | 0.0%   | 0            | 0.0%     |
+| STANDARD           | 0          | 0.0%   | 0            | 0.0%     |
+| STANDARD_BOOST     | 0          | 0.0%   | 0            | 0.0%     |
+| STANDARD_DIAGONAL  | 0          | 0.0%   | 0            | 0.0%     |
+| STANDARD_FRONTFLIP | 0          | 0.0%   | 0            | 0.0%     |
+| STANDARD_WAVEDASH  | 0          | 0.0%   | 0            | 0.0%     |
+| UNKNOWN            | 0          | 0.0%   | 0            | 0.0%     |
+
+
+### Mechanics
+
+| Metric             | Blue | Blue Rate | Orange | Orange Rate | Delta Blue-Orange |
+| ------------------ | ---- | --------- | ------ | ----------- | ----------------- |
+| Total Flips        | 0    | 0         | 0      | 0           | 0                 |
+| Total Aerials      | 0    | 0         | 0      | 0           | 0                 |
+| Total Wavedashes   | 0    | 0         | 0      | 0           | 0                 |
+| Total Half-Flips   | 0    | 0         | 0      | 0           | 0                 |
+| Total Speedflips   | 0    | 0         | 0      | 0           | 0                 |
+| Total Flip Cancels | 0    | 0         | 0      | 0           | 0                 |
 
 
 ## Player Metrics
@@ -198,6 +216,8 @@
 **Challenges:** no data
 
 **Kickoffs:** no data
+
+**Mechanics:** no data
 
 **Rotation Compliance:** no data
 
@@ -239,6 +259,8 @@
 
 **Kickoffs:** no data
 
+**Mechanics:** no data
+
 **Rotation Compliance:** no data
 
 ```json
@@ -279,9 +301,9 @@
 
 ### Kickoffs
 
-| Phase   | Time Start (s) | Outcome | First Touch | Approach Types |
-| ------- | -------------- | ------- | ----------- | -------------- |
-| INITIAL | 0              | NEUTRAL | -           | FAKE:2         |
+| Phase   | Time Start (s) | Outcome | First Touch | Approach Types    |
+| ------- | -------------- | ------- | ----------- | ----------------- |
+| INITIAL | 0              | NEUTRAL | -           | FAKE_STATIONARY:2 |
 
 
 ### Touches
@@ -491,9 +513,15 @@
         "kickoffs": {
           "approach_types": {
             "DELAY": 0,
-            "FAKE": 1,
+            "FAKE_AGGRESSIVE": 0,
+            "FAKE_HALFFLIP": 0,
+            "FAKE_STATIONARY": 1,
             "SPEEDFLIP": 0,
             "STANDARD": 0,
+            "STANDARD_BOOST": 0,
+            "STANDARD_DIAGONAL": 0,
+            "STANDARD_FRONTFLIP": 0,
+            "STANDARD_WAVEDASH": 0,
             "UNKNOWN": 0
           },
           "avg_time_to_first_touch_s": 0.0,
@@ -506,8 +534,11 @@
         "mechanics": {
           "aerial_count": 0,
           "double_jump_count": 0,
+          "flip_cancel_count": 0,
           "flip_count": 0,
+          "halfflip_count": 0,
           "jump_count": 0,
+          "speedflip_count": 0,
           "total_mechanics": 0,
           "wavedash_count": 0
         },
@@ -761,9 +792,15 @@
         "kickoffs": {
           "approach_types": {
             "DELAY": 0,
-            "FAKE": 1,
+            "FAKE_AGGRESSIVE": 0,
+            "FAKE_HALFFLIP": 0,
+            "FAKE_STATIONARY": 1,
             "SPEEDFLIP": 0,
             "STANDARD": 0,
+            "STANDARD_BOOST": 0,
+            "STANDARD_DIAGONAL": 0,
+            "STANDARD_FRONTFLIP": 0,
+            "STANDARD_WAVEDASH": 0,
             "UNKNOWN": 0
           },
           "avg_time_to_first_touch_s": 0.0,
@@ -776,8 +813,11 @@
         "mechanics": {
           "aerial_count": 0,
           "double_jump_count": 0,
+          "flip_cancel_count": 0,
           "flip_count": 0,
+          "halfflip_count": 0,
           "jump_count": 0,
+          "speedflip_count": 0,
           "total_mechanics": 0,
           "wavedash_count": 0
         },
@@ -884,9 +924,15 @@
         "kickoffs": {
           "approach_types": {
             "DELAY": 0,
-            "FAKE": 1,
+            "FAKE_AGGRESSIVE": 0,
+            "FAKE_HALFFLIP": 0,
+            "FAKE_STATIONARY": 1,
             "SPEEDFLIP": 0,
             "STANDARD": 0,
+            "STANDARD_BOOST": 0,
+            "STANDARD_DIAGONAL": 0,
+            "STANDARD_FRONTFLIP": 0,
+            "STANDARD_WAVEDASH": 0,
             "UNKNOWN": 0
           },
           "avg_time_to_first_touch_s": 0.0,
@@ -894,7 +940,16 @@
           "first_possession": 0,
           "goals_against": 0,
           "goals_for": 0,
-          "neutral": 1
+          "neutral": 1,
+          "total_approaches": 1
+        },
+        "mechanics": {
+          "total_aerials": 0,
+          "total_flip_cancels": 0,
+          "total_flips": 0,
+          "total_halfflips": 0,
+          "total_speedflips": 0,
+          "total_wavedashes": 0
         },
         "movement": {
           "aerial_count": 0,
@@ -974,9 +1029,15 @@
         "kickoffs": {
           "approach_types": {
             "DELAY": 0,
-            "FAKE": 1,
+            "FAKE_AGGRESSIVE": 0,
+            "FAKE_HALFFLIP": 0,
+            "FAKE_STATIONARY": 1,
             "SPEEDFLIP": 0,
             "STANDARD": 0,
+            "STANDARD_BOOST": 0,
+            "STANDARD_DIAGONAL": 0,
+            "STANDARD_FRONTFLIP": 0,
+            "STANDARD_WAVEDASH": 0,
             "UNKNOWN": 0
           },
           "avg_time_to_first_touch_s": 0.0,
@@ -984,7 +1045,16 @@
           "first_possession": 0,
           "goals_against": 0,
           "goals_for": 0,
-          "neutral": 1
+          "neutral": 1,
+          "total_approaches": 1
+        },
+        "mechanics": {
+          "total_aerials": 0,
+          "total_flip_cancels": 0,
+          "total_flips": 0,
+          "total_halfflips": 0,
+          "total_speedflips": 0,
+          "total_wavedashes": 0
         },
         "movement": {
           "aerial_count": 0,
@@ -1036,14 +1106,14 @@
         "phase": "INITIAL",
         "players": [
           {
-            "approach_type": "FAKE",
+            "approach_type": "FAKE_STATIONARY",
             "boost_used": 0.0,
             "player_id": "A",
             "role": "GO",
             "time_to_first_touch": null
           },
           {
-            "approach_type": "FAKE",
+            "approach_type": "FAKE_STATIONARY",
             "boost_used": 0.0,
             "player_id": "B",
             "role": "GO",
@@ -1061,14 +1131,14 @@
           "phase": "INITIAL",
           "players": [
             {
-              "approach_type": "FAKE",
+              "approach_type": "FAKE_STATIONARY",
               "boost_used": 0.0,
               "player_id": "A",
               "role": "GO",
               "time_to_first_touch": null
             },
             {
-              "approach_type": "FAKE",
+              "approach_type": "FAKE_STATIONARY",
               "boost_used": 0.0,
               "player_id": "B",
               "role": "GO",
