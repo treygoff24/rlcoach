@@ -17,7 +17,7 @@ import math
 from typing import Any
 
 from ..field_constants import Vec3
-from ..parser.types import Frame, Header, PlayerFrame
+from ..parser.types import Frame, Header, PlayerFrame, Rotation
 
 
 # Movement analysis thresholds mirror Ballchasing definitions:
@@ -46,6 +46,16 @@ MIN_AERIAL_DURATION = 0.5  # seconds
 # Frame duration fallbacks
 DEFAULT_FRAME_DT = 1.0 / 30.0  # conservative per-replay tick
 MIN_FRAME_DT = 1e-3
+
+
+def _get_yaw(rotation: Rotation | Vec3) -> float:
+    """Extract yaw from rotation (handles both Rotation and legacy Vec3 formats)."""
+    if isinstance(rotation, Rotation):
+        return rotation.yaw
+    elif isinstance(rotation, Vec3):
+        # Legacy format: y = yaw
+        return rotation.y
+    return 0.0
 
 
 def analyze_movement(
@@ -344,7 +354,7 @@ def _detect_powerslide(
     if not previous or not current.is_on_ground or frame_dt <= 0.0:
         return False
 
-    yaw_diff = _angle_delta(current.rotation.y, previous.rotation.y)
+    yaw_diff = _angle_delta(_get_yaw(current.rotation), _get_yaw(previous.rotation))
     angular_velocity = abs(yaw_diff) / max(frame_dt, MIN_FRAME_DT)
 
     # Powerslide detected if high angular velocity while on ground

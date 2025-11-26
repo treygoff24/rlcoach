@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from rlcoach.report import generate_report
 from rlcoach.utils.parity import (
     collect_metric_deltas,
     extract_rlcoach_player_metrics,
@@ -62,15 +63,35 @@ def _load_report(path: Path) -> dict:
         return json.load(handle)
 
 
-@pytest.mark.xfail(reason="Known analyzer gaps vs Ballchasing baseline", strict=False)
+def _get_report() -> dict:
+    replay_path = REPO_ROOT / "Replay_files" / "0925.replay"
+    if RLCOACH_JSON.exists():
+        try:
+            return _load_report(RLCOACH_JSON)
+        except (OSError, json.JSONDecodeError):
+            pass
+    return generate_report(replay_path)
+
+
+@pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[2] / "Replay_files" / "ballchasing_output").exists(),
+    reason="Ballchasing parity test requires external fixtures not in repo"
+)
 def test_ballchasing_parity_snapshot():
-    assert RLCOACH_JSON.exists(), f"rlcoach report missing at {RLCOACH_JSON}"
+    """Compare rlcoach output to Ballchasing CSV exports.
+
+    This test requires external fixture files not committed to the repo:
+    - Replay_files/ballchasing_output/0925_players.csv
+    - Replay_files/ballchasing_output/0925_teams.csv
+
+    These must be manually exported from ballchasing.com for parity testing.
+    """
     players_csv = BALLCHASING_DIR / "0925_players.csv"
     teams_csv = BALLCHASING_DIR / "0925_teams.csv"
-    assert players_csv.exists(), "Ballchasing player CSV missing"
-    assert teams_csv.exists(), "Ballchasing team CSV missing"
+    if not players_csv.exists() or not teams_csv.exists():
+        pytest.skip("Ballchasing CSV files not found; export from ballchasing.com")
 
-    report = _load_report(RLCOACH_JSON)
+    report = _get_report()
     rlcoach_players = extract_rlcoach_player_metrics(report)
     rlcoach_teams = extract_rlcoach_team_metrics(report)
 
@@ -97,4 +118,4 @@ def test_ballchasing_parity_snapshot():
     if deltas:
         deltas.sort(key=lambda d: (d.subject, d.metric))
         summary = summarize_deltas(deltas)
-        pytest.xfail("Ballchasing parity delta thresholds exceeded:\n" + summary)
+        pytest.fail("Ballchasing parity delta thresholds exceeded:\n" + summary)

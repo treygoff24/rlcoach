@@ -44,17 +44,17 @@
 
 ### Roster Overview
 
-| Display Name | Team   | Player ID |
-| ------------ | ------ | --------- |
-| Alpha        | BLUE   | slug:alpha  |
-| Bravo        | ORANGE | slug:bravo  |
+| Display Name | Team   | Player ID  |
+| ------------ | ------ | ---------- |
+| Alpha        | BLUE   | slug:alpha |
+| Bravo        | ORANGE | slug:bravo |
 
 
 ## Team Metrics
 
 
-| Team   | Score | Players  |
-| ------ | ----- | -------- |
+| Team   | Score | Players    |
+| ------ | ----- | ---------- |
 | BLUE   | 0     | slug:alpha |
 | ORANGE | 0     | slug:bravo |
 
@@ -180,9 +180,9 @@
 
 
 | Player ID       | slug:alpha |
-| Platform IDs    | -        |
-| Camera Settings | -        |
-| Loadout         | -        |
+| Platform IDs    | -          |
+| Camera Settings | -          |
+| Loadout         | -          |
 
 
 **Fundamentals:** no data
@@ -220,9 +220,9 @@
 
 
 | Player ID       | slug:bravo |
-| Platform IDs    | -        |
-| Camera Settings | -        |
-| Loadout         | -        |
+| Platform IDs    | -          |
+| Camera Settings | -          |
+| Loadout         | -          |
 
 
 **Fundamentals:** no data
@@ -337,6 +337,10 @@
           "risk_index_avg": 0.0,
           "wins": 0
         },
+        "defense": {
+          "danger_zone_pct": 0.0,
+          "danger_zone_time": 0.0
+        },
         "fundamentals": {
           "assists": 0,
           "demos_inflicted": 0,
@@ -422,6 +426,10 @@
           "neutral": 0,
           "risk_index_avg": 0.0,
           "wins": 0
+        },
+        "defense": {
+          "danger_zone_pct": 0.0,
+          "danger_zone_time": 0.0
         },
         "fundamentals": {
           "assists": 0,

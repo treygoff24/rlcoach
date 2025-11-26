@@ -3,7 +3,7 @@ mod pads;
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 
@@ -361,6 +361,32 @@ fn header_property(path: &str, key: &str) -> PyResult<Option<PyObject>> {
     })
 }
 
+/// Convert quaternion (x, y, z, w) to Euler angles (roll, pitch, yaw) in radians.
+/// Uses the standard aerospace rotation sequence (ZYX).
+fn quat_to_euler(q: (f32, f32, f32, f32)) -> (f64, f64, f64) {
+    let (x, y, z, w) = (q.0 as f64, q.1 as f64, q.2 as f64, q.3 as f64);
+
+    // Roll (x-axis rotation)
+    let sinr_cosp = 2.0 * (w * x + y * z);
+    let cosr_cosp = 1.0 - 2.0 * (x * x + y * y);
+    let roll = sinr_cosp.atan2(cosr_cosp);
+
+    // Pitch (y-axis rotation)
+    let sinp = 2.0 * (w * y - z * x);
+    let pitch = if sinp.abs() >= 1.0 {
+        std::f64::consts::FRAC_PI_2.copysign(sinp)
+    } else {
+        sinp.asin()
+    };
+
+    // Yaw (z-axis rotation)
+    let siny_cosp = 2.0 * (w * z + x * y);
+    let cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
+    let yaw = siny_cosp.atan2(cosy_cosp);
+
+    (roll, pitch, yaw)
+}
+
 #[pyfunction]
 fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
     Python::with_gil(|py| {
@@ -415,6 +441,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut car_boost: HashMap<i32, i64> = HashMap::new(); // 0-100
         let mut car_pos: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_vel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
+        let mut car_rot: HashMap<i32, (f32, f32, f32, f32)> = HashMap::new(); // quaternion (x,y,z,w)
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut component_owner: HashMap<i32, i32> = HashMap::new();
         let mut pad_registry = PadRegistry::new();
@@ -478,6 +505,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     car_boost.remove(&aid);
                     car_pos.remove(&aid);
                     car_vel.remove(&aid);
+                    car_rot.remove(&aid);
                     car_demo.remove(&aid);
                     component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
                     pad_registry.remove_actor(aid);
@@ -542,6 +570,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             } else {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                                 car_vel.insert(aid, (vel.x, vel.y, vel.z));
+                                // Extract quaternion rotation from RigidBody
+                                let rot = rb.rotation;
+                                car_rot.insert(aid, (rot.x, rot.y, rot.z, rot.w));
                             }
                             let events = pad_registry.update_position(aid, (loc.x, loc.y, loc.z));
                             frame_pad_events.extend(events);
@@ -620,6 +651,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         | Attribute::DemolishFx(_) => {
                             car_demo.insert(aid, true);
                         }
+                        // Note: Jump/Dodge/Throttle/Steer/Handbrake attributes are not directly
+                        // exposed by boxcars 0.10.7. These mechanics will be inferred in Python
+                        // from physics state changes and position/velocity derivatives.
                         _ => {}
                     }
                 }
@@ -697,29 +731,47 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         pvel.set_item("x", v.0)?;
                         pvel.set_item("y", v.1)?;
                         pvel.set_item("z", v.2)?;
-                        // Approximate rotation from velocity vector if available (yaw/pitch in radians)
-                        let speed2 = v.0 * v.0 + v.1 * v.1 + v.2 * v.2;
-                        let mut pitch = 0.0f64;
-                        let mut yaw = 0.0f64;
-                        if speed2 > 1e-6 {
-                            let speed = speed2.sqrt();
-                            // yaw around Z from X/Y
-                            yaw = (v.1 as f64).atan2(v.0 as f64);
-                            // pitch from vertical component
-                            pitch = (v.2 as f64 / speed as f64).asin();
-                        }
+
+                        // Use true quaternion rotation if available, else fallback to velocity approximation
                         let prot = PyDict::new(py);
-                        prot.set_item("x", pitch)?; // pitch
-                        prot.set_item("y", yaw)?; // yaw
-                        prot.set_item("z", 0.0f64)?; // roll unknown
+                        if let Some(q) = car_rot.get(&aid) {
+                            // Convert quaternion to euler angles (roll, pitch, yaw)
+                            let (roll, pitch, yaw) = quat_to_euler(*q);
+                            prot.set_item("pitch", pitch)?;
+                            prot.set_item("yaw", yaw)?;
+                            prot.set_item("roll", roll)?;
+                            // Also include raw quaternion for precision work
+                            let quat = PyDict::new(py);
+                            quat.set_item("x", q.0 as f64)?;
+                            quat.set_item("y", q.1 as f64)?;
+                            quat.set_item("z", q.2 as f64)?;
+                            quat.set_item("w", q.3 as f64)?;
+                            prot.set_item("quaternion", quat)?;
+                        } else {
+                            // Fallback to velocity approximation for older replays
+                            let speed2 = v.0 * v.0 + v.1 * v.1 + v.2 * v.2;
+                            let mut pitch = 0.0f64;
+                            let mut yaw = 0.0f64;
+                            if speed2 > 1e-6 {
+                                let speed = speed2.sqrt();
+                                yaw = (v.1 as f64).atan2(v.0 as f64);
+                                pitch = (v.2 as f64 / speed as f64).asin();
+                            }
+                            prot.set_item("pitch", pitch)?;
+                            prot.set_item("yaw", yaw)?;
+                            prot.set_item("roll", 0.0f64)?;
+                        }
                         p.set_item("position", ppos)?;
                         p.set_item("velocity", pvel)?;
                         p.set_item("rotation", prot)?;
                         let boost = *car_boost.get(&aid).unwrap_or(&33);
                         p.set_item("boost_amount", boost)?;
-                        p.set_item("is_supersonic", speed2.sqrt() > 2300.0)?;
+                        // Calculate speed for supersonic check
+                        let speed = (v.0 * v.0 + v.1 * v.1 + v.2 * v.2).sqrt();
+                        p.set_item("is_supersonic", speed > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
+
                         players_map.insert(idx, p.into_py(py));
                     }
                 }
@@ -776,7 +828,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
 
 /// Debug harness: expose early-frame actor mappings and attribute kinds to Python.
 #[pyfunction]
-fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> {
+pub fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> {
     Python::with_gil(|py| {
         let data = read_file_bytes(path)?;
         let replay = ParserBuilder::new(&data)
@@ -786,42 +838,320 @@ fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> {
 
         let out = PyList::empty(py);
         let objects = &replay.objects;
-        if let Some(net) = replay.network_frames {
-            for (i, nf) in net.frames.into_iter().enumerate() {
-                if i >= max_frames {
+
+        let mut actor_object_name: HashMap<i32, String> = HashMap::new();
+        let mut component_owner: HashMap<i32, i32> = HashMap::new();
+        let mut boost_actor_ids: HashSet<i32> = HashSet::new();
+
+        fn resolve_actor(component_owner: &HashMap<i32, i32>, actor: i32) -> (i32, Vec<i32>) {
+            let mut current = actor;
+            let mut chain: Vec<i32> = Vec::new();
+            let mut guard = 0;
+            while let Some(owner) = component_owner.get(&current) {
+                chain.push(*owner);
+                if *owner == current {
                     break;
                 }
-                let f = PyDict::new(py);
-                f.set_item("timestamp", nf.time as f64)?;
-
-                let news = PyList::empty(py);
-                for na in nf.new_actors {
-                    let oid_usize: usize = na.object_id.into();
-                    let obj_name = objects.get(oid_usize).cloned().unwrap_or_default();
-                    let aid_i32: i32 = na.actor_id.into();
-                    let oid_i32: i32 = na.object_id.into();
-                    let d = PyDict::new(py);
-                    d.set_item("actor_id", aid_i32 as i64)?;
-                    d.set_item("object_id", oid_i32 as i64)?;
-                    d.set_item("object_name", obj_name)?;
-                    news.append(d)?;
+                current = *owner;
+                guard += 1;
+                if guard > 12 {
+                    break;
                 }
-                f.set_item("new_actors", news)?;
+            }
+            (current, chain)
+        }
 
-                let ups = PyList::empty(py);
-                for ua in nf.updated_actors {
-                    // Attribute discriminant via Debug formatting for visibility
-                    let kind = format!("{:?}", ua.attribute);
-                    let d = PyDict::new(py);
-                    let aid_i32: i32 = ua.actor_id.into();
-                    d.set_item("actor_id", aid_i32 as i64)?;
-                    d.set_item("attribute", kind)?;
-                    ups.append(d)?;
-                }
-                f.set_item("updated_actors", ups)?;
-                out.append(f)?;
+        fn pickup_state_label(raw: u8) -> &'static str {
+            match raw {
+                0 | 255 => "RESPAWNED",
+                1 | 2 | 3 => "COLLECTED",
+                _ => "UNKNOWN",
             }
         }
+
+        if let Some(net) = replay.network_frames {
+            for (frame_idx, nf) in net.frames.iter().enumerate() {
+                if frame_idx >= max_frames {
+                    break;
+                }
+
+                let frame_dict = PyDict::new(py);
+                frame_dict.set_item("frame_index", frame_idx as i64)?;
+                frame_dict.set_item("timestamp", nf.time as f64)?;
+
+                let new_actors_py = PyList::empty(py);
+                let updated_py = PyList::empty(py);
+                let boost_events_py = PyList::empty(py);
+
+                for deleted in &nf.deleted_actors {
+                    let aid: i32 = (*deleted).into();
+                    actor_object_name.remove(&aid);
+                    boost_actor_ids.remove(&aid);
+                    component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
+                }
+
+                for na in &nf.new_actors {
+                    let oid_usize: usize = na.object_id.into();
+                    let object_name = objects
+                        .get(oid_usize)
+                        .cloned()
+                        .unwrap_or_else(|| format!("object_id:{}", oid_usize));
+                    let actor_id: i32 = na.actor_id.into();
+                    let object_id: i32 = na.object_id.into();
+
+                    actor_object_name.insert(actor_id, object_name.clone());
+                    let is_boost_actor = object_name.contains("VehiclePickup_Boost_TA");
+                    if is_boost_actor {
+                        boost_actor_ids.insert(actor_id);
+                    }
+
+                    let actor_dict = PyDict::new(py);
+                    actor_dict.set_item("actor_id", actor_id as i64)?;
+                    actor_dict.set_item("object_id", object_id as i64)?;
+                    actor_dict.set_item("object_name", object_name.clone())?;
+
+                    let trajectory_dict = PyDict::new(py);
+                    if let Some(loc) = na.initial_trajectory.location {
+                        let loc_world = PyDict::new(py);
+                        loc_world.set_item("x", (loc.x as f64) / 100.0)?;
+                        loc_world.set_item("y", (loc.y as f64) / 100.0)?;
+                        loc_world.set_item("z", (loc.z as f64) / 100.0)?;
+                        let loc_raw = PyDict::new(py);
+                        loc_raw.set_item("x", loc.x)?;
+                        loc_raw.set_item("y", loc.y)?;
+                        loc_raw.set_item("z", loc.z)?;
+                        trajectory_dict.set_item("location", loc_world)?;
+                        trajectory_dict.set_item("location_raw", loc_raw)?;
+                    }
+                    if let Some(rot) = na.initial_trajectory.rotation {
+                        let rot_dict = PyDict::new(py);
+                        if let Some(yaw) = rot.yaw {
+                            rot_dict.set_item("yaw", yaw)?;
+                        }
+                        if let Some(pitch) = rot.pitch {
+                            rot_dict.set_item("pitch", pitch)?;
+                        }
+                        if let Some(roll) = rot.roll {
+                            rot_dict.set_item("roll", roll)?;
+                        }
+                        if rot_dict.len() > 0 {
+                            trajectory_dict.set_item("rotation", rot_dict)?;
+                        }
+                    }
+                    if trajectory_dict.len() > 0 {
+                        actor_dict.set_item("initial_trajectory", trajectory_dict)?;
+                    }
+
+                    new_actors_py.append(actor_dict)?;
+
+                    if is_boost_actor {
+                        let event = PyDict::new(py);
+                        event.set_item("event", "trajectory")?;
+                        event.set_item("actor_id", actor_id as i64)?;
+                        event.set_item("object_name", object_name)?;
+                        event.set_item("timestamp", nf.time as f64)?;
+                        if let Some(loc) = na.initial_trajectory.location {
+                            let loc_dict = PyDict::new(py);
+                            loc_dict.set_item("x", (loc.x as f64) / 100.0)?;
+                            loc_dict.set_item("y", (loc.y as f64) / 100.0)?;
+                            loc_dict.set_item("z", (loc.z as f64) / 100.0)?;
+                            event.set_item("location", loc_dict)?;
+                        }
+                        boost_events_py.append(event)?;
+                    }
+                }
+
+                for ua in &nf.updated_actors {
+                    let actor_id: i32 = ua.actor_id.into();
+                    let attribute_repr = format!("{:?}", ua.attribute);
+                    let update_dict = PyDict::new(py);
+                    update_dict.set_item("actor_id", actor_id as i64)?;
+                    update_dict.set_item("attribute", attribute_repr)?;
+                    if let Some(obj) = actor_object_name.get(&actor_id) {
+                        update_dict.set_item("object_name", obj)?;
+                    }
+
+                    match &ua.attribute {
+                        Attribute::ActiveActor(active) => {
+                            let lower = actor_object_name
+                                .get(&actor_id)
+                                .map(|s| s.to_ascii_lowercase())
+                                .unwrap_or_default();
+                            if lower.contains("carcomponent") {
+                                let owner_id: i32 = active.actor.into();
+                                component_owner.insert(actor_id, owner_id);
+                            }
+                        }
+                        Attribute::RigidBody(rb) => {
+                            let detail = PyDict::new(py);
+                            detail.set_item("sleeping", rb.sleeping)?;
+                            let loc_dict = PyDict::new(py);
+                            loc_dict.set_item("x", rb.location.x)?;
+                            loc_dict.set_item("y", rb.location.y)?;
+                            loc_dict.set_item("z", rb.location.z)?;
+                            detail.set_item("location", loc_dict)?;
+                            if let Some(lv) = rb.linear_velocity {
+                                let vel_dict = PyDict::new(py);
+                                vel_dict.set_item("x", lv.x)?;
+                                vel_dict.set_item("y", lv.y)?;
+                                vel_dict.set_item("z", lv.z)?;
+                                detail.set_item("linear_velocity", vel_dict)?;
+                            }
+                            if let Some(av) = rb.angular_velocity {
+                                let ang_dict = PyDict::new(py);
+                                ang_dict.set_item("x", av.x)?;
+                                ang_dict.set_item("y", av.y)?;
+                                ang_dict.set_item("z", av.z)?;
+                                detail.set_item("angular_velocity", ang_dict)?;
+                            }
+                            update_dict.set_item("detail", detail)?;
+                            if boost_actor_ids.contains(&actor_id) {
+                                let event = PyDict::new(py);
+                                event.set_item("event", "rigid_body")?;
+                                event.set_item("actor_id", actor_id as i64)?;
+                                if let Some(obj) = actor_object_name.get(&actor_id) {
+                                    event.set_item("object_name", obj)?;
+                                }
+                                event.set_item("timestamp", nf.time as f64)?;
+                                let loc_event = PyDict::new(py);
+                                loc_event.set_item("x", rb.location.x)?;
+                                loc_event.set_item("y", rb.location.y)?;
+                                loc_event.set_item("z", rb.location.z)?;
+                                event.set_item("location", loc_event)?;
+                                event.set_item("sleeping", rb.sleeping)?;
+                                if let Some(lv) = rb.linear_velocity {
+                                    let vel_dict = PyDict::new(py);
+                                    vel_dict.set_item("x", lv.x)?;
+                                    vel_dict.set_item("y", lv.y)?;
+                                    vel_dict.set_item("z", lv.z)?;
+                                    event.set_item("linear_velocity", vel_dict)?;
+                                }
+                                if let Some(av) = rb.angular_velocity {
+                                    let ang_dict = PyDict::new(py);
+                                    ang_dict.set_item("x", av.x)?;
+                                    ang_dict.set_item("y", av.y)?;
+                                    ang_dict.set_item("z", av.z)?;
+                                    event.set_item("angular_velocity", ang_dict)?;
+                                }
+                                boost_events_py.append(event)?;
+                            }
+                        }
+                        Attribute::Pickup(pickup) => {
+                            let detail = PyDict::new(py);
+                            detail.set_item("picked_up", pickup.picked_up)?;
+                            if let Some(instigator) = pickup.instigator {
+                                let raw_actor: i32 = instigator.into();
+                                detail.set_item("instigator_actor_id", raw_actor)?;
+                                let (resolved, chain) = resolve_actor(&component_owner, raw_actor);
+                                if resolved != raw_actor {
+                                    detail.set_item("resolved_actor_id", resolved)?;
+                                }
+                                if !chain.is_empty() {
+                                    let chain_py = PyList::empty(py);
+                                    for item in chain {
+                                        chain_py.append(item as i64)?;
+                                    }
+                                    detail.set_item("owner_chain", chain_py)?;
+                                }
+                            }
+                            update_dict.set_item("detail", detail)?;
+                            if boost_actor_ids.contains(&actor_id) {
+                                let event = PyDict::new(py);
+                                event.set_item("event", "pickup_state")?;
+                                event.set_item("actor_id", actor_id as i64)?;
+                                if let Some(obj) = actor_object_name.get(&actor_id) {
+                                    event.set_item("object_name", obj)?;
+                                }
+                                event.set_item("timestamp", nf.time as f64)?;
+                                event.set_item(
+                                    "state",
+                                    if pickup.picked_up {
+                                        "COLLECTED"
+                                    } else {
+                                        "RESPAWNED"
+                                    },
+                                )?;
+                                if let Some(instigator) = pickup.instigator {
+                                    let raw_actor: i32 = instigator.into();
+                                    event.set_item("instigator_actor_id", raw_actor)?;
+                                    let (resolved, chain) =
+                                        resolve_actor(&component_owner, raw_actor);
+                                    if resolved != raw_actor {
+                                        event.set_item("resolved_actor_id", resolved)?;
+                                    }
+                                    if !chain.is_empty() {
+                                        let chain_py = PyList::empty(py);
+                                        for item in chain {
+                                            chain_py.append(item as i64)?;
+                                        }
+                                        event.set_item("owner_chain", chain_py)?;
+                                    }
+                                }
+                                boost_events_py.append(event)?;
+                            }
+                        }
+                        Attribute::PickupNew(pickup_new) => {
+                            let detail = PyDict::new(py);
+                            detail.set_item("raw_state", pickup_new.picked_up)?;
+                            detail.set_item("state", pickup_state_label(pickup_new.picked_up))?;
+                            if let Some(instigator) = pickup_new.instigator {
+                                let raw_actor: i32 = instigator.into();
+                                detail.set_item("instigator_actor_id", raw_actor)?;
+                                let (resolved, chain) = resolve_actor(&component_owner, raw_actor);
+                                if resolved != raw_actor {
+                                    detail.set_item("resolved_actor_id", resolved)?;
+                                }
+                                if !chain.is_empty() {
+                                    let chain_py = PyList::empty(py);
+                                    for item in chain {
+                                        chain_py.append(item as i64)?;
+                                    }
+                                    detail.set_item("owner_chain", chain_py)?;
+                                }
+                            }
+                            update_dict.set_item("detail", detail)?;
+                            if boost_actor_ids.contains(&actor_id) {
+                                let event = PyDict::new(py);
+                                event.set_item("event", "pickup_new")?;
+                                event.set_item("actor_id", actor_id as i64)?;
+                                if let Some(obj) = actor_object_name.get(&actor_id) {
+                                    event.set_item("object_name", obj)?;
+                                }
+                                event.set_item("timestamp", nf.time as f64)?;
+                                event.set_item("raw_state", pickup_new.picked_up)?;
+                                event.set_item("state", pickup_state_label(pickup_new.picked_up))?;
+                                if let Some(instigator) = pickup_new.instigator {
+                                    let raw_actor: i32 = instigator.into();
+                                    event.set_item("instigator_actor_id", raw_actor)?;
+                                    let (resolved, chain) =
+                                        resolve_actor(&component_owner, raw_actor);
+                                    if resolved != raw_actor {
+                                        event.set_item("resolved_actor_id", resolved)?;
+                                    }
+                                    if !chain.is_empty() {
+                                        let chain_py = PyList::empty(py);
+                                        for item in chain {
+                                            chain_py.append(item as i64)?;
+                                        }
+                                        event.set_item("owner_chain", chain_py)?;
+                                    }
+                                }
+                                boost_events_py.append(event)?;
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    updated_py.append(update_dict)?;
+                }
+
+                frame_dict.set_item("new_actors", new_actors_py)?;
+                frame_dict.set_item("updated_actors", updated_py)?;
+                frame_dict.set_item("boost_events", boost_events_py)?;
+                out.append(frame_dict)?;
+            }
+        }
+
         Ok(out.into())
     })
 }

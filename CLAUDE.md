@@ -1,113 +1,171 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code and other AI assistants when working with code in this repository.
+
+## CRITICAL: Python Virtual Environment
+
+**IMPORTANT: All Python commands MUST be run using the project's virtual environment.**
+
+```bash
+# ALWAYS activate venv before running Python commands:
+source /Users/treygoff/Code/rlcoach/.venv/bin/activate
+
+# Or prefix commands with the activation:
+source .venv/bin/activate && python -m pytest
+source .venv/bin/activate && python -m rlcoach.cli --help
+
+# Common patterns that WILL FAIL without venv:
+python -m pytest          # FAILS - no pytest installed globally
+pytest tests/             # FAILS - command not found
+python -m rlcoach.cli     # FAILS - missing dependencies
+```
+
+The virtual environment contains all required dependencies (pytest, black, ruff, maturin, etc.). System Python does NOT have these packages installed.
 
 ## Project Overview
-rlcoach is an all-local Rocket League replay analysis tool designed for comprehensive performance coaching. The project implements a modular architecture that ingests .replay files, parses them locally, and generates detailed JSON reports with player performance metrics, team analysis, and coaching insights.
 
-## Architecture
-The system follows a pipeline architecture:
-- **Ingestion & Validation**: Accepts .replay files with integrity checks and CRC metadata
-- **Parser Layer**: Pluggable adapters (`null` header-only fallback and optional Rust adapter) extract header and network frame data
-- **Normalization Layer**: Converts engine data to standardized timelines and merged actor state
-- **Analysis Engine**: Independent analyzers for fundamentals, boost economy, positioning, passing, movement, challenges, kickoffs, rotation compliance, and heatmaps
-- **Report Generator**: Outputs structured JSON plus Markdown dossiers per replay
-- **Optional UI**: Local-only CLI viewer renders summaries from generated JSON
+rlcoach is an all-local Rocket League replay analysis tool for performance coaching. It processes .replay files locally and generates JSON reports + Markdown dossiers with player metrics, team analysis, and coaching insights.
 
-## Key Design Principles
-- **All-local processing**: No cloud APIs or network calls in core analyzers
-- **Degradation policy**: Header-only fallback when network data fails
-- **Community metric alignment**: Consistent with Ballchasing and established RL analytics
-- **Schema versioning**: Formal JSON Schema with version tracking
+## Pipeline Architecture
+
+The system follows a strict pipeline: **ingest -> parse -> normalize -> events -> analyze -> report**
+
+1. **Ingest** (`ingest.py`): Validates .replay files, computes SHA256, checks CRC
+2. **Parser** (`parser/`): **Pluggable adapter pattern**—`null` (header-only fallback) or `rust` (full network frames via pyo3 + boxcars)
+3. **Normalize** (`normalize.py`): Converts engine data to standardized timeline with RLBot field coordinates
+4. **Events** (`events.py`): Detects goals, demos, touches, challenges, boost pickups, kickoffs
+5. **Analysis** (`analysis/`): Independent modules with cached aggregation for performance
+6. **Report** (`report.py`, `report_markdown.py`): Emits schema-conformant JSON + Markdown dossiers
+
+**Key Design Principle**: **Degradation policy**—if network parsing fails, fall back to header-only mode with quality warnings. Analysis adapts to available data.
+
+## Analysis Modules
+
+The analysis layer (`src/rlcoach/analysis/`) contains these modules:
+
+| Module | Purpose |
+|--------|---------|
+| `fundamentals.py` | Core stats (goals, assists, saves, shots) |
+| `boost.py` | Boost economy, pickups, efficiency |
+| `movement.py` | Speed, supersonic time, distance traveled |
+| `positioning.py` | Field positioning, rotation compliance |
+| `passing.py` | Pass detection and quality |
+| `challenges.py` | 50/50s and challenge outcomes |
+| `kickoffs.py` | Kickoff analysis |
+| `heatmaps.py` | Position/touch density grids |
+| `insights.py` | Player and team coaching insights |
+| `mechanics.py` | Jump/flip/wavedash detection from physics |
+| `recovery.py` | Landing quality and momentum retention |
+| `defense.py` | Shadow defense, last defender tracking |
+| `xg.py` | Expected goals model for shot quality |
+| `ball_prediction.py` | Ball read quality analysis |
+
+**Performance Note**: Expensive analyzers (mechanics, recovery, defense, ball_prediction, xg) are cached at the aggregator level in `__init__.py` to avoid redundant computation when iterating per-player.
+
+## Parser Adapter Pattern
+
+The parser layer uses pluggable adapters (`parser/interface.py`):
+- **`null`** (`null_adapter.py`): Header-only fallback, always available
+- **`rust`** (`rust_adapter.py`): Optional pyo3 module (`parsers/rlreplay_rust/`) for richer parsing
+- Select at runtime via `--adapter {rust,null}` or `--header-only`
+- If selected adapter fails, automatically falls back to `null`
 
 ## Development Structure
-- `codex/Plans/` — Single source of truth for project scope. Read `rlcoach_implementation_plan.md` first
-- `codex/docs/` — Design documentation and workflow guides  
-- `codex/tickets/` — Work items created from `TICKET_TEMPLATE.md`
-- `codex/logs/` — Engineering logs using `LOG_TEMPLATE.md`
-- `src/` — rlcoach Python package (ingest, parser adapters, normalization, events, analysis, reporting, CLI/UI)
-- `tests/` — Pytest suite mirroring the `src/` layout
-- `schemas/` — JSON schema definitions
-- `parsers/rlreplay_rust/` — Optional Rust network parser built with maturin
+
+- `codex/Plans/` — Read `rlcoach_implementation_plan.md` before scope changes
+- `src/rlcoach/` — Main package: `ingest.py`, `parser/`, `normalize.py`, `events.py`, `analysis/`, `report*.py`, `cli.py`, `ui.py`
+- `tests/` — Pytest suite mirroring `src/` layout (256 tests)
+- `schemas/` — JSON schema definitions (Draft-07)
+- `parsers/rlreplay_rust/` — Optional Rust adapter (maturin build)
 
 ## Common Commands
 
 ```bash
-# Install development dependencies (Black, Ruff, pytest, maturin helpers)
-make install-dev
+# ALWAYS activate venv first!
+source .venv/bin/activate
 
-# Run formatting and linting
-make fmt
-make lint
+# First-time setup
+make install-dev              # Install Black, Ruff, pytest, dev dependencies
+make rust-dev                 # (Optional) Build Rust adapter with maturin
 
-# Execute the full test suite (pytest -q)
-make test
+# Development workflow
+make test                     # Run full pytest suite (PYTHONPATH=src pytest -q)
+PYTHONPATH=src pytest tests/test_foo.py -q   # Run single test file
+make fmt                      # Format with Black
+make lint                     # Lint with Ruff
+make clean                    # Clear build artifacts and caches
 
-# Build the optional Rust replay adapter
-make rust-dev
-
-# Generate reports from a replay
-python -m rlcoach.cli analyze path/to/file.replay --out out --pretty
-python -m rlcoach.cli report-md path/to/file.replay --out out --pretty
-
-# View a generated JSON dossier in the terminal
-python -m rlcoach.ui view out/example.json
+# CLI usage
+python -m rlcoach.cli --help
+python -m rlcoach.cli ingest path/to/replay.replay
+python -m rlcoach.cli analyze path/to/replay.replay --adapter rust --out out --pretty
+python -m rlcoach.cli report-md path/to/replay.replay --out out --pretty
+python -m rlcoach.ui view out/replay.json
+python -m rlcoach.ui view out/replay.json --player "DisplayName"
 ```
 
-**Create new ticket:**
-```bash
-cp codex/tickets/TICKET_TEMPLATE.md codex/tickets/2025-MM-DD-short-title.md
+## Key Implementation Patterns
+
+### Parser Adapter Selection
+```python
+# In report.py, adapters are tried in fallback order:
+# 1. Try selected adapter (rust/null)
+# 2. On failure, fall back to null adapter
+# 3. Add quality warnings to report
 ```
 
-**Start engineering log:**
-```bash
-cp codex/logs/LOG_TEMPLATE.md codex/logs/2025-MM-DD-yourname.md
+### Analysis Module Independence
+Each analyzer in `analysis/` is independent and stateless:
+- Consumes normalized timeline from `normalize.py`
+- Returns metrics dict with `per_player` and/or `per_team` keys
+- Can gracefully degrade if data is missing
+- Target >80% test coverage for analyzers
+
+### Analysis Caching Pattern
+```python
+# In aggregate_analysis(), expensive analyzers are cached once:
+cached_mechanics = analyze_mechanics(frames)
+cached_defense = analyze_defense(frames)
+# ... then results are extracted per-player from the cache
 ```
 
-## File Conventions
-- **Filenames**: kebab-case for Markdown/docs, date-prefixed for tickets/logs
-- **JSON**: 2-space indent, snake_case keys, deterministic field order
-- **Code**: modules `snake_case`, types `PascalCase`, functions `snake_case`
+### Schema-Driven Development
+- All reports validated against `schemas/*.json` (JSON Schema Draft-07)
+- Schema version tracked in `schema_version` field
+- Error reports follow `{"error": "...", "details": "..."}` structure
 
-## Testing Strategy
-- Co-locate tests under `tests/` mirroring module paths
-- Target >80% coverage for analyzers and schema validators  
-- Store replay samples under `assets/replays/` (use Git LFS for large files)
-- Include both happy path and degraded/fallback test cases
+### Field Coordinates
+Uses RLBot field constants (`field_constants.py`):
+- Origin at center, side walls x=+-4096, back walls y=+-5120, ceiling z~2044
+- Boost pad positions from RLBot reference
+- `DEFAULT_FRAME_RATE = 30.0` constant for fallback frame rate
 
-## Commit Guidelines
-- Use Conventional Commits: `feat(parser): add header-only fallback`
-- Link tickets: `Relates-to: codex/tickets/2025-09-08-add-replay-parser.md`
-- Update docs/schemas alongside code changes
+### Constants and Defaults
+Key constants are centralized:
+- `normalize.py`: `DEFAULT_FRAME_RATE`, `SUPERSONIC_*` thresholds
+- `field_constants.py`: `FIELD`, `Vec3`, boost pad positions
+- `physics_constants.py`: Ball/car physics values
 
-## Analysis Modules
-The system implements comprehensive analysis across multiple dimensions:
+## Testing Patterns
 
-**Fundamentals**: Goals, assists, shots, saves, demos, shooting percentage
-**Boost Economy**: BPM/BCPM, stolen pads, overfill/waste tracking, time at 0/100%
-**Movement**: Speed brackets, ground/air time, aerials, powerslides  
-**Positioning**: Field occupancy (halves/thirds), ball relationship, role detection
-**Passing**: Possession chains, pass completion, turnovers, give-and-go sequences
-**Challenges**: 50/50 outcomes, first-to-ball rate, risk assessment
-**Kickoffs**: Approach classification, coordination analysis, outcome tracking
+- Mirror `src/` structure in `tests/`
+- Include both success and degraded scenarios (e.g., header-only fallback)
+- Replay fixtures in `assets/replays/` (Git LFS for large files)
+- Golden fixtures in `tests/goldens/*.json` and `*.md`
+- Test builders in `tests/fixtures/builders.py` for synthetic frame data
 
-## JSON Schema
-The system outputs structured reports following a formal JSON Schema (Draft-07) with:
-- Replay metadata and quality warnings
-- Per-team and per-player metrics
-- Event timeline with frame-accurate data
-- Coaching insights with evidence backing
-- Error handling with standardized error objects
+## Codex Workflow
 
-## Performance Considerations
-- Zero-copy parsing where possible
-- Parallel analyzer execution
-- Chunked frame iteration for large replays
-- Coordinate system based on RLBot field constants
-- Frame rate disclosure (typically ~30 FPS from 120 Hz physics)
+- `codex/Plans/rlcoach_implementation_plan.md` — architectural reference
+- `codex/tickets/YYYY-MM-DD-title.md` — work items
+- `codex/logs/YYYY-MM-DD-name.md` — engineering logs
+- Link tickets in commits: `Relates-to: codex/tickets/2025-09-08-title.md`
 
-## Security Notes
-- Designed for all-local operation
-- No network calls in core analyzers
-- Avoid committing large or sensitive replay files
-- Use proper file validation and integrity checks
+## Recent Changes (November 2025)
+
+- Fixed deprecated `datetime.utcnow()` -> `datetime.now(timezone.utc)`
+- Added analysis caching to avoid redundant computation in aggregator
+- Standardized API consistency (`per_team` key across all analyzers)
+- Added `DEFAULT_FRAME_RATE` constant for consistent fallback values
+- Removed deprecated placeholder functions from analysis module
+- Fixed import consistency (Vec3 from field_constants)

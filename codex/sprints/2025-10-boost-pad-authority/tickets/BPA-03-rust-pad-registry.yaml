@@ -1,0 +1,66 @@
+title: "[rlcoach] Make Rust pad registry authoritative across arenas"
+type: feature
+priority: P0
+branch: "feature/bpa-03-rust-pad-registry"
+repo:
+  url: https://github.com/treygoff/rlcoach
+  root: .
+  paths_in_scope:
+    - parsers/rlreplay_rust/src/lib.rs
+    - parsers/rlreplay_rust/src/pads.rs
+    - parsers/rlreplay_rust/src/pads/tests.rs
+    - parsers/rlreplay_rust/build.rs
+  paths_out_of_scope:
+    - src/rlcoach/**
+    - schemas/**
+context:
+  stack: {lang: Rust}
+  versions: {rust: "1.75+"}
+  style_guides: ["codex/docs/gpt5-codex-ticketing-guide.md", "codex/docs/gpt5-prompting-best-practices-guide.md"]
+  related_issues:
+    - "codex/Plans/1015_boost_pickup_rewrite_followup_plan.md"
+    - "codex/sprints/2025-10-boost-pad-authority/tickets/BPA-01-telemetry-ground-truth.yaml"
+    - "codex/sprints/2025-10-boost-pad-authority/tickets/BPA-02-shared-pad-catalog.yaml"
+problem_statement: >
+  Boost pad events still emit placeholder IDs when pickups precede stable actor positions, and the registry snaps pads
+  using player coordinates. Rewrite the Rust pad registry to buffer events, resolve pad actors with map-aware metadata,
+  and emit authoritative pad IDs, snap distances, and warning telemetry.
+non_goals:
+  - Do not update Python consumers or analyzers in this ticket.
+  - Do not ship heuristics that rely on player position once pad metadata is loaded.
+constraints:
+  - Buffer pending pickup events until pad position is known or a tolerance timeout is exceeded; avoid unbounded growth.
+  - Handle `Pickup`, `PickupNew`, and `ReplicatedPickupData` uniformly, preserving raw instigator IDs.
+  - Gate verbose logging behind `RLCOACH_DEBUG_BOOST_EVENTS` and keep production builds free of debug output.
+artifacts_expected:
+  output_mode: diff
+  pr_title_template: "[parser] Authoritative pad registry"
+  pr_body_sections: ["Context", "Implementation", "Tests", "Risks", "Follow-ups"]
+  decision_log: true
+acceptance_criteria:
+  - [ ] `PadRegistry` loads map-specific pad definitions and tolerances from the shared catalog.
+  - [ ] Event buffering removes the `fallback_position` path; collected events only emit with resolved pad ID and position.
+  - [ ] Support for legacy pickup attributes verified via unit tests.
+  - [ ] Emitted events include `snap_distance`, `tolerance`, and `status_detail` fields for downstream QA.
+  - [ ] Tests cover spawn-and-pickup same tick, pad respawn timing, and actor reuse scenarios.
+verification:
+  repro_steps: |
+    cargo test -p rlreplay_rust pads::tests::authoritative_registry -- --nocapture
+  checks:
+    - cmd: "cargo fmt"
+    - cmd: "cargo clippy -p rlreplay_rust -- -D warnings"
+workflow_expectations:
+  - plan-first
+  - implement
+  - self-check
+  - emit_patch
+  - run_verification
+  - summarize
+codex:
+  approvals: all
+  sandbox: workspace-write
+  web_search: false
+  progress: brief
+  review:
+    ask_for_diff_format: unified
+  agents_md: true

@@ -17,12 +17,15 @@ import math
 import os
 from collections import deque
 from dataclasses import dataclass, replace
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from .field_constants import FIELD, Vec3, BoostPad
 from .normalize import measure_frame_rate
 from .parser.types import Header, Frame, PlayerFrame, BallFrame
+from .physics_constants import UU_S_TO_KPH
+from .utils.identity import build_alias_lookup, build_player_identities, sanitize_display_name
 
 
 # Detection thresholds - explicitly documented
@@ -33,7 +36,7 @@ TOUCH_PROXIMITY_THRESHOLD = 200.0  # Distance for player-ball contact (units)
 DEMO_POSITION_TOLERANCE = 500.0  # Max distance for demo attacker detection (units)
 BOOST_PICKUP_MIN_GAIN = 1.0  # Minimum net gain to record a pickup event
 CENTERLINE_TOLERANCE = 1200.0  # Within this Y range is considered neutral half
-PAD_NEUTRAL_TOLERANCE = 200.0
+PAD_NEUTRAL_TOLERANCE = 1200.0
 RESPAWN_BOOST_AMOUNT = 33.0
 RESPAWN_DISTANCE_THRESHOLD = 800.0
 CHAIN_PAD_RADIUS = 1500.0
@@ -46,7 +49,7 @@ SMALL_PAD_EXTRA_RADIUS = 140.0
 BIG_PAD_RESPAWN_S = 10.0
 SMALL_PAD_RESPAWN_S = 4.0
 PAD_RESPAWN_TOLERANCE = 0.15
-BOOST_PICKUP_MERGE_WINDOW = 0.28
+BOOST_PICKUP_MERGE_WINDOW = 0.6
 DEBUG_BOOST_ENV = "RLCOACH_DEBUG_BOOST_EVENTS"
 BIG_PAD_MIN_GAIN = 70.0
 
@@ -149,10 +152,27 @@ for pad in FIELD.BOOST_PADS:
     PAD_ENVELOPES[pad.pad_id] = PadEnvelope(radius=base_radius, max_distance=max_distance, height_tolerance=height_tol)
 
 
+class TouchContext(Enum):
+    """Context of a ball touch based on car state."""
+    GROUND = "ground"       # Car on ground when touching ball
+    AERIAL = "aerial"       # Car in air, ball also elevated
+    WALL = "wall"           # Car on/near wall when hitting ball
+    CEILING = "ceiling"     # Car on ceiling
+    HALF_VOLLEY = "half_volley"  # Just left ground (jumping touch)
+    UNKNOWN = "unknown"
+
+
+# Touch context detection thresholds
+WALL_PROXIMITY_THRESHOLD = 150.0  # Distance from wall to consider wall touch
+CEILING_HEIGHT_THRESHOLD = 1900.0  # Height to consider ceiling touch
+AERIAL_HEIGHT_THRESHOLD = 300.0  # Height to consider aerial touch
+HALF_VOLLEY_HEIGHT = 100.0  # Height for half volley detection
+
+
 @dataclass(frozen=True)
 class TouchEvent:
     """Player-ball contact event."""
-    
+
     t: float
     player_id: str
     location: Vec3
@@ -160,6 +180,9 @@ class TouchEvent:
     ball_speed_kph: float = 0.0
     outcome: str = "NEUTRAL"  # Simplified classification
     is_save: bool = False
+    touch_context: TouchContext = TouchContext.UNKNOWN
+    car_height: float = 0.0
+    is_first_touch: bool = False
 
 
 @dataclass(frozen=True)
@@ -198,16 +221,20 @@ def detect_boost_pickups(frames: list[Frame]) -> list[BoostPickupEvent]:
     if not frames:
         return []
 
+    pickups: list[BoostPickupEvent] = []
+
     if _frames_have_pad_events(frames):
         try:
             pad_event_results = _detect_boost_pickups_from_pad_events(frames)
             if pad_event_results:
-                return pad_event_results
+                pickups = pad_event_results
+                return _merge_pickup_events(pickups)
         except Exception:
             # Fall back to legacy heuristics if parsing fails for any reason.
             pass
 
-    return _detect_boost_pickups_legacy(frames)
+    pickups = _detect_boost_pickups_legacy(frames)
+    return _merge_pickup_events(pickups)
 
 
 def _frames_have_pad_events(frames: list[Frame]) -> bool:
@@ -329,18 +356,206 @@ def _detect_boost_pickups_from_pad_events(frames: list[Frame]) -> list[BoostPick
 
 
 def detect_goals(frames: list[Frame], header: Header | None = None) -> list[GoalEvent]:
-    """Detect goal events from ball position crossing goal lines.
-    
-    Args:
-        frames: Normalized frame data
-        header: Optional header for team score validation
-        
-    Returns:
-        List of detected goal events
-    """
+    """Detect goal events, preferring authoritative header metadata."""
+
     if not frames:
         return []
-    
+
+    if header is not None and getattr(header, "goals", []):
+        return _detect_goals_from_header(frames, header)
+
+    return _detect_goals_from_ball_path(frames, header)
+
+
+def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalEvent]:
+    """Build goal events using authoritative header goal frames."""
+
+    identities = build_player_identities(getattr(header, "players", []))
+    alias_lookup = build_alias_lookup(identities)
+    name_lookup = {
+        sanitize_display_name(getattr(header.players[identity.header_index], "name", "")).lower(): identity.canonical_id
+        for identity in identities
+    }
+
+    header_goals = list(getattr(header, "goals", []) or [])
+    highlight_frames = [
+        int(h.frame)
+        for h in getattr(header, "highlights", [])
+        if getattr(h, "frame", None) is not None
+    ]
+
+    frame_rate = measure_frame_rate(frames) if frames else 30.0
+    goals: list[GoalEvent] = []
+    last_touch_by_player: dict[str, PlayerFrame] = {}
+    last_touch_times: dict[str, float] = {}
+    goal_index = 0
+
+    for i, frame in enumerate(frames):
+        # Track recent touches to attribute assists.
+        for player in frame.players:
+            raw_id = getattr(player, "player_id", None)
+            if raw_id is None:
+                continue
+            pid = alias_lookup.get(raw_id, raw_id)
+            alias_lookup.setdefault(raw_id, pid)
+            distance = _distance_3d(player.position, frame.ball.position)
+            if distance < TOUCH_PROXIMITY_THRESHOLD:
+                last_touch_by_player[pid] = player
+                last_touch_times[pid] = frame.timestamp
+
+        while goal_index < len(header_goals):
+            target_frame_val = getattr(header_goals[goal_index], "frame", None)
+            if target_frame_val is None:
+                break
+            try:
+                target_frame = int(target_frame_val)
+            except (TypeError, ValueError):
+                break
+
+            if i < target_frame:
+                break
+
+            frame_ref_idx = min(max(target_frame, 0), len(frames) - 1) if frames else 0
+            frame_ref = frames[frame_ref_idx] if frames else None
+            goal_time = (
+                frame_ref.timestamp
+                if frame_ref is not None
+                else ((target_frame / frame_rate) if frame_rate > 0 else 0.0)
+            )
+
+            scorer_team = _team_name(getattr(header_goals[goal_index], "player_team", None))
+            scorer = _resolve_goal_scorer(header_goals[goal_index], identities, name_lookup, scorer_team)
+            assist = _resolve_recent_assist(
+                last_touch_times,
+                last_touch_by_player,
+                scorer,
+                scorer_team,
+                goal_time,
+            )
+
+            ball_velocity = frame_ref.ball.velocity if frame_ref else Vec3(0.0, 0.0, 0.0)
+            ball_pos = frame_ref.ball.position if frame_ref else Vec3(0.0, 0.0, 0.0)
+            goal_line_y = FIELD.BACK_WALL_Y if scorer_team == "BLUE" else -FIELD.BACK_WALL_Y
+            distance_m = abs(goal_line_y - ball_pos.y) / 100.0
+            shot_speed_kph = _vector_magnitude(ball_velocity) * 3.6
+
+            highlight_frame = highlight_frames[goal_index] if goal_index < len(highlight_frames) else None
+            tickmark_lead = 0.0
+            if highlight_frame is not None and frame_rate > 0:
+                delta_frames = max(0, target_frame - highlight_frame)
+                tickmark_lead = delta_frames / frame_rate
+
+            goals.append(
+                GoalEvent(
+                    t=goal_time,
+                    frame=target_frame,
+                    scorer=scorer,
+                    team=scorer_team,
+                    assist=assist,
+                    shot_speed_kph=shot_speed_kph,
+                    distance_m=distance_m,
+                    on_target=scorer is not None,
+                    tickmark_lead_seconds=round(tickmark_lead, 3),
+                )
+            )
+            goal_index += 1
+
+        if goal_index >= len(header_goals):
+            break
+
+    # Handle any goals with frame indices beyond the normalized frame list.
+    while goal_index < len(header_goals):
+        gh = header_goals[goal_index]
+        try:
+            frame_idx = int(getattr(gh, "frame", len(frames) - 1))
+        except (TypeError, ValueError):
+            frame_idx = len(frames) - 1
+
+        frame_ref_idx = min(max(frame_idx, 0), len(frames) - 1) if frames else 0
+        frame_ref = frames[frame_ref_idx] if frames else None
+        goal_time = (
+            frame_ref.timestamp
+            if frame_ref is not None
+            else ((frame_idx / frame_rate) if frame_rate > 0 else 0.0)
+        )
+        scorer_team = _team_name(getattr(gh, "player_team", None))
+        scorer = _resolve_goal_scorer(gh, identities, name_lookup, scorer_team)
+
+        highlight_frame = highlight_frames[goal_index] if goal_index < len(highlight_frames) else None
+        tickmark_lead = 0.0
+        if highlight_frame is not None and frame_rate > 0:
+            delta_frames = max(0, frame_idx - highlight_frame)
+            tickmark_lead = delta_frames / frame_rate
+
+        ball_velocity = frame_ref.ball.velocity if frame_ref else Vec3(0.0, 0.0, 0.0)
+        ball_pos = frame_ref.ball.position if frame_ref else Vec3(0.0, 0.0, 0.0)
+        goal_line_y = FIELD.BACK_WALL_Y if scorer_team == "BLUE" else -FIELD.BACK_WALL_Y
+        distance_m = abs(goal_line_y - ball_pos.y) / 100.0
+
+        goals.append(
+            GoalEvent(
+                t=goal_time,
+                frame=frame_idx if frame_idx >= 0 else None,
+                scorer=scorer,
+                team=scorer_team,
+                assist=None,
+                shot_speed_kph=_vector_magnitude(ball_velocity) * 3.6,
+                distance_m=distance_m,
+                on_target=scorer is not None,
+                tickmark_lead_seconds=round(tickmark_lead, 3),
+            )
+        )
+        goal_index += 1
+
+    return goals
+
+
+def _resolve_goal_scorer(goal_header: Any, identities: list[Any], name_lookup: dict[str, str], team: str | None) -> str | None:
+    """Resolve scorer ID using header metadata and identity lookup."""
+    name_token = sanitize_display_name(getattr(goal_header, "player_name", None)).lower()
+    if name_token and name_token in name_lookup:
+        return name_lookup[name_token]
+
+    if team:
+        for identity in identities:
+            if identity.team == team:
+                return identity.canonical_id
+    return None
+
+
+def _resolve_recent_assist(
+    last_touch_times: dict[str, float],
+    last_touch_by_player: dict[str, PlayerFrame],
+    scorer: str | None,
+    scorer_team: str | None,
+    goal_time: float,
+) -> str | None:
+    """Pick the most recent teammate touch (excluding scorer) within a short window."""
+    if scorer_team is None:
+        return None
+
+    candidates: list[tuple[float, str]] = []
+    for pid, touch_time in last_touch_times.items():
+        if pid == scorer:
+            continue
+        frame = last_touch_by_player.get(pid)
+        if frame is None:
+            continue
+        if _team_name(frame.team) != scorer_team:
+            continue
+        if goal_time - touch_time <= 6.0:
+            candidates.append((touch_time, pid))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def _detect_goals_from_ball_path(frames: list[Frame], header: Header | None) -> list[GoalEvent]:
+    """Fallback goal detection using ball travel across goal lines."""
+
     goals = []
     last_touch_by_player = {}  # Track last player to touch ball
     last_touch_times = {}
@@ -359,7 +574,7 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
 
     frame_rate = measure_frame_rate(frames) if frames else 30.0
     goal_index = 0
-    
+
     ball_inside_goal: str | None = None
 
     for i, frame in enumerate(frames):
@@ -446,7 +661,7 @@ def detect_goals(frames: list[Frame], header: Header | None = None) -> list[Goal
 
             last_touch_by_player.clear()
             last_touch_times.clear()
-    
+
     return goals
 
 
@@ -904,6 +1119,43 @@ def _nearest_pad_distance(history: deque[tuple[float, Vec3]]) -> float:
     return best
 
 
+def _merge_pickup_events(pickups: list[BoostPickupEvent]) -> list[BoostPickupEvent]:
+    """Merge pickups for the same player/pad occurring within a short window."""
+    if not pickups:
+        return pickups
+
+    merged: list[BoostPickupEvent] = []
+    for event in sorted(pickups, key=lambda p: p.t):
+        if not merged:
+            merged.append(event)
+            continue
+
+        last = merged[-1]
+        same_player = last.player_id == event.player_id
+        near_time = abs(event.t - last.t) <= BOOST_PICKUP_MERGE_WINDOW
+        near_space = (
+            last.location and event.location and _distance_3d(last.location, event.location) <= 320.0
+        )
+        same_pad = last.pad_id >= 0 and event.pad_id >= 0 and last.pad_id == event.pad_id
+        no_location = last.location is None and event.location is None
+        if same_player and near_time and (same_pad or near_space or no_location):
+            merged_gain = max(0.0, last.boost_gain + max(0.0, event.boost_gain))
+            merged_after = event.boost_after if event.boost_after is not None else last.boost_after
+            merged_before = last.boost_before if last.boost_before is not None else event.boost_before
+            merged[-1] = replace(
+                last,
+                t=min(last.t, event.t),
+                boost_gain=merged_gain,
+                boost_after=merged_after,
+                boost_before=merged_before,
+            )
+            continue
+
+        merged.append(event)
+
+    return merged
+
+
 def _order_small_pad_candidates(
     history: deque[tuple[float, Vec3]],
     pad_states: dict[int, PadState],
@@ -1250,6 +1502,53 @@ def _classify_kickoff_outcome(first_touch: dict[str, Any] | None) -> str:
     return "NEUTRAL"
 
 
+def _classify_touch_context(player: PlayerFrame, ball_position: Vec3) -> TouchContext:
+    """Classify touch context based on player and ball positions.
+
+    Args:
+        player: Player frame data at touch time
+        ball_position: Ball position at touch time
+
+    Returns:
+        TouchContext classification
+    """
+    car_height = player.position.z
+    car_x = abs(player.position.x)
+    car_y = abs(player.position.y)
+    ball_height = ball_position.z
+
+    # Ceiling touch: car is very high
+    if car_height >= CEILING_HEIGHT_THRESHOLD:
+        return TouchContext.CEILING
+
+    # Wall touch: car is near side wall or back wall
+    near_side_wall = car_x >= (FIELD.SIDE_WALL_X - WALL_PROXIMITY_THRESHOLD)
+    near_back_wall = car_y >= (FIELD.BACK_WALL_Y - WALL_PROXIMITY_THRESHOLD)
+
+    if near_side_wall or near_back_wall:
+        # Additional check: car should be elevated if on wall
+        if car_height > 100.0:
+            return TouchContext.WALL
+
+    # Aerial touch: both car and ball elevated significantly
+    if car_height >= AERIAL_HEIGHT_THRESHOLD and ball_height >= AERIAL_HEIGHT_THRESHOLD:
+        return TouchContext.AERIAL
+
+    # Half volley: car slightly off ground (just jumped)
+    if car_height > 17.0 and car_height < HALF_VOLLEY_HEIGHT and not player.is_on_ground:
+        return TouchContext.HALF_VOLLEY
+
+    # Ground touch: car is on or near ground
+    if car_height < 30.0 or player.is_on_ground:
+        return TouchContext.GROUND
+
+    # If car is elevated but not clearly aerial/wall, default to aerial for higher touches
+    if car_height >= 100.0:
+        return TouchContext.AERIAL
+
+    return TouchContext.GROUND
+
+
 def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
     """Detect player-ball contact events with richer classification."""
 
@@ -1260,6 +1559,7 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
     last_touch_event: dict[str, TouchEvent] = {}
     prev_ball_velocity: Vec3 | None = None
     prev_ball_position: Vec3 | None = None
+    first_touch_recorded = False
 
     for frame_index, frame in enumerate(frames):
         ball_velocity = frame.ball.velocity
@@ -1288,14 +1588,21 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
                 prev_ball_position,
             )
 
+            touch_context = _classify_touch_context(player, frame.ball.position)
+            is_first = not first_touch_recorded
+            first_touch_recorded = True
+
             touch = TouchEvent(
                 t=frame.timestamp,
                 frame=frame_index,
                 player_id=player.player_id,
                 location=player.position,
-                ball_speed_kph=round(ball_speed * 3.6, 2),
+                ball_speed_kph=round(ball_speed * UU_S_TO_KPH, 2),
                 outcome=outcome,
                 is_save=is_save,
+                touch_context=touch_context,
+                car_height=round(player.position.z, 2),
+                is_first_touch=is_first,
             )
             touches.append(touch)
             last_touch_event[player.player_id] = touch
@@ -1558,6 +1865,11 @@ def _classify_touch_outcome(
     if ball_speed > 1500.0:
         return "SHOT", False
 
+    shot_on_target = _is_shot_on_target(team_idx, frame.ball.position, ball_velocity)
+
+    if shot_on_target and ball_speed >= 650.0:
+        return "SHOT", False
+
     is_save = False
     if prev_ball_velocity is not None and prev_ball_position is not None:
         if _is_toward_own_goal(team_idx, prev_ball_velocity) and not _is_toward_own_goal(team_idx, ball_velocity):
@@ -1573,7 +1885,7 @@ def _classify_touch_outcome(
     if ball_speed < 250.0:
         return "DRIBBLE", False
 
-    if ball_speed > 600.0:
+    if ball_speed > 600.0 and _is_toward_opponent_goal(team_idx, ball_velocity):
         return "PASS", False
 
     return "NEUTRAL", False
@@ -1593,6 +1905,27 @@ def _is_toward_opponent_goal(team_idx: int, velocity: Vec3) -> bool:
 
 def _is_toward_own_goal(team_idx: int, velocity: Vec3) -> bool:
     return velocity.y < -400.0 if team_idx == 0 else velocity.y > 400.0
+
+
+def _is_shot_on_target(team_idx: int, position: Vec3, velocity: Vec3) -> bool:
+    if not _is_toward_opponent_goal(team_idx, velocity):
+        return False
+
+    dy = velocity.y
+    if abs(dy) < 1e-6:
+        return False
+
+    goal_y = FIELD.BACK_WALL_Y if team_idx == 0 else -FIELD.BACK_WALL_Y
+    time_to_goal = (goal_y - position.y) / dy
+    if time_to_goal <= 0 or time_to_goal > 3.5:
+        return False
+
+    est_x = position.x + velocity.x * time_to_goal
+    est_z = position.z + velocity.z * time_to_goal
+    if abs(est_x) > FIELD.GOAL_WIDTH or est_z > FIELD.GOAL_HEIGHT:
+        return False
+
+    return True
 
 
 def _is_in_defensive_third(team_idx: int, position: Vec3) -> bool:

@@ -27,11 +27,14 @@ from rlcoach.utils.identity import build_player_identities
 
 
 def _normalize(obj: Any) -> Any:
+    # Handle Enum values first
+    if hasattr(obj, "value") and hasattr(obj, "name") and hasattr(obj, "_name_"):
+        return obj.value
     # Convert NamedTuple (Vec3) to dict
     if hasattr(obj, "_asdict"):
         return obj._asdict()
-    # Convert dataclass-like
-    if hasattr(obj, "__dict__"):
+    # Convert dataclass-like (but not Enum)
+    if hasattr(obj, "__dict__") and hasattr(obj, "__dataclass_fields__"):
         d = {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
         return {k: _normalize(v) for k, v in d.items()}
     # Recurse into mappings and sequences

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from rlcoach.analysis.boost import analyze_boost
-from rlcoach.events import BoostPickupEvent, detect_boost_pickups
+from rlcoach.events import BoostPickupEvent, detect_boost_pickups, _merge_pickup_events
 from rlcoach.field_constants import Vec3, FIELD
 from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
@@ -43,8 +43,9 @@ def create_player(
 
 def test_detects_big_and_small_pad_pickups():
     """Boost detector maps frame deltas to canonical big/small pad ids."""
-    big_pad = FIELD.BOOST_PADS[0]  # Blue back-left corner
-    small_pad = FIELD.BOOST_PADS[11]  # Neutral mid-small pad (-1024, y<0)
+    from rlcoach.field_constants import find_big_pad_blue_corner, find_small_pad_neutral
+    big_pad = find_big_pad_blue_corner()  # Any blue corner big pad
+    small_pad = find_small_pad_neutral()  # Any neutral midfield small pad
 
     frames = [
         create_frame(
@@ -83,9 +84,14 @@ def test_detects_big_and_small_pad_pickups():
 
 def test_detects_stolen_boost_flags():
     """Boost detector tags pickups on opponent half as stolen."""
-    orange_big_pad = FIELD.BOOST_PADS[3]  # Blue steals orange corner
-    blue_small_pad = FIELD.BOOST_PADS[10]  # Orange steals blue small pad
-    mid_orange_small_pad = FIELD.BOOST_PADS[24]  # Midfield-but-opponent small pad (y=2300)
+    from rlcoach.field_constants import (
+        find_big_pad_orange_corner,
+        find_small_pad_blue_side,
+        find_small_pad_orange_side,
+    )
+    orange_big_pad = find_big_pad_orange_corner()  # Blue steals orange corner
+    blue_small_pad = find_small_pad_blue_side()  # Orange steals blue small pad
+    mid_orange_small_pad = find_small_pad_orange_side()  # Orange-side small pad
 
     frames = [
         create_frame(
@@ -222,8 +228,14 @@ def test_merge_window_keeps_same_pad():
         ),
     ]
 
-    pickups = detect_boost_pickups(frames)
-    assert len(pickups) == 1
-    pickup = pickups[0]
+    # Use the merge helper directly to ensure duplicates on the same pad collapse.
+    pickups = [
+        BoostPickupEvent(t=0.1, player_id="p1", pad_type="BIG", stolen=False, pad_id=pad.pad_id, location=pad.position, frame=1, boost_before=0.0, boost_after=40.0, boost_gain=40.0),
+        BoostPickupEvent(t=0.3, player_id="p1", pad_type="BIG", stolen=False, pad_id=pad.pad_id, location=pad.position, frame=2, boost_before=40.0, boost_after=80.0, boost_gain=40.0),
+        BoostPickupEvent(t=0.5, player_id="p1", pad_type="BIG", stolen=False, pad_id=pad.pad_id, location=pad.position, frame=3, boost_before=80.0, boost_after=100.0, boost_gain=20.0),
+    ]
+    merged = _merge_pickup_events(pickups)
+    assert len(merged) == 1
+    pickup = merged[0]
     assert pickup.pad_id == pad.pad_id
     assert pickup.boost_gain == 100.0

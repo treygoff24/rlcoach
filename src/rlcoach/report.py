@@ -34,7 +34,6 @@ from .schema import validate_report
 from .version import get_schema_version
 from .utils.identity import build_player_identities
 
-
 _ALLOWED_PLAYLISTS = {
     "DUEL",
     "DOUBLES",
@@ -47,7 +46,7 @@ _ALLOWED_PLAYLISTS = {
 
 
 def _utc_now_iso() -> str:
-    return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _normalize_playlist_id(raw_value: Any) -> tuple[str, list[str]]:
@@ -284,6 +283,10 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
                     "location": _serialize_value(t.location),
                     "ball_speed_kph": t.ball_speed_kph,
                     "outcome": t.outcome,
+                    "is_save": t.is_save,
+                    "touch_context": t.touch_context.value if hasattr(t.touch_context, 'value') else str(t.touch_context),
+                    "car_height": t.car_height,
+                    "is_first_touch": t.is_first_touch,
                 }
                 for t in touches
             ],
@@ -307,7 +310,6 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             "per_player": per_player_map,
             "coaching_insights": analysis_out.get("coaching_insights", []),
         }
-
         report = {
             "replay_id": replay_id,
             "source_file": str(replay_path),

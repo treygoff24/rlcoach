@@ -1,0 +1,68 @@
+title: "[rlcoach] Establish boost pad parity harness and regression tests"
+type: feature
+priority: P1
+branch: "feature/bpa-05-parity-tests"
+repo:
+  url: https://github.com/treygoff/rlcoach
+  root: .
+  paths_in_scope:
+    - tests/parser/**
+    - tests/test_events.py
+    - tests/goldens/boost_parity/**
+    - scripts/**
+    - codex/logs/**
+  paths_out_of_scope:
+    - src/rlcoach/analysis/movement.py
+    - src/rlcoach/analysis/kickoffs.py
+context:
+  stack: {lang: Python, framework: pytest, runtime: Python 3.10}
+  versions: {pytest: "7.x"}
+  style_guides: ["codex/docs/gpt5-codex-ticketing-guide.md", "codex/docs/gpt5-prompting-best-practices-guide.md"]
+  related_issues:
+    - "codex/Plans/1015_boost_pickup_rewrite_followup_plan.md"
+    - "codex/sprints/2025-10-boost-pad-authority/tickets/BPA-01-telemetry-ground-truth.yaml"
+    - "codex/sprints/2025-10-boost-pad-authority/tickets/BPA-04-python-attribution.yaml"
+problem_statement: >
+  We need automated confidence that boost pad attribution remains accurate across maps and over time. Create parity
+  fixtures, tests, and scripts to compare rlcoach outputs against Ballchasing metrics, covering pad IDs, stolen counts,
+  and attribution coverage.
+non_goals:
+  - Do not introduce new replay assets beyond those already captured unless necessary for coverage.
+  - Do not rewrite unrelated parity harnesses (movement, kickoffs, etc.).
+constraints:
+  - Mark data-heavy tests with `pytest.mark.data` so they can be skipped in fast suites.
+  - Store golden expectations as JSON (2-space, deterministic ordering) under `tests/goldens/boost_parity/`.
+  - Keep additional scripts free of external network calls; rely on pre-downloaded Ballchasing exports.
+artifacts_expected:
+  output_mode: diff
+  pr_title_template: "[tests] Add boost parity harness"
+  pr_body_sections: ["Context", "Implementation", "Tests", "Risks", "Follow-ups"]
+  decision_log: true
+acceptance_criteria:
+  - [ ] Add integration tests asserting ≥99% pad attribution coverage and ≤1% error on stolen counts for the selected replay set.
+  - [ ] Include synthetic Rust pad registry tests covering race conditions documented in telemetry.
+  - [ ] Provide a CLI or script that recomputes parity deltas and updates golden JSON fixtures.
+  - [ ] Document how to refresh fixtures in `tests/goldens/boost_parity/README.md`.
+  - [ ] Wire parity tests into CI configuration (skip by default, opt-in via marker).
+verification:
+  repro_steps: |
+    pytest tests/parser/test_rust_pad_registry.py::test_pad_registry_parity -q
+  checks:
+    - cmd: "pytest tests/test_events.py -q"
+    - cmd: "pytest tests/parser/test_rust_pad_registry.py -q"
+    - cmd: "pytest tests/goldens/test_boost_parity.py -m data -q"
+workflow_expectations:
+  - plan-first
+  - implement
+  - self-check
+  - emit_patch
+  - run_verification
+  - summarize
+codex:
+  approvals: all
+  sandbox: workspace-write
+  web_search: false
+  progress: brief
+  review:
+    ask_for_diff_format: unified
+  agents_md: true

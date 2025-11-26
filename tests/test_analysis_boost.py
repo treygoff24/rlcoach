@@ -37,7 +37,7 @@ def create_test_player(player_id: str, team: int, boost: int = 33,
         velocity=velocity,
         rotation=Vec3(0.0, 0.0, 0.0),
         boost_amount=boost,
-        is_supersonic=velocity and (velocity.x**2 + velocity.y**2 + velocity.z**2) > (2300**2),
+        is_supersonic=(velocity is not None and (velocity.x**2 + velocity.y**2 + velocity.z**2) > (2300**2)),
         is_on_ground=True,
         is_demolished=False
     )
@@ -84,6 +84,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=0,
                     location=Vec3(3584, 0, 73),
+                    frame=1,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,
@@ -95,6 +96,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=5,
                     location=Vec3(0, 2048, 73),
+                    frame=2,
                     boost_before=50.0,
                     boost_after=62.0,
                     boost_gain=12.0,
@@ -106,6 +108,7 @@ class TestBoostAnalysis:
                     stolen=True,
                     pad_id=1,
                     location=Vec3(-3584, 0, 73),
+                    frame=3,
                     boost_before=10.0,
                     boost_after=100.0,
                     boost_gain=90.0,
@@ -141,6 +144,7 @@ class TestBoostAnalysis:
                     stolen=True,
                     pad_id=0,
                     location=Vec3(3584, 2500, 73),
+                    frame=1,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,
@@ -152,6 +156,7 @@ class TestBoostAnalysis:
                     stolen=True,
                     pad_id=5,
                     location=Vec3(0, 3000, 73),
+                    frame=2,
                     boost_before=10.0,
                     boost_after=22.0,
                     boost_gain=12.0,
@@ -163,6 +168,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=1,
                     location=Vec3(-3584, -2500, 73),
+                    frame=3,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,
@@ -218,6 +224,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=0,
                     location=Vec3(3584, 0, 73),
+                    frame=1,
                     boost_before=85.0,
                     boost_after=100.0,
                     boost_gain=15.0,
@@ -229,6 +236,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=1,
                     location=Vec3(-3584, 0, 73),
+                    frame=2,
                     boost_before=95.0,
                     boost_after=100.0,
                     boost_gain=5.0,
@@ -240,6 +248,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=2,
                     location=Vec3(0, 5120, 73),
+                    frame=3,
                     boost_before=20.0,
                     boost_after=100.0,
                     boost_gain=80.0,
@@ -289,6 +298,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=0,
                     location=Vec3(3584, 0, 73),
+                    frame=1,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,
@@ -300,6 +310,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=1,
                     location=Vec3(-3584, 0, 73),
+                    frame=2,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,
@@ -311,6 +322,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=5,
                     location=Vec3(0, 2048, 73),
+                    frame=3,
                     boost_before=40.0,
                     boost_after=52.0,
                     boost_gain=12.0,
@@ -346,6 +358,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=0,
                     location=Vec3(3584, 0, 73),
+                    frame=1,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,
@@ -357,6 +370,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=5,
                     location=Vec3(0, 2048, 73),
+                    frame=2,
                     boost_before=30.0,
                     boost_after=42.0,
                     boost_gain=12.0,
@@ -368,6 +382,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=1,
                     location=Vec3(-3584, 0, 73),
+                    frame=3,
                     boost_before=20.0,
                     boost_after=100.0,
                     boost_gain=80.0,
@@ -383,7 +398,9 @@ class TestBoostAnalysis:
         assert result["small_pads"] == 1    # player2's small pad
         assert result["bpm"] == 112.0       # 112 in 1 minute
         assert result["bcpm"] == 2.0        # 2 pickups in 1 minute
-        assert result["avg_boost"] == 40.0  # (50 + 30) / 2 players
+        # Note: Team avg_boost sums individual player avg_boosts (Ballchasing convention)
+        # player1 avg=50, player2 avg=30, team sum=80
+        assert result["avg_boost"] == 80.0
     
     def test_no_pickup_events(self):
         """Test handling when no boost pickup events are available."""
@@ -421,15 +438,16 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=0,
                     location=Vec3(3584, 0, 73),
+                    frame=1,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,
                 ),
             ]
         }
-        
+
         result = analyze_boost(frames, events, player_id="player1")
-        
+
         # Player1 not in frames, so frame-based metrics should be zero
         assert result["avg_boost"] == 0.0
         assert result["time_zero_boost_s"] == 0.0
@@ -450,6 +468,7 @@ class TestBoostAnalysis:
                     stolen=False,
                     pad_id=0,
                     location=Vec3(3584, 0, 73),
+                    frame=1,
                     boost_before=0.0,
                     boost_after=100.0,
                     boost_gain=100.0,

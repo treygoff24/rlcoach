@@ -1,0 +1,6109 @@
+{
+  "replay_path": "Replay_files/4985385d-2a6a-4bea-a312-8e539c7fd098.replay",
+  "replay_name": "4985385d-2a6a-4bea-a312-8e539c7fd098",
+  "max_frames": 500,
+  "captured_at_utc": "2025-10-18T21:09:46.327744+00:00",
+  "flat_events": [
+    {
+      "event": "trajectory",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 13.131436347961426,
+      "frame_index": 100
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 97,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+      "timestamp": 13.131436347961426,
+      "frame_index": 100
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 13.131436347961426,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 68,
+      "resolved_actor_id": 68,
+      "frame_index": 100
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 97,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+      "timestamp": 13.131436347961426,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 59,
+      "resolved_actor_id": 59,
+      "frame_index": 100
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 98,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+      "timestamp": 13.614587783813477,
+      "frame_index": 111
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 98,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+      "timestamp": 13.614587783813477,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 66,
+      "resolved_actor_id": 66,
+      "frame_index": 111
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 99,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+      "timestamp": 13.648261070251465,
+      "frame_index": 112
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 13.648261070251465,
+      "frame_index": 112
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 99,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+      "timestamp": 13.648261070251465,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 112
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 13.648261070251465,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 112
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 101,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+      "timestamp": 13.783980369567871,
+      "frame_index": 115
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 101,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+      "timestamp": 13.783980369567871,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 89,
+      "resolved_actor_id": 89,
+      "frame_index": 115
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 14.31674861907959,
+      "frame_index": 128
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 14.31674861907959,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 66,
+      "resolved_actor_id": 66,
+      "frame_index": 128
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 103,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+      "timestamp": 14.464982986450195,
+      "frame_index": 131
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 103,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+      "timestamp": 14.464982986450195,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 131
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 104,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+      "timestamp": 14.749258041381836,
+      "frame_index": 138
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 104,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+      "timestamp": 14.749258041381836,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 138
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 105,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+      "timestamp": 14.931639671325684,
+      "frame_index": 142
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 105,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+      "timestamp": 14.931639671325684,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 89,
+      "resolved_actor_id": 89,
+      "frame_index": 142
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 106,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+      "timestamp": 15.065068244934082,
+      "frame_index": 145
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 106,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+      "timestamp": 15.065068244934082,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 68,
+      "resolved_actor_id": 68,
+      "frame_index": 145
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 107,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+      "timestamp": 15.114660263061523,
+      "frame_index": 146
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 107,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+      "timestamp": 15.114660263061523,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 66,
+      "resolved_actor_id": 66,
+      "frame_index": 146
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 16.18134117126465,
+      "frame_index": 170
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 16.18134117126465,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 68,
+      "resolved_actor_id": 68,
+      "frame_index": 170
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 16.66482162475586,
+      "frame_index": 180
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 16.66482162475586,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 180
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 17.164857864379883,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 191
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 97,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+      "timestamp": 17.164857864379883,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 191
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 17.381919860839844,
+      "frame_index": 196
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 17.381919860839844,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 196
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 111,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+      "timestamp": 17.431659698486328,
+      "frame_index": 197
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 111,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+      "timestamp": 17.431659698486328,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 59,
+      "resolved_actor_id": 59,
+      "frame_index": 197
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 17.531496047973633,
+      "frame_index": 199
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 17.531496047973633,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 89,
+      "resolved_actor_id": 89,
+      "frame_index": 199
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 98,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+      "timestamp": 17.664865493774414,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 202
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 99,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+      "timestamp": 17.664865493774414,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 202
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 17.664865493774414,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 202
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 101,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+      "timestamp": 17.784013748168945,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 205
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 18.31671714782715,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 217
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 18.464935302734375,
+      "frame_index": 220
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 18.464935302734375,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 220
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 103,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+      "timestamp": 18.498332977294922,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 221
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 99,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 104,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 111,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 107,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 105,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 97,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 101,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 98,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 106,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 103,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 18.767719268798828,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 97,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 98,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 99,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 101,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 103,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+      "timestamp": 18.767719268798828,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 104,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 105,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 89,
+      "resolved_actor_id": 89,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 106,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 68,
+      "resolved_actor_id": 68,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 107,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 66,
+      "resolved_actor_id": 66,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 68,
+      "resolved_actor_id": 68,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 111,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 59,
+      "resolved_actor_id": 59,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 89,
+      "resolved_actor_id": 89,
+      "frame_index": 227
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 18.767719268798828,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 227
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 114,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+      "timestamp": 18.96502685546875,
+      "frame_index": 231
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 115,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+      "timestamp": 18.96502685546875,
+      "frame_index": 231
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 105,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+      "timestamp": 18.96502685546875,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 231
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 114,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+      "timestamp": 18.96502685546875,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 59,
+      "resolved_actor_id": 59,
+      "frame_index": 231
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 115,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+      "timestamp": 18.96502685546875,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 66,
+      "resolved_actor_id": 66,
+      "frame_index": 231
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 106,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+      "timestamp": 19.098194122314453,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 234
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 116,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+      "timestamp": 19.564903259277344,
+      "frame_index": 245
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 116,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+      "timestamp": 19.564903259277344,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 59,
+      "resolved_actor_id": 59,
+      "frame_index": 245
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 20.714885711669922,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 271
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 117,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+      "timestamp": 21.11485481262207,
+      "frame_index": 280
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 117,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+      "timestamp": 21.11485481262207,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 280
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 21.381954193115234,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 286
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 22.399927139282227,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 66,
+      "resolved_actor_id": 66,
+      "frame_index": 309
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 22.482440948486328,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 311
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 118,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+      "timestamp": 22.531888961791992,
+      "frame_index": 312
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 118,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+      "timestamp": 22.531888961791992,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 312
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 114,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+      "timestamp": 23.01505470275879,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 323
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 115,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+      "timestamp": 23.01505470275879,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 323
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 119,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+      "timestamp": 23.24835777282715,
+      "frame_index": 328
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 119,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+      "timestamp": 23.24835777282715,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 328
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 23.284093856811523,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 329
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 116,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+      "timestamp": 23.56490707397461,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 335
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 116,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+      "timestamp": 23.881744384765625,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 342
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 120,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+      "timestamp": 24.11479949951172,
+      "frame_index": 347
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 120,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+      "timestamp": 24.11479949951172,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 347
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 114,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+      "timestamp": 24.481605529785156,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 355
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 121,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+      "timestamp": 24.665191650390625,
+      "frame_index": 359
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 121,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+      "timestamp": 24.665191650390625,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 359
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 104,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+      "timestamp": 24.784067153930664,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 362
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 129,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+      "timestamp": 25.049131393432617,
+      "frame_index": 368
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 129,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+      "timestamp": 25.049131393432617,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 368
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 107,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+      "timestamp": 25.098230361938477,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 369
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 117,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+      "timestamp": 25.14842414855957,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 370
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 130,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+      "timestamp": 25.915035247802734,
+      "frame_index": 387
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 130,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+      "timestamp": 25.915035247802734,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 387
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 131,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+      "timestamp": 26.0150146484375,
+      "frame_index": 389
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 131,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+      "timestamp": 26.0150146484375,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 122,
+      "resolved_actor_id": 122,
+      "frame_index": 389
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 26.232694625854492,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 394
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 26.415058135986328,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 398
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 26.498428344726562,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 400
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 118,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+      "timestamp": 26.581497192382812,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 402
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 26.6148624420166,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 403
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 27.0982608795166,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 414
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 119,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+      "timestamp": 27.267955780029297,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 418
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 27.316904067993164,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 419
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 111,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+      "timestamp": 27.46510887145996,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 422
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 27.54819679260254,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 424
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 116,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+      "timestamp": 27.881900787353516,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 432
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 27.998737335205078,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 435
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 120,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+      "timestamp": 28.13153839111328,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 438
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 114,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+      "timestamp": 28.498668670654297,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 447
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 99,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 130,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 117,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 121,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 104,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 111,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 107,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 118,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 120,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 105,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 129,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 114,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 97,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 115,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 131,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 101,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 116,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 98,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 119,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 106,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 103,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 28.767820358276367,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 28.767820358276367,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 97,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 98,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 99,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 100,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+      "timestamp": 28.767820358276367,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 101,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 102,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 103,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 104,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 105,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 106,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 107,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 109,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 110,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+      "timestamp": 28.767820358276367,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 111,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 28.767820358276367,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 114,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 115,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 116,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 117,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 118,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 119,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 120,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+      "timestamp": 28.767820358276367,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 121,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+      "timestamp": 28.767820358276367,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 87,
+      "resolved_actor_id": 87,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 129,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+      "timestamp": 28.767820358276367,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 130,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+      "timestamp": 28.767820358276367,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 75,
+      "resolved_actor_id": 75,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 131,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+      "timestamp": 28.767820358276367,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 122,
+      "resolved_actor_id": 122,
+      "frame_index": 454
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 129,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+      "timestamp": 29.065353393554688,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 461
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 112,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+      "timestamp": 29.49842071533203,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 68,
+      "resolved_actor_id": 68,
+      "frame_index": 471
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 130,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+      "timestamp": 29.965173721313477,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 481
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 108,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+      "timestamp": 30.015092849731445,
+      "raw_state": 3,
+      "state": "COLLECTED",
+      "instigator_actor_id": 66,
+      "resolved_actor_id": 66,
+      "frame_index": 482
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 131,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+      "timestamp": 30.06524085998535,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 483
+    },
+    {
+      "event": "trajectory",
+      "actor_id": 132,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_36",
+      "timestamp": 30.448287963867188,
+      "frame_index": 492
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 132,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_36",
+      "timestamp": 30.448287963867188,
+      "raw_state": 1,
+      "state": "COLLECTED",
+      "instigator_actor_id": 68,
+      "resolved_actor_id": 68,
+      "frame_index": 492
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 96,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+      "timestamp": 30.5318546295166,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 494
+    },
+    {
+      "event": "pickup_new",
+      "actor_id": 113,
+      "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+      "timestamp": 30.64879608154297,
+      "raw_state": 255,
+      "state": "RESPAWNED",
+      "frame_index": 497
+    }
+  ],
+  "summary": {
+    "total_events": 198,
+    "event_counts": {
+      "pickup_new": 121,
+      "trajectory": 77
+    },
+    "state_counts": {
+      "pickup_new:COLLECTED": 58,
+      "pickup_new:RESPAWNED": 63
+    },
+    "actor_event_counts": {
+      "96": 9,
+      "97": 7,
+      "98": 7,
+      "99": 7,
+      "100": 8,
+      "101": 7,
+      "102": 9,
+      "103": 7,
+      "104": 7,
+      "105": 7,
+      "106": 7,
+      "107": 7,
+      "108": 8,
+      "109": 9,
+      "110": 8,
+      "111": 7,
+      "112": 8,
+      "113": 9,
+      "114": 7,
+      "115": 5,
+      "116": 7,
+      "117": 5,
+      "118": 5,
+      "119": 5,
+      "120": 5,
+      "121": 4,
+      "129": 5,
+      "130": 5,
+      "131": 5,
+      "132": 2
+    }
+  },
+  "frames": [
+    {
+      "frame_index": 0,
+      "timestamp": 8.731366157531738,
+      "boost_events": []
+    },
+    {
+      "frame_index": 1,
+      "timestamp": 8.765179634094238,
+      "boost_events": []
+    },
+    {
+      "frame_index": 2,
+      "timestamp": 8.815391540527344,
+      "boost_events": []
+    },
+    {
+      "frame_index": 3,
+      "timestamp": 8.864895820617676,
+      "boost_events": []
+    },
+    {
+      "frame_index": 4,
+      "timestamp": 8.902234077453613,
+      "boost_events": []
+    },
+    {
+      "frame_index": 5,
+      "timestamp": 8.95097827911377,
+      "boost_events": []
+    },
+    {
+      "frame_index": 6,
+      "timestamp": 8.999838829040527,
+      "boost_events": []
+    },
+    {
+      "frame_index": 7,
+      "timestamp": 9.033831596374512,
+      "boost_events": []
+    },
+    {
+      "frame_index": 8,
+      "timestamp": 9.08249282836914,
+      "boost_events": []
+    },
+    {
+      "frame_index": 9,
+      "timestamp": 9.131458282470703,
+      "boost_events": []
+    },
+    {
+      "frame_index": 10,
+      "timestamp": 9.181290626525879,
+      "boost_events": []
+    },
+    {
+      "frame_index": 11,
+      "timestamp": 9.214668273925781,
+      "boost_events": []
+    },
+    {
+      "frame_index": 12,
+      "timestamp": 9.248138427734375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 13,
+      "timestamp": 9.28405475616455,
+      "boost_events": []
+    },
+    {
+      "frame_index": 14,
+      "timestamp": 9.3326997756958,
+      "boost_events": []
+    },
+    {
+      "frame_index": 15,
+      "timestamp": 9.38135814666748,
+      "boost_events": []
+    },
+    {
+      "frame_index": 16,
+      "timestamp": 9.414920806884766,
+      "boost_events": []
+    },
+    {
+      "frame_index": 17,
+      "timestamp": 9.464789390563965,
+      "boost_events": []
+    },
+    {
+      "frame_index": 18,
+      "timestamp": 9.514809608459473,
+      "boost_events": []
+    },
+    {
+      "frame_index": 19,
+      "timestamp": 9.56490707397461,
+      "boost_events": []
+    },
+    {
+      "frame_index": 20,
+      "timestamp": 9.61462688446045,
+      "boost_events": []
+    },
+    {
+      "frame_index": 21,
+      "timestamp": 9.66473388671875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 22,
+      "timestamp": 9.714492797851562,
+      "boost_events": []
+    },
+    {
+      "frame_index": 23,
+      "timestamp": 9.748159408569336,
+      "boost_events": []
+    },
+    {
+      "frame_index": 24,
+      "timestamp": 9.78386116027832,
+      "boost_events": []
+    },
+    {
+      "frame_index": 25,
+      "timestamp": 9.832552909851074,
+      "boost_events": []
+    },
+    {
+      "frame_index": 26,
+      "timestamp": 9.881328582763672,
+      "boost_events": []
+    },
+    {
+      "frame_index": 27,
+      "timestamp": 9.91483211517334,
+      "boost_events": []
+    },
+    {
+      "frame_index": 28,
+      "timestamp": 9.964815139770508,
+      "boost_events": []
+    },
+    {
+      "frame_index": 29,
+      "timestamp": 10.014727592468262,
+      "boost_events": []
+    },
+    {
+      "frame_index": 30,
+      "timestamp": 10.064743041992188,
+      "boost_events": []
+    },
+    {
+      "frame_index": 31,
+      "timestamp": 10.114574432373047,
+      "boost_events": []
+    },
+    {
+      "frame_index": 32,
+      "timestamp": 10.16466236114502,
+      "boost_events": []
+    },
+    {
+      "frame_index": 33,
+      "timestamp": 10.198005676269531,
+      "boost_events": []
+    },
+    {
+      "frame_index": 34,
+      "timestamp": 10.231406211853027,
+      "boost_events": []
+    },
+    {
+      "frame_index": 35,
+      "timestamp": 10.267659187316895,
+      "boost_events": []
+    },
+    {
+      "frame_index": 36,
+      "timestamp": 10.316414833068848,
+      "boost_events": []
+    },
+    {
+      "frame_index": 37,
+      "timestamp": 10.365134239196777,
+      "boost_events": []
+    },
+    {
+      "frame_index": 38,
+      "timestamp": 10.414875030517578,
+      "boost_events": []
+    },
+    {
+      "frame_index": 39,
+      "timestamp": 10.464790344238281,
+      "boost_events": []
+    },
+    {
+      "frame_index": 40,
+      "timestamp": 10.499351501464844,
+      "boost_events": []
+    },
+    {
+      "frame_index": 41,
+      "timestamp": 10.54808235168457,
+      "boost_events": []
+    },
+    {
+      "frame_index": 42,
+      "timestamp": 10.598062515258789,
+      "boost_events": []
+    },
+    {
+      "frame_index": 43,
+      "timestamp": 10.631495475769043,
+      "boost_events": []
+    },
+    {
+      "frame_index": 44,
+      "timestamp": 10.681169509887695,
+      "boost_events": []
+    },
+    {
+      "frame_index": 45,
+      "timestamp": 10.714548110961914,
+      "boost_events": []
+    },
+    {
+      "frame_index": 46,
+      "timestamp": 10.748003959655762,
+      "boost_events": []
+    },
+    {
+      "frame_index": 47,
+      "timestamp": 10.783894538879395,
+      "boost_events": []
+    },
+    {
+      "frame_index": 48,
+      "timestamp": 10.832645416259766,
+      "boost_events": []
+    },
+    {
+      "frame_index": 49,
+      "timestamp": 10.881462097167969,
+      "boost_events": []
+    },
+    {
+      "frame_index": 50,
+      "timestamp": 10.93157958984375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 51,
+      "timestamp": 10.9813232421875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 52,
+      "timestamp": 11.0149507522583,
+      "boost_events": []
+    },
+    {
+      "frame_index": 53,
+      "timestamp": 11.064764022827148,
+      "boost_events": []
+    },
+    {
+      "frame_index": 54,
+      "timestamp": 11.114551544189453,
+      "boost_events": []
+    },
+    {
+      "frame_index": 55,
+      "timestamp": 11.147921562194824,
+      "boost_events": []
+    },
+    {
+      "frame_index": 56,
+      "timestamp": 11.198054313659668,
+      "boost_events": []
+    },
+    {
+      "frame_index": 57,
+      "timestamp": 11.231456756591797,
+      "boost_events": []
+    },
+    {
+      "frame_index": 58,
+      "timestamp": 11.267684936523438,
+      "boost_events": []
+    },
+    {
+      "frame_index": 59,
+      "timestamp": 11.316489219665527,
+      "boost_events": []
+    },
+    {
+      "frame_index": 60,
+      "timestamp": 11.365326881408691,
+      "boost_events": []
+    },
+    {
+      "frame_index": 61,
+      "timestamp": 11.414839744567871,
+      "boost_events": []
+    },
+    {
+      "frame_index": 62,
+      "timestamp": 11.46488094329834,
+      "boost_events": []
+    },
+    {
+      "frame_index": 63,
+      "timestamp": 11.498246192932129,
+      "boost_events": []
+    },
+    {
+      "frame_index": 64,
+      "timestamp": 11.54789924621582,
+      "boost_events": []
+    },
+    {
+      "frame_index": 65,
+      "timestamp": 11.58124828338623,
+      "boost_events": []
+    },
+    {
+      "frame_index": 66,
+      "timestamp": 11.614588737487793,
+      "boost_events": []
+    },
+    {
+      "frame_index": 67,
+      "timestamp": 11.664752006530762,
+      "boost_events": []
+    },
+    {
+      "frame_index": 68,
+      "timestamp": 11.714725494384766,
+      "boost_events": []
+    },
+    {
+      "frame_index": 69,
+      "timestamp": 11.748072624206543,
+      "boost_events": []
+    },
+    {
+      "frame_index": 70,
+      "timestamp": 11.783988952636719,
+      "boost_events": []
+    },
+    {
+      "frame_index": 71,
+      "timestamp": 11.832803726196289,
+      "boost_events": []
+    },
+    {
+      "frame_index": 72,
+      "timestamp": 11.881589889526367,
+      "boost_events": []
+    },
+    {
+      "frame_index": 73,
+      "timestamp": 11.931525230407715,
+      "boost_events": []
+    },
+    {
+      "frame_index": 74,
+      "timestamp": 11.981362342834473,
+      "boost_events": []
+    },
+    {
+      "frame_index": 75,
+      "timestamp": 12.015124320983887,
+      "boost_events": []
+    },
+    {
+      "frame_index": 76,
+      "timestamp": 12.0647554397583,
+      "boost_events": []
+    },
+    {
+      "frame_index": 77,
+      "timestamp": 12.098145484924316,
+      "boost_events": []
+    },
+    {
+      "frame_index": 78,
+      "timestamp": 12.14794921875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 79,
+      "timestamp": 12.197975158691406,
+      "boost_events": []
+    },
+    {
+      "frame_index": 80,
+      "timestamp": 12.23145866394043,
+      "boost_events": []
+    },
+    {
+      "frame_index": 81,
+      "timestamp": 12.267814636230469,
+      "boost_events": []
+    },
+    {
+      "frame_index": 82,
+      "timestamp": 12.316667556762695,
+      "boost_events": []
+    },
+    {
+      "frame_index": 83,
+      "timestamp": 12.36547565460205,
+      "boost_events": []
+    },
+    {
+      "frame_index": 84,
+      "timestamp": 12.414831161499023,
+      "boost_events": []
+    },
+    {
+      "frame_index": 85,
+      "timestamp": 12.464818954467773,
+      "boost_events": []
+    },
+    {
+      "frame_index": 86,
+      "timestamp": 12.514766693115234,
+      "boost_events": []
+    },
+    {
+      "frame_index": 87,
+      "timestamp": 12.564817428588867,
+      "boost_events": []
+    },
+    {
+      "frame_index": 88,
+      "timestamp": 12.6145658493042,
+      "boost_events": []
+    },
+    {
+      "frame_index": 89,
+      "timestamp": 12.648785591125488,
+      "boost_events": []
+    },
+    {
+      "frame_index": 90,
+      "timestamp": 12.698088645935059,
+      "boost_events": []
+    },
+    {
+      "frame_index": 91,
+      "timestamp": 12.731563568115234,
+      "boost_events": []
+    },
+    {
+      "frame_index": 92,
+      "timestamp": 12.767782211303711,
+      "boost_events": []
+    },
+    {
+      "frame_index": 93,
+      "timestamp": 12.816644668579102,
+      "boost_events": []
+    },
+    {
+      "frame_index": 94,
+      "timestamp": 12.865467071533203,
+      "boost_events": []
+    },
+    {
+      "frame_index": 95,
+      "timestamp": 12.899434089660645,
+      "boost_events": []
+    },
+    {
+      "frame_index": 96,
+      "timestamp": 12.948786735534668,
+      "boost_events": []
+    },
+    {
+      "frame_index": 97,
+      "timestamp": 12.998238563537598,
+      "boost_events": []
+    },
+    {
+      "frame_index": 98,
+      "timestamp": 13.047957420349121,
+      "boost_events": []
+    },
+    {
+      "frame_index": 99,
+      "timestamp": 13.082158088684082,
+      "boost_events": []
+    },
+    {
+      "frame_index": 100,
+      "timestamp": 13.131436347961426,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 13.131436347961426,
+          "frame_index": 100
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 97,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+          "timestamp": 13.131436347961426,
+          "frame_index": 100
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 13.131436347961426,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 68,
+          "resolved_actor_id": 68,
+          "frame_index": 100
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 97,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+          "timestamp": 13.131436347961426,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 59,
+          "resolved_actor_id": 59,
+          "frame_index": 100
+        }
+      ]
+    },
+    {
+      "frame_index": 101,
+      "timestamp": 13.164809226989746,
+      "boost_events": []
+    },
+    {
+      "frame_index": 102,
+      "timestamp": 13.214585304260254,
+      "boost_events": []
+    },
+    {
+      "frame_index": 103,
+      "timestamp": 13.24857234954834,
+      "boost_events": []
+    },
+    {
+      "frame_index": 104,
+      "timestamp": 13.284111976623535,
+      "boost_events": []
+    },
+    {
+      "frame_index": 105,
+      "timestamp": 13.332950592041016,
+      "boost_events": []
+    },
+    {
+      "frame_index": 106,
+      "timestamp": 13.381759643554688,
+      "boost_events": []
+    },
+    {
+      "frame_index": 107,
+      "timestamp": 13.41526985168457,
+      "boost_events": []
+    },
+    {
+      "frame_index": 108,
+      "timestamp": 13.464962005615234,
+      "boost_events": []
+    },
+    {
+      "frame_index": 109,
+      "timestamp": 13.514892578125,
+      "boost_events": []
+    },
+    {
+      "frame_index": 110,
+      "timestamp": 13.565473556518555,
+      "boost_events": []
+    },
+    {
+      "frame_index": 111,
+      "timestamp": 13.614587783813477,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 98,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+          "timestamp": 13.614587783813477,
+          "frame_index": 111
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 98,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+          "timestamp": 13.614587783813477,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 66,
+          "resolved_actor_id": 66,
+          "frame_index": 111
+        }
+      ]
+    },
+    {
+      "frame_index": 112,
+      "timestamp": 13.648261070251465,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 99,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+          "timestamp": 13.648261070251465,
+          "frame_index": 112
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 13.648261070251465,
+          "frame_index": 112
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 99,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+          "timestamp": 13.648261070251465,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 112
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 13.648261070251465,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 112
+        }
+      ]
+    },
+    {
+      "frame_index": 113,
+      "timestamp": 13.69818115234375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 114,
+      "timestamp": 13.748224258422852,
+      "boost_events": []
+    },
+    {
+      "frame_index": 115,
+      "timestamp": 13.783980369567871,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 101,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+          "timestamp": 13.783980369567871,
+          "frame_index": 115
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 101,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+          "timestamp": 13.783980369567871,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 89,
+          "resolved_actor_id": 89,
+          "frame_index": 115
+        }
+      ]
+    },
+    {
+      "frame_index": 116,
+      "timestamp": 13.832843780517578,
+      "boost_events": []
+    },
+    {
+      "frame_index": 117,
+      "timestamp": 13.881730079650879,
+      "boost_events": []
+    },
+    {
+      "frame_index": 118,
+      "timestamp": 13.931563377380371,
+      "boost_events": []
+    },
+    {
+      "frame_index": 119,
+      "timestamp": 13.964922904968262,
+      "boost_events": []
+    },
+    {
+      "frame_index": 120,
+      "timestamp": 13.99827766418457,
+      "boost_events": []
+    },
+    {
+      "frame_index": 121,
+      "timestamp": 14.04794692993164,
+      "boost_events": []
+    },
+    {
+      "frame_index": 122,
+      "timestamp": 14.08130168914795,
+      "boost_events": []
+    },
+    {
+      "frame_index": 123,
+      "timestamp": 14.114640235900879,
+      "boost_events": []
+    },
+    {
+      "frame_index": 124,
+      "timestamp": 14.149263381958008,
+      "boost_events": []
+    },
+    {
+      "frame_index": 125,
+      "timestamp": 14.198460578918457,
+      "boost_events": []
+    },
+    {
+      "frame_index": 126,
+      "timestamp": 14.23211669921875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 127,
+      "timestamp": 14.267864227294922,
+      "boost_events": []
+    },
+    {
+      "frame_index": 128,
+      "timestamp": 14.31674861907959,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 14.31674861907959,
+          "frame_index": 128
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 14.31674861907959,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 66,
+          "resolved_actor_id": 66,
+          "frame_index": 128
+        }
+      ]
+    },
+    {
+      "frame_index": 129,
+      "timestamp": 14.365594863891602,
+      "boost_events": []
+    },
+    {
+      "frame_index": 130,
+      "timestamp": 14.414939880371094,
+      "boost_events": []
+    },
+    {
+      "frame_index": 131,
+      "timestamp": 14.464982986450195,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 103,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+          "timestamp": 14.464982986450195,
+          "frame_index": 131
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 103,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+          "timestamp": 14.464982986450195,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 131
+        }
+      ]
+    },
+    {
+      "frame_index": 132,
+      "timestamp": 14.498543739318848,
+      "boost_events": []
+    },
+    {
+      "frame_index": 133,
+      "timestamp": 14.547954559326172,
+      "boost_events": []
+    },
+    {
+      "frame_index": 134,
+      "timestamp": 14.581341743469238,
+      "boost_events": []
+    },
+    {
+      "frame_index": 135,
+      "timestamp": 14.631587028503418,
+      "boost_events": []
+    },
+    {
+      "frame_index": 136,
+      "timestamp": 14.681256294250488,
+      "boost_events": []
+    },
+    {
+      "frame_index": 137,
+      "timestamp": 14.714682579040527,
+      "boost_events": []
+    },
+    {
+      "frame_index": 138,
+      "timestamp": 14.749258041381836,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 104,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+          "timestamp": 14.749258041381836,
+          "frame_index": 138
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 104,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+          "timestamp": 14.749258041381836,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 138
+        }
+      ]
+    },
+    {
+      "frame_index": 139,
+      "timestamp": 14.783943176269531,
+      "boost_events": []
+    },
+    {
+      "frame_index": 140,
+      "timestamp": 14.832825660705566,
+      "boost_events": []
+    },
+    {
+      "frame_index": 141,
+      "timestamp": 14.881680488586426,
+      "boost_events": []
+    },
+    {
+      "frame_index": 142,
+      "timestamp": 14.931639671325684,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 105,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+          "timestamp": 14.931639671325684,
+          "frame_index": 142
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 105,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+          "timestamp": 14.931639671325684,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 89,
+          "resolved_actor_id": 89,
+          "frame_index": 142
+        }
+      ]
+    },
+    {
+      "frame_index": 143,
+      "timestamp": 14.981658935546875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 144,
+      "timestamp": 15.031436920166016,
+      "boost_events": []
+    },
+    {
+      "frame_index": 145,
+      "timestamp": 15.065068244934082,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 106,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+          "timestamp": 15.065068244934082,
+          "frame_index": 145
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 106,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+          "timestamp": 15.065068244934082,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 68,
+          "resolved_actor_id": 68,
+          "frame_index": 145
+        }
+      ]
+    },
+    {
+      "frame_index": 146,
+      "timestamp": 15.114660263061523,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 107,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+          "timestamp": 15.114660263061523,
+          "frame_index": 146
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 107,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+          "timestamp": 15.114660263061523,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 66,
+          "resolved_actor_id": 66,
+          "frame_index": 146
+        }
+      ]
+    },
+    {
+      "frame_index": 147,
+      "timestamp": 15.16483211517334,
+      "boost_events": []
+    },
+    {
+      "frame_index": 148,
+      "timestamp": 15.214691162109375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 149,
+      "timestamp": 15.248258590698242,
+      "boost_events": []
+    },
+    {
+      "frame_index": 150,
+      "timestamp": 15.284300804138184,
+      "boost_events": []
+    },
+    {
+      "frame_index": 151,
+      "timestamp": 15.333197593688965,
+      "boost_events": []
+    },
+    {
+      "frame_index": 152,
+      "timestamp": 15.382145881652832,
+      "boost_events": []
+    },
+    {
+      "frame_index": 153,
+      "timestamp": 15.431666374206543,
+      "boost_events": []
+    },
+    {
+      "frame_index": 154,
+      "timestamp": 15.481728553771973,
+      "boost_events": []
+    },
+    {
+      "frame_index": 155,
+      "timestamp": 15.53149700164795,
+      "boost_events": []
+    },
+    {
+      "frame_index": 156,
+      "timestamp": 15.565054893493652,
+      "boost_events": []
+    },
+    {
+      "frame_index": 157,
+      "timestamp": 15.61467170715332,
+      "boost_events": []
+    },
+    {
+      "frame_index": 158,
+      "timestamp": 15.66480827331543,
+      "boost_events": []
+    },
+    {
+      "frame_index": 159,
+      "timestamp": 15.698161125183105,
+      "boost_events": []
+    },
+    {
+      "frame_index": 160,
+      "timestamp": 15.731534004211426,
+      "boost_events": []
+    },
+    {
+      "frame_index": 161,
+      "timestamp": 15.767707824707031,
+      "boost_events": []
+    },
+    {
+      "frame_index": 162,
+      "timestamp": 15.816625595092773,
+      "boost_events": []
+    },
+    {
+      "frame_index": 163,
+      "timestamp": 15.865578651428223,
+      "boost_events": []
+    },
+    {
+      "frame_index": 164,
+      "timestamp": 15.914786338806152,
+      "boost_events": []
+    },
+    {
+      "frame_index": 165,
+      "timestamp": 15.965083122253418,
+      "boost_events": []
+    },
+    {
+      "frame_index": 166,
+      "timestamp": 15.998424530029297,
+      "boost_events": []
+    },
+    {
+      "frame_index": 167,
+      "timestamp": 16.048147201538086,
+      "boost_events": []
+    },
+    {
+      "frame_index": 168,
+      "timestamp": 16.09816551208496,
+      "boost_events": []
+    },
+    {
+      "frame_index": 169,
+      "timestamp": 16.131505966186523,
+      "boost_events": []
+    },
+    {
+      "frame_index": 170,
+      "timestamp": 16.18134117126465,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 16.18134117126465,
+          "frame_index": 170
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 16.18134117126465,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 68,
+          "resolved_actor_id": 68,
+          "frame_index": 170
+        }
+      ]
+    },
+    {
+      "frame_index": 171,
+      "timestamp": 16.23155403137207,
+      "boost_events": []
+    },
+    {
+      "frame_index": 172,
+      "timestamp": 16.267887115478516,
+      "boost_events": []
+    },
+    {
+      "frame_index": 173,
+      "timestamp": 16.31681251525879,
+      "boost_events": []
+    },
+    {
+      "frame_index": 174,
+      "timestamp": 16.36586570739746,
+      "boost_events": []
+    },
+    {
+      "frame_index": 175,
+      "timestamp": 16.414878845214844,
+      "boost_events": []
+    },
+    {
+      "frame_index": 176,
+      "timestamp": 16.464956283569336,
+      "boost_events": []
+    },
+    {
+      "frame_index": 177,
+      "timestamp": 16.51482391357422,
+      "boost_events": []
+    },
+    {
+      "frame_index": 178,
+      "timestamp": 16.564903259277344,
+      "boost_events": []
+    },
+    {
+      "frame_index": 179,
+      "timestamp": 16.614673614501953,
+      "boost_events": []
+    },
+    {
+      "frame_index": 180,
+      "timestamp": 16.66482162475586,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 16.66482162475586,
+          "frame_index": 180
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 16.66482162475586,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 180
+        }
+      ]
+    },
+    {
+      "frame_index": 181,
+      "timestamp": 16.698184967041016,
+      "boost_events": []
+    },
+    {
+      "frame_index": 182,
+      "timestamp": 16.748186111450195,
+      "boost_events": []
+    },
+    {
+      "frame_index": 183,
+      "timestamp": 16.78411865234375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 184,
+      "timestamp": 16.833023071289062,
+      "boost_events": []
+    },
+    {
+      "frame_index": 185,
+      "timestamp": 16.88190269470215,
+      "boost_events": []
+    },
+    {
+      "frame_index": 186,
+      "timestamp": 16.931625366210938,
+      "boost_events": []
+    },
+    {
+      "frame_index": 187,
+      "timestamp": 16.965160369873047,
+      "boost_events": []
+    },
+    {
+      "frame_index": 188,
+      "timestamp": 17.014785766601562,
+      "boost_events": []
+    },
+    {
+      "frame_index": 189,
+      "timestamp": 17.065643310546875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 190,
+      "timestamp": 17.115127563476562,
+      "boost_events": []
+    },
+    {
+      "frame_index": 191,
+      "timestamp": 17.164857864379883,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 17.164857864379883,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 191
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 97,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+          "timestamp": 17.164857864379883,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 191
+        }
+      ]
+    },
+    {
+      "frame_index": 192,
+      "timestamp": 17.198274612426758,
+      "boost_events": []
+    },
+    {
+      "frame_index": 193,
+      "timestamp": 17.248504638671875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 194,
+      "timestamp": 17.284055709838867,
+      "boost_events": []
+    },
+    {
+      "frame_index": 195,
+      "timestamp": 17.332958221435547,
+      "boost_events": []
+    },
+    {
+      "frame_index": 196,
+      "timestamp": 17.381919860839844,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 17.381919860839844,
+          "frame_index": 196
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 17.381919860839844,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 196
+        }
+      ]
+    },
+    {
+      "frame_index": 197,
+      "timestamp": 17.431659698486328,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 111,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+          "timestamp": 17.431659698486328,
+          "frame_index": 197
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 111,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+          "timestamp": 17.431659698486328,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 59,
+          "resolved_actor_id": 59,
+          "frame_index": 197
+        }
+      ]
+    },
+    {
+      "frame_index": 198,
+      "timestamp": 17.48164176940918,
+      "boost_events": []
+    },
+    {
+      "frame_index": 199,
+      "timestamp": 17.531496047973633,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 17.531496047973633,
+          "frame_index": 199
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 17.531496047973633,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 89,
+          "resolved_actor_id": 89,
+          "frame_index": 199
+        }
+      ]
+    },
+    {
+      "frame_index": 200,
+      "timestamp": 17.5649356842041,
+      "boost_events": []
+    },
+    {
+      "frame_index": 201,
+      "timestamp": 17.614717483520508,
+      "boost_events": []
+    },
+    {
+      "frame_index": 202,
+      "timestamp": 17.664865493774414,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 98,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+          "timestamp": 17.664865493774414,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 202
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 99,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+          "timestamp": 17.664865493774414,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 202
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 17.664865493774414,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 202
+        }
+      ]
+    },
+    {
+      "frame_index": 203,
+      "timestamp": 17.7147274017334,
+      "boost_events": []
+    },
+    {
+      "frame_index": 204,
+      "timestamp": 17.748207092285156,
+      "boost_events": []
+    },
+    {
+      "frame_index": 205,
+      "timestamp": 17.784013748168945,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 101,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+          "timestamp": 17.784013748168945,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 205
+        }
+      ]
+    },
+    {
+      "frame_index": 206,
+      "timestamp": 17.817670822143555,
+      "boost_events": []
+    },
+    {
+      "frame_index": 207,
+      "timestamp": 17.866573333740234,
+      "boost_events": []
+    },
+    {
+      "frame_index": 208,
+      "timestamp": 17.916011810302734,
+      "boost_events": []
+    },
+    {
+      "frame_index": 209,
+      "timestamp": 17.967361450195312,
+      "boost_events": []
+    },
+    {
+      "frame_index": 210,
+      "timestamp": 18.016216278076172,
+      "boost_events": []
+    },
+    {
+      "frame_index": 211,
+      "timestamp": 18.06504249572754,
+      "boost_events": []
+    },
+    {
+      "frame_index": 212,
+      "timestamp": 18.11468505859375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 213,
+      "timestamp": 18.148107528686523,
+      "boost_events": []
+    },
+    {
+      "frame_index": 214,
+      "timestamp": 18.198143005371094,
+      "boost_events": []
+    },
+    {
+      "frame_index": 215,
+      "timestamp": 18.231489181518555,
+      "boost_events": []
+    },
+    {
+      "frame_index": 216,
+      "timestamp": 18.267864227294922,
+      "boost_events": []
+    },
+    {
+      "frame_index": 217,
+      "timestamp": 18.31671714782715,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 18.31671714782715,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 217
+        }
+      ]
+    },
+    {
+      "frame_index": 218,
+      "timestamp": 18.36553382873535,
+      "boost_events": []
+    },
+    {
+      "frame_index": 219,
+      "timestamp": 18.41501235961914,
+      "boost_events": []
+    },
+    {
+      "frame_index": 220,
+      "timestamp": 18.464935302734375,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 18.464935302734375,
+          "frame_index": 220
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 18.464935302734375,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 220
+        }
+      ]
+    },
+    {
+      "frame_index": 221,
+      "timestamp": 18.498332977294922,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 103,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+          "timestamp": 18.498332977294922,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 221
+        }
+      ]
+    },
+    {
+      "frame_index": 222,
+      "timestamp": 18.54804801940918,
+      "boost_events": []
+    },
+    {
+      "frame_index": 223,
+      "timestamp": 18.581777572631836,
+      "boost_events": []
+    },
+    {
+      "frame_index": 224,
+      "timestamp": 18.631675720214844,
+      "boost_events": []
+    },
+    {
+      "frame_index": 225,
+      "timestamp": 18.681364059448242,
+      "boost_events": []
+    },
+    {
+      "frame_index": 226,
+      "timestamp": 18.71691131591797,
+      "boost_events": []
+    },
+    {
+      "frame_index": 227,
+      "timestamp": 18.767719268798828,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 99,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 104,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 111,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 107,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 105,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 97,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 101,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 98,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 106,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 103,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 18.767719268798828,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 97,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 98,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 99,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 101,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 103,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+          "timestamp": 18.767719268798828,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 104,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 105,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 89,
+          "resolved_actor_id": 89,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 106,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 68,
+          "resolved_actor_id": 68,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 107,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 66,
+          "resolved_actor_id": 66,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 68,
+          "resolved_actor_id": 68,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 111,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 59,
+          "resolved_actor_id": 59,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 89,
+          "resolved_actor_id": 89,
+          "frame_index": 227
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 18.767719268798828,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 227
+        }
+      ]
+    },
+    {
+      "frame_index": 228,
+      "timestamp": 18.81656265258789,
+      "boost_events": []
+    },
+    {
+      "frame_index": 229,
+      "timestamp": 18.86542510986328,
+      "boost_events": []
+    },
+    {
+      "frame_index": 230,
+      "timestamp": 18.915151596069336,
+      "boost_events": []
+    },
+    {
+      "frame_index": 231,
+      "timestamp": 18.96502685546875,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 114,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+          "timestamp": 18.96502685546875,
+          "frame_index": 231
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 115,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+          "timestamp": 18.96502685546875,
+          "frame_index": 231
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 105,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+          "timestamp": 18.96502685546875,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 231
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 114,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+          "timestamp": 18.96502685546875,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 59,
+          "resolved_actor_id": 59,
+          "frame_index": 231
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 115,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+          "timestamp": 18.96502685546875,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 66,
+          "resolved_actor_id": 66,
+          "frame_index": 231
+        }
+      ]
+    },
+    {
+      "frame_index": 232,
+      "timestamp": 19.014909744262695,
+      "boost_events": []
+    },
+    {
+      "frame_index": 233,
+      "timestamp": 19.064821243286133,
+      "boost_events": []
+    },
+    {
+      "frame_index": 234,
+      "timestamp": 19.098194122314453,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 106,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+          "timestamp": 19.098194122314453,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 234
+        }
+      ]
+    },
+    {
+      "frame_index": 235,
+      "timestamp": 19.13153648376465,
+      "boost_events": []
+    },
+    {
+      "frame_index": 236,
+      "timestamp": 19.164892196655273,
+      "boost_events": []
+    },
+    {
+      "frame_index": 237,
+      "timestamp": 19.214763641357422,
+      "boost_events": []
+    },
+    {
+      "frame_index": 238,
+      "timestamp": 19.248138427734375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 239,
+      "timestamp": 19.28424835205078,
+      "boost_events": []
+    },
+    {
+      "frame_index": 240,
+      "timestamp": 19.333099365234375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 241,
+      "timestamp": 19.381919860839844,
+      "boost_events": []
+    },
+    {
+      "frame_index": 242,
+      "timestamp": 19.43169593811035,
+      "boost_events": []
+    },
+    {
+      "frame_index": 243,
+      "timestamp": 19.46514892578125,
+      "boost_events": []
+    },
+    {
+      "frame_index": 244,
+      "timestamp": 19.514938354492188,
+      "boost_events": []
+    },
+    {
+      "frame_index": 245,
+      "timestamp": 19.564903259277344,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 116,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+          "timestamp": 19.564903259277344,
+          "frame_index": 245
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 116,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+          "timestamp": 19.564903259277344,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 59,
+          "resolved_actor_id": 59,
+          "frame_index": 245
+        }
+      ]
+    },
+    {
+      "frame_index": 246,
+      "timestamp": 19.614728927612305,
+      "boost_events": []
+    },
+    {
+      "frame_index": 247,
+      "timestamp": 19.64830780029297,
+      "boost_events": []
+    },
+    {
+      "frame_index": 248,
+      "timestamp": 19.6982421875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 249,
+      "timestamp": 19.748323440551758,
+      "boost_events": []
+    },
+    {
+      "frame_index": 250,
+      "timestamp": 19.78400230407715,
+      "boost_events": []
+    },
+    {
+      "frame_index": 251,
+      "timestamp": 19.832870483398438,
+      "boost_events": []
+    },
+    {
+      "frame_index": 252,
+      "timestamp": 19.881711959838867,
+      "boost_events": []
+    },
+    {
+      "frame_index": 253,
+      "timestamp": 19.915212631225586,
+      "boost_events": []
+    },
+    {
+      "frame_index": 254,
+      "timestamp": 19.965147018432617,
+      "boost_events": []
+    },
+    {
+      "frame_index": 255,
+      "timestamp": 20.01496124267578,
+      "boost_events": []
+    },
+    {
+      "frame_index": 256,
+      "timestamp": 20.065689086914062,
+      "boost_events": []
+    },
+    {
+      "frame_index": 257,
+      "timestamp": 20.114713668823242,
+      "boost_events": []
+    },
+    {
+      "frame_index": 258,
+      "timestamp": 20.14891815185547,
+      "boost_events": []
+    },
+    {
+      "frame_index": 259,
+      "timestamp": 20.198223114013672,
+      "boost_events": []
+    },
+    {
+      "frame_index": 260,
+      "timestamp": 20.23181915283203,
+      "boost_events": []
+    },
+    {
+      "frame_index": 261,
+      "timestamp": 20.267873764038086,
+      "boost_events": []
+    },
+    {
+      "frame_index": 262,
+      "timestamp": 20.316768646240234,
+      "boost_events": []
+    },
+    {
+      "frame_index": 263,
+      "timestamp": 20.365619659423828,
+      "boost_events": []
+    },
+    {
+      "frame_index": 264,
+      "timestamp": 20.415210723876953,
+      "boost_events": []
+    },
+    {
+      "frame_index": 265,
+      "timestamp": 20.448665618896484,
+      "boost_events": []
+    },
+    {
+      "frame_index": 266,
+      "timestamp": 20.498367309570312,
+      "boost_events": []
+    },
+    {
+      "frame_index": 267,
+      "timestamp": 20.54805564880371,
+      "boost_events": []
+    },
+    {
+      "frame_index": 268,
+      "timestamp": 20.581405639648438,
+      "boost_events": []
+    },
+    {
+      "frame_index": 269,
+      "timestamp": 20.63158416748047,
+      "boost_events": []
+    },
+    {
+      "frame_index": 270,
+      "timestamp": 20.665191650390625,
+      "boost_events": []
+    },
+    {
+      "frame_index": 271,
+      "timestamp": 20.714885711669922,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 20.714885711669922,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 271
+        }
+      ]
+    },
+    {
+      "frame_index": 272,
+      "timestamp": 20.748329162597656,
+      "boost_events": []
+    },
+    {
+      "frame_index": 273,
+      "timestamp": 20.78409194946289,
+      "boost_events": []
+    },
+    {
+      "frame_index": 274,
+      "timestamp": 20.832983016967773,
+      "boost_events": []
+    },
+    {
+      "frame_index": 275,
+      "timestamp": 20.882537841796875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 276,
+      "timestamp": 20.931747436523438,
+      "boost_events": []
+    },
+    {
+      "frame_index": 277,
+      "timestamp": 20.9650936126709,
+      "boost_events": []
+    },
+    {
+      "frame_index": 278,
+      "timestamp": 21.015012741088867,
+      "boost_events": []
+    },
+    {
+      "frame_index": 279,
+      "timestamp": 21.065439224243164,
+      "boost_events": []
+    },
+    {
+      "frame_index": 280,
+      "timestamp": 21.11485481262207,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 117,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+          "timestamp": 21.11485481262207,
+          "frame_index": 280
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 117,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+          "timestamp": 21.11485481262207,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 280
+        }
+      ]
+    },
+    {
+      "frame_index": 281,
+      "timestamp": 21.148483276367188,
+      "boost_events": []
+    },
+    {
+      "frame_index": 282,
+      "timestamp": 21.19867706298828,
+      "boost_events": []
+    },
+    {
+      "frame_index": 283,
+      "timestamp": 21.248382568359375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 284,
+      "timestamp": 21.284181594848633,
+      "boost_events": []
+    },
+    {
+      "frame_index": 285,
+      "timestamp": 21.333084106445312,
+      "boost_events": []
+    },
+    {
+      "frame_index": 286,
+      "timestamp": 21.381954193115234,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 21.381954193115234,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 286
+        }
+      ]
+    },
+    {
+      "frame_index": 287,
+      "timestamp": 21.431684494018555,
+      "boost_events": []
+    },
+    {
+      "frame_index": 288,
+      "timestamp": 21.481523513793945,
+      "boost_events": []
+    },
+    {
+      "frame_index": 289,
+      "timestamp": 21.5316162109375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 290,
+      "timestamp": 21.56499481201172,
+      "boost_events": []
+    },
+    {
+      "frame_index": 291,
+      "timestamp": 21.614736557006836,
+      "boost_events": []
+    },
+    {
+      "frame_index": 292,
+      "timestamp": 21.648094177246094,
+      "boost_events": []
+    },
+    {
+      "frame_index": 293,
+      "timestamp": 21.698230743408203,
+      "boost_events": []
+    },
+    {
+      "frame_index": 294,
+      "timestamp": 21.73229217529297,
+      "boost_events": []
+    },
+    {
+      "frame_index": 295,
+      "timestamp": 21.76784324645996,
+      "boost_events": []
+    },
+    {
+      "frame_index": 296,
+      "timestamp": 21.81683349609375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 297,
+      "timestamp": 21.865718841552734,
+      "boost_events": []
+    },
+    {
+      "frame_index": 298,
+      "timestamp": 21.8995361328125,
+      "boost_events": []
+    },
+    {
+      "frame_index": 299,
+      "timestamp": 21.94890785217285,
+      "boost_events": []
+    },
+    {
+      "frame_index": 300,
+      "timestamp": 21.99835968017578,
+      "boost_events": []
+    },
+    {
+      "frame_index": 301,
+      "timestamp": 22.04823112487793,
+      "boost_events": []
+    },
+    {
+      "frame_index": 302,
+      "timestamp": 22.08267593383789,
+      "boost_events": []
+    },
+    {
+      "frame_index": 303,
+      "timestamp": 22.13158416748047,
+      "boost_events": []
+    },
+    {
+      "frame_index": 304,
+      "timestamp": 22.168371200561523,
+      "boost_events": []
+    },
+    {
+      "frame_index": 305,
+      "timestamp": 22.21724510192871,
+      "boost_events": []
+    },
+    {
+      "frame_index": 306,
+      "timestamp": 22.267908096313477,
+      "boost_events": []
+    },
+    {
+      "frame_index": 307,
+      "timestamp": 22.31671714782715,
+      "boost_events": []
+    },
+    {
+      "frame_index": 308,
+      "timestamp": 22.365478515625,
+      "boost_events": []
+    },
+    {
+      "frame_index": 309,
+      "timestamp": 22.399927139282227,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 22.399927139282227,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 66,
+          "resolved_actor_id": 66,
+          "frame_index": 309
+        }
+      ]
+    },
+    {
+      "frame_index": 310,
+      "timestamp": 22.448694229125977,
+      "boost_events": []
+    },
+    {
+      "frame_index": 311,
+      "timestamp": 22.482440948486328,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 22.482440948486328,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 311
+        }
+      ]
+    },
+    {
+      "frame_index": 312,
+      "timestamp": 22.531888961791992,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 118,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+          "timestamp": 22.531888961791992,
+          "frame_index": 312
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 118,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+          "timestamp": 22.531888961791992,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 312
+        }
+      ]
+    },
+    {
+      "frame_index": 313,
+      "timestamp": 22.566064834594727,
+      "boost_events": []
+    },
+    {
+      "frame_index": 314,
+      "timestamp": 22.615163803100586,
+      "boost_events": []
+    },
+    {
+      "frame_index": 315,
+      "timestamp": 22.66494369506836,
+      "boost_events": []
+    },
+    {
+      "frame_index": 316,
+      "timestamp": 22.698434829711914,
+      "boost_events": []
+    },
+    {
+      "frame_index": 317,
+      "timestamp": 22.731910705566406,
+      "boost_events": []
+    },
+    {
+      "frame_index": 318,
+      "timestamp": 22.76795768737793,
+      "boost_events": []
+    },
+    {
+      "frame_index": 319,
+      "timestamp": 22.81675148010254,
+      "boost_events": []
+    },
+    {
+      "frame_index": 320,
+      "timestamp": 22.86557960510254,
+      "boost_events": []
+    },
+    {
+      "frame_index": 321,
+      "timestamp": 22.914894104003906,
+      "boost_events": []
+    },
+    {
+      "frame_index": 322,
+      "timestamp": 22.965042114257812,
+      "boost_events": []
+    },
+    {
+      "frame_index": 323,
+      "timestamp": 23.01505470275879,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 114,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+          "timestamp": 23.01505470275879,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 323
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 115,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+          "timestamp": 23.01505470275879,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 323
+        }
+      ]
+    },
+    {
+      "frame_index": 324,
+      "timestamp": 23.065187454223633,
+      "boost_events": []
+    },
+    {
+      "frame_index": 325,
+      "timestamp": 23.114721298217773,
+      "boost_events": []
+    },
+    {
+      "frame_index": 326,
+      "timestamp": 23.148704528808594,
+      "boost_events": []
+    },
+    {
+      "frame_index": 327,
+      "timestamp": 23.1982421875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 328,
+      "timestamp": 23.24835777282715,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 119,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+          "timestamp": 23.24835777282715,
+          "frame_index": 328
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 119,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+          "timestamp": 23.24835777282715,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 328
+        }
+      ]
+    },
+    {
+      "frame_index": 329,
+      "timestamp": 23.284093856811523,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 23.284093856811523,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 329
+        }
+      ]
+    },
+    {
+      "frame_index": 330,
+      "timestamp": 23.33344078063965,
+      "boost_events": []
+    },
+    {
+      "frame_index": 331,
+      "timestamp": 23.38223648071289,
+      "boost_events": []
+    },
+    {
+      "frame_index": 332,
+      "timestamp": 23.431705474853516,
+      "boost_events": []
+    },
+    {
+      "frame_index": 333,
+      "timestamp": 23.46523094177246,
+      "boost_events": []
+    },
+    {
+      "frame_index": 334,
+      "timestamp": 23.51506996154785,
+      "boost_events": []
+    },
+    {
+      "frame_index": 335,
+      "timestamp": 23.56490707397461,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 116,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+          "timestamp": 23.56490707397461,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 335
+        }
+      ]
+    },
+    {
+      "frame_index": 336,
+      "timestamp": 23.614788055419922,
+      "boost_events": []
+    },
+    {
+      "frame_index": 337,
+      "timestamp": 23.64957046508789,
+      "boost_events": []
+    },
+    {
+      "frame_index": 338,
+      "timestamp": 23.69841766357422,
+      "boost_events": []
+    },
+    {
+      "frame_index": 339,
+      "timestamp": 23.748205184936523,
+      "boost_events": []
+    },
+    {
+      "frame_index": 340,
+      "timestamp": 23.784090042114258,
+      "boost_events": []
+    },
+    {
+      "frame_index": 341,
+      "timestamp": 23.832918167114258,
+      "boost_events": []
+    },
+    {
+      "frame_index": 342,
+      "timestamp": 23.881744384765625,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 116,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+          "timestamp": 23.881744384765625,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 342
+        }
+      ]
+    },
+    {
+      "frame_index": 343,
+      "timestamp": 23.93168830871582,
+      "boost_events": []
+    },
+    {
+      "frame_index": 344,
+      "timestamp": 23.965055465698242,
+      "boost_events": []
+    },
+    {
+      "frame_index": 345,
+      "timestamp": 24.014915466308594,
+      "boost_events": []
+    },
+    {
+      "frame_index": 346,
+      "timestamp": 24.0651912689209,
+      "boost_events": []
+    },
+    {
+      "frame_index": 347,
+      "timestamp": 24.11479949951172,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 120,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+          "timestamp": 24.11479949951172,
+          "frame_index": 347
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 120,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+          "timestamp": 24.11479949951172,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 347
+        }
+      ]
+    },
+    {
+      "frame_index": 348,
+      "timestamp": 24.164968490600586,
+      "boost_events": []
+    },
+    {
+      "frame_index": 349,
+      "timestamp": 24.21480941772461,
+      "boost_events": []
+    },
+    {
+      "frame_index": 350,
+      "timestamp": 24.24820899963379,
+      "boost_events": []
+    },
+    {
+      "frame_index": 351,
+      "timestamp": 24.284156799316406,
+      "boost_events": []
+    },
+    {
+      "frame_index": 352,
+      "timestamp": 24.333023071289062,
+      "boost_events": []
+    },
+    {
+      "frame_index": 353,
+      "timestamp": 24.383020401000977,
+      "boost_events": []
+    },
+    {
+      "frame_index": 354,
+      "timestamp": 24.431854248046875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 355,
+      "timestamp": 24.481605529785156,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 114,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+          "timestamp": 24.481605529785156,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 355
+        }
+      ]
+    },
+    {
+      "frame_index": 356,
+      "timestamp": 24.514970779418945,
+      "boost_events": []
+    },
+    {
+      "frame_index": 357,
+      "timestamp": 24.565561294555664,
+      "boost_events": []
+    },
+    {
+      "frame_index": 358,
+      "timestamp": 24.614795684814453,
+      "boost_events": []
+    },
+    {
+      "frame_index": 359,
+      "timestamp": 24.665191650390625,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 121,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+          "timestamp": 24.665191650390625,
+          "frame_index": 359
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 121,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+          "timestamp": 24.665191650390625,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 359
+        }
+      ]
+    },
+    {
+      "frame_index": 360,
+      "timestamp": 24.71484375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 361,
+      "timestamp": 24.74866485595703,
+      "boost_events": []
+    },
+    {
+      "frame_index": 362,
+      "timestamp": 24.784067153930664,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 104,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+          "timestamp": 24.784067153930664,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 362
+        }
+      ]
+    },
+    {
+      "frame_index": 363,
+      "timestamp": 24.832929611206055,
+      "boost_events": []
+    },
+    {
+      "frame_index": 364,
+      "timestamp": 24.881765365600586,
+      "boost_events": []
+    },
+    {
+      "frame_index": 365,
+      "timestamp": 24.931690216064453,
+      "boost_events": []
+    },
+    {
+      "frame_index": 366,
+      "timestamp": 24.96514892578125,
+      "boost_events": []
+    },
+    {
+      "frame_index": 367,
+      "timestamp": 24.999168395996094,
+      "boost_events": []
+    },
+    {
+      "frame_index": 368,
+      "timestamp": 25.049131393432617,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 129,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+          "timestamp": 25.049131393432617,
+          "frame_index": 368
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 129,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+          "timestamp": 25.049131393432617,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 368
+        }
+      ]
+    },
+    {
+      "frame_index": 369,
+      "timestamp": 25.098230361938477,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 107,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+          "timestamp": 25.098230361938477,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 369
+        }
+      ]
+    },
+    {
+      "frame_index": 370,
+      "timestamp": 25.14842414855957,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 117,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+          "timestamp": 25.14842414855957,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 370
+        }
+      ]
+    },
+    {
+      "frame_index": 371,
+      "timestamp": 25.19827651977539,
+      "boost_events": []
+    },
+    {
+      "frame_index": 372,
+      "timestamp": 25.248140335083008,
+      "boost_events": []
+    },
+    {
+      "frame_index": 373,
+      "timestamp": 25.284244537353516,
+      "boost_events": []
+    },
+    {
+      "frame_index": 374,
+      "timestamp": 25.33313751220703,
+      "boost_events": []
+    },
+    {
+      "frame_index": 375,
+      "timestamp": 25.381977081298828,
+      "boost_events": []
+    },
+    {
+      "frame_index": 376,
+      "timestamp": 25.4316463470459,
+      "boost_events": []
+    },
+    {
+      "frame_index": 377,
+      "timestamp": 25.46508026123047,
+      "boost_events": []
+    },
+    {
+      "frame_index": 378,
+      "timestamp": 25.514907836914062,
+      "boost_events": []
+    },
+    {
+      "frame_index": 379,
+      "timestamp": 25.56495475769043,
+      "boost_events": []
+    },
+    {
+      "frame_index": 380,
+      "timestamp": 25.598417282104492,
+      "boost_events": []
+    },
+    {
+      "frame_index": 381,
+      "timestamp": 25.648788452148438,
+      "boost_events": []
+    },
+    {
+      "frame_index": 382,
+      "timestamp": 25.69823455810547,
+      "boost_events": []
+    },
+    {
+      "frame_index": 383,
+      "timestamp": 25.732715606689453,
+      "boost_events": []
+    },
+    {
+      "frame_index": 384,
+      "timestamp": 25.767839431762695,
+      "boost_events": []
+    },
+    {
+      "frame_index": 385,
+      "timestamp": 25.816741943359375,
+      "boost_events": []
+    },
+    {
+      "frame_index": 386,
+      "timestamp": 25.865642547607422,
+      "boost_events": []
+    },
+    {
+      "frame_index": 387,
+      "timestamp": 25.915035247802734,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 130,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+          "timestamp": 25.915035247802734,
+          "frame_index": 387
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 130,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+          "timestamp": 25.915035247802734,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 387
+        }
+      ]
+    },
+    {
+      "frame_index": 388,
+      "timestamp": 25.965028762817383,
+      "boost_events": []
+    },
+    {
+      "frame_index": 389,
+      "timestamp": 26.0150146484375,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 131,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+          "timestamp": 26.0150146484375,
+          "frame_index": 389
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 131,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+          "timestamp": 26.0150146484375,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 122,
+          "resolved_actor_id": 122,
+          "frame_index": 389
+        }
+      ]
+    },
+    {
+      "frame_index": 390,
+      "timestamp": 26.065248489379883,
+      "boost_events": []
+    },
+    {
+      "frame_index": 391,
+      "timestamp": 26.11480140686035,
+      "boost_events": []
+    },
+    {
+      "frame_index": 392,
+      "timestamp": 26.148151397705078,
+      "boost_events": []
+    },
+    {
+      "frame_index": 393,
+      "timestamp": 26.198408126831055,
+      "boost_events": []
+    },
+    {
+      "frame_index": 394,
+      "timestamp": 26.232694625854492,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 26.232694625854492,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 394
+        }
+      ]
+    },
+    {
+      "frame_index": 395,
+      "timestamp": 26.267969131469727,
+      "boost_events": []
+    },
+    {
+      "frame_index": 396,
+      "timestamp": 26.316890716552734,
+      "boost_events": []
+    },
+    {
+      "frame_index": 397,
+      "timestamp": 26.365772247314453,
+      "boost_events": []
+    },
+    {
+      "frame_index": 398,
+      "timestamp": 26.415058135986328,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 26.415058135986328,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 398
+        }
+      ]
+    },
+    {
+      "frame_index": 399,
+      "timestamp": 26.465049743652344,
+      "boost_events": []
+    },
+    {
+      "frame_index": 400,
+      "timestamp": 26.498428344726562,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 26.498428344726562,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 400
+        }
+      ]
+    },
+    {
+      "frame_index": 401,
+      "timestamp": 26.54802703857422,
+      "boost_events": []
+    },
+    {
+      "frame_index": 402,
+      "timestamp": 26.581497192382812,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 118,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+          "timestamp": 26.581497192382812,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 402
+        }
+      ]
+    },
+    {
+      "frame_index": 403,
+      "timestamp": 26.6148624420166,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 26.6148624420166,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 403
+        }
+      ]
+    },
+    {
+      "frame_index": 404,
+      "timestamp": 26.648767471313477,
+      "boost_events": []
+    },
+    {
+      "frame_index": 405,
+      "timestamp": 26.69816017150879,
+      "boost_events": []
+    },
+    {
+      "frame_index": 406,
+      "timestamp": 26.73175621032715,
+      "boost_events": []
+    },
+    {
+      "frame_index": 407,
+      "timestamp": 26.76774787902832,
+      "boost_events": []
+    },
+    {
+      "frame_index": 408,
+      "timestamp": 26.816682815551758,
+      "boost_events": []
+    },
+    {
+      "frame_index": 409,
+      "timestamp": 26.86564826965332,
+      "boost_events": []
+    },
+    {
+      "frame_index": 410,
+      "timestamp": 26.915082931518555,
+      "boost_events": []
+    },
+    {
+      "frame_index": 411,
+      "timestamp": 26.96509552001953,
+      "boost_events": []
+    },
+    {
+      "frame_index": 412,
+      "timestamp": 26.998748779296875,
+      "boost_events": []
+    },
+    {
+      "frame_index": 413,
+      "timestamp": 27.048175811767578,
+      "boost_events": []
+    },
+    {
+      "frame_index": 414,
+      "timestamp": 27.0982608795166,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 27.0982608795166,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 414
+        }
+      ]
+    },
+    {
+      "frame_index": 415,
+      "timestamp": 27.14865493774414,
+      "boost_events": []
+    },
+    {
+      "frame_index": 416,
+      "timestamp": 27.198183059692383,
+      "boost_events": []
+    },
+    {
+      "frame_index": 417,
+      "timestamp": 27.232833862304688,
+      "boost_events": []
+    },
+    {
+      "frame_index": 418,
+      "timestamp": 27.267955780029297,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 119,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+          "timestamp": 27.267955780029297,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 418
+        }
+      ]
+    },
+    {
+      "frame_index": 419,
+      "timestamp": 27.316904067993164,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 27.316904067993164,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 419
+        }
+      ]
+    },
+    {
+      "frame_index": 420,
+      "timestamp": 27.365812301635742,
+      "boost_events": []
+    },
+    {
+      "frame_index": 421,
+      "timestamp": 27.41505241394043,
+      "boost_events": []
+    },
+    {
+      "frame_index": 422,
+      "timestamp": 27.46510887145996,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 111,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+          "timestamp": 27.46510887145996,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 422
+        }
+      ]
+    },
+    {
+      "frame_index": 423,
+      "timestamp": 27.498624801635742,
+      "boost_events": []
+    },
+    {
+      "frame_index": 424,
+      "timestamp": 27.54819679260254,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 27.54819679260254,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 424
+        }
+      ]
+    },
+    {
+      "frame_index": 425,
+      "timestamp": 27.58209228515625,
+      "boost_events": []
+    },
+    {
+      "frame_index": 426,
+      "timestamp": 27.631711959838867,
+      "boost_events": []
+    },
+    {
+      "frame_index": 427,
+      "timestamp": 27.665143966674805,
+      "boost_events": []
+    },
+    {
+      "frame_index": 428,
+      "timestamp": 27.71497917175293,
+      "boost_events": []
+    },
+    {
+      "frame_index": 429,
+      "timestamp": 27.74838638305664,
+      "boost_events": []
+    },
+    {
+      "frame_index": 430,
+      "timestamp": 27.784059524536133,
+      "boost_events": []
+    },
+    {
+      "frame_index": 431,
+      "timestamp": 27.832992553710938,
+      "boost_events": []
+    },
+    {
+      "frame_index": 432,
+      "timestamp": 27.881900787353516,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 116,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+          "timestamp": 27.881900787353516,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 432
+        }
+      ]
+    },
+    {
+      "frame_index": 433,
+      "timestamp": 27.915822982788086,
+      "boost_events": []
+    },
+    {
+      "frame_index": 434,
+      "timestamp": 27.965137481689453,
+      "boost_events": []
+    },
+    {
+      "frame_index": 435,
+      "timestamp": 27.998737335205078,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 27.998737335205078,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 435
+        }
+      ]
+    },
+    {
+      "frame_index": 436,
+      "timestamp": 28.048175811767578,
+      "boost_events": []
+    },
+    {
+      "frame_index": 437,
+      "timestamp": 28.081653594970703,
+      "boost_events": []
+    },
+    {
+      "frame_index": 438,
+      "timestamp": 28.13153839111328,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 120,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+          "timestamp": 28.13153839111328,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 438
+        }
+      ]
+    },
+    {
+      "frame_index": 439,
+      "timestamp": 28.165359497070312,
+      "boost_events": []
+    },
+    {
+      "frame_index": 440,
+      "timestamp": 28.215158462524414,
+      "boost_events": []
+    },
+    {
+      "frame_index": 441,
+      "timestamp": 28.248552322387695,
+      "boost_events": []
+    },
+    {
+      "frame_index": 442,
+      "timestamp": 28.284343719482422,
+      "boost_events": []
+    },
+    {
+      "frame_index": 443,
+      "timestamp": 28.333274841308594,
+      "boost_events": []
+    },
+    {
+      "frame_index": 444,
+      "timestamp": 28.382169723510742,
+      "boost_events": []
+    },
+    {
+      "frame_index": 445,
+      "timestamp": 28.431692123413086,
+      "boost_events": []
+    },
+    {
+      "frame_index": 446,
+      "timestamp": 28.46508026123047,
+      "boost_events": []
+    },
+    {
+      "frame_index": 447,
+      "timestamp": 28.498668670654297,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 114,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+          "timestamp": 28.498668670654297,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 447
+        }
+      ]
+    },
+    {
+      "frame_index": 448,
+      "timestamp": 28.54810905456543,
+      "boost_events": []
+    },
+    {
+      "frame_index": 449,
+      "timestamp": 28.581483840942383,
+      "boost_events": []
+    },
+    {
+      "frame_index": 450,
+      "timestamp": 28.61483383178711,
+      "boost_events": []
+    },
+    {
+      "frame_index": 451,
+      "timestamp": 28.64826011657715,
+      "boost_events": []
+    },
+    {
+      "frame_index": 452,
+      "timestamp": 28.698328018188477,
+      "boost_events": []
+    },
+    {
+      "frame_index": 453,
+      "timestamp": 28.73174285888672,
+      "boost_events": []
+    },
+    {
+      "frame_index": 454,
+      "timestamp": 28.767820358276367,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 99,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 130,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 117,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 121,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 104,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 111,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 107,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 118,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 120,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 105,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 129,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 114,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 97,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 115,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 131,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 101,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 116,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 98,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 119,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 106,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 103,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "trajectory",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 28.767820358276367,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 28.767820358276367,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 97,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_28",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 98,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_38",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 99,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_5",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 100,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_14",
+          "timestamp": 28.767820358276367,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 101,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_34",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 102,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_32",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 103,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_41",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 104,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_67",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 105,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_19",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 106,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_40",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 107,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_68",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 109,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_43",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 110,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_17",
+          "timestamp": 28.767820358276367,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 111,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_63",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 28.767820358276367,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 114,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_21",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 115,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_31",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 116,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_35",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 117,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_10",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 118,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_12",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 119,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_39",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 120,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_13",
+          "timestamp": 28.767820358276367,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 121,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_66",
+          "timestamp": 28.767820358276367,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 87,
+          "resolved_actor_id": 87,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 129,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+          "timestamp": 28.767820358276367,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 130,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+          "timestamp": 28.767820358276367,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 75,
+          "resolved_actor_id": 75,
+          "frame_index": 454
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 131,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+          "timestamp": 28.767820358276367,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 122,
+          "resolved_actor_id": 122,
+          "frame_index": 454
+        }
+      ]
+    },
+    {
+      "frame_index": 455,
+      "timestamp": 28.81676483154297,
+      "boost_events": []
+    },
+    {
+      "frame_index": 456,
+      "timestamp": 28.86573028564453,
+      "boost_events": []
+    },
+    {
+      "frame_index": 457,
+      "timestamp": 28.899076461791992,
+      "boost_events": []
+    },
+    {
+      "frame_index": 458,
+      "timestamp": 28.948270797729492,
+      "boost_events": []
+    },
+    {
+      "frame_index": 459,
+      "timestamp": 28.981624603271484,
+      "boost_events": []
+    },
+    {
+      "frame_index": 460,
+      "timestamp": 29.015077590942383,
+      "boost_events": []
+    },
+    {
+      "frame_index": 461,
+      "timestamp": 29.065353393554688,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 129,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_20",
+          "timestamp": 29.065353393554688,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 461
+        }
+      ]
+    },
+    {
+      "frame_index": 462,
+      "timestamp": 29.11471939086914,
+      "boost_events": []
+    },
+    {
+      "frame_index": 463,
+      "timestamp": 29.148155212402344,
+      "boost_events": []
+    },
+    {
+      "frame_index": 464,
+      "timestamp": 29.18157196044922,
+      "boost_events": []
+    },
+    {
+      "frame_index": 465,
+      "timestamp": 29.232452392578125,
+      "boost_events": []
+    },
+    {
+      "frame_index": 466,
+      "timestamp": 29.267911911010742,
+      "boost_events": []
+    },
+    {
+      "frame_index": 467,
+      "timestamp": 29.31686019897461,
+      "boost_events": []
+    },
+    {
+      "frame_index": 468,
+      "timestamp": 29.365766525268555,
+      "boost_events": []
+    },
+    {
+      "frame_index": 469,
+      "timestamp": 29.399763107299805,
+      "boost_events": []
+    },
+    {
+      "frame_index": 470,
+      "timestamp": 29.44892692565918,
+      "boost_events": []
+    },
+    {
+      "frame_index": 471,
+      "timestamp": 29.49842071533203,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 112,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_65",
+          "timestamp": 29.49842071533203,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 68,
+          "resolved_actor_id": 68,
+          "frame_index": 471
+        }
+      ]
+    },
+    {
+      "frame_index": 472,
+      "timestamp": 29.54813003540039,
+      "boost_events": []
+    },
+    {
+      "frame_index": 473,
+      "timestamp": 29.582082748413086,
+      "boost_events": []
+    },
+    {
+      "frame_index": 474,
+      "timestamp": 29.634136199951172,
+      "boost_events": []
+    },
+    {
+      "frame_index": 475,
+      "timestamp": 29.683042526245117,
+      "boost_events": []
+    },
+    {
+      "frame_index": 476,
+      "timestamp": 29.732751846313477,
+      "boost_events": []
+    },
+    {
+      "frame_index": 477,
+      "timestamp": 29.767887115478516,
+      "boost_events": []
+    },
+    {
+      "frame_index": 478,
+      "timestamp": 29.81674575805664,
+      "boost_events": []
+    },
+    {
+      "frame_index": 479,
+      "timestamp": 29.865568161010742,
+      "boost_events": []
+    },
+    {
+      "frame_index": 480,
+      "timestamp": 29.915128707885742,
+      "boost_events": []
+    },
+    {
+      "frame_index": 481,
+      "timestamp": 29.965173721313477,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 130,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_7",
+          "timestamp": 29.965173721313477,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 481
+        }
+      ]
+    },
+    {
+      "frame_index": 482,
+      "timestamp": 30.015092849731445,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 108,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_64",
+          "timestamp": 30.015092849731445,
+          "raw_state": 3,
+          "state": "COLLECTED",
+          "instigator_actor_id": 66,
+          "resolved_actor_id": 66,
+          "frame_index": 482
+        }
+      ]
+    },
+    {
+      "frame_index": 483,
+      "timestamp": 30.06524085998535,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 131,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_33",
+          "timestamp": 30.06524085998535,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 483
+        }
+      ]
+    },
+    {
+      "frame_index": 484,
+      "timestamp": 30.114917755126953,
+      "boost_events": []
+    },
+    {
+      "frame_index": 485,
+      "timestamp": 30.164936065673828,
+      "boost_events": []
+    },
+    {
+      "frame_index": 486,
+      "timestamp": 30.19829559326172,
+      "boost_events": []
+    },
+    {
+      "frame_index": 487,
+      "timestamp": 30.232166290283203,
+      "boost_events": []
+    },
+    {
+      "frame_index": 488,
+      "timestamp": 30.267993927001953,
+      "boost_events": []
+    },
+    {
+      "frame_index": 489,
+      "timestamp": 30.316875457763672,
+      "boost_events": []
+    },
+    {
+      "frame_index": 490,
+      "timestamp": 30.36571502685547,
+      "boost_events": []
+    },
+    {
+      "frame_index": 491,
+      "timestamp": 30.399456024169922,
+      "boost_events": []
+    },
+    {
+      "frame_index": 492,
+      "timestamp": 30.448287963867188,
+      "boost_events": [
+        {
+          "event": "trajectory",
+          "actor_id": 132,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_36",
+          "timestamp": 30.448287963867188,
+          "frame_index": 492
+        },
+        {
+          "event": "pickup_new",
+          "actor_id": 132,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_36",
+          "timestamp": 30.448287963867188,
+          "raw_state": 1,
+          "state": "COLLECTED",
+          "instigator_actor_id": 68,
+          "resolved_actor_id": 68,
+          "frame_index": 492
+        }
+      ]
+    },
+    {
+      "frame_index": 493,
+      "timestamp": 30.482982635498047,
+      "boost_events": []
+    },
+    {
+      "frame_index": 494,
+      "timestamp": 30.5318546295166,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 96,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_4",
+          "timestamp": 30.5318546295166,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 494
+        }
+      ]
+    },
+    {
+      "frame_index": 495,
+      "timestamp": 30.58150291442871,
+      "boost_events": []
+    },
+    {
+      "frame_index": 496,
+      "timestamp": 30.61492347717285,
+      "boost_events": []
+    },
+    {
+      "frame_index": 497,
+      "timestamp": 30.64879608154297,
+      "boost_events": [
+        {
+          "event": "pickup_new",
+          "actor_id": 113,
+          "object_name": "CHN_Stadium_P.TheWorld:PersistentLevel.VehiclePickup_Boost_TA_3",
+          "timestamp": 30.64879608154297,
+          "raw_state": 255,
+          "state": "RESPAWNED",
+          "frame_index": 497
+        }
+      ]
+    },
+    {
+      "frame_index": 498,
+      "timestamp": 30.69826316833496,
+      "boost_events": []
+    },
+    {
+      "frame_index": 499,
+      "timestamp": 30.73164939880371,
+      "boost_events": []
+    }
+  ]
+}

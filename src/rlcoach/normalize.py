@@ -22,6 +22,8 @@ from .parser.types import (
     PlayerFrame,
     BallFrame,
     BoostPadEventFrame,
+    Rotation,
+    Quaternion,
 )
 from .utils.identity import (
     build_alias_lookup,
@@ -34,6 +36,8 @@ SUPERSONIC_EXIT_UU_S = 2100.0
 SUPERSONIC_DERIVATIVE_ENTRY_UU_S = 2800.0
 MIN_FRAME_DT = 1e-3
 
+# Default frame rate when unable to measure from replay data
+DEFAULT_FRAME_RATE = 30.0
 
 # Seconds to keep after the last recorded goal to account for replays + kickoff
 GOAL_POST_BUFFER_S = 7.0
@@ -41,16 +45,16 @@ GOAL_POST_BUFFER_S = 7.0
 
 def measure_frame_rate(frames: list[Any]) -> float:
     """Measure actual frame rate from frame timestamps.
-    
+
     Args:
         frames: List of frame data with timestamp information
-        
+
     Returns:
-        Measured frame rate in Hz (defaults to 30.0 if unmeasurable)
+        Measured frame rate in Hz (defaults to DEFAULT_FRAME_RATE if unmeasurable)
     """
     if not frames or len(frames) < 2:
-        return 30.0
-    
+        return DEFAULT_FRAME_RATE
+
     # Extract timestamps - handle different frame formats
     timestamps = []
     for frame in frames:
@@ -65,25 +69,25 @@ def measure_frame_rate(frames: list[Any]) -> float:
                 timestamps.append(float(frame['time']))
         except (ValueError, TypeError):
             continue  # Skip frames with invalid timestamps
-    
+
     if len(timestamps) < 2:
-        return 30.0
-    
+        return DEFAULT_FRAME_RATE
+
     # Calculate time deltas between consecutive frames
     deltas = []
     for i in range(1, len(timestamps)):
         delta = timestamps[i] - timestamps[i-1]
         if delta > 0:  # Only positive deltas
             deltas.append(delta)
-    
+
     if not deltas:
-        return 30.0
-    
+        return DEFAULT_FRAME_RATE
+
     # Use median delta to avoid outliers from frame drops
     median_delta = statistics.median(deltas)
     if median_delta <= 0:
-        return 30.0
-    
+        return DEFAULT_FRAME_RATE
+
     # Convert to Hz and clamp to reasonable range
     fps = 1.0 / median_delta
     return max(1.0, min(240.0, fps))
@@ -126,6 +130,106 @@ def to_field_coords(vec: Any) -> Vec3:
         return Vec3(x_norm, y_norm, z_norm)
     except (ValueError, TypeError):
         return Vec3(0.0, 0.0, 0.0)
+
+
+def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
+    """Parse rotation data from parser output.
+
+    Handles both new format (pitch/yaw/roll + optional quaternion) and legacy
+    format (x/y/z where x=pitch, y=yaw, z=roll).
+
+    Args:
+        rot_data: Rotation data dict or object
+
+    Returns:
+        Rotation dataclass with euler angles and optional quaternion, or Vec3 for legacy
+    """
+    if rot_data is None:
+        return Rotation(0.0, 0.0, 0.0)
+
+    # Already a Rotation object
+    if isinstance(rot_data, Rotation):
+        return rot_data
+
+    # Handle dict format
+    if isinstance(rot_data, dict):
+        # New format: has pitch/yaw/roll keys
+        if 'pitch' in rot_data or 'yaw' in rot_data or 'roll' in rot_data:
+            pitch = float(rot_data.get('pitch', 0.0))
+            yaw = float(rot_data.get('yaw', 0.0))
+            roll = float(rot_data.get('roll', 0.0))
+
+            # Parse quaternion if present
+            quat = None
+            quat_data = rot_data.get('quaternion')
+            if quat_data is not None and isinstance(quat_data, dict):
+                quat = Quaternion(
+                    x=float(quat_data.get('x', 0.0)),
+                    y=float(quat_data.get('y', 0.0)),
+                    z=float(quat_data.get('z', 0.0)),
+                    w=float(quat_data.get('w', 1.0)),
+                )
+
+            return Rotation(pitch=pitch, yaw=yaw, roll=roll, quaternion=quat)
+
+        # Legacy format: has x/y/z keys (x=pitch, y=yaw, z=roll)
+        elif 'x' in rot_data or 'y' in rot_data or 'z' in rot_data:
+            return Vec3(
+                x=float(rot_data.get('x', 0.0)),
+                y=float(rot_data.get('y', 0.0)),
+                z=float(rot_data.get('z', 0.0)),
+            )
+
+    # For non-dict objects, check for x/y/z FIRST (legacy format), before pitch/yaw/roll
+    # This is important because Mock objects have implicit attributes
+    if hasattr(rot_data, 'x') and hasattr(rot_data, 'y') and hasattr(rot_data, 'z'):
+        # Try to get x/y/z as numbers - this distinguishes real attributes from Mock implicit ones
+        try:
+            x_val = getattr(rot_data, 'x')
+            y_val = getattr(rot_data, 'y')
+            z_val = getattr(rot_data, 'z')
+            # Verify they are actual numeric values
+            if isinstance(x_val, (int, float)) and isinstance(y_val, (int, float)) and isinstance(z_val, (int, float)):
+                return Vec3(x=float(x_val), y=float(y_val), z=float(z_val))
+        except (TypeError, ValueError):
+            pass
+
+    # Handle object with pitch/yaw/roll attributes (new format)
+    pitch_val = getattr(rot_data, 'pitch', None)
+    yaw_val = getattr(rot_data, 'yaw', None)
+    roll_val = getattr(rot_data, 'roll', None)
+
+    # Check if any of pitch/yaw/roll are actual numbers (not Mock objects)
+    has_real_pitch = isinstance(pitch_val, (int, float))
+    has_real_yaw = isinstance(yaw_val, (int, float))
+    has_real_roll = isinstance(roll_val, (int, float))
+
+    if has_real_pitch or has_real_yaw or has_real_roll:
+        pitch = float(pitch_val) if has_real_pitch else 0.0
+        yaw = float(yaw_val) if has_real_yaw else 0.0
+        roll = float(roll_val) if has_real_roll else 0.0
+
+        quat = None
+        quat_data = getattr(rot_data, 'quaternion', None)
+        if quat_data is not None:
+            if isinstance(quat_data, dict):
+                quat = Quaternion(
+                    x=float(quat_data.get('x', 0.0)),
+                    y=float(quat_data.get('y', 0.0)),
+                    z=float(quat_data.get('z', 0.0)),
+                    w=float(quat_data.get('w', 1.0)),
+                )
+            elif hasattr(quat_data, 'x'):
+                qx = getattr(quat_data, 'x', 0.0)
+                qy = getattr(quat_data, 'y', 0.0)
+                qz = getattr(quat_data, 'z', 0.0)
+                qw = getattr(quat_data, 'w', 1.0)
+                if all(isinstance(v, (int, float)) for v in [qx, qy, qz, qw]):
+                    quat = Quaternion(x=float(qx), y=float(qy), z=float(qz), w=float(qw))
+
+        return Rotation(pitch=pitch, yaw=yaw, roll=roll, quaternion=quat)
+
+    return Rotation(0.0, 0.0, 0.0)
 
 
 def normalize_players(header: Header | None, frames: list[Any]) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
@@ -295,23 +399,25 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     # Extract position and other data
                     position = Vec3(0.0, 0.0, 17.0)  # Car height
                     velocity = Vec3(0.0, 0.0, 0.0)
-                    rotation = Vec3(0.0, 0.0, 0.0)
+                    rotation: Rotation | Vec3 = Rotation(0.0, 0.0, 0.0)
                     boost_amount = 33  # Starting boost
-                    
+
                     if hasattr(player_data, 'position'):
                         position = to_field_coords(player_data.position)
                     elif isinstance(player_data, dict) and 'position' in player_data:
                         position = to_field_coords(player_data['position'])
-                    
+
                     if hasattr(player_data, 'velocity'):
                         velocity = to_field_coords(player_data.velocity)
                     elif isinstance(player_data, dict) and 'velocity' in player_data:
                         velocity = to_field_coords(player_data['velocity'])
-                    
+
+                    # Extract rotation - handle both new format (pitch/yaw/roll + quaternion)
+                    # and legacy format (x/y/z)
                     if hasattr(player_data, 'rotation'):
-                        rotation = to_field_coords(player_data.rotation)
+                        rotation = _parse_rotation(player_data.rotation)
                     elif isinstance(player_data, dict) and 'rotation' in player_data:
-                        rotation = to_field_coords(player_data['rotation'])
+                        rotation = _parse_rotation(player_data['rotation'])
                     
                     if hasattr(player_data, 'boost_amount'):
                         boost_amount = max(0, min(100, int(player_data.boost_amount)))

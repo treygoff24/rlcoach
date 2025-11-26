@@ -302,7 +302,8 @@
         "positioning": { "$ref": "#/definitions/positioning" },
         "passing": { "$ref": "#/definitions/passing" },
         "challenges": { "$ref": "#/definitions/challenges" },
-        "kickoffs": { "$ref": "#/definitions/kickoffs" }
+        "kickoffs": { "$ref": "#/definitions/kickoffs" },
+        "defense": { "$ref": "#/definitions/teamDefense" }
       }
     },
 
@@ -337,7 +338,12 @@
             }
           }
         },
-        "insights": { "type": "array", "items": { "$ref": "#/definitions/insight" } }
+        "insights": { "type": "array", "items": { "$ref": "#/definitions/insight" } },
+        "mechanics": { "$ref": "#/definitions/playerMechanics" },
+        "recovery": { "$ref": "#/definitions/playerRecovery" },
+        "xg": { "$ref": "#/definitions/playerXG" },
+        "defense": { "$ref": "#/definitions/playerDefense" },
+        "ball_prediction": { "$ref": "#/definitions/playerBallPrediction" }
       }
     },
 
@@ -499,6 +505,69 @@
       "type": "object",
       "required": ["x","y","z"],
       "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "z": { "type": "number" } }
+    },
+
+    "teamDefense": {
+      "type": "object",
+      "properties": {
+        "danger_zone_time": { "type": "number", "description": "Time spent in danger zone (seconds)" },
+        "danger_zone_pct": { "type": "number", "description": "Percentage of match in danger zone" }
+      }
+    },
+
+    "playerMechanics": {
+      "type": "object",
+      "properties": {
+        "jump_count": { "type": "integer", "minimum": 0 },
+        "double_jump_count": { "type": "integer", "minimum": 0 },
+        "flip_count": { "type": "integer", "minimum": 0 },
+        "wavedash_count": { "type": "integer", "minimum": 0 },
+        "aerial_count": { "type": "integer", "minimum": 0 },
+        "total_mechanics": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "playerRecovery": {
+      "type": "object",
+      "properties": {
+        "total_recoveries": { "type": "integer", "minimum": 0 },
+        "quality_distribution": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "excellent_count": { "type": "integer", "minimum": 0 },
+        "poor_count": { "type": "integer", "minimum": 0 },
+        "average_momentum_retained": { "type": "number" },
+        "wavedash_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "playerXG": {
+      "type": "object",
+      "properties": {
+        "total_shots": { "type": "integer", "minimum": 0 },
+        "total_xg": { "type": "number" },
+        "shots": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+
+    "playerDefense": {
+      "type": "object",
+      "properties": {
+        "time_as_last_defender": { "type": "number" },
+        "time_out_of_position": { "type": "number" },
+        "time_shadowing": { "type": "number" },
+        "average_shadow_angle": { "type": ["number", "null"] }
+      }
+    },
+
+    "playerBallPrediction": {
+      "type": "object",
+      "properties": {
+        "total_reads": { "type": "integer", "minimum": 0 },
+        "quality_distribution": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "excellent_reads": { "type": "integer", "minimum": 0 },
+        "poor_reads": { "type": "integer", "minimum": 0 },
+        "average_prediction_error": { "type": "number" },
+        "proactive_rate": { "type": "number" }
+      }
     }
   },
   "additionalProperties": false

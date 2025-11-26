@@ -1,6 +1,6 @@
 # rlcoach
 
-All‑local Rocket League replay analysis tool for comprehensive performance coaching.
+All-local Rocket League replay analysis tool for comprehensive performance coaching.
 
 ## Overview
 
@@ -8,10 +8,11 @@ rlcoach is designed to provide detailed analysis of Rocket League replays withou
 
 ## Project Status
 
-- End-to-end CLI pipeline (ingest → normalize → events → analyzers → JSON/Markdown) is implemented with tests.
+- End-to-end CLI pipeline (ingest -> normalize -> events -> analyzers -> JSON/Markdown) is implemented with 256 tests.
 - Parser adapters are pluggable:
   - `null` adapter (header-only fallback; always available)
   - optional `rust` adapter (pyo3 + boxcars) for richer header parsing and network frames
+- 14 analysis modules covering fundamentals, boost, movement, positioning, mechanics, defense, xG, and more.
 - Markdown dossier generator mirrors the JSON schema and ships with golden fixtures.
 - Offline CLI viewer renders summaries from previously generated JSON reports.
 
@@ -59,9 +60,14 @@ python -m rlcoach.ui view out/replay.json --player "DisplayName"
 - **Replay ingest**: Validates file bounds, surface CRC status, and captures deterministic file metadata.
 - **Pluggable parsing**: Header-only fallback plus optional Rust bridge for network frames.
 - **Normalization & events**: Builds a consolidated timeline and detects goals, demos, touches, challenges, boost pickups, and kickoffs.
-- **Analysis modules**: Fundamentals, boost economy, movement, positioning, passing, challenges, kickoffs, heatmaps, and rotation compliance.
+- **14 Analysis modules**:
+  - Core: fundamentals, boost economy, movement, positioning
+  - Advanced: mechanics (jumps/flips/wavedashes), recovery quality, defense (shadow/last defender)
+  - Metrics: expected goals (xG), ball prediction quality, passing, challenges, kickoffs
+  - Visualization: heatmaps, rotation compliance, coaching insights
 - **Reporting**: Emits schema-conformant JSON and a Markdown dossier with identical coverage.
 - **Offline viewer**: `python -m rlcoach.ui` renders summaries without network dependencies.
+
 ## Sample Markdown Output
 
 A complete dossier example is stored at `tests/goldens/synthetic_small.md`.
@@ -116,9 +122,11 @@ make clean
 The system follows a pipeline architecture:
 - **Ingestion & Validation**: Process .replay files with integrity checks
 - **Parser Layer**: Pluggable adapters extract header and network frame data
-- **Analysis Engine**: Independent analyzers for fundamentals, boost economy, positioning, etc.
-- **Report Generator**: Structured JSON reports per replay
-- **Optional UI**: Local-only desktop interface for visualization
+- **Normalization**: Converts raw data to standardized RLBot coordinate system
+- **Events Detection**: Goals, demos, touches, challenges, boost pickups, kickoffs
+- **Analysis Engine**: 14 independent analyzers with cached aggregation for performance
+- **Report Generator**: Schema-conformant JSON reports + Markdown dossiers
+- **Optional UI**: Local-only CLI interface for visualization
 
 ## Parsers & Adapters
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NamedTuple, Any
+from typing import NamedTuple, Any, Optional
 
 
 class Vec3(NamedTuple):
@@ -11,6 +11,29 @@ class Vec3(NamedTuple):
     x: float
     y: float
     z: float
+
+
+class Quaternion(NamedTuple):
+    """Quaternion for representing 3D rotation."""
+    x: float
+    y: float
+    z: float
+    w: float
+
+
+@dataclass(frozen=True)
+class Rotation:
+    """Car rotation with euler angles and optional quaternion.
+
+    Euler angles are in radians:
+    - pitch: rotation around x-axis (nose up/down)
+    - yaw: rotation around z-axis (left/right facing)
+    - roll: rotation around y-axis (car tilt)
+    """
+    pitch: float  # radians
+    yaw: float    # radians
+    roll: float   # radians
+    quaternion: Optional[Quaternion] = None
 
 
 @dataclass(frozen=True)
@@ -114,12 +137,12 @@ class NetworkFrames:
 @dataclass(frozen=True)
 class PlayerFrame:
     """Player state at a specific frame."""
-    
+
     player_id: str
     team: int
     position: Vec3
     velocity: Vec3
-    rotation: Vec3  # pitch, yaw, roll in radians
+    rotation: Rotation | Vec3  # Rotation with quaternion or legacy Vec3 (pitch, yaw, roll)
     boost_amount: int  # 0-100
     is_supersonic: bool = False
     is_on_ground: bool = True

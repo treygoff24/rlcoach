@@ -44,17 +44,17 @@
 
 ### Roster Overview
 
-| Display Name | Team   | Player ID |
-| ------------ | ------ | --------- |
-| Alpha        | BLUE   | slug:alpha  |
-| Bravo        | ORANGE | slug:bravo  |
+| Display Name | Team   | Player ID  |
+| ------------ | ------ | ---------- |
+| Alpha        | BLUE   | slug:alpha |
+| Bravo        | ORANGE | slug:bravo |
 
 
 ## Team Metrics
 
 
-| Team   | Score | Players  |
-| ------ | ----- | -------- |
+| Team   | Score | Players    |
+| ------ | ----- | ---------- |
 | BLUE   | 0     | slug:alpha |
 | ORANGE | 0     | slug:bravo |
 
@@ -180,9 +180,9 @@
 
 
 | Player ID       | slug:alpha |
-| Platform IDs    | -        |
-| Camera Settings | -        |
-| Loadout         | -        |
+| Platform IDs    | -          |
+| Camera Settings | -          |
+| Loadout         | -          |
 
 
 **Fundamentals:** no data
@@ -220,9 +220,9 @@
 
 
 | Player ID       | slug:bravo |
-| Platform IDs    | -        |
-| Camera Settings | -        |
-| Loadout         | -        |
+| Platform IDs    | -          |
+| Camera Settings | -          |
+| Loadout         | -          |
 
 
 **Fundamentals:** no data
@@ -259,10 +259,10 @@
 ## Event Timeline
 
 
-| Time (s) | Frame | Event   | Player | Details                                                      |
-| -------- | ----- | ------- | ------ | ------------------------------------------------------------ |
-| 0        | -     | KICKOFF | -      | outcome:NEUTRAL, phase:INITIAL, players:2 items              |
-| 1.10     | 2     | TOUCH   | A      | ball_speed_kph:3240.0, location:0.0/160.0/17.0, outcome:PASS |
+| Time (s) | Frame | Event   | Player | Details                                                     |
+| -------- | ----- | ------- | ------ | ----------------------------------------------------------- |
+| 0        | -     | KICKOFF | -      | outcome:NEUTRAL, phase:INITIAL, players:2 items             |
+| 1.10     | 2     | TOUCH   | A      | ball_speed_kph:61.56, location:0.0/160.0/17.0, outcome:PASS |
 
 
 ### Goals
@@ -288,7 +288,7 @@
 
 | Time (s) | Player | Outcome | Ball Speed (kph) | Location           |
 | -------- | ------ | ------- | ---------------- | ------------------ |
-| 1.10     | A      | PASS    | 3240             | (x:0, y:160, z:17) |
+| 1.10     | A      | PASS    | 61.56            | (x:0, y:160, z:17) |
 
 
 ## Heatmap Summaries
@@ -322,6 +322,20 @@
     "coaching_insights": [],
     "per_player": {
       "A": {
+        "ball_prediction": {
+          "average_prediction_error": 0.0,
+          "excellent_reads": 0,
+          "poor_reads": 0,
+          "proactive_rate": 0.0,
+          "quality_distribution": {
+            "average": 0,
+            "excellent": 0,
+            "good": 0,
+            "poor": 0,
+            "whiff": 0
+          },
+          "total_reads": 0
+        },
         "boost": {
           "amount_collected": 0.0,
           "amount_stolen": 0.0,
@@ -345,6 +359,12 @@
           "neutral": 0,
           "risk_index_avg": 0.0,
           "wins": 0
+        },
+        "defense": {
+          "average_shadow_angle": null,
+          "time_as_last_defender": 1.1,
+          "time_out_of_position": 0.0,
+          "time_shadowing": 0.0
         },
         "fundamentals": {
           "assists": 0,
@@ -482,6 +502,14 @@
           "goals_against": 0,
           "goals_for": 0,
           "neutral": 1
+        },
+        "mechanics": {
+          "aerial_count": 0,
+          "double_jump_count": 0,
+          "flip_count": 0,
+          "jump_count": 0,
+          "total_mechanics": 0,
+          "wavedash_count": 0
         },
         "movement": {
           "aerial_count": 0,
@@ -519,12 +547,65 @@
           "time_offensive_half_s": 0.1,
           "time_offensive_third_s": 0.0
         },
+        "recovery": {
+          "average_momentum_retained": 0.0,
+          "excellent_count": 0,
+          "poor_count": 0,
+          "quality_distribution": {
+            "average": 0,
+            "excellent": 0,
+            "failed": 0,
+            "good": 0,
+            "poor": 0
+          },
+          "total_recoveries": 0,
+          "wavedash_count": 0
+        },
         "rotation_compliance": {
           "flags": [],
           "score_0_to_100": 100.0
+        },
+        "xg": {
+          "shots": [
+            {
+              "angle_degrees": 177.5,
+              "ball_speed_kph": 61.6,
+              "defender_coverage": 0.0,
+              "distance_m": 52.75,
+              "factors": {
+                "angle_factor": 0.15,
+                "base_xg": 0.12,
+                "defender_factor": 1.5,
+                "distance_factor": 0.593,
+                "speed_factor": 0.952
+              },
+              "is_open_net": true,
+              "outcome": "PASS",
+              "player_id": "A",
+              "shot_type": "ground",
+              "timestamp": 1.1,
+              "xg": 0.0153
+            }
+          ],
+          "total_shots": 1,
+          "total_xg": 0.0153
         }
       },
       "B": {
+        "ball_prediction": {
+          "average_prediction_error": 0.0,
+          "excellent_reads": 0,
+          "poor_reads": 0,
+          "proactive_rate": 0.0,
+          "quality_distribution": {
+            "average": 0,
+            "excellent": 0,
+            "good": 0,
+            "poor": 0,
+            "whiff": 0
+          },
+          "total_reads": 0
+        },
         "boost": {
           "amount_collected": 0.0,
           "amount_stolen": 0.0,
@@ -548,6 +629,12 @@
           "neutral": 0,
           "risk_index_avg": 0.0,
           "wins": 0
+        },
+        "defense": {
+          "average_shadow_angle": null,
+          "time_as_last_defender": 1.1,
+          "time_out_of_position": 0.0,
+          "time_shadowing": 0.0
         },
         "fundamentals": {
           "assists": 0,
@@ -686,6 +773,14 @@
           "goals_for": 0,
           "neutral": 1
         },
+        "mechanics": {
+          "aerial_count": 0,
+          "double_jump_count": 0,
+          "flip_count": 0,
+          "jump_count": 0,
+          "total_mechanics": 0,
+          "wavedash_count": 0
+        },
         "movement": {
           "aerial_count": 0,
           "aerial_time_s": 0.0,
@@ -722,9 +817,27 @@
           "time_offensive_half_s": 0.0,
           "time_offensive_third_s": 0.0
         },
+        "recovery": {
+          "average_momentum_retained": 0.0,
+          "excellent_count": 0,
+          "poor_count": 0,
+          "quality_distribution": {
+            "average": 0,
+            "excellent": 0,
+            "failed": 0,
+            "good": 0,
+            "poor": 0
+          },
+          "total_recoveries": 0,
+          "wavedash_count": 0
+        },
         "rotation_compliance": {
           "flags": [],
           "score_0_to_100": 100.0
+        },
+        "xg": {
+          "total_shots": 0,
+          "total_xg": 0.0
         }
       }
     },
@@ -753,6 +866,10 @@
           "neutral": 0,
           "risk_index_avg": 0.0,
           "wins": 0
+        },
+        "defense": {
+          "danger_zone_pct": 0.0,
+          "danger_zone_time": 0.0
         },
         "fundamentals": {
           "assists": 0,
@@ -839,6 +956,10 @@
           "neutral": 0,
           "risk_index_avg": 0.0,
           "wins": 0
+        },
+        "defense": {
+          "danger_zone_pct": 0.0,
+          "danger_zone_time": 0.0
         },
         "fundamentals": {
           "assists": 0,
@@ -960,7 +1081,7 @@
       },
       {
         "data": {
-          "ball_speed_kph": 3240.0,
+          "ball_speed_kph": 61.56,
           "location": {
             "x": 0.0,
             "y": 160.0,
@@ -976,8 +1097,10 @@
     ],
     "touches": [
       {
-        "ball_speed_kph": 3240.0,
+        "ball_speed_kph": 61.56,
+        "car_height": 17.0,
         "frame": 2,
+        "is_first_touch": true,
         "is_save": false,
         "location": {
           "x": 0.0,
@@ -986,7 +1109,8 @@
         },
         "outcome": "PASS",
         "player_id": "A",
-        "t": 1.1
+        "t": 1.1,
+        "touch_context": "ground"
       }
     ]
   },

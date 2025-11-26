@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any
 from ..events import GoalEvent, DemoEvent, TouchEvent
 from ..parser.types import Header, Frame
+from ..utils.identity import build_player_identities, build_alias_lookup, sanitize_display_name
 
 
 def analyze_fundamentals(
@@ -227,10 +228,27 @@ def _extract_header_fundamentals(
 
 
 def _lookup_header_player_stats(header: Header, player_id: str) -> dict[str, Any] | None:
-    for idx, info in enumerate(header.players):
-        pid = f"player_{idx}"
-        if player_id == pid or (info.platform_id and player_id == info.platform_id):
-            return info.stats or None
+    identities = build_player_identities(header.players)
+    alias_lookup = build_alias_lookup(identities)
+    canonical = alias_lookup.get(player_id, player_id)
+
+    name_lookup = {
+        sanitize_display_name(header.players[identity.header_index].name).lower(): identity.canonical_id
+        for identity in identities
+    }
+
+    # Allow matching on sanitized display name when canonical / alias resolution fails
+    if canonical == player_id:
+        normalized_name = sanitize_display_name(player_id).lower()
+        if normalized_name in name_lookup:
+            canonical = name_lookup[normalized_name]
+
+    for identity in identities:
+        if identity.canonical_id != canonical:
+            continue
+        stats = header.players[identity.header_index].stats or None
+        if stats:
+            return stats
     return None
 
 

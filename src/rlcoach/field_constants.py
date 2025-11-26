@@ -164,3 +164,63 @@ FieldConstants.BOOST_PADS = BOOST_PAD_TABLE
 
 # Export commonly used constants
 FIELD = FieldConstants()
+
+
+def find_big_pad_blue_corner() -> BoostPad:
+    """Find a big boost pad on the blue (negative Y) side.
+
+    Returns:
+        A big boost pad on the blue corner
+    """
+    for pad in BOOST_PAD_TABLE:
+        if pad.is_big and pad.position.y < 0:
+            return pad
+    raise ValueError("No blue corner big pad found")
+
+
+def find_big_pad_orange_corner() -> BoostPad:
+    """Find a big boost pad on the orange (positive Y) side.
+
+    Returns:
+        A big boost pad on the orange corner
+    """
+    for pad in BOOST_PAD_TABLE:
+        if pad.is_big and pad.position.y > 0:
+            return pad
+    raise ValueError("No orange corner big pad found")
+
+
+def find_small_pad_neutral() -> BoostPad:
+    """Find a small boost pad near midfield.
+
+    Returns:
+        A small boost pad near the center
+    """
+    for pad in BOOST_PAD_TABLE:
+        if not pad.is_big and abs(pad.position.y) < 1500:
+            return pad
+    raise ValueError("No neutral small pad found")
+
+
+def find_small_pad_blue_side() -> BoostPad:
+    """Find a small boost pad on blue side.
+
+    Returns:
+        A small boost pad on the blue (negative Y) side
+    """
+    for pad in BOOST_PAD_TABLE:
+        if not pad.is_big and pad.position.y < -2000:
+            return pad
+    raise ValueError("No blue side small pad found")
+
+
+def find_small_pad_orange_side() -> BoostPad:
+    """Find a small boost pad on orange side.
+
+    Returns:
+        A small boost pad on the orange (positive Y) side
+    """
+    for pad in BOOST_PAD_TABLE:
+        if not pad.is_big and pad.position.y > 2000:
+            return pad
+    raise ValueError("No orange side small pad found")

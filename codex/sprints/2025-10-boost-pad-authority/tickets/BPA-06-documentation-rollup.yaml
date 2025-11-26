@@ -1,0 +1,62 @@
+title: "[rlcoach] Document boost pad attribution overhaul and quality signals"
+type: docs
+priority: P2
+branch: "feature/bpa-06-docs-rollup"
+repo:
+  url: https://github.com/treygoff/rlcoach
+  root: .
+  paths_in_scope:
+    - codex/Plans/1015_boost_pickup_rewrite_followup_plan.md
+    - codex/logs/**
+    - project-overview.md
+    - codex/docs/**
+  paths_out_of_scope:
+    - src/rlcoach/**
+    - parsers/rlreplay_rust/**
+context:
+  stack: {lang: Markdown}
+  versions: {}
+  style_guides: ["codex/docs/gpt5-codex-ticketing-guide.md", "codex/docs/gpt5-prompting-best-practices-guide.md"]
+  related_issues:
+    - "codex/Plans/1015_boost_pickup_rewrite_followup_plan.md"
+    - "codex/sprints/2025-10-boost-pad-authority/tickets/BPA-05-parity-tests.yaml"
+problem_statement: >
+  After completing the boost pad attribution fixes we need to update plans, logs, and public docs so contributors know
+  how to reproduce telemetry, interpret quality warnings, and refresh parity fixtures.
+non_goals:
+  - Do not add new engineering work; this ticket only consolidates documentation and summary logs.
+constraints:
+  - Summaries must cite parity metrics and open risks discovered during implementation.
+  - Ensure new docs reference shared pad catalog and quality-warning semantics.
+  - Maintain chronological logs in `codex/logs/` with timestamps and command snippets.
+artifacts_expected:
+  output_mode: diff
+  pr_title_template: "[docs] Update boost pad attribution playbook"
+  pr_body_sections: ["Context", "Implementation", "Proof", "Follow-ups"]
+  decision_log: true
+acceptance_criteria:
+  - [ ] Update the follow-up plan with completion status, referencing merged PRs and remaining risks.
+  - [ ] Add a session log summarizing telemetry results, parity deltas, and verification commands.
+  - [ ] Refresh `project-overview.md` (or dedicated doc) to explain pad catalog source, quality warnings, and parity harness usage.
+  - [ ] Ensure documentation links to scripts/commands added in prior tickets.
+verification:
+  repro_steps: |
+    # No automated checks; ensure markdown builds cleanly
+    python -m scripts.markdown_lint project-overview.md codex/Plans/1015_boost_pickup_rewrite_followup_plan.md
+  checks:
+    - cmd: "markdownlint-cli2 project-overview.md codex/Plans/1015_boost_pickup_rewrite_followup_plan.md"
+workflow_expectations:
+  - plan-first
+  - implement
+  - self-check
+  - emit_patch
+  - run_verification
+  - summarize
+codex:
+  approvals: all
+  sandbox: workspace-write
+  web_search: false
+  progress: brief
+  review:
+    ask_for_diff_format: unified
+  agents_md: true

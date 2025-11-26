@@ -24,6 +24,7 @@ from ..field_constants import Vec3, FIELD
 ZERO_BOOST_THRESHOLD = 3.0  # Consider < 3 as "zero boost"
 FULL_BOOST_THRESHOLD = 99.0  # Consider >= 99 as "full boost"
 OVERFILL_THRESHOLD = 80.0  # Overfill when collecting above this amount
+OVERFILL_BASELINE = 85.0  # Baseline boost level for wasted big-pad capacity
 SUPERSONIC_SPEED_THRESHOLD = 2300.0  # Speed at which boost provides minimal benefit
 WASTE_DETECTION_MIN_BOOST = 10.0  # Minimum boost to consider for waste detection
 BIG_GAIN_THRESHOLD = 70.0
@@ -159,7 +160,30 @@ def _analyze_player_boost(
     player_pickups = [p for p in pickups if p.player_id == player_id]
     delta_events = _collect_boost_delta_events(frames, player_id)
 
-    if delta_events:
+    if player_pickups:
+        for pickup in player_pickups:
+            gain = _resolve_pickup_gain(pickup)
+            amount_collected += gain
+            if pickup.stolen:
+                amount_stolen += gain
+
+            if pickup.pad_type == "BIG":
+                big_pads += 1
+                if pickup.stolen:
+                    stolen_big_pads += 1
+            else:
+                small_pads += 1
+                if pickup.stolen:
+                    stolen_small_pads += 1
+
+            overfill += _compute_overfill(
+                pickup.pad_type,
+                _to_float(pickup.boost_before),
+                _to_float(pickup.boost_after),
+                gain,
+            )
+
+    elif delta_events:
         used_pickups: set[int] = set()
         for event in delta_events:
             gain = event["gain"]
@@ -253,29 +277,12 @@ def _analyze_player_boost(
                 before_val = event["before"]
             if after_val is None:
                 after_val = event["after"]
-            if before_val is not None and before_val >= OVERFILL_THRESHOLD:
-                overfill += max(0.0, (before_val + gain) - 100.0)
-    else:
-        for pickup in player_pickups:
-            gain = _resolve_pickup_gain(pickup)
-            amount_collected += gain
-            if pickup.stolen:
-                amount_stolen += gain
-
-            if pickup.pad_type == "BIG":
-                big_pads += 1
-                if pickup.stolen:
-                    stolen_big_pads += 1
-            else:
-                small_pads += 1
-                if pickup.stolen:
-                    stolen_small_pads += 1
-
-            before = _to_float(pickup.boost_before)
-            after = _to_float(pickup.boost_after)
-            if before is not None and before >= OVERFILL_THRESHOLD:
-                projected_after = after if after is not None else min(100.0, before + gain)
-                overfill += max(0.0, projected_after - 100.0)
+            overfill += _compute_overfill(
+                pad_type,
+                before_val,
+                after_val,
+                gain,
+            )
     
     # Calculate rates (per minute)
     minutes = max(match_duration / 60.0, 1.0)  # Avoid division by zero
@@ -344,6 +351,31 @@ def _resolve_pickup_gain(pickup: BoostPickupEvent) -> float:
 
 
 # Boost pickup helpers --------------------------------------------------------
+
+
+def _compute_overfill(
+    pad_type: str,
+    boost_before: float | None,
+    boost_after: float | None,
+    gain: float,
+) -> float:
+    """Estimate wasted pad capacity (unused potential from the collected pad)."""
+    pad_capacity = 100.0 if pad_type == "BIG" else SMALL_PAD_UNIT
+    before = boost_before if boost_before is not None else 0.0
+    after = boost_after if boost_after is not None else before + gain
+
+    if pad_type != "BIG":
+        if before >= OVERFILL_THRESHOLD:
+            return max(0.0, pad_capacity - gain)
+        return 0.0
+
+    if before < OVERFILL_THRESHOLD:
+        return 0.0
+
+    baseline = max(before, OVERFILL_BASELINE)
+    used = max(0.0, after - baseline)
+    wasted = max(0.0, pad_capacity - used)
+    return wasted
 
 def _infer_pad_from_position(position: Vec3 | None) -> tuple[Any | None, float]:
     """Return the nearest boost pad metadata and squared distance for a position."""
@@ -465,7 +497,6 @@ def _analyze_team_boost(
     
     # Aggregate metrics across all team players
     team_metrics = _empty_boost()
-    player_count = len(team_players)
     
     for player_id in team_players:
         player_metrics = _analyze_player_boost(frames, frame_timestamps, pickups, player_id, match_duration)
@@ -484,12 +515,13 @@ def _analyze_team_boost(
         
         # Average these metrics
         team_metrics["avg_boost"] += player_metrics["avg_boost"]
-    
-    # Calculate team averages and rates
+
+    # Calculate team rates
     minutes = max(match_duration / 60.0, 1.0)
     team_metrics["bpm"] = round(team_metrics["amount_collected"] / minutes, 2)
     team_metrics["bcpm"] = round((team_metrics["big_pads"] + team_metrics["small_pads"]) / minutes, 2)
-    team_metrics["avg_boost"] = round(team_metrics["avg_boost"] / player_count, 2)
+    # Team avg_boost is the SUM of player averages (matching ballchasing semantics)
+    team_metrics["avg_boost"] = round(team_metrics["avg_boost"], 2)
     
     # Round accumulated values
     for key in ["amount_collected", "amount_stolen", "overfill", "waste", 
