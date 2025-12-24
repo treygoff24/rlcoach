@@ -10,6 +10,91 @@ from .errors import RLCoachError
 from .ingest import ingest_replay
 from .report import generate_report, write_report_atomically
 from .report_markdown import write_markdown
+from .config import load_config, get_default_config_path, ConfigError
+from .config_templates import CONFIG_TEMPLATE
+
+
+def handle_ingest_watch(args) -> int:
+    """Handle ingest --watch mode."""
+    import signal
+
+    from .watcher import ReplayWatcher
+    from .pipeline import process_replay_file, IngestionStatus
+
+    # Load config
+    config_path = get_default_config_path()
+    try:
+        config = load_config(config_path)
+        config.validate()
+    except ConfigError as e:
+        print(f"Configuration error: {e}")
+        return 1
+    except FileNotFoundError:
+        print(f"Config file not found: {config_path}")
+        print("Run 'rlcoach config --init' to create one.")
+        return 1
+
+    watch_dir = config.paths.watch_folder
+    if not watch_dir.exists():
+        print(f"Watch folder does not exist: {watch_dir}")
+        return 1
+
+    # Track stats
+    stats = {"success": 0, "duplicate": 0, "error": 0}
+
+    def process_callback(path: Path) -> None:
+        result = process_replay_file(path, config)
+        if result.status == IngestionStatus.SUCCESS:
+            stats["success"] += 1
+            print(f"✓ {path.name} -> {result.replay_id}")
+        elif result.status == IngestionStatus.DUPLICATE:
+            stats["duplicate"] += 1
+            print(f"⊘ {path.name} (duplicate)")
+        else:
+            stats["error"] += 1
+            print(f"✗ {path.name}: {result.error}")
+
+    print(f"Watching {watch_dir} for new replays...")
+    print("Press Ctrl+C to stop")
+    print()
+
+    watcher = ReplayWatcher(
+        watch_dir=watch_dir,
+        callback=process_callback,
+        poll_interval=2.0,
+        stability_seconds=2.0,
+        process_existing=args.process_existing,
+    )
+
+    # Handle Ctrl+C gracefully
+    stop_requested = False
+
+    def signal_handler(sig, frame):
+        nonlocal stop_requested
+        if stop_requested:
+            # Force exit on second Ctrl+C
+            sys.exit(1)
+        stop_requested = True
+        print("\nStopping watcher...")
+        watcher.stop()
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    watcher.start()
+
+    # Block until stop is requested
+    try:
+        while not stop_requested:
+            import time
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+
+    watcher.stop()
+
+    print()
+    print(f"Processed: {stats['success']} new, {stats['duplicate']} duplicate, {stats['error']} errors")
+    return 0
 
 
 def handle_ingest_command(args) -> int:
@@ -21,6 +106,15 @@ def handle_ingest_command(args) -> int:
     Returns:
         Exit code (0 for success, 1 for error)
     """
+    # Check for watch mode
+    if args.watch:
+        return handle_ingest_watch(args)
+
+    # Require replay_file for non-watch mode
+    if not args.replay_file:
+        print("Error: replay_file is required when not using --watch")
+        return 1
+
     replay_path = Path(args.replay_file)
 
     try:
@@ -82,8 +176,129 @@ def handle_ingest_command(args) -> int:
         return 1
 
 
-def main() -> int:
-    """Main CLI entry point."""
+def handle_config_command(args) -> int:
+    """Handle the config subcommand."""
+    config_path = get_default_config_path()
+
+    if args.init:
+        if config_path.exists() and not args.force:
+            print(f"Config already exists at {config_path}")
+            print("Use --force to overwrite")
+            return 1
+
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(CONFIG_TEMPLATE)
+        print(f"Created config template at {config_path}")
+        print("Edit this file with your player info before running RLCoach.")
+        return 0
+
+    if args.validate:
+        try:
+            config = load_config(config_path)
+            config.validate()
+            print(f"Configuration is valid: {config_path}")
+            print(f"  Platform IDs: {len(config.identity.platform_ids)}")
+            print(f"  Display names: {len(config.identity.display_names)}")
+            print(f"  Target rank: {config.preferences.target_rank}")
+            print(f"  Timezone: {config.preferences.timezone or '(system default)'}")
+            return 0
+        except ConfigError as e:
+            print(f"Configuration error: {e}")
+            return 1
+        except FileNotFoundError:
+            print(f"Config file not found: {config_path}")
+            print("Run 'rlcoach config --init' to create one.")
+            return 1
+        except Exception as e:
+            print(f"Error loading config: {e}")
+            return 1
+
+    if args.show:
+        try:
+            print(config_path.read_text())
+            return 0
+        except FileNotFoundError:
+            print(f"Config file not found: {config_path}")
+            return 1
+
+    print("Use --init, --validate, or --show")
+    return 1
+
+
+def handle_benchmarks_command(args) -> int:
+    """Handle the benchmarks subcommand."""
+    from .db.session import init_db, create_session
+    from .db.models import Benchmark
+    from .benchmarks import import_benchmarks, BenchmarkValidationError
+
+    # Load config to get db path
+    config_path = get_default_config_path()
+    try:
+        config = load_config(config_path)
+    except ConfigError as e:
+        print(f"Configuration error: {e}")
+        return 1
+    except FileNotFoundError:
+        print(f"Config file not found: {config_path}")
+        print("Run 'rlcoach config --init' to create one.")
+        return 1
+
+    # Initialize database
+    init_db(config.db_path)
+
+    if args.benchmarks_command == "import":
+        file_path = Path(args.file)
+        if not file_path.exists():
+            print(f"Benchmark file not found: {file_path}")
+            return 1
+
+        try:
+            count = import_benchmarks(file_path, replace=args.replace)
+            print(f"Imported {count} benchmarks from {file_path}")
+            return 0
+        except BenchmarkValidationError as e:
+            print(f"Validation error: {e}")
+            return 1
+        except Exception as e:
+            print(f"Error importing benchmarks: {e}")
+            return 1
+
+    elif args.benchmarks_command == "list":
+        session = create_session()
+        try:
+            query = session.query(Benchmark)
+            if args.metric:
+                query = query.filter(Benchmark.metric == args.metric)
+            if args.playlist:
+                query = query.filter(Benchmark.playlist == args.playlist)
+            if args.rank:
+                query = query.filter(Benchmark.rank_tier == args.rank)
+
+            benchmarks = query.order_by(Benchmark.metric, Benchmark.rank_tier).all()
+
+            if not benchmarks:
+                print("No benchmarks found. Use 'rlcoach benchmarks import <file>' to add some.")
+                return 0
+
+            print(f"{'Metric':<20} {'Playlist':<10} {'Rank':<6} {'Median':>10} {'Source':<20}")
+            print("-" * 70)
+            for b in benchmarks:
+                print(f"{b.metric:<20} {b.playlist:<10} {b.rank_tier:<6} {b.median_value:>10.1f} {b.source:<20}")
+            print(f"\nTotal: {len(benchmarks)} benchmarks")
+            return 0
+        finally:
+            session.close()
+
+    print("Use 'benchmarks import <file>' or 'benchmarks list'")
+    return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Main CLI entry point.
+
+    Args:
+        argv: Command line arguments. If None, uses sys.argv[1:].
+    """
     parser = argparse.ArgumentParser(
         prog="rlcoach",
         description="All-local Rocket League replay analysis tool for coaching",
@@ -102,12 +317,23 @@ def main() -> int:
         "ingest", help="Ingest and validate a Rocket League replay file"
     )
     ingest_parser.add_argument(
-        "replay_file", type=str, help="Path to the .replay file to ingest"
+        "replay_file", type=str, nargs="?", help="Path to the .replay file to ingest"
     )
     ingest_parser.add_argument(
         "--json",
         action="store_true",
         help="Output results in machine-readable JSON format",
+    )
+    ingest_parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Watch configured folder for new replay files",
+    )
+    ingest_parser.add_argument(
+        "--process-existing",
+        action="store_true",
+        dest="process_existing",
+        help="Process existing files when starting watch mode",
     )
 
     # Analyze subcommand
@@ -168,7 +394,44 @@ def main() -> int:
         help="Pretty-print JSON output",
     )
 
-    args = parser.parse_args()
+    # Config subcommand
+    config_parser = subparsers.add_parser("config", help="Manage RLCoach configuration")
+    config_parser.add_argument("--init", action="store_true", help="Create template config file")
+    config_parser.add_argument("--validate", action="store_true", help="Validate current config")
+    config_parser.add_argument("--show", action="store_true", help="Display current config")
+    config_parser.add_argument("--force", action="store_true", help="Force overwrite existing config")
+
+    # Benchmarks subcommand
+    benchmarks_parser = subparsers.add_parser("benchmarks", help="Manage benchmark data")
+    benchmarks_subparsers = benchmarks_parser.add_subparsers(dest="benchmarks_command", help="Benchmark commands")
+
+    # benchmarks import
+    benchmarks_import = benchmarks_subparsers.add_parser("import", help="Import benchmarks from JSON file")
+    benchmarks_import.add_argument("file", type=str, help="Path to benchmark JSON file")
+    benchmarks_import.add_argument("--replace", action="store_true", help="Replace all existing benchmarks")
+
+    # benchmarks list
+    benchmarks_list = benchmarks_subparsers.add_parser("list", help="List benchmarks")
+    benchmarks_list.add_argument("--metric", type=str, help="Filter by metric name")
+    benchmarks_list.add_argument("--playlist", type=str, help="Filter by playlist")
+    benchmarks_list.add_argument("--rank", type=str, help="Filter by rank tier")
+
+    # Serve subcommand
+    serve_parser = subparsers.add_parser("serve", help="Start the API server")
+    serve_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Host to bind to (default: 127.0.0.1)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to (default: 8000)",
+    )
+
+    args = parser.parse_args(argv)
 
     # Route to appropriate handler
     if args.command == "ingest":
@@ -227,10 +490,46 @@ def main() -> int:
         print(f"JSON: {json_path}")
         print(f"Markdown: {markdown_path}")
         return 0 if not is_error else 1
+    elif args.command == "config":
+        return handle_config_command(args)
+    elif args.command == "benchmarks":
+        return handle_benchmarks_command(args)
+    elif args.command == "serve":
+        return handle_serve_command(args)
     else:
         # No subcommand provided, show help
         parser.print_help()
         return 0
+
+
+def handle_serve_command(args) -> int:
+    """Handle the serve subcommand."""
+    import uvicorn
+    from .api import create_app
+
+    # Load and validate config first
+    config_path = get_default_config_path()
+    try:
+        config = load_config(config_path)
+        config.validate()
+    except ConfigError as e:
+        print(f"Configuration error: {e}")
+        return 1
+    except FileNotFoundError:
+        print(f"Config file not found: {config_path}")
+        print("Run 'rlcoach config --init' to create one.")
+        return 1
+
+    host = args.host
+    port = args.port
+
+    print(f"Starting RLCoach API server at http://{host}:{port}")
+    print("Press Ctrl+C to stop")
+
+    app = create_app()
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+    return 0
 
 
 if __name__ == "__main__":

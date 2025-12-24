@@ -1,0 +1,176 @@
+# src/rlcoach/pipeline.py
+"""Integrated ingestion pipeline for processing replay files.
+
+This module provides the complete pipeline for:
+1. Ingesting replay files (validation, hashing)
+2. Generating analysis reports
+3. Writing to database
+4. Updating daily statistics
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+from .config import RLCoachConfig
+from .db.session import init_db
+from .db.writer import write_report, ReplayExistsError, PlayerNotFoundError
+from .ingest import ingest_replay
+from .report import generate_report
+
+logger = logging.getLogger(__name__)
+
+
+class IngestionStatus(Enum):
+    """Status of replay ingestion."""
+    SUCCESS = "success"
+    DUPLICATE = "duplicate"
+    ERROR = "error"
+    PLAYER_NOT_FOUND = "player_not_found"
+
+
+@dataclass
+class IngestionResult:
+    """Result of processing a replay file."""
+    status: IngestionStatus
+    path: Path
+    replay_id: str | None = None
+    file_hash: str | None = None
+    error: str | None = None
+
+    def __str__(self) -> str:
+        if self.status == IngestionStatus.SUCCESS:
+            return f"✓ {self.path.name} -> {self.replay_id}"
+        elif self.status == IngestionStatus.DUPLICATE:
+            return f"⊘ {self.path.name} (duplicate)"
+        else:
+            return f"✗ {self.path.name}: {self.error}"
+
+
+def process_replay_file(
+    path: Path,
+    config: RLCoachConfig,
+    *,
+    adapter_name: str = "rust",
+    header_only: bool = False,
+) -> IngestionResult:
+    """Process a single replay file through the full pipeline.
+
+    This function:
+    1. Initializes the database if needed
+    2. Ingests the replay file (validation + hashing)
+    3. Generates the analysis report
+    4. Writes to database (players, replay, stats)
+
+    Args:
+        path: Path to the .replay file
+        config: RLCoach configuration
+        adapter_name: Parser adapter to use
+        header_only: Whether to use header-only mode
+
+    Returns:
+        IngestionResult with status and details
+    """
+    try:
+        # Initialize database
+        init_db(config.db_path)
+
+        # Step 1: Ingest (validate + hash)
+        ingest_result = ingest_replay(path)
+        file_hash = ingest_result["sha256"]
+
+        # Step 2: Generate report
+        report = generate_report(
+            path,
+            header_only=header_only,
+            adapter_name=adapter_name,
+        )
+
+        # Check for error report
+        if "error" in report:
+            return IngestionResult(
+                status=IngestionStatus.ERROR,
+                path=path,
+                error=report.get("error", "Unknown error"),
+            )
+
+        # Add source_file to report
+        report["source_file"] = str(path)
+
+        # Step 3: Write to database
+        replay_id = write_report(report, file_hash, config)
+
+        logger.info(f"Processed {path} -> {replay_id}")
+
+        return IngestionResult(
+            status=IngestionStatus.SUCCESS,
+            path=path,
+            replay_id=replay_id,
+            file_hash=file_hash,
+        )
+
+    except ReplayExistsError as e:
+        logger.debug(f"Duplicate replay: {path}")
+        return IngestionResult(
+            status=IngestionStatus.DUPLICATE,
+            path=path,
+            error=str(e),
+        )
+
+    except PlayerNotFoundError as e:
+        logger.warning(f"Player not found in replay: {path}")
+        return IngestionResult(
+            status=IngestionStatus.PLAYER_NOT_FOUND,
+            path=path,
+            error=str(e),
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing {path}: {e}")
+        return IngestionResult(
+            status=IngestionStatus.ERROR,
+            path=path,
+            error=str(e),
+        )
+
+
+def process_batch(
+    paths: list[Path],
+    config: RLCoachConfig,
+    *,
+    adapter_name: str = "rust",
+    header_only: bool = False,
+    on_progress: callable | None = None,
+) -> list[IngestionResult]:
+    """Process multiple replay files.
+
+    Args:
+        paths: List of paths to replay files
+        config: RLCoach configuration
+        adapter_name: Parser adapter to use
+        header_only: Whether to use header-only mode
+        on_progress: Optional callback(index, total, result) for progress
+
+    Returns:
+        List of IngestionResults
+    """
+    results = []
+    total = len(paths)
+
+    for i, path in enumerate(paths):
+        result = process_replay_file(
+            path,
+            config,
+            adapter_name=adapter_name,
+            header_only=header_only,
+        )
+        results.append(result)
+
+        if on_progress:
+            on_progress(i + 1, total, result)
+
+    return results
