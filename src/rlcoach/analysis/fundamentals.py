@@ -176,7 +176,9 @@ def _infer_team_from_events(player_id: str, goals: list[GoalEvent], demos: list[
 def _shooting_percentage(goals: int, shots: int) -> float:
     if shots <= 0:
         return 0.0
-    return round((goals / shots) * 100.0, 2)
+    # Cap at 100% - goals > shots can happen if shot detection misses some
+    pct = (goals / shots) * 100.0
+    return round(min(pct, 100.0), 2)
 
 
 def _extract_header_fundamentals(

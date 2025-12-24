@@ -160,9 +160,11 @@
             "steam": { "type": "string" },
             "epic": { "type": "string" },
             "psn": { "type": "string" },
-            "xbox": { "type": "string" }
+            "xbox": { "type": "string" },
+            "switch": { "type": "string" },
+            "wegame": { "type": "string" }
           },
-          "additionalProperties": false
+          "additionalProperties": true
         },
         "camera": {
           "type": "object",
@@ -209,11 +211,12 @@
 
     "demoEvent": {
       "type": "object",
-      "required": ["t","victim","attacker","location","team_attacker","team_victim"],
+      "required": ["t","victim","location","team_victim"],
       "properties": {
         "t": { "type": "number" },
-        "victim": { "type": "string" }, "attacker": { "type": "string" },
-        "team_attacker": { "type": "string", "enum":["BLUE","ORANGE"] },
+        "victim": { "type": "string" },
+        "attacker": { "type": ["string", "null"] },
+        "team_attacker": { "type": ["string", "null"], "enum":["BLUE","ORANGE", null] },
         "team_victim": { "type": "string", "enum":["BLUE","ORANGE"] },
         "location": { "$ref": "#/definitions/vec3" }
       }
