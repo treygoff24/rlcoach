@@ -117,8 +117,11 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                     }
                 }
                 if let Some(p) = find_prop(&properties, "PlaylistID") {
+                    // PlaylistID can be string or integer - handle both
                     if let Some(s) = p.as_string() {
                         playlist_id = Some(s.to_string());
+                    } else if let Some(i) = p.as_i32() {
+                        playlist_id = Some(i.to_string());
                     }
                 }
                 if let Some(p) = find_prop(&properties, "BuildVersion") {

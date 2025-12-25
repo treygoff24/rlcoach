@@ -52,13 +52,13 @@ def full_report():
             "per_player": {
                 "steam:me123": {
                     "fundamentals": {"goals": 2, "assists": 1, "saves": 3, "shots": 5, "score": 450},
-                    "boost": {"bcpm": 380.5, "avg_boost": 32.1},
+                    "boost": {"bpm": 380.5, "avg_boost": 32.1},
                     "movement": {"avg_speed_kph": 58.2, "time_supersonic_s": 65.0},
                     "positioning": {"behind_ball_pct": 58.0},
                 },
                 "steam:opp456": {
                     "fundamentals": {"goals": 1, "assists": 0, "saves": 1, "shots": 3, "score": 200},
-                    "boost": {"bcpm": 320.0, "avg_boost": 38.0},
+                    "boost": {"bpm": 320.0, "avg_boost": 38.0},
                     "movement": {"avg_speed_kph": 52.0, "time_supersonic_s": 45.0},
                     "positioning": {"behind_ball_pct": 52.0},
                 },

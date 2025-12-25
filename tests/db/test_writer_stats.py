@@ -5,12 +5,26 @@ from pathlib import Path
 from rlcoach.db.writer import insert_player_stats
 from rlcoach.db.session import init_db, create_session, reset_engine
 from rlcoach.db.models import Player, Replay, PlayerGameStats
+from rlcoach.config import IdentityConfig, PathsConfig, PreferencesConfig, RLCoachConfig
 
 
 @pytest.fixture(autouse=True)
 def reset_db():
     yield
     reset_engine()
+
+
+@pytest.fixture
+def config():
+    return RLCoachConfig(
+        identity=IdentityConfig(platform_ids=["steam:me123"]),
+        paths=PathsConfig(
+            watch_folder=Path("~/Replays"),
+            data_dir=Path("~/.rlcoach/data"),
+            reports_dir=Path("~/.rlcoach/reports"),
+        ),
+        preferences=PreferencesConfig(timezone="America/Los_Angeles"),
+    )
 
 
 @pytest.fixture
@@ -25,13 +39,13 @@ def sample_report():
             "per_player": {
                 "steam:me123": {
                     "fundamentals": {"goals": 2, "assists": 1, "saves": 3, "shots": 5, "score": 450},
-                    "boost": {"bcpm": 380.5, "avg_boost": 32.1},
+                    "boost": {"bpm": 380.5, "avg_boost": 32.1},
                     "movement": {"avg_speed_kph": 58.2, "time_supersonic_s": 65.0},
                     "positioning": {"behind_ball_pct": 58.0},
                 },
                 "steam:opp456": {
                     "fundamentals": {"goals": 1, "assists": 0, "saves": 1, "shots": 3, "score": 200},
-                    "boost": {"bcpm": 320.0, "avg_boost": 38.0},
+                    "boost": {"bpm": 320.0, "avg_boost": 38.0},
                     "movement": {"avg_speed_kph": 52.0, "time_supersonic_s": 45.0},
                     "positioning": {"behind_ball_pct": 52.0},
                 },
@@ -40,7 +54,7 @@ def sample_report():
     }
 
 
-def test_insert_player_stats_creates_records(tmp_path, sample_report):
+def test_insert_player_stats_creates_records(tmp_path, sample_report, config):
     db_path = tmp_path / "test.db"
     init_db(db_path)
 
@@ -68,7 +82,7 @@ def test_insert_player_stats_creates_records(tmp_path, sample_report):
     session.commit()
     session.close()
 
-    insert_player_stats(sample_report)
+    insert_player_stats(sample_report, config)
 
     session = create_session()
     try:
@@ -84,7 +98,7 @@ def test_insert_player_stats_creates_records(tmp_path, sample_report):
         session.close()
 
 
-def test_insert_player_stats_handles_missing_metrics(tmp_path):
+def test_insert_player_stats_handles_missing_metrics(tmp_path, config):
     """Stats with missing metrics should still be inserted with None values."""
     db_path = tmp_path / "test.db"
     init_db(db_path)
@@ -124,7 +138,7 @@ def test_insert_player_stats_handles_missing_metrics(tmp_path):
         },
     }
 
-    insert_player_stats(sparse_report)
+    insert_player_stats(sparse_report, config)
 
     session = create_session()
     try:
