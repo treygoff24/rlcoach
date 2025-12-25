@@ -4,18 +4,19 @@
 from __future__ import annotations
 
 import re
-import tomllib
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .metrics import VALID_RANKS, VALID_PLAYLISTS
+import tomllib
+
+from .metrics import VALID_PLAYLISTS, VALID_RANKS
 
 
 class ConfigError(Exception):
     """Configuration error."""
+
     pass
 
 
@@ -28,6 +29,7 @@ PLATFORM_ID_PATTERN = re.compile(r"^(steam|epic|psn|xbox|switch):[a-zA-Z0-9_-]+$
 class IdentityConfig:
     platform_ids: list[str] = field(default_factory=list)
     display_names: list[str] = field(default_factory=list)
+    excluded_names: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -94,11 +96,22 @@ class RLCoachConfig:
         if self.preferences.timezone is not None:
             try:
                 ZoneInfo(self.preferences.timezone)
-            except ZoneInfoNotFoundError:
+            except ZoneInfoNotFoundError as e:
                 raise ConfigError(
                     f"Invalid timezone '{self.preferences.timezone}'. "
                     "Must be a valid IANA timezone (e.g., 'America/Los_Angeles')"
-                )
+                ) from e
+
+        # Validate no overlap between display_names and excluded_names
+        display_set = {n.casefold().strip() for n in self.identity.display_names}
+        excluded_set = {n.casefold().strip() for n in self.identity.excluded_names}
+        overlap = display_set & excluded_set
+        if overlap:
+            overlap_str = ", ".join(sorted(overlap))
+            raise ConfigError(
+                f"Name(s) cannot appear in both display_names and excluded_names: "
+                f"{overlap_str}"
+            )
 
     def get_timezone(self) -> ZoneInfo:
         """Get the configured timezone or system default."""
@@ -140,13 +153,16 @@ def load_config(config_path: Path) -> RLCoachConfig:
     identity = IdentityConfig(
         platform_ids=identity_data.get("platform_ids", []),
         display_names=identity_data.get("display_names", []),
+        excluded_names=identity_data.get("excluded_names", []),
     )
 
     paths_data = data.get("paths", {})
     paths = PathsConfig(
         watch_folder=Path(paths_data.get("watch_folder", "~/Replays")).expanduser(),
         data_dir=Path(paths_data.get("data_dir", "~/.rlcoach/data")).expanduser(),
-        reports_dir=Path(paths_data.get("reports_dir", "~/.rlcoach/reports")).expanduser(),
+        reports_dir=Path(
+            paths_data.get("reports_dir", "~/.rlcoach/reports")
+        ).expanduser(),
     )
 
     prefs_data = data.get("preferences", {})

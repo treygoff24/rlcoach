@@ -19,15 +19,24 @@ class PlayerIdentityResolver:
 
     def __init__(self, identity_config: IdentityConfig):
         self._platform_ids = set(identity_config.platform_ids)
-        self._display_names = set(n.lower() for n in identity_config.display_names)
+        self._display_names = {
+            n.casefold().strip() for n in identity_config.display_names
+        }
+        self._excluded_names = {
+            n.casefold().strip() for n in identity_config.excluded_names
+        }
 
     def is_me(self, player_id: str, display_name: str) -> bool:
         """Check if a player matches the configured identity."""
         if player_id in self._platform_ids:
             return True
-        if display_name.lower() in self._display_names:
+        if display_name.casefold().strip() in self._display_names:
             return True
         return False
+
+    def should_exclude(self, display_name: str) -> bool:
+        """Check if a display name should be excluded from analysis."""
+        return display_name.casefold().strip() in self._excluded_names
 
     def find_me(self, players: list[dict[str, Any]]) -> dict[str, Any] | None:
         """Find the player matching configured identity.
@@ -47,7 +56,7 @@ class PlayerIdentityResolver:
         # Second pass: check display names (case-insensitive)
         for player in players:
             name = player.get("display_name", "")
-            if name.lower() in self._display_names:
+            if name.casefold().strip() in self._display_names:
                 return player
 
         # No match found

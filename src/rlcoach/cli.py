@@ -40,7 +40,7 @@ def handle_ingest_watch(args) -> int:
         return 1
 
     # Track stats
-    stats = {"success": 0, "duplicate": 0, "error": 0}
+    stats = {"success": 0, "duplicate": 0, "excluded": 0, "error": 0}
 
     def process_callback(path: Path) -> None:
         result = process_replay_file(path, config)
@@ -50,6 +50,9 @@ def handle_ingest_watch(args) -> int:
         elif result.status == IngestionStatus.DUPLICATE:
             stats["duplicate"] += 1
             print(f"⊘ {path.name} (duplicate)")
+        elif result.status == IngestionStatus.EXCLUDED:
+            stats["excluded"] += 1
+            print(f"⊘ {path.name} (excluded)")
         else:
             stats["error"] += 1
             print(f"✗ {path.name}: {result.error}")
@@ -86,6 +89,7 @@ def handle_ingest_watch(args) -> int:
     try:
         while not stop_requested:
             import time
+
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass
@@ -93,7 +97,9 @@ def handle_ingest_watch(args) -> int:
     watcher.stop()
 
     print()
-    print(f"Processed: {stats['success']} new, {stats['duplicate']} duplicate, {stats['error']} errors")
+    print(
+        f"Processed: {stats['success']} new, {stats['duplicate']} duplicate, {stats['error']} errors"
+    )
     return 0
 
 
@@ -277,13 +283,19 @@ def handle_benchmarks_command(args) -> int:
             benchmarks = query.order_by(Benchmark.metric, Benchmark.rank_tier).all()
 
             if not benchmarks:
-                print("No benchmarks found. Use 'rlcoach benchmarks import <file>' to add some.")
+                print(
+                    "No benchmarks found. Use 'rlcoach benchmarks import <file>' to add some."
+                )
                 return 0
 
-            print(f"{'Metric':<20} {'Playlist':<10} {'Rank':<6} {'Median':>10} {'Source':<20}")
+            print(
+                f"{'Metric':<20} {'Playlist':<10} {'Rank':<6} {'Median':>10} {'Source':<20}"
+            )
             print("-" * 70)
             for b in benchmarks:
-                print(f"{b.metric:<20} {b.playlist:<10} {b.rank_tier:<6} {b.median_value:>10.1f} {b.source:<20}")
+                print(
+                    f"{b.metric:<20} {b.playlist:<10} {b.rank_tier:<6} {b.median_value:>10.1f} {b.source:<20}"
+                )
             print(f"\nTotal: {len(benchmarks)} benchmarks")
             return 0
         finally:
@@ -340,7 +352,9 @@ def main(argv: list[str] | None = None) -> int:
     analyze_parser = subparsers.add_parser(
         "analyze", help="Analyze a Rocket League replay and write JSON report"
     )
-    analyze_parser.add_argument("replay_file", type=str, help="Path to the .replay file")
+    analyze_parser.add_argument(
+        "replay_file", type=str, help="Path to the .replay file"
+    )
     analyze_parser.add_argument(
         "--header-only",
         action="store_true",
@@ -369,7 +383,9 @@ def main(argv: list[str] | None = None) -> int:
         "report-md",
         help="Analyze a replay and emit both JSON and Markdown dossiers",
     )
-    report_md_parser.add_argument("replay_file", type=str, help="Path to the .replay file")
+    report_md_parser.add_argument(
+        "replay_file", type=str, help="Path to the .replay file"
+    )
     report_md_parser.add_argument(
         "--header-only",
         action="store_true",
@@ -396,19 +412,35 @@ def main(argv: list[str] | None = None) -> int:
 
     # Config subcommand
     config_parser = subparsers.add_parser("config", help="Manage RLCoach configuration")
-    config_parser.add_argument("--init", action="store_true", help="Create template config file")
-    config_parser.add_argument("--validate", action="store_true", help="Validate current config")
-    config_parser.add_argument("--show", action="store_true", help="Display current config")
-    config_parser.add_argument("--force", action="store_true", help="Force overwrite existing config")
+    config_parser.add_argument(
+        "--init", action="store_true", help="Create template config file"
+    )
+    config_parser.add_argument(
+        "--validate", action="store_true", help="Validate current config"
+    )
+    config_parser.add_argument(
+        "--show", action="store_true", help="Display current config"
+    )
+    config_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite existing config"
+    )
 
     # Benchmarks subcommand
-    benchmarks_parser = subparsers.add_parser("benchmarks", help="Manage benchmark data")
-    benchmarks_subparsers = benchmarks_parser.add_subparsers(dest="benchmarks_command", help="Benchmark commands")
+    benchmarks_parser = subparsers.add_parser(
+        "benchmarks", help="Manage benchmark data"
+    )
+    benchmarks_subparsers = benchmarks_parser.add_subparsers(
+        dest="benchmarks_command", help="Benchmark commands"
+    )
 
     # benchmarks import
-    benchmarks_import = benchmarks_subparsers.add_parser("import", help="Import benchmarks from JSON file")
+    benchmarks_import = benchmarks_subparsers.add_parser(
+        "import", help="Import benchmarks from JSON file"
+    )
     benchmarks_import.add_argument("file", type=str, help="Path to benchmark JSON file")
-    benchmarks_import.add_argument("--replace", action="store_true", help="Replace all existing benchmarks")
+    benchmarks_import.add_argument(
+        "--replace", action="store_true", help="Replace all existing benchmarks"
+    )
 
     # benchmarks list
     benchmarks_list = benchmarks_subparsers.add_parser("list", help="List benchmarks")
@@ -439,7 +471,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "analyze":
         # Generate report and write to output directory
         replay_path = Path(args.replay_file)
-        report = generate_report(replay_path, header_only=args.header_only, adapter_name=args.adapter)
+        report = generate_report(
+            replay_path, header_only=args.header_only, adapter_name=args.adapter
+        )
 
         # Determine output file path
         out_dir = Path(args.out)
@@ -466,7 +500,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if not is_error else 1
     elif args.command == "report-md":
         replay_path = Path(args.replay_file)
-        report = generate_report(replay_path, header_only=args.header_only, adapter_name=args.adapter)
+        report = generate_report(
+            replay_path, header_only=args.header_only, adapter_name=args.adapter
+        )
 
         out_dir = Path(args.out)
         out_dir.mkdir(parents=True, exist_ok=True)

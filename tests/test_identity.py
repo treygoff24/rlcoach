@@ -71,3 +71,53 @@ def test_is_me_check():
     assert resolver.is_me("steam:123456", "AnyName") is True
     assert resolver.is_me("epic:999", "myname") is True  # Case insensitive
     assert resolver.is_me("steam:999", "SomeoneElse") is False
+
+
+def test_should_exclude_matching_name():
+    """Should exclude matching display names."""
+    config = IdentityConfig(
+        display_names=["MainAccount"],
+        excluded_names=["CasualAccount"]
+    )
+    resolver = PlayerIdentityResolver(config)
+
+    assert resolver.should_exclude("CasualAccount") is True
+    assert resolver.should_exclude("MainAccount") is False
+    assert resolver.should_exclude("SomeoneElse") is False
+
+
+def test_should_exclude_case_insensitive():
+    """Should exclude names case-insensitively using casefold."""
+    config = IdentityConfig(
+        display_names=["Main"],
+        excluded_names=["CasualAccount"]
+    )
+    resolver = PlayerIdentityResolver(config)
+
+    assert resolver.should_exclude("casualaccount") is True
+    assert resolver.should_exclude("CASUALACCOUNT") is True
+    assert resolver.should_exclude("CasualAccount") is True
+
+
+def test_should_exclude_with_whitespace():
+    """Should handle whitespace in excluded names."""
+    config = IdentityConfig(
+        display_names=["Main"],
+        excluded_names=["  CasualAccount  "]
+    )
+    resolver = PlayerIdentityResolver(config)
+
+    assert resolver.should_exclude("CasualAccount") is True
+    assert resolver.should_exclude("  CasualAccount  ") is True
+
+
+def test_should_exclude_empty_list():
+    """Empty excluded_names should exclude nothing."""
+    config = IdentityConfig(
+        display_names=["MainAccount"],
+        excluded_names=[]
+    )
+    resolver = PlayerIdentityResolver(config)
+
+    assert resolver.should_exclude("MainAccount") is False
+    assert resolver.should_exclude("AnyName") is False

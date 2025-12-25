@@ -14,11 +14,11 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
 
 from .config import RLCoachConfig
 from .db.session import init_db
-from .db.writer import write_report, ReplayExistsError, PlayerNotFoundError
+from .db.writer import PlayerNotFoundError, ReplayExistsError, write_report
+from .identity import PlayerIdentityResolver
 from .ingest import ingest_replay
 from .report import generate_report
 
@@ -27,15 +27,18 @@ logger = logging.getLogger(__name__)
 
 class IngestionStatus(Enum):
     """Status of replay ingestion."""
+
     SUCCESS = "success"
     DUPLICATE = "duplicate"
     ERROR = "error"
     PLAYER_NOT_FOUND = "player_not_found"
+    EXCLUDED = "excluded"
 
 
 @dataclass
 class IngestionResult:
     """Result of processing a replay file."""
+
     status: IngestionStatus
     path: Path
     replay_id: str | None = None
@@ -47,6 +50,8 @@ class IngestionResult:
             return f"✓ {self.path.name} -> {self.replay_id}"
         elif self.status == IngestionStatus.DUPLICATE:
             return f"⊘ {self.path.name} (duplicate)"
+        elif self.status == IngestionStatus.EXCLUDED:
+            return f"⊘ {self.path.name} (excluded)"
         else:
             return f"✗ {self.path.name}: {self.error}"
 
@@ -97,6 +102,24 @@ def process_replay_file(
                 path=path,
                 error=report.get("error", "Unknown error"),
             )
+
+        # Check if "me" should be excluded
+        # Logic: excluded_names are user's accounts they don't want analyzed
+        # If find_me succeeds -> that's "me", can't be excluded (validation prevents overlap)
+        # If find_me fails -> check if any player matches excluded_names (that would be "me")
+        resolver = PlayerIdentityResolver(config.identity)
+        players = report.get("players", [])
+        me = resolver.find_me(players)
+        if me is None:
+            # "me" not found via display_names - check if playing on excluded account
+            for player in players:
+                display_name = player.get("display_name", "")
+                if resolver.should_exclude(display_name):
+                    logger.debug(f"Excluded replay (account: {display_name}): {path}")
+                    return IngestionResult(
+                        status=IngestionStatus.EXCLUDED,
+                        path=path,
+                    )
 
         # Add source_file to report
         report["source_file"] = str(path)
