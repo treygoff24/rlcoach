@@ -12,6 +12,43 @@ from .report import generate_report, write_report_atomically
 from .report_markdown import write_markdown
 from .config import load_config, get_default_config_path, ConfigError
 from .config_templates import CONFIG_TEMPLATE
+from .identity import PlayerIdentityResolver
+
+
+def check_exclusion(report: dict) -> str | None:
+    """Check if a report should be excluded based on config.
+
+    Returns the excluded player's display name if excluded, None otherwise.
+    """
+    config_path = get_default_config_path()
+    try:
+        config = load_config(config_path)
+        config.validate()
+    except (ConfigError, FileNotFoundError):
+        # No config = no exclusion rules
+        return None
+    except Exception:
+        # Malformed config (TOML decode error, etc.) - best-effort, don't crash
+        return None
+
+    if not config.identity.excluded_names:
+        return None
+
+    resolver = PlayerIdentityResolver(config.identity)
+    players = report.get("players", [])
+
+    # Check if "me" is found via display_names - if so, not excluded
+    me = resolver.find_me(players)
+    if me is not None:
+        return None
+
+    # Check if playing on an excluded account
+    for player in players:
+        display_name = player.get("display_name", "")
+        if resolver.should_exclude(display_name):
+            return display_name
+
+    return None
 
 
 def handle_ingest_watch(args) -> int:
@@ -378,6 +415,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Pretty-print JSON output",
     )
+    analyze_parser.add_argument(
+        "--ignore-exclusion",
+        action="store_true",
+        dest="ignore_exclusion",
+        help="Process replay even if playing on an excluded account",
+    )
 
     report_md_parser = subparsers.add_parser(
         "report-md",
@@ -408,6 +451,12 @@ def main(argv: list[str] | None = None) -> int:
         "--pretty",
         action="store_true",
         help="Pretty-print JSON output",
+    )
+    report_md_parser.add_argument(
+        "--ignore-exclusion",
+        action="store_true",
+        dest="ignore_exclusion",
+        help="Process replay even if playing on an excluded account",
     )
 
     # Config subcommand
@@ -475,6 +524,14 @@ def main(argv: list[str] | None = None) -> int:
             replay_path, header_only=args.header_only, adapter_name=args.adapter
         )
 
+        # Check exclusion unless --ignore-exclusion is set
+        if not args.ignore_exclusion and "error" not in report:
+            excluded_name = check_exclusion(report)
+            if excluded_name:
+                print(f"⊘ Skipped (excluded account: {excluded_name})")
+                print("Use --ignore-exclusion to process anyway")
+                return 0
+
         # Determine output file path
         out_dir = Path(args.out)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -503,6 +560,14 @@ def main(argv: list[str] | None = None) -> int:
         report = generate_report(
             replay_path, header_only=args.header_only, adapter_name=args.adapter
         )
+
+        # Check exclusion unless --ignore-exclusion is set
+        if not args.ignore_exclusion and "error" not in report:
+            excluded_name = check_exclusion(report)
+            if excluded_name:
+                print(f"⊘ Skipped (excluded account: {excluded_name})")
+                print("Use --ignore-exclusion to process anyway")
+                return 0
 
         out_dir = Path(args.out)
         out_dir.mkdir(parents=True, exist_ok=True)
