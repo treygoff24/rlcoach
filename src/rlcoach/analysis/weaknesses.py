@@ -14,17 +14,19 @@ from typing import Any
 
 class Severity(Enum):
     """Weakness/strength severity levels."""
+
     CRITICAL = "critical"  # z < -2.0 (far below target)
-    HIGH = "high"          # -2.0 <= z < -1.0
-    MEDIUM = "medium"      # -1.0 <= z < -0.5
-    LOW = "low"            # -0.5 <= z < 0
-    NEUTRAL = "neutral"    # z ~ 0
+    HIGH = "high"  # -2.0 <= z < -1.0
+    MEDIUM = "medium"  # -1.0 <= z < -0.5
+    LOW = "low"  # -0.5 <= z < 0
+    NEUTRAL = "neutral"  # z ~ 0
     STRENGTH = "strength"  # z > 0.67 (above p75 equivalent)
 
 
 @dataclass
 class WeaknessResult:
     """Result of weakness analysis for a single metric."""
+
     metric: str
     my_value: float
     benchmark_median: float
@@ -62,7 +64,7 @@ def compute_z_score(
         # No variance in benchmark
         if value == median:
             return 0.0
-        return float('inf') if value > median else float('-inf')
+        return float("inf") if value > median else float("-inf")
 
     # Estimate standard deviation from IQR
     # For normal distribution: IQR ≈ 1.35 * σ, so σ ≈ IQR / 1.35
@@ -129,17 +131,19 @@ def detect_weaknesses(
         # Compute gap from median
         gap = my_value - median
 
-        results.append(WeaknessResult(
-            metric=metric,
-            my_value=my_value,
-            benchmark_median=median,
-            benchmark_p25=p25,
-            benchmark_p75=p75,
-            z_score=z_score,
-            severity=severity,
-            gap=gap,
-            direction=direction,
-        ))
+        results.append(
+            WeaknessResult(
+                metric=metric,
+                my_value=my_value,
+                benchmark_median=median,
+                benchmark_p25=p25,
+                benchmark_p75=p75,
+                z_score=z_score,
+                severity=severity,
+                gap=gap,
+                direction=direction,
+            )
+        )
 
     # Sort by severity (worst first)
     severity_order = {

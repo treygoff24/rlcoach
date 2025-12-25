@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..parser.types import Header, Frame
 from ..events import KickoffEvent
-
+from ..parser.types import Frame, Header
 
 APPROACH_KEYS = [
     "SPEEDFLIP",
@@ -60,7 +59,7 @@ def analyze_kickoffs(
             "goals_for": 0,
             "goals_against": 0,
             "avg_time_to_first_touch_s": 0.0,
-            "approach_types": {k: 0 for k in APPROACH_KEYS},
+            "approach_types": dict.fromkeys(APPROACH_KEYS, 0),
         }
 
     if not kickoffs:
@@ -74,14 +73,16 @@ def analyze_kickoffs(
         return empty_result()
 
 
-def _analyze_kickoffs_for_player(kickoffs: list[KickoffEvent], player_id: str) -> dict[str, Any]:
+def _analyze_kickoffs_for_player(
+    kickoffs: list[KickoffEvent], player_id: str
+) -> dict[str, Any]:
     count = 0
     first_possession = 0
     neutral = 0
     goals_for = 0
     goals_against = 0
     times: list[float] = []
-    approach_types = {k: 0 for k in APPROACH_KEYS}
+    approach_types = dict.fromkeys(APPROACH_KEYS, 0)
 
     # Player team inferred from events' outcome text is not possible; keep goals_* = 0
     for ko in kickoffs:
@@ -133,7 +134,7 @@ def _analyze_kickoffs_for_team(
     goals_for = 0
     goals_against = 0
     times: list[float] = []
-    approach_types = {k: 0 for k in APPROACH_KEYS}
+    approach_types = dict.fromkeys(APPROACH_KEYS, 0)
     total_approaches = 0
 
     for ko in kickoffs:
@@ -177,4 +178,3 @@ def _analyze_kickoffs_for_team(
         "approach_types": approach_types,
         "total_approaches": total_approaches,
     }
-

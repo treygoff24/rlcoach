@@ -19,7 +19,6 @@ from typing import Any
 from ..field_constants import Vec3
 from ..parser.types import Frame, Header, PlayerFrame, Rotation
 
-
 # Movement analysis thresholds mirror Ballchasing definitions:
 # - slow speed: < 1400 uu/s
 # - boost speed: 1400–2200 uu/s
@@ -66,14 +65,14 @@ def analyze_movement(
     header: Header | None = None,
 ) -> dict[str, Any]:
     """Analyze movement and speed metrics for a player or team.
-    
+
     Args:
         frames: Normalized frame data for movement analysis
         events: Dictionary containing detected events (not used for movement)
         player_id: If provided, analyze specific player; otherwise team analysis
         team: Team filter ("BLUE" or "ORANGE"), required if player_id not provided
         header: Optional header for match context
-        
+
     Returns:
         Dictionary matching schema movement definition:
         {
@@ -92,7 +91,7 @@ def analyze_movement(
     """
     if not frames:
         return _empty_movement()
-    
+
     if player_id:
         return _analyze_player_movement(frames, player_id)
     elif team:
@@ -139,12 +138,12 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     time_ground = 0.0
     time_low_air = 0.0
     time_high_air = 0.0
-    
+
     powerslide_count = 0
     powerslide_duration = 0.0
     aerial_count = 0
     aerial_time = 0.0
-    
+
     # Track state for event detection
     prev_player_frame = None
     prev_timestamp = None
@@ -226,7 +225,7 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
                 powerslide_count += 1
                 powerslide_duration += slide_duration
             in_powerslide = False
-        
+
         # Aerial detection
         is_aerial = height >= MIN_AERIAL_HEIGHT and not player_frame.is_on_ground
         if is_aerial and not in_aerial:
@@ -240,7 +239,7 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
                 aerial_count,
                 aerial_time,
             )
-        
+
         prev_player_frame = player_frame
         prev_timestamp = frame.timestamp
 
@@ -259,13 +258,13 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
             aerial_count,
             aerial_time,
         )
-    
+
     # Calculate average speed in kph
     avg_speed_kph = 0.0
     if total_time > 0:
         avg_speed_uu_s = total_distance / total_time
         avg_speed_kph = _uu_s_to_kph(avg_speed_uu_s)
-    
+
     return {
         "avg_speed_kph": round(avg_speed_kph, 2),
         "time_slow_s": round(time_slow, 2),
@@ -277,32 +276,32 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
         "powerslide_count": powerslide_count,
         "powerslide_duration_s": round(powerslide_duration, 2),
         "aerial_count": aerial_count,
-        "aerial_time_s": round(aerial_time, 2)
+        "aerial_time_s": round(aerial_time, 2),
     }
 
 
 def _analyze_team_movement(frames: list[Frame], team: str) -> dict[str, Any]:
     """Analyze movement metrics for a team (aggregate all players)."""
-    
+
     # Get all unique player IDs for the team
     team_players = set()
     team_id = 0 if team == "BLUE" else 1
-    
+
     for frame in frames:
         for player in frame.players:
             if player.team == team_id:
                 team_players.add(player.player_id)
-    
+
     if not team_players:
         return _empty_movement()
-    
+
     # Aggregate metrics from all team members
     team_metrics = _empty_movement()
     player_count = len(team_players)
-    
+
     for player_id in team_players:
         player_metrics = _analyze_player_movement(frames, player_id)
-        
+
         # Sum time-based metrics
         team_metrics["time_slow_s"] += player_metrics["time_slow_s"]
         team_metrics["time_boost_speed_s"] += player_metrics["time_boost_speed_s"]
@@ -312,18 +311,20 @@ def _analyze_team_movement(frames: list[Frame], team: str) -> dict[str, Any]:
         team_metrics["time_high_air_s"] += player_metrics["time_high_air_s"]
         team_metrics["powerslide_duration_s"] += player_metrics["powerslide_duration_s"]
         team_metrics["aerial_time_s"] += player_metrics["aerial_time_s"]
-        
+
         # Sum count metrics
         team_metrics["powerslide_count"] += player_metrics["powerslide_count"]
         team_metrics["aerial_count"] += player_metrics["aerial_count"]
-        
+
         # Average speed calculation
         team_metrics["avg_speed_kph"] += player_metrics["avg_speed_kph"]
-    
+
     # Calculate team average speed
     if player_count > 0:
-        team_metrics["avg_speed_kph"] = round(team_metrics["avg_speed_kph"] / player_count, 2)
-    
+        team_metrics["avg_speed_kph"] = round(
+            team_metrics["avg_speed_kph"] / player_count, 2
+        )
+
     return team_metrics
 
 
@@ -337,7 +338,7 @@ def _find_player_in_frame(frame: Frame, player_id: str) -> PlayerFrame | None:
 
 def _calculate_speed(velocity: Vec3) -> float:
     """Calculate speed magnitude from velocity vector."""
-    return math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2)
+    return math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
 
 
 def _horizontal_speed(velocity: Vec3) -> float:
@@ -397,9 +398,16 @@ def _update_supersonic_state(
         return True
     if horizontal_speed >= SUPERSONIC_ENTRY_UU_S:
         return True
-    if supersonic_active and derivative_speed >= SUPERSONIC_DERIVATIVE_ENTRY_UU_S and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
+    if (
+        supersonic_active
+        and derivative_speed >= SUPERSONIC_DERIVATIVE_ENTRY_UU_S
+        and horizontal_speed >= SUPERSONIC_EXIT_UU_S
+    ):
         return True
-    if linear_speed >= SUPERSONIC_ENTRY_UU_S and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
+    if (
+        linear_speed >= SUPERSONIC_ENTRY_UU_S
+        and horizontal_speed >= SUPERSONIC_EXIT_UU_S
+    ):
         return True
     if supersonic_active and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
         return True
@@ -439,5 +447,5 @@ def _empty_movement() -> dict[str, Any]:
         "powerslide_count": 0,
         "powerslide_duration_s": 0.0,
         "aerial_count": 0,
-        "aerial_time_s": 0.0
+        "aerial_time_s": 0.0,
     }

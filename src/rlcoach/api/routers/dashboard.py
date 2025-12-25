@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
+from ...db.models import DailyStats, PlayerGameStats, Replay
 from ...db.session import create_session
-from ...db.models import Replay, DailyStats, PlayerGameStats
 
 router = APIRouter(tags=["dashboard"])
 
@@ -25,10 +25,14 @@ async def get_dashboard() -> dict[str, Any]:
     session = create_session()
     try:
         # Get today's stats
-        daily = session.query(DailyStats).filter_by(
-            play_date=today,
-            playlist="DOUBLES",
-        ).first()
+        daily = (
+            session.query(DailyStats)
+            .filter_by(
+                play_date=today,
+                playlist="DOUBLES",
+            )
+            .first()
+        )
 
         today_stats = {}
         if daily:
@@ -42,23 +46,24 @@ async def get_dashboard() -> dict[str, Any]:
 
         # Get recent games (last 10)
         recent_replays = (
-            session.query(Replay)
-            .order_by(Replay.played_at_utc.desc())
-            .limit(10)
-            .all()
+            session.query(Replay).order_by(Replay.played_at_utc.desc()).limit(10).all()
         )
 
         recent_games = []
         for r in recent_replays:
-            recent_games.append({
-                "replay_id": r.replay_id,
-                "played_at_utc": r.played_at_utc.isoformat() if r.played_at_utc else None,
-                "playlist": r.playlist,
-                "result": r.result,
-                "my_score": r.my_score,
-                "opponent_score": r.opponent_score,
-                "map": r.map,
-            })
+            recent_games.append(
+                {
+                    "replay_id": r.replay_id,
+                    "played_at_utc": (
+                        r.played_at_utc.isoformat() if r.played_at_utc else None
+                    ),
+                    "playlist": r.playlist,
+                    "result": r.result,
+                    "my_score": r.my_score,
+                    "opponent_score": r.opponent_score,
+                    "map": r.map,
+                }
+            )
 
         # Quick stats (last 7 days average)
         quick_stats = {
@@ -74,15 +79,21 @@ async def get_dashboard() -> dict[str, Any]:
                 session.query(PlayerGameStats)
                 .filter(
                     PlayerGameStats.replay_id.in_(replay_ids),
-                    PlayerGameStats.is_me == True,
+                    PlayerGameStats.is_me,
                 )
                 .all()
             )
 
             if my_stats:
-                quick_stats["avg_goals"] = sum(s.goals or 0 for s in my_stats) / len(my_stats)
-                quick_stats["avg_saves"] = sum(s.saves or 0 for s in my_stats) / len(my_stats)
-                quick_stats["avg_assists"] = sum(s.assists or 0 for s in my_stats) / len(my_stats)
+                quick_stats["avg_goals"] = sum(s.goals or 0 for s in my_stats) / len(
+                    my_stats
+                )
+                quick_stats["avg_saves"] = sum(s.saves or 0 for s in my_stats) / len(
+                    my_stats
+                )
+                quick_stats["avg_assists"] = sum(
+                    s.assists or 0 for s in my_stats
+                ) / len(my_stats)
 
         return {
             "today": today_stats,

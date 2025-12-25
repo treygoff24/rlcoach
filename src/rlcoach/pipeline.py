@@ -12,15 +12,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
-from .config import RLCoachConfig
+from .config import RLCoachConfig, compute_play_date
 from .db.session import init_db
 from .db.writer import PlayerNotFoundError, ReplayExistsError, write_report
 from .identity import PlayerIdentityResolver
 from .ingest import ingest_replay
-from .report import generate_report
+from .report import generate_report, write_report_atomically
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +125,25 @@ def process_replay_file(
         # Add source_file to report
         report["source_file"] = str(path)
 
-        # Step 3: Write to database
-        replay_id = write_report(report, file_hash, config)
+        # Step 3: Write JSON report to disk
+        # Compute json_report_path matching what insert_replay stores
+        metadata = report.get("metadata", {})
+        played_at_str = metadata.get("started_at_utc", "")
+        if played_at_str:
+            played_at_str = played_at_str.replace("Z", "+00:00")
+            played_at_utc = datetime.fromisoformat(played_at_str)
+        else:
+            played_at_utc = datetime.now(timezone.utc)
+        play_date = compute_play_date(played_at_utc, config.preferences.timezone)
+
+        replay_id = report.get("replay_id", file_hash[:16])
+        json_report_path = (
+            config.paths.reports_dir / play_date.isoformat() / f"{replay_id}.json"
+        )
+        write_report_atomically(report, json_report_path, pretty=True)
+
+        # Step 4: Write to database
+        write_report(report, file_hash, config)
 
         logger.info(f"Processed {path} -> {replay_id}")
 

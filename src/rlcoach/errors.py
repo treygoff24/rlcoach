@@ -103,7 +103,9 @@ class CRCValidationError(RLCoachError):
         details = {
             "path": path,
             "section": section,
-            "expected_crc": f"0x{expected_crc:08x}" if expected_crc is not None else None,
+            "expected_crc": (
+                f"0x{expected_crc:08x}" if expected_crc is not None else None
+            ),
             "actual_crc": f"0x{actual_crc:08x}" if actual_crc is not None else None,
             "suggested_action": (
                 "The replay file may be corrupted. Try re-downloading or "

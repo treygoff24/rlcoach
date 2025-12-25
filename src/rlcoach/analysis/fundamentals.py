@@ -2,7 +2,7 @@
 
 This module computes core performance metrics from game events:
 - Goals, assists, shots, saves
-- Demolitions inflicted and taken  
+- Demolitions inflicted and taken
 - Score calculation
 - Shooting percentage
 
@@ -13,9 +13,14 @@ degradation for incomplete data.
 from __future__ import annotations
 
 from typing import Any
-from ..events import GoalEvent, DemoEvent, TouchEvent
-from ..parser.types import Header, Frame
-from ..utils.identity import build_player_identities, build_alias_lookup, sanitize_display_name
+
+from ..events import DemoEvent, GoalEvent
+from ..parser.types import Frame, Header
+from ..utils.identity import (
+    build_alias_lookup,
+    build_player_identities,
+    sanitize_display_name,
+)
 
 
 def analyze_fundamentals(
@@ -26,19 +31,19 @@ def analyze_fundamentals(
     header: Header | None = None,
 ) -> dict[str, Any]:
     """Analyze fundamental performance metrics for a player or team.
-    
+
     Args:
         frames: Normalized frame data (used for validation only)
         events: Dictionary containing detected events by type
         player_id: If provided, analyze specific player; otherwise team analysis
         team: Team filter ("BLUE" or "ORANGE"), required if player_id not provided
         header: Optional header for additional context
-        
+
     Returns:
         Dictionary matching schema fundamentals definition:
         {
             "goals": int,
-            "assists": int, 
+            "assists": int,
             "shots": int,
             "saves": int,
             "demos_inflicted": int,
@@ -49,57 +54,64 @@ def analyze_fundamentals(
     """
     if not events:
         return _empty_fundamentals()
-    
+
     # Extract event lists with safe defaults
-    goals = events.get('goals', [])
-    demos = events.get('demos', [])
-    touches = events.get('touches', [])
-    
+    goals = events.get("goals", [])
+    demos = events.get("demos", [])
+    touches = events.get("touches", [])
+
     # Count goals
     goals_count = 0
     assists_count = 0
-    
+
     for goal in goals:
         if _matches_filter(goal.scorer, goal.team, player_id, team):
             goals_count += 1
-        
+
         # Count assists - goal.assist is the assisting player ID
         if goal.assist and _matches_filter(goal.assist, goal.team, player_id, team):
             assists_count += 1
-    
+
     # Count demos inflicted and taken
     demos_inflicted = 0
     demos_taken = 0
-    
+
     for demo in demos:
         # Demos inflicted - player was the attacker
-        if demo.attacker and _matches_filter(demo.attacker, demo.team_attacker, player_id, team):
+        if demo.attacker and _matches_filter(
+            demo.attacker, demo.team_attacker, player_id, team
+        ):
             demos_inflicted += 1
-        
+
         # Demos taken - player was the victim
         if _matches_filter(demo.victim, demo.team_victim, player_id, team):
             demos_taken += 1
-    
+
     # Count shots and saves from touch events
     shots_count = 0
     saves_count = 0
-    
+
     for touch in touches:
-        if not _matches_filter(touch.player_id, _infer_team_from_events(touch.player_id, goals, demos), player_id, team):
+        if not _matches_filter(
+            touch.player_id,
+            _infer_team_from_events(touch.player_id, goals, demos),
+            player_id,
+            team,
+        ):
             continue
-            
+
         if touch.outcome == "SHOT":
             shots_count += 1
         elif touch.outcome == "SAVE":
             saves_count += 1
-    
+
     # Calculate score using community standard formula
     score = (
-        100 * goals_count +
-        50 * assists_count + 
-        20 * shots_count +
-        75 * saves_count +
-        25 * demos_inflicted
+        100 * goals_count
+        + 50 * assists_count
+        + 20 * shots_count
+        + 75 * saves_count
+        + 25 * demos_inflicted
     )
 
     result = {
@@ -120,7 +132,9 @@ def analyze_fundamentals(
             value = header_stats.get(key)
             if value is not None:
                 result[key] = int(value)
-        result["shooting_percentage"] = _shooting_percentage(result["goals"], result["shots"])
+        result["shooting_percentage"] = _shooting_percentage(
+            result["goals"], result["shots"]
+        )
 
     return result
 
@@ -131,16 +145,20 @@ def _empty_fundamentals() -> dict[str, Any]:
         "goals": 0,
         "assists": 0,
         "shots": 0,
-        "saves": 0, 
+        "saves": 0,
         "demos_inflicted": 0,
         "demos_taken": 0,
         "score": 0,
-        "shooting_percentage": 0.0
+        "shooting_percentage": 0.0,
     }
 
 
-def _matches_filter(event_player_id: str | None, event_team: str | None, 
-                   filter_player_id: str | None, filter_team: str | None) -> bool:
+def _matches_filter(
+    event_player_id: str | None,
+    event_team: str | None,
+    filter_player_id: str | None,
+    filter_team: str | None,
+) -> bool:
     """Check if event matches player/team filter criteria."""
     if filter_player_id:
         # Player-specific analysis
@@ -153,23 +171,25 @@ def _matches_filter(event_player_id: str | None, event_team: str | None,
         return True
 
 
-def _infer_team_from_events(player_id: str, goals: list[GoalEvent], demos: list[DemoEvent]) -> str | None:
+def _infer_team_from_events(
+    player_id: str, goals: list[GoalEvent], demos: list[DemoEvent]
+) -> str | None:
     """Infer player's team from their involvement in events.
-    
+
     This is a fallback for touch events which don't include team info.
     """
     # Check goals where this player was scorer
     for goal in goals:
         if goal.scorer == player_id:
             return goal.team
-    
+
     # Check demos where this player was victim or attacker
     for demo in demos:
         if demo.victim == player_id:
             return demo.team_victim
         elif demo.attacker == player_id:
             return demo.team_attacker
-    
+
     return None
 
 
@@ -202,7 +222,9 @@ def _extract_header_fundamentals(
         }
 
     if team:
-        team_idx = 0 if team.upper() == "BLUE" else 1 if team.upper() == "ORANGE" else None
+        team_idx = (
+            0 if team.upper() == "BLUE" else 1 if team.upper() == "ORANGE" else None
+        )
         if team_idx is None:
             return None
 
@@ -229,13 +251,17 @@ def _extract_header_fundamentals(
     return None
 
 
-def _lookup_header_player_stats(header: Header, player_id: str) -> dict[str, Any] | None:
+def _lookup_header_player_stats(
+    header: Header, player_id: str
+) -> dict[str, Any] | None:
     identities = build_player_identities(header.players)
     alias_lookup = build_alias_lookup(identities)
     canonical = alias_lookup.get(player_id, player_id)
 
     name_lookup = {
-        sanitize_display_name(header.players[identity.header_index].name).lower(): identity.canonical_id
+        sanitize_display_name(
+            header.players[identity.header_index].name
+        ).lower(): identity.canonical_id
         for identity in identities
     }
 

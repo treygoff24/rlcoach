@@ -16,14 +16,13 @@ from typing import Any
 
 from .field_constants import FIELD, Vec3
 from .parser.types import (
-    Header,
-    NetworkFrames,
-    Frame,
-    PlayerFrame,
     BallFrame,
     BoostPadEventFrame,
-    Rotation,
+    Frame,
+    Header,
+    PlayerFrame,
     Quaternion,
+    Rotation,
 )
 from .utils.identity import (
     build_alias_lookup,
@@ -59,14 +58,14 @@ def measure_frame_rate(frames: list[Any]) -> float:
     timestamps = []
     for frame in frames:
         try:
-            if hasattr(frame, 'timestamp'):
+            if hasattr(frame, "timestamp"):
                 timestamps.append(float(frame.timestamp))
-            elif hasattr(frame, 'time'):
+            elif hasattr(frame, "time"):
                 timestamps.append(float(frame.time))
-            elif isinstance(frame, dict) and 'timestamp' in frame:
-                timestamps.append(float(frame['timestamp']))
-            elif isinstance(frame, dict) and 'time' in frame:
-                timestamps.append(float(frame['time']))
+            elif isinstance(frame, dict) and "timestamp" in frame:
+                timestamps.append(float(frame["timestamp"]))
+            elif isinstance(frame, dict) and "time" in frame:
+                timestamps.append(float(frame["time"]))
         except (ValueError, TypeError):
             continue  # Skip frames with invalid timestamps
 
@@ -76,7 +75,7 @@ def measure_frame_rate(frames: list[Any]) -> float:
     # Calculate time deltas between consecutive frames
     deltas = []
     for i in range(1, len(timestamps)):
-        delta = timestamps[i] - timestamps[i-1]
+        delta = timestamps[i] - timestamps[i - 1]
         if delta > 0:  # Only positive deltas
             deltas.append(delta)
 
@@ -95,38 +94,38 @@ def measure_frame_rate(frames: list[Any]) -> float:
 
 def to_field_coords(vec: Any) -> Vec3:
     """Transform vector to standard RLBot coordinate system.
-    
+
     Args:
         vec: Input vector (Vec3, tuple, list, or dict)
-        
+
     Returns:
         Vec3 in RLBot coordinate system (x=±4096, y=±5120, z≈2044)
     """
     # Handle different input formats
     if isinstance(vec, Vec3):
         return vec
-    elif hasattr(vec, 'x') and hasattr(vec, 'y') and hasattr(vec, 'z'):
+    elif hasattr(vec, "x") and hasattr(vec, "y") and hasattr(vec, "z"):
         x, y, z = vec.x, vec.y, vec.z
     elif isinstance(vec, (tuple, list)) and len(vec) >= 3:
         x, y, z = vec[0], vec[1], vec[2]
     elif isinstance(vec, dict):
-        x = vec.get('x', 0.0)
-        y = vec.get('y', 0.0)
-        z = vec.get('z', 0.0)
+        x = vec.get("x", 0.0)
+        y = vec.get("y", 0.0)
+        z = vec.get("z", 0.0)
     else:
         return Vec3(0.0, 0.0, 0.0)
-    
+
     # Convert to float and ensure reasonable bounds
     try:
         x_norm = float(x)
-        y_norm = float(y)  
+        y_norm = float(y)
         z_norm = float(z)
-        
+
         # Clamp to field boundaries with some tolerance
         x_norm = max(-FIELD.SIDE_WALL_X * 1.1, min(FIELD.SIDE_WALL_X * 1.1, x_norm))
         y_norm = max(-FIELD.BACK_WALL_Y * 1.1, min(FIELD.BACK_WALL_Y * 1.1, y_norm))
         z_norm = max(-100.0, min(FIELD.CEILING_Z * 2.0, z_norm))
-        
+
         return Vec3(x_norm, y_norm, z_norm)
     except (ValueError, TypeError):
         return Vec3(0.0, 0.0, 0.0)
@@ -154,50 +153,54 @@ def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
     # Handle dict format
     if isinstance(rot_data, dict):
         # New format: has pitch/yaw/roll keys
-        if 'pitch' in rot_data or 'yaw' in rot_data or 'roll' in rot_data:
-            pitch = float(rot_data.get('pitch', 0.0))
-            yaw = float(rot_data.get('yaw', 0.0))
-            roll = float(rot_data.get('roll', 0.0))
+        if "pitch" in rot_data or "yaw" in rot_data or "roll" in rot_data:
+            pitch = float(rot_data.get("pitch", 0.0))
+            yaw = float(rot_data.get("yaw", 0.0))
+            roll = float(rot_data.get("roll", 0.0))
 
             # Parse quaternion if present
             quat = None
-            quat_data = rot_data.get('quaternion')
+            quat_data = rot_data.get("quaternion")
             if quat_data is not None and isinstance(quat_data, dict):
                 quat = Quaternion(
-                    x=float(quat_data.get('x', 0.0)),
-                    y=float(quat_data.get('y', 0.0)),
-                    z=float(quat_data.get('z', 0.0)),
-                    w=float(quat_data.get('w', 1.0)),
+                    x=float(quat_data.get("x", 0.0)),
+                    y=float(quat_data.get("y", 0.0)),
+                    z=float(quat_data.get("z", 0.0)),
+                    w=float(quat_data.get("w", 1.0)),
                 )
 
             return Rotation(pitch=pitch, yaw=yaw, roll=roll, quaternion=quat)
 
         # Legacy format: has x/y/z keys (x=pitch, y=yaw, z=roll)
-        elif 'x' in rot_data or 'y' in rot_data or 'z' in rot_data:
+        elif "x" in rot_data or "y" in rot_data or "z" in rot_data:
             return Vec3(
-                x=float(rot_data.get('x', 0.0)),
-                y=float(rot_data.get('y', 0.0)),
-                z=float(rot_data.get('z', 0.0)),
+                x=float(rot_data.get("x", 0.0)),
+                y=float(rot_data.get("y", 0.0)),
+                z=float(rot_data.get("z", 0.0)),
             )
 
     # For non-dict objects, check for x/y/z FIRST (legacy format), before pitch/yaw/roll
     # This is important because Mock objects have implicit attributes
-    if hasattr(rot_data, 'x') and hasattr(rot_data, 'y') and hasattr(rot_data, 'z'):
+    if hasattr(rot_data, "x") and hasattr(rot_data, "y") and hasattr(rot_data, "z"):
         # Try to get x/y/z as numbers - this distinguishes real attributes from Mock implicit ones
         try:
-            x_val = getattr(rot_data, 'x')
-            y_val = getattr(rot_data, 'y')
-            z_val = getattr(rot_data, 'z')
+            x_val = rot_data.x
+            y_val = rot_data.y
+            z_val = rot_data.z
             # Verify they are actual numeric values
-            if isinstance(x_val, (int, float)) and isinstance(y_val, (int, float)) and isinstance(z_val, (int, float)):
+            if (
+                isinstance(x_val, (int, float))
+                and isinstance(y_val, (int, float))
+                and isinstance(z_val, (int, float))
+            ):
                 return Vec3(x=float(x_val), y=float(y_val), z=float(z_val))
         except (TypeError, ValueError):
             pass
 
     # Handle object with pitch/yaw/roll attributes (new format)
-    pitch_val = getattr(rot_data, 'pitch', None)
-    yaw_val = getattr(rot_data, 'yaw', None)
-    roll_val = getattr(rot_data, 'roll', None)
+    pitch_val = getattr(rot_data, "pitch", None)
+    yaw_val = getattr(rot_data, "yaw", None)
+    roll_val = getattr(rot_data, "roll", None)
 
     # Check if any of pitch/yaw/roll are actual numbers (not Mock objects)
     has_real_pitch = isinstance(pitch_val, (int, float))
@@ -210,29 +213,33 @@ def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
         roll = float(roll_val) if has_real_roll else 0.0
 
         quat = None
-        quat_data = getattr(rot_data, 'quaternion', None)
+        quat_data = getattr(rot_data, "quaternion", None)
         if quat_data is not None:
             if isinstance(quat_data, dict):
                 quat = Quaternion(
-                    x=float(quat_data.get('x', 0.0)),
-                    y=float(quat_data.get('y', 0.0)),
-                    z=float(quat_data.get('z', 0.0)),
-                    w=float(quat_data.get('w', 1.0)),
+                    x=float(quat_data.get("x", 0.0)),
+                    y=float(quat_data.get("y", 0.0)),
+                    z=float(quat_data.get("z", 0.0)),
+                    w=float(quat_data.get("w", 1.0)),
                 )
-            elif hasattr(quat_data, 'x'):
-                qx = getattr(quat_data, 'x', 0.0)
-                qy = getattr(quat_data, 'y', 0.0)
-                qz = getattr(quat_data, 'z', 0.0)
-                qw = getattr(quat_data, 'w', 1.0)
+            elif hasattr(quat_data, "x"):
+                qx = getattr(quat_data, "x", 0.0)
+                qy = getattr(quat_data, "y", 0.0)
+                qz = getattr(quat_data, "z", 0.0)
+                qw = getattr(quat_data, "w", 1.0)
                 if all(isinstance(v, (int, float)) for v in [qx, qy, qz, qw]):
-                    quat = Quaternion(x=float(qx), y=float(qy), z=float(qz), w=float(qw))
+                    quat = Quaternion(
+                        x=float(qx), y=float(qy), z=float(qz), w=float(qw)
+                    )
 
         return Rotation(pitch=pitch, yaw=yaw, roll=roll, quaternion=quat)
 
     return Rotation(0.0, 0.0, 0.0)
 
 
-def normalize_players(header: Header | None, frames: list[Any]) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+def normalize_players(
+    header: Header | None, frames: list[Any]
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Create unified player identity mapping across header and frame data."""
 
     if header is None or not getattr(header, "players", None):
@@ -243,7 +250,9 @@ def normalize_players(header: Header | None, frames: list[Any]) -> tuple[dict[st
 
     players_index: dict[str, dict[str, Any]] = {}
     for identity in identities:
-        team_index = 0 if identity.team == "BLUE" else 1 if identity.team == "ORANGE" else 0
+        team_index = (
+            0 if identity.team == "BLUE" else 1 if identity.team == "ORANGE" else 0
+        )
         players_index[identity.canonical_id] = {
             "name": identity.display_name,
             "team_index": team_index,
@@ -267,7 +276,7 @@ def normalize_players(header: Header | None, frames: list[Any]) -> tuple[dict[st
                 for player in players:
                     raw_id = None
                     if hasattr(player, "player_id"):
-                        raw_id = getattr(player, "player_id")
+                        raw_id = player.player_id
                     elif isinstance(player, dict):
                         raw_id = player.get("player_id")
                     if raw_id is None:
@@ -289,11 +298,11 @@ def normalize_players(header: Header | None, frames: list[Any]) -> tuple[dict[st
 
 def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
     """Build normalized timeline from header and network frame data.
-    
+
     Args:
         header: Parsed header information
         frames: Network frame data (may be empty for header-only)
-        
+
     Returns:
         List of normalized Frame objects
     """
@@ -305,151 +314,162 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 ball=BallFrame(
                     position=Vec3(0.0, 0.0, 93.15),  # Ball spawn height
                     velocity=Vec3(0.0, 0.0, 0.0),
-                    angular_velocity=Vec3(0.0, 0.0, 0.0)
+                    angular_velocity=Vec3(0.0, 0.0, 0.0),
                 ),
                 players=[],
                 boost_pad_events=[],
             )
         ]
-    
+
     # Get player mapping
     players_index, alias_lookup = normalize_players(header, frames)
 
     player_supersonic_state: dict[str, bool] = {}
     player_prev_position: dict[str, Vec3] = {}
     player_prev_timestamp: dict[str, float] = {}
-    
+
     # Convert frames to normalized format
     normalized_frames = []
-    
+
     for frame_data in frames:
         try:
             # Extract timestamp
             timestamp = 0.0
-            if hasattr(frame_data, 'timestamp'):
+            if hasattr(frame_data, "timestamp"):
                 timestamp = float(frame_data.timestamp)
-            elif hasattr(frame_data, 'time'):
+            elif hasattr(frame_data, "time"):
                 timestamp = float(frame_data.time)
-            elif isinstance(frame_data, dict) and 'timestamp' in frame_data:
-                timestamp = float(frame_data['timestamp'])
-            elif isinstance(frame_data, dict) and 'time' in frame_data:
-                timestamp = float(frame_data['time'])
-            
+            elif isinstance(frame_data, dict) and "timestamp" in frame_data:
+                timestamp = float(frame_data["timestamp"])
+            elif isinstance(frame_data, dict) and "time" in frame_data:
+                timestamp = float(frame_data["time"])
+
             # Extract ball state
             ball_pos = Vec3(0.0, 0.0, 93.15)
             ball_vel = Vec3(0.0, 0.0, 0.0)
             ball_ang_vel = Vec3(0.0, 0.0, 0.0)
-            
-            if hasattr(frame_data, 'ball'):
+
+            if hasattr(frame_data, "ball"):
                 ball_pos = to_field_coords(frame_data.ball.position)
                 ball_vel = to_field_coords(frame_data.ball.velocity)
-                if hasattr(frame_data.ball, 'angular_velocity'):
+                if hasattr(frame_data.ball, "angular_velocity"):
                     ball_ang_vel = to_field_coords(frame_data.ball.angular_velocity)
-            elif isinstance(frame_data, dict) and 'ball' in frame_data:
-                ball = frame_data['ball']
+            elif isinstance(frame_data, dict) and "ball" in frame_data:
+                ball = frame_data["ball"]
                 if isinstance(ball, dict):
-                    ball_pos = to_field_coords(ball.get('position', {}))
-                    ball_vel = to_field_coords(ball.get('velocity', {}))
-                    ball_ang_vel = to_field_coords(ball.get('angular_velocity', {}))
-            
+                    ball_pos = to_field_coords(ball.get("position", {}))
+                    ball_vel = to_field_coords(ball.get("velocity", {}))
+                    ball_ang_vel = to_field_coords(ball.get("angular_velocity", {}))
+
             ball_frame = BallFrame(
-                position=ball_pos,
-                velocity=ball_vel,
-                angular_velocity=ball_ang_vel
+                position=ball_pos, velocity=ball_vel, angular_velocity=ball_ang_vel
             )
-            
+
             # Extract player states
             # Collect latest player state per player_id to avoid duplicates
             player_frames_map: dict[str, PlayerFrame] = {}
             players_data = []
-            
-            if hasattr(frame_data, 'players'):
+
+            if hasattr(frame_data, "players"):
                 players_data = frame_data.players
-            elif isinstance(frame_data, dict) and 'players' in frame_data:
-                players_data = frame_data['players']
-            
+            elif isinstance(frame_data, dict) and "players" in frame_data:
+                players_data = frame_data["players"]
+
             for player_data in players_data:
                 try:
                     # Extract player ID
                     player_id = "unknown"
-                    if hasattr(player_data, 'player_id'):
+                    if hasattr(player_data, "player_id"):
                         player_id = str(player_data.player_id)
-                    elif isinstance(player_data, dict) and 'player_id' in player_data:
-                        player_id = str(player_data['player_id'])
+                    elif isinstance(player_data, dict) and "player_id" in player_data:
+                        player_id = str(player_data["player_id"])
 
                     canonical_id = alias_lookup.get(player_id, player_id)
                     if canonical_id != player_id:
                         alias_lookup.setdefault(player_id, canonical_id)
                     if canonical_id not in players_index and player_id in players_index:
                         canonical_id = player_id
-                    
-                    # Get team from player index or frame data  
+
+                    # Get team from player index or frame data
                     team = 0
                     index_entry = players_index.get(canonical_id)
-                    if index_entry and index_entry.get('team_index') is not None:
-                        team = int(index_entry['team_index'])
-                    
+                    if index_entry and index_entry.get("team_index") is not None:
+                        team = int(index_entry["team_index"])
+
                     # If no team from index, try frame data
                     if team == 0:  # Only override if still default
-                        if hasattr(player_data, 'team') and player_data.team is not None:
+                        if (
+                            hasattr(player_data, "team")
+                            and player_data.team is not None
+                        ):
                             team = int(player_data.team)
-                        elif isinstance(player_data, dict) and 'team' in player_data:
-                            team = int(player_data['team'])
-                    
+                        elif isinstance(player_data, dict) and "team" in player_data:
+                            team = int(player_data["team"])
+
                     # Extract position and other data
                     position = Vec3(0.0, 0.0, 17.0)  # Car height
                     velocity = Vec3(0.0, 0.0, 0.0)
                     rotation: Rotation | Vec3 = Rotation(0.0, 0.0, 0.0)
                     boost_amount = 33  # Starting boost
 
-                    if hasattr(player_data, 'position'):
+                    if hasattr(player_data, "position"):
                         position = to_field_coords(player_data.position)
-                    elif isinstance(player_data, dict) and 'position' in player_data:
-                        position = to_field_coords(player_data['position'])
+                    elif isinstance(player_data, dict) and "position" in player_data:
+                        position = to_field_coords(player_data["position"])
 
-                    if hasattr(player_data, 'velocity'):
+                    if hasattr(player_data, "velocity"):
                         velocity = to_field_coords(player_data.velocity)
-                    elif isinstance(player_data, dict) and 'velocity' in player_data:
-                        velocity = to_field_coords(player_data['velocity'])
+                    elif isinstance(player_data, dict) and "velocity" in player_data:
+                        velocity = to_field_coords(player_data["velocity"])
 
                     # Extract rotation - handle both new format (pitch/yaw/roll + quaternion)
                     # and legacy format (x/y/z)
-                    if hasattr(player_data, 'rotation'):
+                    if hasattr(player_data, "rotation"):
                         rotation = _parse_rotation(player_data.rotation)
-                    elif isinstance(player_data, dict) and 'rotation' in player_data:
-                        rotation = _parse_rotation(player_data['rotation'])
-                    
-                    if hasattr(player_data, 'boost_amount'):
+                    elif isinstance(player_data, dict) and "rotation" in player_data:
+                        rotation = _parse_rotation(player_data["rotation"])
+
+                    if hasattr(player_data, "boost_amount"):
                         boost_amount = max(0, min(100, int(player_data.boost_amount)))
                     elif isinstance(player_data, dict):
                         # Accept both 'boost_amount' (Rust shape) and shorter 'boost'
-                        if 'boost_amount' in player_data:
-                            boost_amount = max(0, min(100, int(player_data['boost_amount'])))
-                        elif 'boost' in player_data:
-                            boost_amount = max(0, min(100, int(player_data['boost'])))
-                    
+                        if "boost_amount" in player_data:
+                            boost_amount = max(
+                                0, min(100, int(player_data["boost_amount"]))
+                            )
+                        elif "boost" in player_data:
+                            boost_amount = max(0, min(100, int(player_data["boost"])))
+
                     # Extract boolean flags with proper handling
                     raw_supersonic_flag = False
                     is_on_ground = True
                     is_demolished = False
-                    
-                    if hasattr(player_data, 'is_supersonic'):
+
+                    if hasattr(player_data, "is_supersonic"):
                         raw_supersonic_flag = bool(player_data.is_supersonic)
-                    elif isinstance(player_data, dict) and 'is_supersonic' in player_data:
-                        raw_supersonic_flag = bool(player_data['is_supersonic'])
-                    
-                    if hasattr(player_data, 'is_on_ground'):
+                    elif (
+                        isinstance(player_data, dict) and "is_supersonic" in player_data
+                    ):
+                        raw_supersonic_flag = bool(player_data["is_supersonic"])
+
+                    if hasattr(player_data, "is_on_ground"):
                         is_on_ground = bool(player_data.is_on_ground)
-                    elif isinstance(player_data, dict) and 'is_on_ground' in player_data:
-                        is_on_ground = bool(player_data['is_on_ground'])
-                    
-                    if hasattr(player_data, 'is_demolished'):
+                    elif (
+                        isinstance(player_data, dict) and "is_on_ground" in player_data
+                    ):
+                        is_on_ground = bool(player_data["is_on_ground"])
+
+                    if hasattr(player_data, "is_demolished"):
                         is_demolished = bool(player_data.is_demolished)
-                    elif isinstance(player_data, dict) and 'is_demolished' in player_data:
-                        is_demolished = bool(player_data['is_demolished'])
+                    elif (
+                        isinstance(player_data, dict) and "is_demolished" in player_data
+                    ):
+                        is_demolished = bool(player_data["is_demolished"])
 
                     linear_speed = math.sqrt(
-                        velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z
+                        velocity.x * velocity.x
+                        + velocity.y * velocity.y
+                        + velocity.z * velocity.z
                     )
                     horizontal_speed = math.hypot(velocity.x, velocity.y)
                     prev_pos = player_prev_position.get(canonical_id)
@@ -465,9 +485,16 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     state = player_supersonic_state.get(canonical_id, False)
                     if raw_supersonic_flag:
                         state = True
-                    elif linear_speed >= SUPERSONIC_ENTRY_UU_S or horizontal_speed >= SUPERSONIC_ENTRY_UU_S:
+                    elif (
+                        linear_speed >= SUPERSONIC_ENTRY_UU_S
+                        or horizontal_speed >= SUPERSONIC_ENTRY_UU_S
+                    ):
                         state = True
-                    elif state and derivative_speed >= SUPERSONIC_DERIVATIVE_ENTRY_UU_S and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
+                    elif (
+                        state
+                        and derivative_speed >= SUPERSONIC_DERIVATIVE_ENTRY_UU_S
+                        and horizontal_speed >= SUPERSONIC_EXIT_UU_S
+                    ):
                         state = True
                     elif state and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
                         state = True
@@ -476,7 +503,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
 
                     player_supersonic_state[canonical_id] = state
                     is_supersonic = raw_supersonic_flag or state
-                    
+
                     player_frame = PlayerFrame(
                         player_id=canonical_id,
                         team=team,
@@ -486,15 +513,17 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         boost_amount=boost_amount,
                         is_supersonic=is_supersonic,
                         is_on_ground=is_on_ground,
-                        is_demolished=is_demolished
+                        is_demolished=is_demolished,
                     )
-                    
+
                     # Keep the latest state seen in this frame for each unique player ID
                     player_frames_map[canonical_id] = player_frame
 
                     if canonical_id not in players_index:
                         players_index[canonical_id] = {
-                            "name": sanitize_display_name(getattr(player_data, "name", canonical_id)),
+                            "name": sanitize_display_name(
+                                getattr(player_data, "name", canonical_id)
+                            ),
                             "team_index": team,
                             "team_name": "BLUE" if team == 0 else "ORANGE",
                             "platform_ids": {},
@@ -514,7 +543,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             pad_events: list[BoostPadEventFrame] = []
             raw_pad_events: list[Any] = []
             if hasattr(frame_data, "boost_pad_events"):
-                candidate = getattr(frame_data, "boost_pad_events")
+                candidate = frame_data.boost_pad_events
                 if isinstance(candidate, list):
                     raw_pad_events = candidate
                 elif isinstance(candidate, tuple):
@@ -546,7 +575,9 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 player_index_value = raw_event.get("player_index")
                 canonical_player_id: str | None = None
                 if isinstance(player_id_value, str) and player_id_value:
-                    canonical_player_id = alias_lookup.get(player_id_value, player_id_value)
+                    canonical_player_id = alias_lookup.get(
+                        player_id_value, player_id_value
+                    )
                     alias_lookup.setdefault(player_id_value, canonical_player_id)
                 elif player_index_value is not None:
                     try:
@@ -559,25 +590,35 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         alias_lookup.setdefault(candidate, canonical_player_id)
                 player_team_value = raw_event.get("player_team")
                 try:
-                    player_team = int(player_team_value) if player_team_value is not None else None
+                    player_team = (
+                        int(player_team_value)
+                        if player_team_value is not None
+                        else None
+                    )
                 except (TypeError, ValueError):
                     player_team = None
 
                 actor_id_value = raw_event.get("actor_id")
                 try:
-                    actor_id = int(actor_id_value) if actor_id_value is not None else None
+                    actor_id = (
+                        int(actor_id_value) if actor_id_value is not None else None
+                    )
                 except (TypeError, ValueError):
                     actor_id = None
 
                 instigator_value = raw_event.get("instigator_actor_id")
                 try:
-                    instigator_actor_id = int(instigator_value) if instigator_value is not None else None
+                    instigator_actor_id = (
+                        int(instigator_value) if instigator_value is not None else None
+                    )
                 except (TypeError, ValueError):
                     instigator_actor_id = None
 
                 raw_state_value = raw_event.get("raw_state")
                 try:
-                    raw_state = int(raw_state_value) if raw_state_value is not None else None
+                    raw_state = (
+                        int(raw_state_value) if raw_state_value is not None else None
+                    )
                 except (TypeError, ValueError):
                     raw_state = None
 
@@ -586,12 +627,18 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
 
                 event_timestamp = raw_event.get("timestamp")
                 try:
-                    event_time = float(event_timestamp) if event_timestamp is not None else None
+                    event_time = (
+                        float(event_timestamp) if event_timestamp is not None else None
+                    )
                 except (TypeError, ValueError):
                     event_time = None
 
                 object_name = raw_event.get("object_name")
-                object_name_str = str(object_name) if isinstance(object_name, str) and object_name else None
+                object_name_str = (
+                    str(object_name)
+                    if isinstance(object_name, str) and object_name
+                    else None
+                )
 
                 pad_events.append(
                     BoostPadEventFrame(
@@ -600,7 +647,11 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         is_big=is_big,
                         player_id=canonical_player_id,
                         player_team=player_team,
-                        player_index=int(player_index_value) if isinstance(player_index_value, (int, float)) else None,
+                        player_index=(
+                            int(player_index_value)
+                            if isinstance(player_index_value, (int, float))
+                            else None
+                        ),
                         actor_id=actor_id,
                         instigator_actor_id=instigator_actor_id,
                         raw_state=raw_state,
@@ -617,13 +668,13 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 players=list(player_frames_map.values()),
                 boost_pad_events=pad_events,
             )
-            
+
             normalized_frames.append(normalized_frame)
-        
+
         except (ValueError, TypeError, AttributeError):
             # Skip malformed frames
             continue
-    
+
     # Sort by timestamp to ensure chronological order
     normalized_frames.sort(key=lambda f: f.timestamp)
 
@@ -631,18 +682,22 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
     normalized_frames = _align_match_clock(normalized_frames, header)
 
     # Return frames or minimal fallback
-    return normalized_frames if normalized_frames else [
-        Frame(
-            timestamp=0.0,
-            ball=BallFrame(
-                position=Vec3(0.0, 0.0, 93.15),
-                velocity=Vec3(0.0, 0.0, 0.0),
-                angular_velocity=Vec3(0.0, 0.0, 0.0)
-            ),
-            players=[],
-            boost_pad_events=[],
-        )
-    ]
+    return (
+        normalized_frames
+        if normalized_frames
+        else [
+            Frame(
+                timestamp=0.0,
+                ball=BallFrame(
+                    position=Vec3(0.0, 0.0, 93.15),
+                    velocity=Vec3(0.0, 0.0, 0.0),
+                    angular_velocity=Vec3(0.0, 0.0, 0.0),
+                ),
+                players=[],
+                boost_pad_events=[],
+            )
+        ]
+    )
 
 
 def _align_match_clock(frames: list[Frame], header: Header | None) -> list[Frame]:

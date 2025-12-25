@@ -13,7 +13,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,7 @@ class FileStabilityTimeout(Exception):
     def __init__(self, path: Path, timeout: float):
         self.path = path
         self.timeout = timeout
-        super().__init__(
-            f"File '{path}' did not stabilize within {timeout} seconds"
-        )
+        super().__init__(f"File '{path}' did not stabilize within {timeout} seconds")
 
 
 def wait_for_stable_file(
@@ -203,9 +201,7 @@ class ReplayWatcher:
                 self._process_file(path)
 
             except FileStabilityTimeout:
-                logger.warning(
-                    f"File {path} did not stabilize, skipping for now"
-                )
+                logger.warning(f"File {path} did not stabilize, skipping for now")
             except Exception as e:
                 logger.error(f"Error processing {path}: {e}")
                 # Mark as processed to avoid infinite retry

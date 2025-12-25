@@ -15,6 +15,7 @@ from typing import Any
 @dataclass
 class PatternResult:
     """Result of pattern analysis for a single metric."""
+
     metric: str
     win_avg: float
     loss_avg: float
@@ -49,10 +50,10 @@ def compute_cohens_d(
         if win_avg == loss_avg:
             return 0.0
         # Undefined but return large value in direction of difference
-        return float('inf') if win_avg > loss_avg else float('-inf')
+        return float("inf") if win_avg > loss_avg else float("-inf")
 
     # Pooled standard deviation
-    pooled_std = math.sqrt((win_std ** 2 + loss_std ** 2) / 2)
+    pooled_std = math.sqrt((win_std**2 + loss_std**2) / 2)
 
     if pooled_std == 0:
         return 0.0
@@ -108,8 +109,12 @@ def compute_pattern_analysis(
 
     for metric in all_metrics:
         # Extract values for this metric
-        win_values = [s[metric] for s in win_stats if metric in s and s[metric] is not None]
-        loss_values = [s[metric] for s in loss_stats if metric in s and s[metric] is not None]
+        win_values = [
+            s[metric] for s in win_stats if metric in s and s[metric] is not None
+        ]
+        loss_values = [
+            s[metric] for s in loss_stats if metric in s and s[metric] is not None
+        ]
 
         # Need enough data points
         if len(win_values) < min_games or len(loss_values) < min_games:
@@ -129,16 +134,18 @@ def compute_pattern_analysis(
         # Determine direction
         direction = "higher_in_wins" if effect_size > 0 else "lower_in_wins"
 
-        results.append(PatternResult(
-            metric=metric,
-            win_avg=win_avg,
-            loss_avg=loss_avg,
-            delta=win_avg - loss_avg,
-            effect_size=effect_size,
-            win_count=len(win_values),
-            loss_count=len(loss_values),
-            direction=direction,
-        ))
+        results.append(
+            PatternResult(
+                metric=metric,
+                win_avg=win_avg,
+                loss_avg=loss_avg,
+                delta=win_avg - loss_avg,
+                effect_size=effect_size,
+                win_count=len(win_values),
+                loss_count=len(loss_values),
+                direction=direction,
+            )
+        )
 
     # Sort by absolute effect size descending
     results.sort(key=lambda r: abs(r.effect_size), reverse=True)

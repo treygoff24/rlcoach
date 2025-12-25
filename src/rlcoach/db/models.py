@@ -10,8 +10,17 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Float, ForeignKey, Index, Integer,
-    String, Text, UniqueConstraint,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -46,7 +55,9 @@ class Replay(Base):
     result = Column(String, nullable=False)
     json_report_path = Column(String, nullable=False)
 
-    player_stats = relationship("PlayerGameStats", back_populates="replay", cascade="all, delete-orphan")
+    player_stats = relationship(
+        "PlayerGameStats", back_populates="replay", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_replays_play_date", play_date.desc()),
@@ -73,7 +84,9 @@ class PlayerGameStats(Base):
     __tablename__ = "player_game_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    replay_id = Column(String, ForeignKey("replays.replay_id", ondelete="CASCADE"), nullable=False)
+    replay_id = Column(
+        String, ForeignKey("replays.replay_id", ondelete="CASCADE"), nullable=False
+    )
     player_id = Column(String, ForeignKey("players.player_id"), nullable=False)
     team = Column(String, nullable=False)
     is_me = Column(Boolean, default=False)
@@ -152,7 +165,7 @@ class PlayerGameStats(Base):
         UniqueConstraint("replay_id", "player_id", name="uq_replay_player"),
         Index("ix_player_game_stats_replay", "replay_id"),
         Index("ix_player_game_stats_player", "player_id"),
-        Index("ix_player_game_stats_is_me", "is_me", sqlite_where=is_me == True),
+        Index("ix_player_game_stats_is_me", "is_me", sqlite_where=is_me),
     )
 
     replay = relationship("Replay", back_populates="player_stats")

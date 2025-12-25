@@ -8,15 +8,16 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from ...db.session import create_session
+from ...analysis.tendencies import compute_tendencies
 from ...db.models import Player, PlayerGameStats
-from ...analysis.tendencies import compute_tendencies, TendencyProfile
+from ...db.session import create_session
 
 router = APIRouter(tags=["players"])
 
 
 class TagRequest(BaseModel):
     """Request body for tagging a player."""
+
     tagged: bool = True
     notes: str | None = None
 
@@ -40,7 +41,7 @@ async def list_players(
     """
     session = create_session()
     try:
-        query = session.query(Player).filter(Player.is_me == False)
+        query = session.query(Player).filter(not Player.is_me)
 
         if tagged is not None:
             query = query.filter(Player.is_tagged_teammate == tagged)
@@ -67,17 +68,23 @@ async def list_players(
 
         items = []
         for p in players:
-            items.append({
-                "player_id": p.player_id,
-                "display_name": p.display_name,
-                "platform": p.platform,
-                "is_me": p.is_me,
-                "is_tagged_teammate": p.is_tagged_teammate,
-                "teammate_notes": p.teammate_notes,
-                "games_with_me": p.games_with_me,
-                "first_seen_utc": p.first_seen_utc.isoformat() if p.first_seen_utc else None,
-                "last_seen_utc": p.last_seen_utc.isoformat() if p.last_seen_utc else None,
-            })
+            items.append(
+                {
+                    "player_id": p.player_id,
+                    "display_name": p.display_name,
+                    "platform": p.platform,
+                    "is_me": p.is_me,
+                    "is_tagged_teammate": p.is_tagged_teammate,
+                    "teammate_notes": p.teammate_notes,
+                    "games_with_me": p.games_with_me,
+                    "first_seen_utc": (
+                        p.first_seen_utc.isoformat() if p.first_seen_utc else None
+                    ),
+                    "last_seen_utc": (
+                        p.last_seen_utc.isoformat() if p.last_seen_utc else None
+                    ),
+                }
+            )
 
         return {
             "items": items,
@@ -111,8 +118,12 @@ async def get_player(player_id: str) -> dict[str, Any]:
             "is_tagged_teammate": player.is_tagged_teammate,
             "teammate_notes": player.teammate_notes,
             "games_with_me": player.games_with_me,
-            "first_seen_utc": player.first_seen_utc.isoformat() if player.first_seen_utc else None,
-            "last_seen_utc": player.last_seen_utc.isoformat() if player.last_seen_utc else None,
+            "first_seen_utc": (
+                player.first_seen_utc.isoformat() if player.first_seen_utc else None
+            ),
+            "last_seen_utc": (
+                player.last_seen_utc.isoformat() if player.last_seen_utc else None
+            ),
         }
 
         # Compute tendency profile if we have stats
@@ -125,23 +136,25 @@ async def get_player(player_id: str) -> dict[str, Any]:
         if stats:
             stat_dicts = []
             for s in stats:
-                stat_dicts.append({
-                    "goals": s.goals or 0,
-                    "saves": s.saves or 0,
-                    "shots": s.shots or 0,
-                    "assists": s.assists or 0,
-                    "challenge_wins": 0,  # Not all stats have this
-                    "challenge_losses": 0,
-                    "first_man_pct": s.first_man_pct or 33.0,
-                    "second_man_pct": s.second_man_pct or 33.0,
-                    "third_man_pct": s.third_man_pct or 33.0,
-                    "bcpm": s.bcpm or 0,
-                    "avg_boost": s.avg_boost or 0,
-                    "aerial_count": 0,
-                    "wavedash_count": 0,
-                    "time_last_defender_s": s.time_last_defender_s or 0,
-                    "behind_ball_pct": s.behind_ball_pct or 50.0,
-                })
+                stat_dicts.append(
+                    {
+                        "goals": s.goals or 0,
+                        "saves": s.saves or 0,
+                        "shots": s.shots or 0,
+                        "assists": s.assists or 0,
+                        "challenge_wins": 0,  # Not all stats have this
+                        "challenge_losses": 0,
+                        "first_man_pct": s.first_man_pct or 33.0,
+                        "second_man_pct": s.second_man_pct or 33.0,
+                        "third_man_pct": s.third_man_pct or 33.0,
+                        "bcpm": s.bcpm or 0,
+                        "avg_boost": s.avg_boost or 0,
+                        "aerial_count": 0,
+                        "wavedash_count": 0,
+                        "time_last_defender_s": s.time_last_defender_s or 0,
+                        "behind_ball_pct": s.behind_ball_pct or 50.0,
+                    }
+                )
 
             profile = compute_tendencies(stat_dicts)
             if profile:

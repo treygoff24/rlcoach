@@ -3,15 +3,15 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .. import __version__
-from ..config import load_config, get_default_config_path, RLCoachConfig, ConfigError
-from ..db.session import init_db, create_session
+from ..config import ConfigError, RLCoachConfig, get_default_config_path, load_config
+from ..db.session import create_session, init_db
 
 # Global config - set on startup
 _config: RLCoachConfig | None = None
@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except (ConfigError, FileNotFoundError) as e:
         # Log but allow app to start in degraded mode
         import logging
+
         logging.warning(f"Config not loaded: {e}")
 
     yield
@@ -79,7 +80,7 @@ def create_app() -> FastAPI:
 
 def _register_routes(app: FastAPI) -> None:
     """Register all API routes."""
-    from .routers import games_router, dashboard_router, analysis_router, players_router
+    from .routers import analysis_router, dashboard_router, games_router, players_router
 
     # Include routers
     app.include_router(games_router)

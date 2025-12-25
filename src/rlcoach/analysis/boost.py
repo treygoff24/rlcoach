@@ -14,11 +14,12 @@ for comprehensive boost economy assessment.
 from __future__ import annotations
 
 import math
-from typing import Any, Sequence
-from ..events import BoostPickupEvent, PAD_NEUTRAL_TOLERANCE
-from ..parser.types import Header, Frame
-from ..field_constants import Vec3, FIELD
+from collections.abc import Sequence
+from typing import Any
 
+from ..events import PAD_NEUTRAL_TOLERANCE, BoostPickupEvent
+from ..field_constants import FIELD, Vec3
+from ..parser.types import Frame, Header
 
 # Boost analysis thresholds (aligned with Ballchasing parity)
 ZERO_BOOST_THRESHOLD = 3.0  # Consider < 3 as "zero boost"
@@ -44,14 +45,14 @@ def analyze_boost(
     header: Header | None = None,
 ) -> dict[str, Any]:
     """Analyze boost economy metrics for a player or team.
-    
+
     Args:
         frames: Normalized frame data for boost state tracking
         events: Dictionary containing detected events by type
         player_id: If provided, analyze specific player; otherwise team analysis
         team: Team filter ("BLUE" or "ORANGE"), required if player_id not provided
         header: Optional header for match context
-        
+
     Returns:
         Dictionary matching schema boost definition:
         {
@@ -71,16 +72,20 @@ def analyze_boost(
         }
     """
     # Extract boost pickup events
-    boost_pickups = events.get('boost_pickups', [])
+    boost_pickups = events.get("boost_pickups", [])
 
     # Calculate match duration from frames
     match_duration = frames[-1].timestamp - frames[0].timestamp if frames else 0.0
     frame_timestamps = [frame.timestamp for frame in frames]
 
     if player_id:
-        return _analyze_player_boost(frames, frame_timestamps, boost_pickups, player_id, match_duration)
+        return _analyze_player_boost(
+            frames, frame_timestamps, boost_pickups, player_id, match_duration
+        )
     elif team:
-        return _analyze_team_boost(frames, frame_timestamps, boost_pickups, team, match_duration)
+        return _analyze_team_boost(
+            frames, frame_timestamps, boost_pickups, team, match_duration
+        )
     else:
         return _empty_boost()
 
@@ -93,60 +98,67 @@ def _analyze_player_boost(
     match_duration: float,
 ) -> dict[str, Any]:
     """Analyze boost metrics for a specific player."""
-    
+
     # Initialize counters
     time_zero_boost = 0.0
     time_hundred_boost = 0.0
     total_boost_sum = 0.0
     frame_count = 0
     waste = 0.0
-    
+
     # Track previous frame for calculations
     prev_boost = None
     prev_speed = None
     prev_timestamp = None
-    
+
     # Process frames for time-based metrics
     for frame in frames:
         player_frame = _find_player_in_frame(frame, player_id)
         if not player_frame:
             continue
-            
+
         frame_count += 1
         boost_amount = player_frame.boost_amount
         total_boost_sum += boost_amount
-        
+
         # Calculate time deltas based on previous boost state
         if prev_timestamp is not None:
             time_delta = frame.timestamp - prev_timestamp
-            
+
             # Time at zero boost (use previous boost level)
             if prev_boost is not None and prev_boost <= ZERO_BOOST_THRESHOLD:
                 time_zero_boost += time_delta
-            
+
             # Time at full boost (use previous boost level)
             if prev_boost is not None and prev_boost >= FULL_BOOST_THRESHOLD:
                 time_hundred_boost += time_delta
-                
+
             # Waste detection - boost spent at supersonic or with minimal benefit
             if prev_boost is not None and prev_boost > boost_amount:
                 boost_consumed = prev_boost - boost_amount
                 player_speed = _calculate_speed(player_frame.velocity)
-                
+
                 # Waste if consuming boost while already supersonic
-                if (player_speed > SUPERSONIC_SPEED_THRESHOLD and 
-                    boost_consumed > WASTE_DETECTION_MIN_BOOST):
+                if (
+                    player_speed > SUPERSONIC_SPEED_THRESHOLD
+                    and boost_consumed > WASTE_DETECTION_MIN_BOOST
+                ):
                     waste += boost_consumed * 0.7  # Heuristic factor
-                    
+
                 # Waste if consuming boost with minimal speed benefit
-                elif (prev_speed and player_speed < prev_speed + 50.0 and
-                      boost_consumed > WASTE_DETECTION_MIN_BOOST):
+                elif (
+                    prev_speed
+                    and player_speed < prev_speed + 50.0
+                    and boost_consumed > WASTE_DETECTION_MIN_BOOST
+                ):
                     waste += boost_consumed * 0.3  # Partial waste
-            
+
         prev_boost = boost_amount
-        prev_speed = _calculate_speed(player_frame.velocity) if player_frame.velocity else 0.0
+        prev_speed = (
+            _calculate_speed(player_frame.velocity) if player_frame.velocity else 0.0
+        )
         prev_timestamp = frame.timestamp
-    
+
     # Process pickup events for collection metrics
     amount_collected = 0.0
     amount_stolen = 0.0
@@ -206,7 +218,11 @@ def _analyze_player_boost(
             if match_result is not None:
                 match_idx, candidate = match_result
                 raw_candidate_gain = _to_float(candidate.boost_gain)
-                candidate_gain = raw_candidate_gain if raw_candidate_gain is not None else _resolve_pickup_gain(candidate)
+                candidate_gain = (
+                    raw_candidate_gain
+                    if raw_candidate_gain is not None
+                    else _resolve_pickup_gain(candidate)
+                )
                 if abs(candidate_gain - gain) > PAD_GAIN_MISMATCH_TOLERANCE:
                     pickup_match = None
                 else:
@@ -231,7 +247,10 @@ def _analyze_player_boost(
                 if abs(gain - RESPAWN_GAIN) <= 1.5 and event["before"] <= 1.0:
                     continue
                 inferred_pad, pad_dist_sq = _infer_pad_from_position(event_pos)
-                pad_trusted = inferred_pad is not None and pad_dist_sq <= PAD_POSITION_TRUST_RADIUS_SQ
+                pad_trusted = (
+                    inferred_pad is not None
+                    and pad_dist_sq <= PAD_POSITION_TRUST_RADIUS_SQ
+                )
                 if pad_trusted and inferred_pad is not None:
                     pad_is_big = inferred_pad.is_big
                     override_big = False
@@ -266,7 +285,9 @@ def _analyze_player_boost(
                 if stolen:
                     stolen_big_pads += 1
             else:
-                small_count = max(1, int(round(gain / SMALL_PAD_UNIT))) if gain >= 6.0 else 1
+                small_count = (
+                    max(1, int(round(gain / SMALL_PAD_UNIT))) if gain >= 6.0 else 1
+                )
                 small_pads += small_count
                 if stolen:
                     stolen_small_pads += small_count
@@ -283,15 +304,15 @@ def _analyze_player_boost(
                 after_val,
                 gain,
             )
-    
+
     # Calculate rates (per minute)
     minutes = max(match_duration / 60.0, 1.0)  # Avoid division by zero
     bpm = amount_collected / minutes
     bcpm = (big_pads + small_pads) / minutes
-    
+
     # Calculate average boost
     avg_boost = total_boost_sum / frame_count if frame_count > 0 else 0.0
-    
+
     return {
         "bpm": round(bpm, 2),
         "bcpm": round(bcpm, 2),
@@ -305,7 +326,7 @@ def _analyze_player_boost(
         "stolen_big_pads": stolen_big_pads,
         "stolen_small_pads": stolen_small_pads,
         "overfill": round(overfill, 2),
-        "waste": round(waste, 2)
+        "waste": round(waste, 2),
     }
 
 
@@ -377,6 +398,7 @@ def _compute_overfill(
     wasted = max(0.0, pad_capacity - used)
     return wasted
 
+
 def _infer_pad_from_position(position: Vec3 | None) -> tuple[Any | None, float]:
     """Return the nearest boost pad metadata and squared distance for a position."""
     if position is None:
@@ -394,7 +416,10 @@ def _infer_pad_from_position(position: Vec3 | None) -> tuple[Any | None, float]:
             best_pad = pad
     return best_pad, best_dist_sq
 
-def _collect_boost_delta_events(frames: list[Frame], player_id: str) -> list[dict[str, Any]]:
+
+def _collect_boost_delta_events(
+    frames: list[Frame], player_id: str
+) -> list[dict[str, Any]]:
     """Collect positive boost deltas for a player across frames."""
     events: list[dict[str, Any]] = []
     prev_boost: float | None = None
@@ -482,25 +507,27 @@ def _analyze_team_boost(
     match_duration: float,
 ) -> dict[str, Any]:
     """Analyze aggregated boost metrics for a team."""
-    
+
     # Get all player IDs for this team from frames
     team_players = set()
     team_num = 0 if team == "BLUE" else 1
-    
+
     for frame in frames:
         for player in frame.players:
             if player.team == team_num:
                 team_players.add(player.player_id)
-    
+
     if not team_players:
         return _empty_boost()
-    
+
     # Aggregate metrics across all team players
     team_metrics = _empty_boost()
-    
+
     for player_id in team_players:
-        player_metrics = _analyze_player_boost(frames, frame_timestamps, pickups, player_id, match_duration)
-        
+        player_metrics = _analyze_player_boost(
+            frames, frame_timestamps, pickups, player_id, match_duration
+        )
+
         # Sum most metrics
         team_metrics["amount_collected"] += player_metrics["amount_collected"]
         team_metrics["amount_stolen"] += player_metrics["amount_stolen"]
@@ -512,22 +539,30 @@ def _analyze_team_boost(
         team_metrics["waste"] += player_metrics["waste"]
         team_metrics["time_zero_boost_s"] += player_metrics["time_zero_boost_s"]
         team_metrics["time_hundred_boost_s"] += player_metrics["time_hundred_boost_s"]
-        
+
         # Average these metrics
         team_metrics["avg_boost"] += player_metrics["avg_boost"]
 
     # Calculate team rates
     minutes = max(match_duration / 60.0, 1.0)
     team_metrics["bpm"] = round(team_metrics["amount_collected"] / minutes, 2)
-    team_metrics["bcpm"] = round((team_metrics["big_pads"] + team_metrics["small_pads"]) / minutes, 2)
+    team_metrics["bcpm"] = round(
+        (team_metrics["big_pads"] + team_metrics["small_pads"]) / minutes, 2
+    )
     # Team avg_boost is the SUM of player averages (matching ballchasing semantics)
     team_metrics["avg_boost"] = round(team_metrics["avg_boost"], 2)
-    
+
     # Round accumulated values
-    for key in ["amount_collected", "amount_stolen", "overfill", "waste", 
-                "time_zero_boost_s", "time_hundred_boost_s"]:
+    for key in [
+        "amount_collected",
+        "amount_stolen",
+        "overfill",
+        "waste",
+        "time_zero_boost_s",
+        "time_hundred_boost_s",
+    ]:
         team_metrics[key] = round(team_metrics[key], 2)
-    
+
     return team_metrics
 
 
@@ -546,7 +581,7 @@ def _empty_boost() -> dict[str, Any]:
         "stolen_big_pads": 0,
         "stolen_small_pads": 0,
         "overfill": 0.0,
-        "waste": 0.0
+        "waste": 0.0,
     }
 
 

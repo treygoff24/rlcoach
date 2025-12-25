@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import unicodedata
-from typing import Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 from ..parser.types import PlayerInfo
 
@@ -59,7 +59,9 @@ def sanitize_display_name(raw_name: str | None) -> str:
 def slugify_display_name(raw_name: str | None) -> str:
     """Create a lowercase slug suitable for fallback identifiers."""
     cleaned = sanitize_display_name(raw_name).lower()
-    cleaned_ascii = unicodedata.normalize("NFKD", cleaned).encode("ascii", "ignore").decode("ascii")
+    cleaned_ascii = (
+        unicodedata.normalize("NFKD", cleaned).encode("ascii", "ignore").decode("ascii")
+    )
     slug = _SLUG_RE.sub("-", cleaned_ascii).strip("-")
     if not slug:
         return "player"
@@ -208,4 +210,3 @@ __all__ = [
     "sanitize_display_name",
     "slugify_display_name",
 ]
-

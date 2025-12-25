@@ -244,9 +244,9 @@ def _finalize_kickoff(
                 "role": pdata["role"],
                 "boost_used": round(boost_used, 2),
                 "approach_type": approach_type,
-                "time_to_first_touch": None
-                if time_to_contact is None
-                else round(time_to_contact, 3),
+                "time_to_first_touch": (
+                    None if time_to_contact is None else round(time_to_contact, 3)
+                ),
             }
         )
 
@@ -259,9 +259,9 @@ def _finalize_kickoff(
         players=players_payload,
         outcome=outcome,
         first_touch_player=first_touch_player,
-        time_to_first_touch=None
-        if time_to_first_touch is None
-        else round(time_to_first_touch, 3),
+        time_to_first_touch=(
+            None if time_to_first_touch is None else round(time_to_first_touch, 3)
+        ),
     )
 
 

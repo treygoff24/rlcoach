@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NamedTuple, Any, Optional
+from typing import Any, NamedTuple
 
 
 class Vec3(NamedTuple):
     """3D vector with x, y, z components."""
+
     x: float
     y: float
     z: float
@@ -15,6 +16,7 @@ class Vec3(NamedTuple):
 
 class Quaternion(NamedTuple):
     """Quaternion for representing 3D rotation."""
+
     x: float
     y: float
     z: float
@@ -30,10 +32,11 @@ class Rotation:
     - yaw: rotation around z-axis (left/right facing)
     - roll: rotation around y-axis (car tilt)
     """
+
     pitch: float  # radians
-    yaw: float    # radians
-    roll: float   # radians
-    quaternion: Optional[Quaternion] = None
+    yaw: float  # radians
+    roll: float  # radians
+    quaternion: Quaternion | None = None
 
 
 @dataclass(frozen=True)
@@ -76,8 +79,8 @@ class Header:
     players: list[PlayerInfo] = field(default_factory=list)
 
     # Goals from header (not full event list; minimal info)
-    goals: list["GoalHeader"] = field(default_factory=list)
-    highlights: list["Highlight"] = field(default_factory=list)
+    goals: list[GoalHeader] = field(default_factory=list)
+    highlights: list[Highlight] = field(default_factory=list)
 
     # Quality and warnings
     quality_warnings: list[str] = field(default_factory=list)
@@ -142,7 +145,9 @@ class PlayerFrame:
     team: int
     position: Vec3
     velocity: Vec3
-    rotation: Rotation | Vec3  # Rotation with quaternion or legacy Vec3 (pitch, yaw, roll)
+    rotation: (
+        Rotation | Vec3
+    )  # Rotation with quaternion or legacy Vec3 (pitch, yaw, roll)
     boost_amount: int  # 0-100
     is_supersonic: bool = False
     is_on_ground: bool = True
@@ -152,7 +157,7 @@ class PlayerFrame:
 @dataclass(frozen=True)
 class BallFrame:
     """Ball state at a specific frame."""
-    
+
     position: Vec3
     velocity: Vec3
     angular_velocity: Vec3
@@ -179,19 +184,19 @@ class BoostPadEventFrame:
 @dataclass(frozen=True)
 class Frame:
     """Normalized frame containing all game state at a specific time."""
-    
+
     timestamp: float  # seconds from match start
     ball: BallFrame
     players: list[PlayerFrame] = field(default_factory=list)
     boost_pad_events: list[BoostPadEventFrame] = field(default_factory=list)
-    
+
     def get_player_by_id(self, player_id: str) -> PlayerFrame | None:
         """Get player frame by ID, or None if not found."""
         for player in self.players:
             if player.player_id == player_id:
                 return player
         return None
-    
+
     def get_players_by_team(self, team: int) -> list[PlayerFrame]:
         """Get all players on a specific team (0 or 1)."""
         return [p for p in self.players if p.team == team]

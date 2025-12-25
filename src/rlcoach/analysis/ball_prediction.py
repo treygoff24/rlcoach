@@ -11,7 +11,6 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, PlayerFrame
@@ -19,6 +18,7 @@ from ..parser.types import Frame, PlayerFrame
 
 class ReadQuality(Enum):
     """Quality of a player's ball read."""
+
     EXCELLENT = "excellent"  # Player was already moving toward predicted position
     GOOD = "good"  # Player adjusted quickly to ball trajectory
     AVERAGE = "average"  # Normal reaction time
@@ -29,6 +29,7 @@ class ReadQuality(Enum):
 @dataclass(frozen=True)
 class BallPrediction:
     """Predicted ball state after time delta."""
+
     position: Vec3
     velocity: Vec3
     time_delta: float
@@ -38,6 +39,7 @@ class BallPrediction:
 @dataclass(frozen=True)
 class ReadEvent:
     """A player's read on the ball at a specific moment."""
+
     timestamp: float
     player_id: str
     predicted_intercept: Vec3  # Where player would meet ball at current trajectory
@@ -195,9 +197,7 @@ def _calculate_intercept_point(
         Tuple of (intercept position, time to intercept)
     """
     # Estimate player max speed (with boost)
-    player_speed = math.sqrt(
-        player_vel.x ** 2 + player_vel.y ** 2 + player_vel.z ** 2
-    )
+    player_speed = math.sqrt(player_vel.x**2 + player_vel.y**2 + player_vel.z**2)
     max_player_speed = max(player_speed + 500.0, 1400.0)  # Account for boost
 
     best_intercept = ball_pos
@@ -258,15 +258,17 @@ def _assess_read_quality(
     )
 
     # Dot product of velocity and direction to prediction
-    ptp_mag = math.sqrt(player_to_pred.x ** 2 + player_to_pred.y ** 2 + player_to_pred.z ** 2)
-    vel_mag = math.sqrt(player.velocity.x ** 2 + player.velocity.y ** 2 + player.velocity.z ** 2)
+    ptp_mag = math.sqrt(player_to_pred.x**2 + player_to_pred.y**2 + player_to_pred.z**2)
+    vel_mag = math.sqrt(
+        player.velocity.x**2 + player.velocity.y**2 + player.velocity.z**2
+    )
 
     proactive = False
     if vel_mag > 100.0 and ptp_mag > 100.0:
         vel_dot = (
-            player.velocity.x * player_to_pred.x +
-            player.velocity.y * player_to_pred.y +
-            player.velocity.z * player_to_pred.z
+            player.velocity.x * player_to_pred.x
+            + player.velocity.y * player_to_pred.y
+            + player.velocity.z * player_to_pred.z
         ) / (vel_mag * ptp_mag)
 
         # Moving toward prediction = proactive
@@ -317,7 +319,7 @@ def analyze_player_reads(
             continue
 
         # Find player in frame
-        player: Optional[PlayerFrame] = None
+        player: PlayerFrame | None = None
         for p in frame.players:
             if p.player_id == player_id:
                 player = p
@@ -327,7 +329,7 @@ def analyze_player_reads(
             continue
 
         # Find future frame for validation
-        future_frame: Optional[Frame] = None
+        future_frame: Frame | None = None
         for j in range(i + 1, len(frames)):
             if frames[j].timestamp >= frame.timestamp + lookahead_time:
                 future_frame = frames[j]
@@ -337,7 +339,7 @@ def analyze_player_reads(
             continue
 
         # Predict where ball will be
-        predicted = _predict_ball_position(
+        _predict_ball_position(
             frame.ball.position,
             frame.ball.velocity,
             lookahead_time,
@@ -359,15 +361,17 @@ def analyze_player_reads(
             future_frame.ball.position,
         )
 
-        events.append(ReadEvent(
-            timestamp=frame.timestamp,
-            player_id=player_id,
-            predicted_intercept=intercept_pos,
-            actual_ball_position=future_frame.ball.position,
-            prediction_error=round(error, 2),
-            read_quality=quality,
-            was_proactive=proactive,
-        ))
+        events.append(
+            ReadEvent(
+                timestamp=frame.timestamp,
+                player_id=player_id,
+                predicted_intercept=intercept_pos,
+                actual_ball_position=future_frame.ball.position,
+                prediction_error=round(error, 2),
+                read_quality=quality,
+                was_proactive=proactive,
+            )
+        )
 
         last_sample_time = frame.timestamp
 
@@ -406,13 +410,15 @@ def analyze_ball_prediction(frames: list[Frame]) -> dict:
                 if read.was_proactive:
                     proactive_count += 1
 
-                all_reads.append({
-                    "timestamp": read.timestamp,
-                    "player_id": read.player_id,
-                    "read_quality": read.read_quality.value,
-                    "prediction_error": read.prediction_error,
-                    "was_proactive": read.was_proactive,
-                })
+                all_reads.append(
+                    {
+                        "timestamp": read.timestamp,
+                        "player_id": read.player_id,
+                        "read_quality": read.read_quality.value,
+                        "prediction_error": read.prediction_error,
+                        "was_proactive": read.was_proactive,
+                    }
+                )
 
             avg_error = total_error / len(reads) if reads else 0.0
             proactive_rate = proactive_count / len(reads) if reads else 0.0
@@ -421,7 +427,8 @@ def analyze_ball_prediction(frames: list[Frame]) -> dict:
                 "total_reads": len(reads),
                 "quality_distribution": quality_counts,
                 "excellent_reads": quality_counts.get("excellent", 0),
-                "poor_reads": quality_counts.get("poor", 0) + quality_counts.get("whiff", 0),
+                "poor_reads": quality_counts.get("poor", 0)
+                + quality_counts.get("whiff", 0),
                 "average_prediction_error": round(avg_error, 2),
                 "proactive_rate": round(proactive_rate, 3),
             }
@@ -443,7 +450,8 @@ def analyze_ball_prediction(frames: list[Frame]) -> dict:
     total_poor = sum(p.get("poor_reads", 0) for p in per_player.values())
     avg_proactive = (
         sum(p.get("proactive_rate", 0.0) for p in per_player.values()) / len(per_player)
-        if per_player else 0.0
+        if per_player
+        else 0.0
     )
 
     return {

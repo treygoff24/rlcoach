@@ -12,7 +12,6 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 from ..field_constants import FIELD, Vec3
 from ..normalize import DEFAULT_FRAME_RATE
@@ -21,6 +20,7 @@ from ..parser.types import Frame, PlayerFrame
 
 class DefensiveRole(Enum):
     """Defensive role classification."""
+
     LAST_DEFENDER = "last_defender"  # Furthest back, protecting goal
     SECOND_DEFENDER = "second_defender"  # Supporting last defender
     SHADOW = "shadow"  # Shadowing ball carrier
@@ -31,6 +31,7 @@ class DefensiveRole(Enum):
 
 class ShadowQuality(Enum):
     """Quality of shadow defense positioning."""
+
     EXCELLENT = "excellent"  # Perfect shadow, cutting off all angles
     GOOD = "good"  # Good position, most angles covered
     ADEQUATE = "adequate"  # Acceptable but some gaps
@@ -41,11 +42,12 @@ class ShadowQuality(Enum):
 @dataclass(frozen=True)
 class DefensiveSnapshot:
     """Snapshot of defensive situation for one team at a frame."""
+
     timestamp: float
     team: int  # 0 = blue, 1 = orange
-    last_defender_id: Optional[str]
+    last_defender_id: str | None
     last_defender_distance_to_goal: float
-    second_defender_id: Optional[str]
+    second_defender_id: str | None
     ball_distance_to_goal: float
     defensive_coverage: float  # 0.0 = no coverage, 1.0 = full coverage
     is_danger_zone: bool  # Ball in defensive third with threat
@@ -55,6 +57,7 @@ class DefensiveSnapshot:
 @dataclass(frozen=True)
 class ShadowDefenseEvent:
     """A period of shadow defense by a player."""
+
     start_time: float
     end_time: float
     player_id: str
@@ -142,14 +145,14 @@ def _calculate_shadow_angle(
     )
 
     # Normalize
-    btg_mag = math.sqrt(ball_to_goal.x ** 2 + ball_to_goal.y ** 2)
-    btp_mag = math.sqrt(ball_to_player.x ** 2 + ball_to_player.y ** 2)
+    btg_mag = math.sqrt(ball_to_goal.x**2 + ball_to_goal.y**2)
+    btp_mag = math.sqrt(ball_to_player.x**2 + ball_to_player.y**2)
 
     if btg_mag < 1.0 or btp_mag < 1.0:
         return 90.0
 
     # Dot product for angle
-    dot = (ball_to_goal.x * ball_to_player.x + ball_to_goal.y * ball_to_player.y)
+    dot = ball_to_goal.x * ball_to_player.x + ball_to_goal.y * ball_to_player.y
     cos_angle = dot / (btg_mag * btp_mag)
     cos_angle = max(-1.0, min(1.0, cos_angle))
 
@@ -211,7 +214,7 @@ def _calculate_defensive_coverage(
         return 0.0
 
     goal_y = -FIELD.BACK_WALL_Y if team == 0 else FIELD.BACK_WALL_Y
-    goal_center = Vec3(0.0, goal_y, FIELD.GOAL_HEIGHT / 2)
+    Vec3(0.0, goal_y, FIELD.GOAL_HEIGHT / 2)
 
     # Check coverage at different goal positions
     goal_positions = [
@@ -224,7 +227,7 @@ def _calculate_defensive_coverage(
     ]
 
     covered_points = 0
-    for goal_point in goal_positions:
+    for _goal_point in goal_positions:
         # Check if any defender is in the path
         for defender in defenders:
             if not _is_goal_side(defender.position, ball_pos, team):
@@ -270,8 +273,7 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
 
     # Sort by distance to own goal (closest = last defender)
     sorted_by_goal_dist = sorted(
-        team_players,
-        key=lambda p: _distance_to_own_goal(p.position, team)
+        team_players, key=lambda p: _distance_to_own_goal(p.position, team)
     )
 
     last_defender = sorted_by_goal_dist[0]
@@ -281,11 +283,11 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
     player_roles: dict[str, DefensiveRole] = {}
 
     for i, player in enumerate(sorted_by_goal_dist):
-        player_dist = _distance_to_own_goal(player.position, team)
+        _distance_to_own_goal(player.position, team)
         ball_dist = math.sqrt(
-            (player.position.x - ball_pos.x) ** 2 +
-            (player.position.y - ball_pos.y) ** 2 +
-            (player.position.z - ball_pos.z) ** 2
+            (player.position.x - ball_pos.x) ** 2
+            + (player.position.y - ball_pos.y) ** 2
+            + (player.position.z - ball_pos.z) ** 2
         )
 
         if i == 0:
@@ -304,13 +306,16 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
             player_roles[player.player_id] = DefensiveRole.OUT_OF_POSITION
 
     # Calculate coverage
-    defenders_goal_side = [p for p in team_players if _is_goal_side(p.position, ball_pos, team)]
-    defensive_coverage = _calculate_defensive_coverage(defenders_goal_side, ball_pos, team)
+    defenders_goal_side = [
+        p for p in team_players if _is_goal_side(p.position, ball_pos, team)
+    ]
+    defensive_coverage = _calculate_defensive_coverage(
+        defenders_goal_side, ball_pos, team
+    )
 
     # Check danger zone
-    in_defensive_third = (
-        (team == 0 and ball_pos.y < -DEFENSIVE_THIRD_Y) or
-        (team == 1 and ball_pos.y > DEFENSIVE_THIRD_Y)
+    in_defensive_third = (team == 0 and ball_pos.y < -DEFENSIVE_THIRD_Y) or (
+        team == 1 and ball_pos.y > DEFENSIVE_THIRD_Y
     )
     is_danger = in_defensive_third and defensive_coverage < 0.5
 
@@ -318,7 +323,9 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
         timestamp=frame.timestamp,
         team=team,
         last_defender_id=last_defender.player_id,
-        last_defender_distance_to_goal=round(_distance_to_own_goal(last_defender.position, team), 2),
+        last_defender_distance_to_goal=round(
+            _distance_to_own_goal(last_defender.position, team), 2
+        ),
         second_defender_id=second_defender.player_id if second_defender else None,
         ball_distance_to_goal=round(ball_dist_to_goal, 2),
         defensive_coverage=round(defensive_coverage, 3),
@@ -384,12 +391,14 @@ def analyze_defense(frames: list[Frame]) -> dict:
                 else:
                     orange_danger_time += dt
 
-                danger_moments.append({
-                    "timestamp": frame.timestamp,
-                    "team": "blue" if team == 0 else "orange",
-                    "coverage": snapshot.defensive_coverage,
-                    "ball_distance": snapshot.ball_distance_to_goal,
-                })
+                danger_moments.append(
+                    {
+                        "timestamp": frame.timestamp,
+                        "team": "blue" if team == 0 else "orange",
+                        "coverage": snapshot.defensive_coverage,
+                        "ball_distance": snapshot.ball_distance_to_goal,
+                    }
+                )
 
             # Update player role times
             for player_id, role in snapshot.player_roles.items():
@@ -405,16 +414,15 @@ def analyze_defense(frames: list[Frame]) -> dict:
 
                     # Calculate shadow quality for this moment
                     player_frame = next(
-                        (p for p in frame.players if p.player_id == player_id),
-                        None
+                        (p for p in frame.players if p.player_id == player_id), None
                     )
                     if player_frame:
                         shadow_angle = _calculate_shadow_angle(
-                            player_frame.position,
-                            frame.ball.position,
-                            team
+                            player_frame.position, frame.ball.position, team
                         )
-                        per_player[player_id]["shadow_quality_scores"].append(shadow_angle)
+                        per_player[player_id]["shadow_quality_scores"].append(
+                            shadow_angle
+                        )
 
         prev_timestamp = frame.timestamp
 
@@ -424,7 +432,7 @@ def analyze_defense(frames: list[Frame]) -> dict:
     else:
         total_time = 0.1  # Minimal default for single-frame edge case
 
-    for player_id, stats in per_player.items():
+    for _player_id, stats in per_player.items():
         # Average shadow angle (lower = better)
         shadow_scores = stats.get("shadow_quality_scores", [])
         if shadow_scores:

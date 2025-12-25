@@ -11,13 +11,14 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .db.session import create_session
 from .db.models import Benchmark
-from .metrics import is_valid_metric, VALID_RANKS, VALID_PLAYLISTS
+from .db.session import create_session
+from .metrics import VALID_PLAYLISTS, VALID_RANKS, is_valid_metric
 
 
 class BenchmarkValidationError(Exception):
     """Benchmark validation error."""
+
     pass
 
 
@@ -40,7 +41,9 @@ def validate_benchmark_data(data: dict[str, Any]) -> list[str]:
         if "metric" not in b:
             errors.append(f"{prefix}: Missing 'metric'")
         elif not is_valid_metric(b["metric"]):
-            errors.append(f"{prefix}: Invalid metric '{b['metric']}' (not in metric catalog)")
+            errors.append(
+                f"{prefix}: Invalid metric '{b['metric']}' (not in metric catalog)"
+            )
 
         if "playlist" not in b:
             errors.append(f"{prefix}: Missing 'playlist'")
@@ -73,7 +76,9 @@ def import_benchmarks(file_path: Path, replace: bool = False) -> int:
 
     errors = validate_benchmark_data(data)
     if errors:
-        raise BenchmarkValidationError(f"Validation errors:\n" + "\n".join(f"  - {e}" for e in errors))
+        raise BenchmarkValidationError(
+            "Validation errors:\n" + "\n".join(f"  - {e}" for e in errors)
+        )
 
     metadata = data.get("metadata", {})
     source = metadata.get("source", "unknown")
@@ -91,11 +96,15 @@ def import_benchmarks(file_path: Path, replace: bool = False) -> int:
         count = 0
         for b in data["benchmarks"]:
             # Check for existing (upsert)
-            existing = session.query(Benchmark).filter_by(
-                metric=b["metric"],
-                playlist=b["playlist"],
-                rank_tier=b["rank_tier"],
-            ).first()
+            existing = (
+                session.query(Benchmark)
+                .filter_by(
+                    metric=b["metric"],
+                    playlist=b["playlist"],
+                    rank_tier=b["rank_tier"],
+                )
+                .first()
+            )
 
             if existing:
                 existing.median_value = b["median"]

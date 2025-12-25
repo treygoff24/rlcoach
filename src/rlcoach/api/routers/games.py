@@ -8,8 +8,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from ...db.models import PlayerGameStats, Replay
 from ...db.session import create_session
-from ...db.models import Replay, PlayerGameStats
 
 router = APIRouter(tags=["games"])
 
@@ -69,18 +69,22 @@ async def list_games(
 
         items = []
         for r in replays:
-            items.append({
-                "replay_id": r.replay_id,
-                "played_at_utc": r.played_at_utc.isoformat() if r.played_at_utc else None,
-                "play_date": r.play_date.isoformat() if r.play_date else None,
-                "playlist": r.playlist,
-                "result": r.result,
-                "my_score": r.my_score,
-                "opponent_score": r.opponent_score,
-                "map": r.map,
-                "duration_seconds": r.duration_seconds,
-                "overtime": r.overtime,
-            })
+            items.append(
+                {
+                    "replay_id": r.replay_id,
+                    "played_at_utc": (
+                        r.played_at_utc.isoformat() if r.played_at_utc else None
+                    ),
+                    "play_date": r.play_date.isoformat() if r.play_date else None,
+                    "playlist": r.playlist,
+                    "result": r.result,
+                    "my_score": r.my_score,
+                    "opponent_score": r.opponent_score,
+                    "map": r.map,
+                    "duration_seconds": r.duration_seconds,
+                    "overtime": r.overtime,
+                }
+            )
 
         return {
             "items": items,
@@ -115,21 +119,25 @@ async def get_replay(replay_id: str) -> dict[str, Any]:
 
         player_stats = []
         for s in stats:
-            player_stats.append({
-                "player_id": s.player_id,
-                "team": s.team,
-                "is_me": s.is_me,
-                "goals": s.goals,
-                "assists": s.assists,
-                "saves": s.saves,
-                "shots": s.shots,
-                "bcpm": s.bcpm,
-                "avg_boost": s.avg_boost,
-            })
+            player_stats.append(
+                {
+                    "player_id": s.player_id,
+                    "team": s.team,
+                    "is_me": s.is_me,
+                    "goals": s.goals,
+                    "assists": s.assists,
+                    "saves": s.saves,
+                    "shots": s.shots,
+                    "bcpm": s.bcpm,
+                    "avg_boost": s.avg_boost,
+                }
+            )
 
         return {
             "replay_id": replay.replay_id,
-            "played_at_utc": replay.played_at_utc.isoformat() if replay.played_at_utc else None,
+            "played_at_utc": (
+                replay.played_at_utc.isoformat() if replay.played_at_utc else None
+            ),
             "play_date": replay.play_date.isoformat() if replay.play_date else None,
             "playlist": replay.playlist,
             "result": replay.result,
@@ -203,7 +211,9 @@ async def get_replay_full(replay_id: str) -> dict[str, Any]:
             "replay_id": replay.replay_id,
             "source_file": replay.source_file,
             "file_hash": replay.file_hash,
-            "played_at_utc": replay.played_at_utc.isoformat() if replay.played_at_utc else None,
+            "played_at_utc": (
+                replay.played_at_utc.isoformat() if replay.played_at_utc else None
+            ),
             "play_date": replay.play_date.isoformat() if replay.play_date else None,
             "playlist": replay.playlist,
             "team_size": replay.team_size,

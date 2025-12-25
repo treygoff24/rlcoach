@@ -12,16 +12,17 @@ from typing import NamedTuple
 
 class Vec3(NamedTuple):
     """3D vector with x, y, z components."""
+
     x: float
     y: float
     z: float
-    
+
     def __add__(self, other: Vec3) -> Vec3:
         return Vec3(self.x + other.x, self.y + other.y, self.z + other.z)
-    
+
     def __sub__(self, other: Vec3) -> Vec3:
         return Vec3(self.x - other.x, self.y - other.y, self.z - other.z)
-    
+
     def __mul__(self, scalar: float) -> Vec3:
         return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
 
@@ -38,24 +39,24 @@ class BoostPad:
 
 class FieldConstants:
     """Standard RLBot field dimensions and coordinate system.
-    
+
     Coordinate system:
-    - X-axis: -4096 to +4096 (side walls)  
+    - X-axis: -4096 to +4096 (side walls)
     - Y-axis: -5120 to +5120 (goal lines)
     - Z-axis: 0 to 2044+ (floor to ceiling)
     - Origin (0,0,0) is center of field at ground level
     """
-    
+
     # Field boundaries (RLBot standard)
     SIDE_WALL_X: float = 4096.0
     BACK_WALL_Y: float = 5120.0
     CEILING_Z: float = 2044.0
-    
+
     # Goal dimensions
     GOAL_WIDTH: float = 892.755  # Half-width of goal opening
     GOAL_HEIGHT: float = 642.775
     GOAL_DEPTH: float = 880.0
-    
+
     # Boost pad pickup radii (uu)
     SMALL_BOOST_RADIUS: float = 170.0
     BIG_BOOST_RADIUS: float = 250.0
@@ -112,30 +113,30 @@ class FieldConstants:
             and -cls.BACK_WALL_Y <= pos.y <= cls.BACK_WALL_Y
             and 0 <= pos.z <= cls.CEILING_Z
         )
-    
+
     @classmethod
     def get_field_third(cls, pos: Vec3) -> str:
         """Get field third: 'defensive', 'neutral', 'offensive' based on Y position."""
         if pos.y < -cls.BACK_WALL_Y / 3:
             return "defensive"
         elif pos.y > cls.BACK_WALL_Y / 3:
-            return "offensive" 
+            return "offensive"
         else:
             return "neutral"
-    
+
     @classmethod
     def get_field_half(cls, pos: Vec3) -> str:
         """Get field half: 'blue' (negative Y) or 'orange' (positive Y)."""
         return "blue" if pos.y < 0 else "orange"
-    
+
     @classmethod
     def distance_to_goal(cls, pos: Vec3, defending_team: int) -> float:
         """Calculate distance from position to goal line.
-        
+
         Args:
             pos: Position vector
             defending_team: 0 for blue (defends negative Y), 1 for orange (defends positive Y)
-        
+
         Returns:
             Distance to the goal line being defended
         """

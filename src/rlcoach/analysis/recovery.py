@@ -5,13 +5,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
-from ..parser.types import Frame, PlayerFrame, Vec3, Rotation
+from ..parser.types import Frame, PlayerFrame, Vec3
 
 
 class RecoveryQuality(Enum):
     """Quality classification of a recovery."""
+
     EXCELLENT = "excellent"  # Smooth landing with immediate momentum retention
     GOOD = "good"  # Clean landing with minor speed loss
     AVERAGE = "average"  # Adequate landing, some control loss
@@ -22,6 +22,7 @@ class RecoveryQuality(Enum):
 @dataclass(frozen=True)
 class RecoveryEvent:
     """A detected recovery event after aerial/jump."""
+
     timestamp: float
     player_id: str
     landing_position: Vec3
@@ -39,15 +40,16 @@ class RecoveryEvent:
 @dataclass
 class PlayerRecoveryState:
     """Track recovery state for a single player across frames."""
+
     is_airborne: bool = False
     airborne_start_time: float = 0.0
     peak_height: float = 0.0
     speed_at_takeoff: float = 0.0
 
     # Landing tracking
-    landed_time: Optional[float] = None
-    landing_position: Optional[Vec3] = None
-    landing_velocity: Optional[Vec3] = None
+    landed_time: float | None = None
+    landing_position: Vec3 | None = None
+    landing_velocity: Vec3 | None = None
     speed_at_landing: float = 0.0
 
     # Control recovery tracking
@@ -68,12 +70,12 @@ MIN_AIRBORNE_TIME = 0.15  # Minimum airborne time to count as meaningful (was 0.
 
 def _calculate_speed(velocity: Vec3) -> float:
     """Calculate speed magnitude from velocity vector."""
-    return math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2)
+    return math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
 
 
 def _calculate_horizontal_speed(velocity: Vec3) -> float:
     """Calculate horizontal speed (XY plane only)."""
-    return math.sqrt(velocity.x ** 2 + velocity.y ** 2)
+    return math.sqrt(velocity.x**2 + velocity.y**2)
 
 
 def _assess_recovery_quality(
@@ -157,11 +159,11 @@ def detect_recoveries_for_player(
     events: list[RecoveryEvent] = []
     state = PlayerRecoveryState()
 
-    prev_velocity: Optional[Vec3] = None
+    prev_velocity: Vec3 | None = None
 
     for frame in frames:
         # Find player in this frame
-        player: Optional[PlayerFrame] = None
+        player: PlayerFrame | None = None
         for p in frame.players:
             if p.player_id == player_id:
                 player = p
@@ -174,7 +176,7 @@ def detect_recoveries_for_player(
         pos = player.position
         vel = player.velocity
         speed = _calculate_speed(vel)
-        horizontal_speed = _calculate_horizontal_speed(vel)
+        _calculate_horizontal_speed(vel)
 
         is_on_ground = pos.z < GROUND_HEIGHT_THRESHOLD or player.is_on_ground
 
@@ -212,35 +214,46 @@ def detect_recoveries_for_player(
             time_since_landing = timestamp - state.landed_time
 
             # Check for wavedash (speed boost shortly after landing)
-            if (not state.wavedash_detected and
-                time_since_landing < WAVEDASH_WINDOW and
-                speed > state.speed_at_landing * WAVEDASH_SPEED_BOOST):
+            if (
+                not state.wavedash_detected
+                and time_since_landing < WAVEDASH_WINDOW
+                and speed > state.speed_at_landing * WAVEDASH_SPEED_BOOST
+            ):
                 state.wavedash_detected = True
 
             # Check for stable movement (velocity not changing dramatically)
             if prev_velocity is not None:
-                vel_change = _calculate_speed(Vec3(
-                    vel.x - prev_velocity.x,
-                    vel.y - prev_velocity.y,
-                    vel.z - prev_velocity.z,
-                ))
+                vel_change = _calculate_speed(
+                    Vec3(
+                        vel.x - prev_velocity.x,
+                        vel.y - prev_velocity.y,
+                        vel.z - prev_velocity.z,
+                    )
+                )
                 if vel_change < STABLE_VELOCITY_THRESHOLD and is_on_ground:
                     state.stable_frames += 1
                 else:
                     state.stable_frames = 0
 
             # Recovery complete when stable for enough frames
-            if state.stable_frames >= STABLE_FRAMES_REQUIRED or time_since_landing > 1.0:
+            if (
+                state.stable_frames >= STABLE_FRAMES_REQUIRED
+                or time_since_landing > 1.0
+            ):
                 state.recovery_complete = True
 
                 time_airborne = state.landed_time - state.airborne_start_time
                 time_to_control = timestamp - state.landed_time
 
                 # Only record meaningful recoveries
-                if time_airborne >= MIN_AIRBORNE_TIME and state.peak_height >= AIRBORNE_MIN_HEIGHT:
+                if (
+                    time_airborne >= MIN_AIRBORNE_TIME
+                    and state.peak_height >= AIRBORNE_MIN_HEIGHT
+                ):
                     momentum_retained = (
                         speed / state.speed_at_landing
-                        if state.speed_at_landing > 10.0 else 1.0
+                        if state.speed_at_landing > 10.0
+                        else 1.0
                     )
 
                     quality = _assess_recovery_quality(
@@ -251,20 +264,22 @@ def detect_recoveries_for_player(
                         landing_velocity=state.landing_velocity or Vec3(0, 0, 0),
                     )
 
-                    events.append(RecoveryEvent(
-                        timestamp=state.landed_time,
-                        player_id=player_id,
-                        landing_position=state.landing_position or pos,
-                        landing_velocity=state.landing_velocity or Vec3(0, 0, 0),
-                        quality=quality,
-                        time_airborne=round(time_airborne, 3),
-                        time_to_control=round(time_to_control, 3),
-                        peak_height=round(state.peak_height, 2),
-                        speed_at_landing=round(state.speed_at_landing, 2),
-                        speed_after_recovery=round(speed, 2),
-                        momentum_retained=round(momentum_retained, 3),
-                        was_wavedash=state.wavedash_detected,
-                    ))
+                    events.append(
+                        RecoveryEvent(
+                            timestamp=state.landed_time,
+                            player_id=player_id,
+                            landing_position=state.landing_position or pos,
+                            landing_velocity=state.landing_velocity or Vec3(0, 0, 0),
+                            quality=quality,
+                            time_airborne=round(time_airborne, 3),
+                            time_to_control=round(time_to_control, 3),
+                            peak_height=round(state.peak_height, 2),
+                            speed_at_landing=round(state.speed_at_landing, 2),
+                            speed_after_recovery=round(speed, 2),
+                            momentum_retained=round(momentum_retained, 3),
+                            was_wavedash=state.wavedash_detected,
+                        )
+                    )
 
                 # Reset for next recovery
                 state.landed_time = None
@@ -311,23 +326,25 @@ def analyze_recoveries(frames: list[Frame]) -> dict:
                     wavedash_count += 1
 
                 # Add to flat event list
-                all_events.append({
-                    "timestamp": event.timestamp,
-                    "player_id": event.player_id,
-                    "quality": event.quality.value,
-                    "time_airborne": event.time_airborne,
-                    "time_to_control": event.time_to_control,
-                    "peak_height": event.peak_height,
-                    "speed_at_landing": event.speed_at_landing,
-                    "speed_after_recovery": event.speed_after_recovery,
-                    "momentum_retained": event.momentum_retained,
-                    "was_wavedash": event.was_wavedash,
-                    "landing_position": {
-                        "x": event.landing_position.x,
-                        "y": event.landing_position.y,
-                        "z": event.landing_position.z,
-                    },
-                })
+                all_events.append(
+                    {
+                        "timestamp": event.timestamp,
+                        "player_id": event.player_id,
+                        "quality": event.quality.value,
+                        "time_airborne": event.time_airborne,
+                        "time_to_control": event.time_to_control,
+                        "peak_height": event.peak_height,
+                        "speed_at_landing": event.speed_at_landing,
+                        "speed_after_recovery": event.speed_after_recovery,
+                        "momentum_retained": event.momentum_retained,
+                        "was_wavedash": event.was_wavedash,
+                        "landing_position": {
+                            "x": event.landing_position.x,
+                            "y": event.landing_position.y,
+                            "z": event.landing_position.z,
+                        },
+                    }
+                )
 
             avg_momentum = total_momentum / len(events) if events else 0.0
             # Cap average_momentum_retained at 1.0 for summary statistics
@@ -339,7 +356,8 @@ def analyze_recoveries(frames: list[Frame]) -> dict:
                 "total_recoveries": len(events),
                 "quality_distribution": quality_counts,
                 "excellent_count": quality_counts.get("excellent", 0),
-                "poor_count": quality_counts.get("poor", 0) + quality_counts.get("failed", 0),
+                "poor_count": quality_counts.get("poor", 0)
+                + quality_counts.get("failed", 0),
                 "average_momentum_retained": round(avg_momentum_capped, 3),
                 "wavedash_count": wavedash_count,
             }

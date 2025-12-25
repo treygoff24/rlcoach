@@ -8,10 +8,9 @@ for quick dashboard queries.
 from __future__ import annotations
 
 from datetime import date
-from sqlalchemy import func
 
+from .models import DailyStats, PlayerGameStats, Replay
 from .session import create_session
-from .models import Replay, PlayerGameStats, DailyStats
 
 
 def update_daily_stats(play_date: date, playlist: str) -> None:
@@ -27,10 +26,14 @@ def update_daily_stats(play_date: date, playlist: str) -> None:
     session = create_session()
     try:
         # Query replays for this date/playlist
-        replays = session.query(Replay).filter(
-            Replay.play_date == play_date,
-            Replay.playlist == playlist,
-        ).all()
+        replays = (
+            session.query(Replay)
+            .filter(
+                Replay.play_date == play_date,
+                Replay.playlist == playlist,
+            )
+            .all()
+        )
 
         if not replays:
             # No games, nothing to do
@@ -45,10 +48,14 @@ def update_daily_stats(play_date: date, playlist: str) -> None:
 
         # Get all my stats for these replays
         replay_ids = [r.replay_id for r in replays]
-        my_stats = session.query(PlayerGameStats).filter(
-            PlayerGameStats.replay_id.in_(replay_ids),
-            PlayerGameStats.is_me == True,
-        ).all()
+        my_stats = (
+            session.query(PlayerGameStats)
+            .filter(
+                PlayerGameStats.replay_id.in_(replay_ids),
+                PlayerGameStats.is_me,
+            )
+            .all()
+        )
 
         # Compute averages
         def safe_avg(values):
@@ -67,10 +74,14 @@ def update_daily_stats(play_date: date, playlist: str) -> None:
         avg_first_man_pct = safe_avg([s.first_man_pct for s in my_stats])
 
         # Compute supersonic pct from time (assuming 300s games, rough estimate)
-        supersonic_times = [s.time_supersonic_s for s in my_stats if s.time_supersonic_s is not None]
+        supersonic_times = [
+            s.time_supersonic_s for s in my_stats if s.time_supersonic_s is not None
+        ]
         if supersonic_times:
             # Assume average game ~300s, convert to percentage
-            avg_supersonic_pct = (sum(supersonic_times) / len(supersonic_times)) / 300 * 100
+            avg_supersonic_pct = (
+                (sum(supersonic_times) / len(supersonic_times)) / 300 * 100
+            )
         else:
             avg_supersonic_pct = None
 
@@ -78,13 +89,19 @@ def update_daily_stats(play_date: date, playlist: str) -> None:
         total_wins = sum(s.challenge_wins or 0 for s in my_stats)
         total_losses = sum(s.challenge_losses or 0 for s in my_stats)
         total_challenges = total_wins + total_losses
-        avg_challenge_win_pct = (total_wins / total_challenges * 100) if total_challenges > 0 else None
+        avg_challenge_win_pct = (
+            (total_wins / total_challenges * 100) if total_challenges > 0 else None
+        )
 
         # Upsert daily stats
-        existing = session.query(DailyStats).filter_by(
-            play_date=play_date,
-            playlist=playlist,
-        ).first()
+        existing = (
+            session.query(DailyStats)
+            .filter_by(
+                play_date=play_date,
+                playlist=playlist,
+            )
+            .first()
+        )
 
         if existing:
             existing.games_played = games_played

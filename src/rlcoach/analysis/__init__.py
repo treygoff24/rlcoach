@@ -7,27 +7,26 @@ point for generating complete analysis results that conform to the JSON schema.
 from __future__ import annotations
 
 from typing import Any
-from .fundamentals import analyze_fundamentals
+
+from ..parser.types import Frame, Header
+from .ball_prediction import analyze_ball_prediction
 from .boost import analyze_boost
-from .movement import analyze_movement
-from .positioning import analyze_positioning, calculate_rotation_compliance
-from .passing import analyze_passing
 from .challenges import analyze_challenges
-from .kickoffs import analyze_kickoffs
+from .defense import analyze_defense
+from .fundamentals import analyze_fundamentals
 from .heatmaps import generate_heatmaps
 from .insights import generate_player_insights, generate_team_insights
+from .kickoffs import analyze_kickoffs
 from .mechanics import analyze_mechanics
+from .movement import analyze_movement
+from .passing import analyze_passing
+from .positioning import analyze_positioning, calculate_rotation_compliance
 from .recovery import analyze_recoveries
 from .xg import analyze_shots_xg
-from .defense import analyze_defense
-from .ball_prediction import analyze_ball_prediction
-from ..parser.types import Header, Frame
 
 
 def aggregate_analysis(
-    frames: list[Frame],
-    events: dict[str, list[Any]],
-    header: Header | None = None
+    frames: list[Frame], events: dict[str, list[Any]], header: Header | None = None
 ) -> dict[str, Any]:
     """Aggregate all analysis results for a replay.
 
@@ -76,8 +75,12 @@ def aggregate_analysis(
 
     # Generate per-team analysis using cached results
     per_team = {
-        "blue": _analyze_team(frames, events, "BLUE", header, cached_defense, cached_mechanics),
-        "orange": _analyze_team(frames, events, "ORANGE", header, cached_defense, cached_mechanics)
+        "blue": _analyze_team(
+            frames, events, "BLUE", header, cached_defense, cached_mechanics
+        ),
+        "orange": _analyze_team(
+            frames, events, "ORANGE", header, cached_defense, cached_mechanics
+        ),
     }
 
     # Generate per-player analysis using cached results
@@ -85,9 +88,16 @@ def aggregate_analysis(
     per_player_map = {}
     for player_id, team in players.items():
         player_analysis = _analyze_player(
-            frames, events, player_id, team, header,
-            cached_mechanics, cached_recoveries, cached_defense,
-            cached_ball_prediction, cached_xg
+            frames,
+            events,
+            player_id,
+            team,
+            header,
+            cached_mechanics,
+            cached_recoveries,
+            cached_defense,
+            cached_ball_prediction,
+            cached_xg,
         )
         per_player.append(player_analysis)
         per_player_map[player_id] = player_analysis
@@ -103,7 +113,7 @@ def aggregate_analysis(
         "per_team": per_team,
         "per_player": per_player,
         "coaching_insights": coaching_insights,
-        "warnings": warnings
+        "warnings": warnings,
     }
 
 
@@ -209,10 +219,14 @@ def _analyze_player(
     """Generate complete analysis for a player."""
 
     # Run individual analyzers
-    fundamentals = analyze_fundamentals(frames, events, player_id=player_id, header=header)
+    fundamentals = analyze_fundamentals(
+        frames, events, player_id=player_id, header=header
+    )
     boost = analyze_boost(frames, events, player_id=player_id, header=header)
     movement = analyze_movement(frames, events, player_id=player_id, header=header)
-    positioning = analyze_positioning(frames, events, player_id=player_id, header=header)
+    positioning = analyze_positioning(
+        frames, events, player_id=player_id, header=header
+    )
 
     # Calculate rotation compliance (player-only analysis)
     rotation_compliance = calculate_rotation_compliance(frames, player_id)
@@ -227,56 +241,71 @@ def _analyze_player(
     # Extract player-specific data from aggregated results
     if cached_mechanics is None:
         cached_mechanics = analyze_mechanics(frames)
-    mechanics_player = cached_mechanics.get("per_player", {}).get(player_id, {
-        "jump_count": 0,
-        "double_jump_count": 0,
-        "flip_count": 0,
-        "wavedash_count": 0,
-        "aerial_count": 0,
-        "halfflip_count": 0,
-        "speedflip_count": 0,
-        "flip_cancel_count": 0,
-        "total_mechanics": 0,
-    })
+    mechanics_player = cached_mechanics.get("per_player", {}).get(
+        player_id,
+        {
+            "jump_count": 0,
+            "double_jump_count": 0,
+            "flip_count": 0,
+            "wavedash_count": 0,
+            "aerial_count": 0,
+            "halfflip_count": 0,
+            "speedflip_count": 0,
+            "flip_cancel_count": 0,
+            "total_mechanics": 0,
+        },
+    )
 
     if cached_recoveries is None:
         cached_recoveries = analyze_recoveries(frames)
-    recovery_player = cached_recoveries.get("per_player", {}).get(player_id, {
-        "total_recoveries": 0,
-        "quality_distribution": {},
-        "excellent_count": 0,
-        "poor_count": 0,
-        "average_momentum_retained": 0.0,
-        "wavedash_count": 0,
-    })
+    recovery_player = cached_recoveries.get("per_player", {}).get(
+        player_id,
+        {
+            "total_recoveries": 0,
+            "quality_distribution": {},
+            "excellent_count": 0,
+            "poor_count": 0,
+            "average_momentum_retained": 0.0,
+            "wavedash_count": 0,
+        },
+    )
 
     if cached_xg is None:
         touches = events.get("touches", [])
         cached_xg = analyze_shots_xg(frames, touches)
-    xg_player = cached_xg.get("per_player", {}).get(player_id, {
-        "total_shots": 0,
-        "total_xg": 0.0,
-    })
+    xg_player = cached_xg.get("per_player", {}).get(
+        player_id,
+        {
+            "total_shots": 0,
+            "total_xg": 0.0,
+        },
+    )
 
     if cached_defense is None:
         cached_defense = analyze_defense(frames)
-    defense_player = cached_defense.get("per_player", {}).get(player_id, {
-        "time_as_last_defender": 0.0,
-        "time_out_of_position": 0.0,
-        "time_shadowing": 0.0,
-        "average_shadow_angle": None,
-    })
+    defense_player = cached_defense.get("per_player", {}).get(
+        player_id,
+        {
+            "time_as_last_defender": 0.0,
+            "time_out_of_position": 0.0,
+            "time_shadowing": 0.0,
+            "average_shadow_angle": None,
+        },
+    )
 
     if cached_ball_prediction is None:
         cached_ball_prediction = analyze_ball_prediction(frames)
-    ball_prediction_player = cached_ball_prediction.get("per_player", {}).get(player_id, {
-        "total_reads": 0,
-        "quality_distribution": {},
-        "excellent_reads": 0,
-        "poor_reads": 0,
-        "average_prediction_error": 0.0,
-        "proactive_rate": 0.0,
-    })
+    ball_prediction_player = cached_ball_prediction.get("per_player", {}).get(
+        player_id,
+        {
+            "total_reads": 0,
+            "quality_distribution": {},
+            "excellent_reads": 0,
+            "poor_reads": 0,
+            "average_prediction_error": 0.0,
+            "proactive_rate": 0.0,
+        },
+    )
 
     # Generate insights based on complete analysis data
     complete_analysis = {
@@ -319,16 +348,16 @@ def _analyze_player(
 
 def _extract_players_from_frames(frames: list[Frame]) -> dict[str, str]:
     """Extract unique players and their teams from frames.
-    
+
     Returns:
         Dictionary mapping player_id -> team_name ("BLUE" or "ORANGE")
     """
     players = {}
-    
+
     for frame in frames:
         for player in frame.players:
             if player.player_id not in players:
                 team_name = "BLUE" if player.team == 0 else "ORANGE"
                 players[player.player_id] = team_name
-    
+
     return players

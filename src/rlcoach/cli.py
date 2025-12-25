@@ -6,13 +6,13 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .config import ConfigError, get_default_config_path, load_config
+from .config_templates import CONFIG_TEMPLATE
 from .errors import RLCoachError
+from .identity import PlayerIdentityResolver
 from .ingest import ingest_replay
 from .report import generate_report, write_report_atomically
 from .report_markdown import write_markdown
-from .config import load_config, get_default_config_path, ConfigError
-from .config_templates import CONFIG_TEMPLATE
-from .identity import PlayerIdentityResolver
 
 
 def check_exclusion(report: dict) -> str | None:
@@ -55,8 +55,8 @@ def handle_ingest_watch(args) -> int:
     """Handle ingest --watch mode."""
     import signal
 
+    from .pipeline import IngestionStatus, process_replay_file
     from .watcher import ReplayWatcher
-    from .pipeline import process_replay_file, IngestionStatus
 
     # Load config
     config_path = get_default_config_path()
@@ -270,9 +270,9 @@ def handle_config_command(args) -> int:
 
 def handle_benchmarks_command(args) -> int:
     """Handle the benchmarks subcommand."""
-    from .db.session import init_db, create_session
+    from .benchmarks import BenchmarkValidationError, import_benchmarks
     from .db.models import Benchmark
-    from .benchmarks import import_benchmarks, BenchmarkValidationError
+    from .db.session import create_session, init_db
 
     # Load config to get db path
     config_path = get_default_config_path()
@@ -606,6 +606,7 @@ def main(argv: list[str] | None = None) -> int:
 def handle_serve_command(args) -> int:
     """Handle the serve subcommand."""
     import uvicorn
+
     from .api import create_app
 
     # Load and validate config first

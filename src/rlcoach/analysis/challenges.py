@@ -19,15 +19,15 @@ All computations are local-only and reproducible.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
-from ..parser.types import Header, Frame
 from ..events import (
     ChallengeEvent,
     TouchEvent,
     detect_challenge_events,
     detect_touches,
 )
+from ..parser.types import Frame, Header
 
 
 def analyze_challenges(
@@ -52,12 +52,14 @@ def analyze_challenges(
     challenge_events: list[ChallengeEvent] = []
     if events and isinstance(events.get("challenges"), list):
         challenge_events = [
-            evt for evt in events.get("challenges", []) if isinstance(evt, ChallengeEvent)
+            evt
+            for evt in events.get("challenges", [])
+            if isinstance(evt, ChallengeEvent)
         ]
     if not challenge_events:
         challenge_events = detect_challenge_events(frames, touches)
 
-    team_stats: Dict[str, Dict[str, Any]] = {
+    team_stats: dict[str, dict[str, Any]] = {
         "BLUE": {
             "contests": 0,
             "wins": 0,
@@ -80,9 +82,9 @@ def analyze_challenges(
         },
     }
 
-    player_stats: Dict[str, Dict[str, Any]] = {}
+    player_stats: dict[str, dict[str, Any]] = {}
 
-    def ensure_player(pid: str) -> Dict[str, Any]:
+    def ensure_player(pid: str) -> dict[str, Any]:
         if pid not in player_stats:
             player_stats[pid] = {
                 "contests": 0,
@@ -146,7 +148,7 @@ def analyze_challenges(
             first_player_stats["neutral"] += 1
             second_player_stats["neutral"] += 1
 
-    def compose(stats: Dict[str, Any]) -> dict[str, Any]:
+    def compose(stats: dict[str, Any]) -> dict[str, Any]:
         contests_val = stats.get("contests", 0)
         first_val = stats.get("first_to_ball", 0)
         depth_sum_val = stats.get("depth_sum", 0.0)

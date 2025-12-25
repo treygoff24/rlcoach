@@ -23,13 +23,12 @@ All calculations are local-only and reproducible across runs.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
-from ..parser.types import Header, Frame
-from ..field_constants import FIELD, Vec3
 from ..events import TouchEvent, detect_touches
-
+from ..field_constants import Vec3
+from ..parser.types import Frame, Header
 
 # Deterministic thresholds
 POSSESSION_TAU_S = 2.0
@@ -96,7 +95,9 @@ def analyze_passing(
         player_team_name = player_team.get(player_id)
         possession_time = 0.0
         if player_team_name:
-            possession_time = team_possession[0] if player_team_name == "BLUE" else team_possession[1]
+            possession_time = (
+                team_possession[0] if player_team_name == "BLUE" else team_possession[1]
+            )
         pm = player_metrics.get(player_id, _zero_counts())
         return {
             "passes_completed": pm["completed"],
@@ -123,7 +124,9 @@ def analyze_passing(
         return _empty_passing()
 
 
-def _compute_possession_time(frames: list[Frame], touches: list[TouchEvent]) -> tuple[float, float]:
+def _compute_possession_time(
+    frames: list[Frame], touches: list[TouchEvent]
+) -> tuple[float, float]:
     """Compute possession time for BLUE and ORANGE teams.
 
     Team in control at time t if:
@@ -175,10 +178,12 @@ def _compute_possession_time(frames: list[Frame], touches: list[TouchEvent]) -> 
 
         # BLUE own half is negative Y; ORANGE own half is positive Y
         blue_has_recent_touch = (
-            last_touch_time[0] is not None and (frame.timestamp - last_touch_time[0]) <= POSSESSION_TAU_S
+            last_touch_time[0] is not None
+            and (frame.timestamp - last_touch_time[0]) <= POSSESSION_TAU_S
         )
         orange_has_recent_touch = (
-            last_touch_time[1] is not None and (frame.timestamp - last_touch_time[1]) <= POSSESSION_TAU_S
+            last_touch_time[1] is not None
+            and (frame.timestamp - last_touch_time[1]) <= POSSESSION_TAU_S
         )
 
         if blue_has_recent_touch and not (vy < -OWN_HALF_HIGH_SPEED_UU_S):
@@ -200,8 +205,20 @@ def _compute_pass_metrics(
     """
     # Initialize team metrics
     team_metrics = [
-        {"attempted": 0, "completed": 0, "received": 0, "turnovers": 0, "give_and_go": 0},  # BLUE
-        {"attempted": 0, "completed": 0, "received": 0, "turnovers": 0, "give_and_go": 0},  # ORANGE
+        {
+            "attempted": 0,
+            "completed": 0,
+            "received": 0,
+            "turnovers": 0,
+            "give_and_go": 0,
+        },  # BLUE
+        {
+            "attempted": 0,
+            "completed": 0,
+            "received": 0,
+            "turnovers": 0,
+            "give_and_go": 0,
+        },  # ORANGE
     ]
 
     # Initialize per-player metrics lazily
@@ -269,7 +286,11 @@ def _compute_pass_metrics(
         # Give-and-go: last was B<-A and now A<-B within window
         if last_completed is not None:
             last_from, last_to, last_t = last_completed
-            if last_from == b.player_id and last_to == a.player_id and (a.t - last_t) <= GIVE_AND_GO_WINDOW_S:
+            if (
+                last_from == b.player_id
+                and last_to == a.player_id
+                and (a.t - last_t) <= GIVE_AND_GO_WINDOW_S
+            ):
                 team_metrics[a_team]["give_and_go"] += 1
                 # Attribute to both players for per-player counts
                 player_metrics[a.player_id]["give_and_go"] += 1
@@ -307,7 +328,13 @@ def _extract_players_from_frames(frames: Iterable[Frame]) -> dict[str, str]:
 
 
 def _zero_counts() -> dict[str, int]:
-    return {"attempted": 0, "completed": 0, "received": 0, "turnovers": 0, "give_and_go": 0}
+    return {
+        "attempted": 0,
+        "completed": 0,
+        "received": 0,
+        "turnovers": 0,
+        "give_and_go": 0,
+    }
 
 
 def _empty_passing() -> dict[str, Any]:

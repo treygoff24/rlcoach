@@ -88,7 +88,15 @@ def summarize_report(data: dict[str, Any], focus_player: str | None = None) -> s
             lines.append(f"Player Focus — {focus_player}")
             lines.append("-")
             pf = per_player[target_id]
-            for section in ("fundamentals", "boost", "movement", "positioning", "passing", "challenges", "kickoffs"):
+            for section in (
+                "fundamentals",
+                "boost",
+                "movement",
+                "positioning",
+                "passing",
+                "challenges",
+                "kickoffs",
+            ):
                 if section in pf:
                     lines.append(f"{section}: {pf[section]}")
 
@@ -111,11 +119,18 @@ def cmd_view(path: Path, focus_player: str | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Offline viewer for RLCoach JSON reports")
+    parser = argparse.ArgumentParser(
+        description="Offline viewer for RLCoach JSON reports"
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_view = sub.add_parser("view", help="Pretty-print a JSON report")
     p_view.add_argument("json_path", type=str, help="Path to report JSON")
-    p_view.add_argument("--player", type=str, default=None, help="Filter and show per-player details by display name")
+    p_view.add_argument(
+        "--player",
+        type=str,
+        default=None,
+        help="Filter and show per-player details by display name",
+    )
 
     args = parser.parse_args(argv)
     if args.cmd == "view":

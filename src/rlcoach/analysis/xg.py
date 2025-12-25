@@ -17,15 +17,15 @@ import bisect
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
+from ..events import TouchContext, TouchEvent
 from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, PlayerFrame
-from ..events import TouchEvent, TouchContext
 
 
 class ShotType(Enum):
     """Classification of shot type."""
+
     GROUND = "ground"
     AERIAL = "aerial"
     WALL = "wall"
@@ -44,6 +44,7 @@ UU_S_TO_KPH = 0.019 * 3.6  # ≈ 0.0684
 @dataclass(frozen=True)
 class XGResult:
     """Result of xG calculation for a shot."""
+
     xg: float  # Expected goal probability (0.0 - 1.0)
     shot_type: ShotType
     distance_m: float  # Distance to goal in meters
@@ -170,14 +171,14 @@ def _calculate_goal_angle(position: Vec3, velocity: Vec3, target_team: int) -> f
     )
 
     # Normalize vectors
-    to_goal_mag = math.sqrt(to_goal.x ** 2 + to_goal.y ** 2 + to_goal.z ** 2)
-    vel_mag = math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2)
+    to_goal_mag = math.sqrt(to_goal.x**2 + to_goal.y**2 + to_goal.z**2)
+    vel_mag = math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
 
     if to_goal_mag < 1.0 or vel_mag < 1.0:
         return 90.0  # Can't calculate meaningful angle
 
     # Dot product gives cosine of angle
-    dot = (to_goal.x * velocity.x + to_goal.y * velocity.y + to_goal.z * velocity.z)
+    dot = to_goal.x * velocity.x + to_goal.y * velocity.y + to_goal.z * velocity.z
     cos_angle = dot / (to_goal_mag * vel_mag)
 
     # Clamp to valid range for acos
@@ -210,7 +211,7 @@ def _calculate_defender_coverage(
     goal_y = goal_center.y
 
     # Calculate shot trajectory
-    ball_speed = math.sqrt(ball_velocity.x ** 2 + ball_velocity.y ** 2 + ball_velocity.z ** 2)
+    ball_speed = math.sqrt(ball_velocity.x**2 + ball_velocity.y**2 + ball_velocity.z**2)
     if ball_speed < 10.0:
         return 0.0, True  # Ball not moving, assume open
 
@@ -250,14 +251,14 @@ def _calculate_defender_coverage(
 
         # Defender speed matters - can they reach the ball?
         defender_speed = math.sqrt(
-            defender.velocity.x ** 2 +
-            defender.velocity.y ** 2 +
-            defender.velocity.z ** 2
+            defender.velocity.x**2 + defender.velocity.y**2 + defender.velocity.z**2
         )
 
         # Rough reachability (can defender close the gap in time?)
         gap_distance = math.sqrt(dx * dx + dz * dz)
-        reach_time = gap_distance / max(defender_speed + 1000.0, 1.0)  # +1000 for boost potential
+        reach_time = gap_distance / max(
+            defender_speed + 1000.0, 1.0
+        )  # +1000 for boost potential
 
         if reach_time < time_to_goal:
             # Defender can potentially save
@@ -275,7 +276,7 @@ def _calculate_defender_coverage(
 def _classify_shot_type(
     ball_position: Vec3,
     ball_velocity: Vec3,
-    touch_context: Optional[TouchContext],
+    touch_context: TouchContext | None,
 ) -> ShotType:
     """Classify the type of shot based on ball state.
 
@@ -287,11 +288,10 @@ def _classify_shot_type(
     Returns:
         ShotType classification
     """
-    speed_kph = math.sqrt(
-        ball_velocity.x ** 2 +
-        ball_velocity.y ** 2 +
-        ball_velocity.z ** 2
-    ) * UU_S_TO_KPH
+    speed_kph = (
+        math.sqrt(ball_velocity.x**2 + ball_velocity.y**2 + ball_velocity.z**2)
+        * UU_S_TO_KPH
+    )
 
     height = ball_position.z
 
@@ -326,8 +326,8 @@ def calculate_xg(
     ball_position: Vec3,
     ball_velocity: Vec3,
     shooter_team: int,
-    frame: Optional[Frame] = None,
-    touch_context: Optional[TouchContext] = None,
+    frame: Frame | None = None,
+    touch_context: TouchContext | None = None,
 ) -> XGResult:
     """Calculate expected goals probability for a shot.
 
@@ -347,11 +347,10 @@ def calculate_xg(
     # Calculate base factors
     distance_m = _calculate_goal_distance(ball_position, target_team)
     angle_deg = _calculate_goal_angle(ball_position, ball_velocity, target_team)
-    ball_speed_kph = math.sqrt(
-        ball_velocity.x ** 2 +
-        ball_velocity.y ** 2 +
-        ball_velocity.z ** 2
-    ) * UU_S_TO_KPH
+    ball_speed_kph = (
+        math.sqrt(ball_velocity.x**2 + ball_velocity.y**2 + ball_velocity.z**2)
+        * UU_S_TO_KPH
+    )
 
     # Get defenders (opponents)
     defenders = []
@@ -379,7 +378,9 @@ def calculate_xg(
         distance_factor = 0.2
     else:
         # Normal range - linear decay
-        range_pct = (distance_m - OPTIMAL_DISTANCE_M) / (MAX_DISTANCE_PENALTY_M - OPTIMAL_DISTANCE_M)
+        range_pct = (distance_m - OPTIMAL_DISTANCE_M) / (
+            MAX_DISTANCE_PENALTY_M - OPTIMAL_DISTANCE_M
+        )
         distance_factor = 1.0 - 0.7 * range_pct
 
     # Angle factor (direct shots easier)
@@ -467,7 +468,7 @@ def analyze_shots_xg(
             if player.player_id not in player_teams:
                 player_teams[player.player_id] = player.team
 
-    def find_nearest_frame(target_time: float) -> Optional[Frame]:
+    def find_nearest_frame(target_time: float) -> Frame | None:
         """Find frame nearest to target_time using binary search."""
         if not sorted_timestamps:
             return None

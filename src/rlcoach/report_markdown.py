@@ -9,9 +9,10 @@ can reuse it for file output or stdout streaming.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 _NUMBER_EPSILON = 1e-9
 
@@ -64,7 +65,6 @@ def _render_error_markdown(report: dict[str, Any]) -> str:
     if details:
         lines.extend(["", "```", str(details), "```"])
     return "\n".join(lines) + "\n"
-
 
 
 @dataclass(frozen=True)
@@ -133,25 +133,34 @@ class _MarkdownComposer:
         self._emit("## Front Matter")
         self._emit()
         self._emit("### Replay Summary")
-        self._emit(self._tabulate(
-            [
-                ("Replay ID", self.report.get("replay_id", "unknown")),
-                ("Source File", self.report.get("source_file", "unknown")),
-                ("Schema Version", self.report.get("schema_version", "unknown")),
-                ("Generated At", self.report.get("generated_at_utc", "unknown")),
-            ]
-        ))
+        self._emit(
+            self._tabulate(
+                [
+                    ("Replay ID", self.report.get("replay_id", "unknown")),
+                    ("Source File", self.report.get("source_file", "unknown")),
+                    ("Schema Version", self.report.get("schema_version", "unknown")),
+                    ("Generated At", self.report.get("generated_at_utc", "unknown")),
+                ]
+            )
+        )
         self._emit()
 
         self._emit("### Match Overview")
         mutators = self.metadata.get("mutators", {})
-        mutator_value = "None" if not mutators else ", ".join(f"{k}:{v}" for k, v in sorted(mutators.items()))
+        mutator_value = (
+            "None"
+            if not mutators
+            else ", ".join(f"{k}:{v}" for k, v in sorted(mutators.items()))
+        )
         overview_rows = [
             ("Map", self.metadata.get("map", "unknown")),
             ("Playlist", self.metadata.get("playlist", "UNKNOWN")),
             ("Team Size", str(self.metadata.get("team_size", "?"))),
             ("Duration (s)", self._fmt_num(self.match_seconds)),
-            ("Recorded Frame Hz", self._fmt_num(self.metadata.get("recorded_frame_hz", 0.0))),
+            (
+                "Recorded Frame Hz",
+                self._fmt_num(self.metadata.get("recorded_frame_hz", 0.0)),
+            ),
             ("Total Frames", str(self.metadata.get("total_frames", 0))),
             ("Overtime", "Yes" if self.metadata.get("overtime") else "No"),
             ("Engine Build", self.metadata.get("engine_build", "unknown")),
@@ -167,7 +176,10 @@ class _MarkdownComposer:
             ("Adapter", parser_info.get("name", "unknown")),
             ("Version", parser_info.get("version", "unknown")),
             ("Parsed Header", self._fmt_bool(parser_info.get("parsed_header", False))),
-            ("Parsed Network", self._fmt_bool(parser_info.get("parsed_network_data", False))),
+            (
+                "Parsed Network",
+                self._fmt_bool(parser_info.get("parsed_network_data", False)),
+            ),
             ("CRC Checked", self._fmt_bool(parser_info.get("crc_checked", False))),
         ]
         self._emit(self._tabulate(quality_rows))
@@ -191,7 +203,9 @@ class _MarkdownComposer:
                         pdata.get("player_id", player_id),
                     )
                 )
-        self._emit(self._tabulate(roster_rows, headers=("Display Name", "Team", "Player ID")))
+        self._emit(
+            self._tabulate(roster_rows, headers=("Display Name", "Team", "Player ID"))
+        )
         self._emit()
 
     def _emit_team_metrics(self) -> None:
@@ -200,91 +214,126 @@ class _MarkdownComposer:
         self._emit(self._scoreboard_table())
         self._emit()
         categories = (
-            ("Fundamentals", "fundamentals", {
-                "goals": ("Goals", "count"),
-                "assists": ("Assists", "count"),
-                "shots": ("Shots", "count"),
-                "saves": ("Saves", "count"),
-                "demos_inflicted": ("Demos For", "count"),
-                "demos_taken": ("Demos Against", "count"),
-                "score": ("Score", "score"),
-                "shooting_percentage": ("Shooting %", "percentage"),
-            }),
-            ("Boost Economy", "boost", {
-                "amount_collected": ("Boost Collected", "count"),
-                "amount_stolen": ("Boost Stolen", "count"),
-                "avg_boost": ("Average Boost", "avg"),
-                "bpm": ("BPM", "rate"),
-                "bcpm": ("BCPM", "rate"),
-                "time_zero_boost_s": ("Time Zero Boost (s)", "seconds"),
-                "time_hundred_boost_s": ("Time 100 Boost (s)", "seconds"),
-                "big_pads": ("Big Pads", "count"),
-                "small_pads": ("Small Pads", "count"),
-                "stolen_big_pads": ("Stolen Big Pads", "count"),
-                "stolen_small_pads": ("Stolen Small Pads", "count"),
-                "overfill": ("Overfill", "count"),
-                "waste": ("Waste", "count"),
-            }),
-            ("Movement", "movement", {
-                "avg_speed_kph": ("Average Speed (kph)", "avg"),
-                "time_slow_s": ("Slow Time (s)", "seconds"),
-                "time_boost_speed_s": ("Boost Speed Time (s)", "seconds"),
-                "time_supersonic_s": ("Supersonic Time (s)", "seconds"),
-                "time_ground_s": ("Ground Time (s)", "seconds"),
-                "time_low_air_s": ("Low Air Time (s)", "seconds"),
-                "time_high_air_s": ("High Air Time (s)", "seconds"),
-                "powerslide_count": ("Powerslides", "count"),
-                "powerslide_duration_s": ("Powerslide Time (s)", "seconds"),
-                "aerial_count": ("Aerials", "count"),
-                "aerial_time_s": ("Aerial Time (s)", "seconds"),
-            }),
-            ("Positioning", "positioning", {
-                "time_offensive_half_s": ("Offensive Half Time (s)", "seconds"),
-                "time_defensive_half_s": ("Defensive Half Time (s)", "seconds"),
-                "time_offensive_third_s": ("Offensive Third Time (s)", "seconds"),
-                "time_middle_third_s": ("Middle Third Time (s)", "seconds"),
-                "time_defensive_third_s": ("Defensive Third Time (s)", "seconds"),
-                "behind_ball_pct": ("Behind Ball %", "percentage"),
-                "ahead_ball_pct": ("Ahead Ball %", "percentage"),
-                "avg_distance_to_ball_m": ("Avg Dist To Ball (m)", "avg"),
-                "avg_distance_to_teammate_m": ("Avg Dist To Teammate (m)", "avg"),
-                "first_man_pct": ("First Man %", "percentage"),
-                "second_man_pct": ("Second Man %", "percentage"),
-                "third_man_pct": ("Third Man %", "percentage"),
-            }),
-            ("Possession & Passing", "passing", {
-                "passes_completed": ("Passes Completed", "count"),
-                "passes_attempted": ("Passes Attempted", "count"),
-                "passes_received": ("Passes Received", "count"),
-                "turnovers": ("Turnovers", "count"),
-                "give_and_go_count": ("Give & Go", "count"),
-                "possession_time_s": ("Possession Time (s)", "seconds"),
-            }),
-            ("Challenges", "challenges", {
-                "contests": ("Contests", "count"),
-                "wins": ("Wins", "count"),
-                "losses": ("Losses", "count"),
-                "neutral": ("Neutral", "count"),
-                "first_to_ball_pct": ("First To Ball %", "percentage"),
-                "challenge_depth_m": ("Challenge Depth (m)", "avg"),
-                "risk_index_avg": ("Risk Index", "avg"),
-            }),
-            ("Kickoffs", "kickoffs", {
-                "count": ("Kickoffs", "count"),
-                "first_possession": ("First Possession", "count"),
-                "neutral": ("Neutral", "count"),
-                "goals_for": ("Goals For", "count"),
-                "goals_against": ("Goals Against", "count"),
-                "avg_time_to_first_touch_s": ("Avg Time To First Touch (s)", "seconds"),
-            }),
-            ("Mechanics", "mechanics", {
-                "total_flips": ("Total Flips", "count"),
-                "total_aerials": ("Total Aerials", "count"),
-                "total_wavedashes": ("Total Wavedashes", "count"),
-                "total_halfflips": ("Total Half-Flips", "count"),
-                "total_speedflips": ("Total Speedflips", "count"),
-                "total_flip_cancels": ("Total Flip Cancels", "count"),
-            }),
+            (
+                "Fundamentals",
+                "fundamentals",
+                {
+                    "goals": ("Goals", "count"),
+                    "assists": ("Assists", "count"),
+                    "shots": ("Shots", "count"),
+                    "saves": ("Saves", "count"),
+                    "demos_inflicted": ("Demos For", "count"),
+                    "demos_taken": ("Demos Against", "count"),
+                    "score": ("Score", "score"),
+                    "shooting_percentage": ("Shooting %", "percentage"),
+                },
+            ),
+            (
+                "Boost Economy",
+                "boost",
+                {
+                    "amount_collected": ("Boost Collected", "count"),
+                    "amount_stolen": ("Boost Stolen", "count"),
+                    "avg_boost": ("Average Boost", "avg"),
+                    "bpm": ("BPM", "rate"),
+                    "bcpm": ("BCPM", "rate"),
+                    "time_zero_boost_s": ("Time Zero Boost (s)", "seconds"),
+                    "time_hundred_boost_s": ("Time 100 Boost (s)", "seconds"),
+                    "big_pads": ("Big Pads", "count"),
+                    "small_pads": ("Small Pads", "count"),
+                    "stolen_big_pads": ("Stolen Big Pads", "count"),
+                    "stolen_small_pads": ("Stolen Small Pads", "count"),
+                    "overfill": ("Overfill", "count"),
+                    "waste": ("Waste", "count"),
+                },
+            ),
+            (
+                "Movement",
+                "movement",
+                {
+                    "avg_speed_kph": ("Average Speed (kph)", "avg"),
+                    "time_slow_s": ("Slow Time (s)", "seconds"),
+                    "time_boost_speed_s": ("Boost Speed Time (s)", "seconds"),
+                    "time_supersonic_s": ("Supersonic Time (s)", "seconds"),
+                    "time_ground_s": ("Ground Time (s)", "seconds"),
+                    "time_low_air_s": ("Low Air Time (s)", "seconds"),
+                    "time_high_air_s": ("High Air Time (s)", "seconds"),
+                    "powerslide_count": ("Powerslides", "count"),
+                    "powerslide_duration_s": ("Powerslide Time (s)", "seconds"),
+                    "aerial_count": ("Aerials", "count"),
+                    "aerial_time_s": ("Aerial Time (s)", "seconds"),
+                },
+            ),
+            (
+                "Positioning",
+                "positioning",
+                {
+                    "time_offensive_half_s": ("Offensive Half Time (s)", "seconds"),
+                    "time_defensive_half_s": ("Defensive Half Time (s)", "seconds"),
+                    "time_offensive_third_s": ("Offensive Third Time (s)", "seconds"),
+                    "time_middle_third_s": ("Middle Third Time (s)", "seconds"),
+                    "time_defensive_third_s": ("Defensive Third Time (s)", "seconds"),
+                    "behind_ball_pct": ("Behind Ball %", "percentage"),
+                    "ahead_ball_pct": ("Ahead Ball %", "percentage"),
+                    "avg_distance_to_ball_m": ("Avg Dist To Ball (m)", "avg"),
+                    "avg_distance_to_teammate_m": ("Avg Dist To Teammate (m)", "avg"),
+                    "first_man_pct": ("First Man %", "percentage"),
+                    "second_man_pct": ("Second Man %", "percentage"),
+                    "third_man_pct": ("Third Man %", "percentage"),
+                },
+            ),
+            (
+                "Possession & Passing",
+                "passing",
+                {
+                    "passes_completed": ("Passes Completed", "count"),
+                    "passes_attempted": ("Passes Attempted", "count"),
+                    "passes_received": ("Passes Received", "count"),
+                    "turnovers": ("Turnovers", "count"),
+                    "give_and_go_count": ("Give & Go", "count"),
+                    "possession_time_s": ("Possession Time (s)", "seconds"),
+                },
+            ),
+            (
+                "Challenges",
+                "challenges",
+                {
+                    "contests": ("Contests", "count"),
+                    "wins": ("Wins", "count"),
+                    "losses": ("Losses", "count"),
+                    "neutral": ("Neutral", "count"),
+                    "first_to_ball_pct": ("First To Ball %", "percentage"),
+                    "challenge_depth_m": ("Challenge Depth (m)", "avg"),
+                    "risk_index_avg": ("Risk Index", "avg"),
+                },
+            ),
+            (
+                "Kickoffs",
+                "kickoffs",
+                {
+                    "count": ("Kickoffs", "count"),
+                    "first_possession": ("First Possession", "count"),
+                    "neutral": ("Neutral", "count"),
+                    "goals_for": ("Goals For", "count"),
+                    "goals_against": ("Goals Against", "count"),
+                    "avg_time_to_first_touch_s": (
+                        "Avg Time To First Touch (s)",
+                        "seconds",
+                    ),
+                },
+            ),
+            (
+                "Mechanics",
+                "mechanics",
+                {
+                    "total_flips": ("Total Flips", "count"),
+                    "total_aerials": ("Total Aerials", "count"),
+                    "total_wavedashes": ("Total Wavedashes", "count"),
+                    "total_halfflips": ("Total Half-Flips", "count"),
+                    "total_speedflips": ("Total Speedflips", "count"),
+                    "total_flip_cancels": ("Total Flip Cancels", "count"),
+                },
+            ),
         )
 
         per_team = self.analysis.get("per_team", {})
@@ -294,9 +343,18 @@ class _MarkdownComposer:
             orange = per_team.get("orange", {}).get(key, {})
             table_rows = []
             for metric_key, (metric_label, mtype) in metrics.items():
-                row = self._format_team_metric_row(metric_label, blue.get(metric_key), orange.get(metric_key), mtype)
+                row = self._format_team_metric_row(
+                    metric_label, blue.get(metric_key), orange.get(metric_key), mtype
+                )
                 table_rows.append(row)
-            headers = ("Metric", "Blue", "Blue Rate", "Orange", "Orange Rate", "Delta Blue-Orange")
+            headers = (
+                "Metric",
+                "Blue",
+                "Blue Rate",
+                "Orange",
+                "Orange Rate",
+                "Delta Blue-Orange",
+            )
             self._emit(self._tabulate(table_rows, headers=headers))
             self._emit()
 
@@ -328,13 +386,33 @@ class _MarkdownComposer:
             self._emit()
             self._emit(self._player_overview_table(pid, pdata))
             self._emit()
-            self._emit(self._player_metric_section("Fundamentals", pdata.get("fundamentals", {})))
+            self._emit(
+                self._player_metric_section(
+                    "Fundamentals", pdata.get("fundamentals", {})
+                )
+            )
             self._emit(self._player_metric_section("Boost", pdata.get("boost", {})))
-            self._emit(self._player_metric_section("Movement", pdata.get("movement", {})))
-            self._emit(self._player_metric_section("Positioning", pdata.get("positioning", {})))
-            self._emit(self._player_metric_section("Possession & Passing", pdata.get("passing", {})))
-            self._emit(self._player_metric_section("Challenges", pdata.get("challenges", {})))
-            self._emit(self._player_metric_section("Kickoffs", pdata.get("kickoffs", {}), extra=self._player_kickoff_breakdown(pdata.get("kickoffs", {}))))
+            self._emit(
+                self._player_metric_section("Movement", pdata.get("movement", {}))
+            )
+            self._emit(
+                self._player_metric_section("Positioning", pdata.get("positioning", {}))
+            )
+            self._emit(
+                self._player_metric_section(
+                    "Possession & Passing", pdata.get("passing", {})
+                )
+            )
+            self._emit(
+                self._player_metric_section("Challenges", pdata.get("challenges", {}))
+            )
+            self._emit(
+                self._player_metric_section(
+                    "Kickoffs",
+                    pdata.get("kickoffs", {}),
+                    extra=self._player_kickoff_breakdown(pdata.get("kickoffs", {})),
+                )
+            )
             self._emit(self._player_mechanics_section(pdata.get("mechanics", {})))
             rotation = pdata.get("rotation_compliance", {})
             self._emit(self._player_rotation_section(rotation))
@@ -359,17 +437,59 @@ class _MarkdownComposer:
         self._emit(self._tabulate(timeline_rows, headers=headers))
         self._emit()
 
-        self._emit(self._event_subtable("Goals", self.events.get("goals", []), self._format_goal_row, ("Time (s)", "Frame", "Team", "Scorer", "Assist")))
+        self._emit(
+            self._event_subtable(
+                "Goals",
+                self.events.get("goals", []),
+                self._format_goal_row,
+                ("Time (s)", "Frame", "Team", "Scorer", "Assist"),
+            )
+        )
         self._emit()
-        self._emit(self._event_subtable("Demos", self.events.get("demos", []), self._format_demo_row, ("Time (s)", "Attacker", "Victim", "Location")))
+        self._emit(
+            self._event_subtable(
+                "Demos",
+                self.events.get("demos", []),
+                self._format_demo_row,
+                ("Time (s)", "Attacker", "Victim", "Location"),
+            )
+        )
         self._emit()
-        self._emit(self._event_subtable("Boost Pickups", self.events.get("boost_pickups", []), self._format_boost_pickup_row, ("Time (s)", "Player", "Pad", "Stolen", "Location")))
+        self._emit(
+            self._event_subtable(
+                "Boost Pickups",
+                self.events.get("boost_pickups", []),
+                self._format_boost_pickup_row,
+                ("Time (s)", "Player", "Pad", "Stolen", "Location"),
+            )
+        )
         self._emit()
-        self._emit(self._event_subtable("Challenges", self.events.get("challenges", []), self._format_challenge_row, ("Time (s)", "Outcome", "Winner", "Loser", "Depth (m)")))
+        self._emit(
+            self._event_subtable(
+                "Challenges",
+                self.events.get("challenges", []),
+                self._format_challenge_row,
+                ("Time (s)", "Outcome", "Winner", "Loser", "Depth (m)"),
+            )
+        )
         self._emit()
-        self._emit(self._event_subtable("Kickoffs", self.events.get("kickoffs", []), self._format_kickoff_row, ("Phase", "Time Start (s)", "Outcome", "First Touch", "Approach Types")))
+        self._emit(
+            self._event_subtable(
+                "Kickoffs",
+                self.events.get("kickoffs", []),
+                self._format_kickoff_row,
+                ("Phase", "Time Start (s)", "Outcome", "First Touch", "Approach Types"),
+            )
+        )
         self._emit()
-        self._emit(self._event_subtable("Touches", self.events.get("touches", []), self._format_touch_row, ("Time (s)", "Player", "Outcome", "Ball Speed (kph)", "Location")))
+        self._emit(
+            self._event_subtable(
+                "Touches",
+                self.events.get("touches", []),
+                self._format_touch_row,
+                ("Time (s)", "Player", "Outcome", "Ball Speed (kph)", "Location"),
+            )
+        )
         self._emit()
 
     def _emit_heatmaps(self) -> None:
@@ -385,7 +505,12 @@ class _MarkdownComposer:
             display_name = roster_entry.get("display_name", pid)
             self._emit(f"### {display_name}")
             self._emit()
-            for key in ("position_occupancy_grid", "touch_density_grid", "boost_pickup_grid", "boost_usage_grid"):
+            for key in (
+                "position_occupancy_grid",
+                "touch_density_grid",
+                "boost_pickup_grid",
+                "boost_usage_grid",
+            ):
                 grid = heatmaps.get(key)
                 label = key.replace("_", " ").title()
                 if not grid:
@@ -442,7 +567,11 @@ class _MarkdownComposer:
     # Formatting helpers
     # ------------------------------------------------------------------
 
-    def _tabulate(self, rows: Iterable[Sequence[str | float | int]], headers: Sequence[str] | None = None) -> str:
+    def _tabulate(
+        self,
+        rows: Iterable[Sequence[str | float | int]],
+        headers: Sequence[str] | None = None,
+    ) -> str:
         table_rows: list[list[str]] = []
         if headers:
             table_rows.append([str(h) for h in headers])
@@ -457,7 +586,11 @@ class _MarkdownComposer:
             line = "| " + " | ".join(padded) + " |"
             lines.append(line)
             if idx == 0 and headers:
-                sep = "| " + " | ".join("-" * widths[col] for col in range(len(widths))) + " |"
+                sep = (
+                    "| "
+                    + " | ".join("-" * widths[col] for col in range(len(widths)))
+                    + " |"
+                )
                 lines.append(sep)
         return "\n" + "\n".join(lines) + "\n"
 
@@ -526,7 +659,9 @@ class _MarkdownComposer:
             rows.append((team.name, team.score, ", ".join(team.players)))
         return self._tabulate(rows, headers=("Team", "Score", "Players"))
 
-    def _format_team_metric_row(self, label: str, blue_value: Any, orange_value: Any, mtype: str) -> tuple[str, str, str, str, str, str]:
+    def _format_team_metric_row(
+        self, label: str, blue_value: Any, orange_value: Any, mtype: str
+    ) -> tuple[str, str, str, str, str, str]:
         blue = self._normalize_metric_value(blue_value, mtype)
         orange = self._normalize_metric_value(orange_value, mtype)
         blue_rate = self._compute_metric_rate(blue_value, mtype)
@@ -566,7 +701,9 @@ class _MarkdownComposer:
             delta = 0.0
         return self._fmt_num(delta)
 
-    def _kickoff_approach_table(self, blue: dict[str, Any], orange: dict[str, Any]) -> str:
+    def _kickoff_approach_table(
+        self, blue: dict[str, Any], orange: dict[str, Any]
+    ) -> str:
         b_approach = blue.get("approach_types", {}) or {}
         o_approach = orange.get("approach_types", {}) or {}
         labels = sorted({*b_approach.keys(), *o_approach.keys()})
@@ -579,8 +716,19 @@ class _MarkdownComposer:
             o_value = o_approach.get(label, 0)
             b_share = self._percentage_share(b_value, b_total)
             o_share = self._percentage_share(o_value, o_total)
-            rows.append((label, self._fmt_num(b_value), f"{b_share}", self._fmt_num(o_value), f"{o_share}"))
-        return self._tabulate(rows, headers=("Approach", "Blue Count", "Blue %", "Orange Count", "Orange %"))
+            rows.append(
+                (
+                    label,
+                    self._fmt_num(b_value),
+                    f"{b_share}",
+                    self._fmt_num(o_value),
+                    f"{o_share}",
+                )
+            )
+        return self._tabulate(
+            rows,
+            headers=("Approach", "Blue Count", "Blue %", "Orange Count", "Orange %"),
+        )
 
     def _percentage_share(self, subset: Any, total: Any) -> str:
         try:
@@ -609,13 +757,24 @@ class _MarkdownComposer:
         loadout = roster_entry.get("loadout") or {}
         rows = [
             ("Player ID", pid),
-            ("Platform IDs", ", ".join(f"{k}:{v}" for k, v in sorted(platform.items())) or "-"),
-            ("Camera Settings", ", ".join(f"{k}:{v}" for k, v in sorted(camera.items())) or "-"),
-            ("Loadout", ", ".join(f"{k}:{v}" for k, v in sorted(loadout.items())) or "-"),
+            (
+                "Platform IDs",
+                ", ".join(f"{k}:{v}" for k, v in sorted(platform.items())) or "-",
+            ),
+            (
+                "Camera Settings",
+                ", ".join(f"{k}:{v}" for k, v in sorted(camera.items())) or "-",
+            ),
+            (
+                "Loadout",
+                ", ".join(f"{k}:{v}" for k, v in sorted(loadout.items())) or "-",
+            ),
         ]
         return self._tabulate(rows)
 
-    def _player_metric_section(self, title: str, metrics: dict[str, Any], extra: str | None = None) -> str:
+    def _player_metric_section(
+        self, title: str, metrics: dict[str, Any], extra: str | None = None
+    ) -> str:
         if not metrics:
             return f"**{title}:** no data\n"
         rows = []
@@ -708,52 +867,97 @@ class _MarkdownComposer:
         fundamentals = pdata.get("fundamentals", {}) or {}
         if fundamentals:
             derived["fundamentals"] = {
-                "goals_per_min": round(self._rate_per_minute_value(fundamentals.get("goals")), 4),
-                "shots_per_min": round(self._rate_per_minute_value(fundamentals.get("shots")), 4),
-                "saves_per_min": round(self._rate_per_minute_value(fundamentals.get("saves")), 4),
-                "demos_inflicted_per_min": round(self._rate_per_minute_value(fundamentals.get("demos_inflicted")), 4),
-                "goals_per_5_min": round(self._rate_per_five_minutes_value(fundamentals.get("goals")), 4),
-                "shooting_pct": round(self._safe_float(fundamentals.get("shooting_percentage")), 2),
+                "goals_per_min": round(
+                    self._rate_per_minute_value(fundamentals.get("goals")), 4
+                ),
+                "shots_per_min": round(
+                    self._rate_per_minute_value(fundamentals.get("shots")), 4
+                ),
+                "saves_per_min": round(
+                    self._rate_per_minute_value(fundamentals.get("saves")), 4
+                ),
+                "demos_inflicted_per_min": round(
+                    self._rate_per_minute_value(fundamentals.get("demos_inflicted")), 4
+                ),
+                "goals_per_5_min": round(
+                    self._rate_per_five_minutes_value(fundamentals.get("goals")), 4
+                ),
+                "shooting_pct": round(
+                    self._safe_float(fundamentals.get("shooting_percentage")), 2
+                ),
             }
         boost = pdata.get("boost", {}) or {}
         if boost:
             derived["boost"] = {
-                "collected_per_min": round(self._rate_per_minute_value(boost.get("amount_collected")), 3),
-                "stolen_per_min": round(self._rate_per_minute_value(boost.get("amount_stolen")), 3),
-                "zero_boost_pct": round(self._percentage_of_match(boost.get("time_zero_boost_s")), 2),
-                "hundred_boost_pct": round(self._percentage_of_match(boost.get("time_hundred_boost_s")), 2),
+                "collected_per_min": round(
+                    self._rate_per_minute_value(boost.get("amount_collected")), 3
+                ),
+                "stolen_per_min": round(
+                    self._rate_per_minute_value(boost.get("amount_stolen")), 3
+                ),
+                "zero_boost_pct": round(
+                    self._percentage_of_match(boost.get("time_zero_boost_s")), 2
+                ),
+                "hundred_boost_pct": round(
+                    self._percentage_of_match(boost.get("time_hundred_boost_s")), 2
+                ),
             }
         movement = pdata.get("movement", {}) or {}
         if movement:
             movement_percentages = {}
             for key, value in movement.items():
                 if key.startswith("time_") and key.endswith("_s"):
-                    movement_percentages[f"{key}_pct"] = round(self._percentage_of_match(value), 2)
+                    movement_percentages[f"{key}_pct"] = round(
+                        self._percentage_of_match(value), 2
+                    )
             if movement_percentages:
                 derived["movement"] = movement_percentages
         passing = pdata.get("passing", {}) or {}
         if passing:
             derived["passing"] = {
-                "completion_pct": round(self._share_pct_value(passing.get("passes_completed"), passing.get("passes_attempted")), 2),
-                "possession_per_min": round(self._rate_per_minute_value(passing.get("possession_time_s")), 3),
-                "turnovers_per_min": round(self._rate_per_minute_value(passing.get("turnovers")), 3),
+                "completion_pct": round(
+                    self._share_pct_value(
+                        passing.get("passes_completed"), passing.get("passes_attempted")
+                    ),
+                    2,
+                ),
+                "possession_per_min": round(
+                    self._rate_per_minute_value(passing.get("possession_time_s")), 3
+                ),
+                "turnovers_per_min": round(
+                    self._rate_per_minute_value(passing.get("turnovers")), 3
+                ),
             }
         challenges = pdata.get("challenges", {}) or {}
         if challenges:
             contests = challenges.get("contests", 0)
             derived["challenges"] = {
-                "win_pct": round(self._share_pct_value(challenges.get("wins"), contests), 2),
-                "loss_pct": round(self._share_pct_value(challenges.get("losses"), contests), 2),
-                "neutral_pct": round(self._share_pct_value(challenges.get("neutral"), contests), 2),
+                "win_pct": round(
+                    self._share_pct_value(challenges.get("wins"), contests), 2
+                ),
+                "loss_pct": round(
+                    self._share_pct_value(challenges.get("losses"), contests), 2
+                ),
+                "neutral_pct": round(
+                    self._share_pct_value(challenges.get("neutral"), contests), 2
+                ),
             }
         kickoffs = pdata.get("kickoffs", {}) or {}
         if kickoffs:
             count = kickoffs.get("count", 0)
             derived["kickoffs"] = {
-                "first_possession_pct": round(self._share_pct_value(kickoffs.get("first_possession"), count), 2),
-                "neutral_pct": round(self._share_pct_value(kickoffs.get("neutral"), count), 2),
-                "goals_for_per_kickoff": round(self._share_pct_value(kickoffs.get("goals_for"), count), 2),
-                "goals_against_per_kickoff": round(self._share_pct_value(kickoffs.get("goals_against"), count), 2),
+                "first_possession_pct": round(
+                    self._share_pct_value(kickoffs.get("first_possession"), count), 2
+                ),
+                "neutral_pct": round(
+                    self._share_pct_value(kickoffs.get("neutral"), count), 2
+                ),
+                "goals_for_per_kickoff": round(
+                    self._share_pct_value(kickoffs.get("goals_for"), count), 2
+                ),
+                "goals_against_per_kickoff": round(
+                    self._share_pct_value(kickoffs.get("goals_against"), count), 2
+                ),
             }
         return derived
 
@@ -772,7 +976,9 @@ class _MarkdownComposer:
         }
         return "```json\n" + json.dumps(payload, indent=2, sort_keys=True) + "\n```"
 
-    def _format_timeline_row(self, event: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    def _format_timeline_row(
+        self, event: dict[str, Any]
+    ) -> tuple[str, str, str, str, str]:
         t = self._fmt_num(event.get("t"))
         frame = self._fmt_num(event.get("frame"))
         etype = event.get("type", "-")
@@ -794,7 +1000,9 @@ class _MarkdownComposer:
                 items.append(f"{key}:{value}")
         return ", ".join(items)
 
-    def _event_subtable(self, title: str, events: list[Any], formatter, headers: Sequence[str]) -> str:
+    def _event_subtable(
+        self, title: str, events: list[Any], formatter, headers: Sequence[str]
+    ) -> str:
         self._emit(f"### {title}")
         rows = [formatter(ev) for ev in events or []]
         if not rows:
@@ -817,7 +1025,9 @@ class _MarkdownComposer:
         location = self._format_location(loc)
         return (t, attacker, victim, location)
 
-    def _format_boost_pickup_row(self, event: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    def _format_boost_pickup_row(
+        self, event: dict[str, Any]
+    ) -> tuple[str, str, str, str, str]:
         t = self._fmt_num(event.get("t"))
         player = event.get("player_id", "-")
         pad = event.get("pad_type", "-")
@@ -825,7 +1035,9 @@ class _MarkdownComposer:
         location = self._format_location(event.get("location") or {})
         return (t, player, pad, stolen, location)
 
-    def _format_challenge_row(self, event: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    def _format_challenge_row(
+        self, event: dict[str, Any]
+    ) -> tuple[str, str, str, str, str]:
         t = self._fmt_num(event.get("t"))
         outcome = event.get("outcome", "-")
         winner = event.get("winner", "-")
@@ -833,7 +1045,9 @@ class _MarkdownComposer:
         depth = self._fmt_num(event.get("challenge_depth", 0))
         return (t, outcome, winner, loser, depth)
 
-    def _format_kickoff_row(self, event: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    def _format_kickoff_row(
+        self, event: dict[str, Any]
+    ) -> tuple[str, str, str, str, str]:
         phase = event.get("phase", "-")
         t_start = self._fmt_num(event.get("t_start"))
         outcome = event.get("outcome", "-")
@@ -843,10 +1057,14 @@ class _MarkdownComposer:
         for approver in approaches:
             approach_map.setdefault(approver.get("approach_type", "UNKNOWN"), 0)
             approach_map[approver.get("approach_type", "UNKNOWN")] += 1
-        approach_summary = ", ".join(f"{k}:{v}" for k, v in sorted(approach_map.items())) or "-"
+        approach_summary = (
+            ", ".join(f"{k}:{v}" for k, v in sorted(approach_map.items())) or "-"
+        )
         return (phase, t_start, outcome, first_touch, approach_summary)
 
-    def _format_touch_row(self, event: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    def _format_touch_row(
+        self, event: dict[str, Any]
+    ) -> tuple[str, str, str, str, str]:
         t = self._fmt_num(event.get("t"))
         player = event.get("player_id", "-")
         outcome = event.get("outcome", "-")
@@ -889,7 +1107,7 @@ class _MarkdownComposer:
         offensive_total = 0.0
         defensive_total = 0.0
         for y_idx, row in enumerate(values):
-            for x_idx, val in enumerate(row):
+            for _x_idx, val in enumerate(row):
                 if not val:
                     continue
                 y_center = ymin + (y_idx + 0.5) * y_step if y_bins else 0.0
@@ -900,7 +1118,9 @@ class _MarkdownComposer:
         denom = total or 1.0
         offensive_pct = (offensive_total / denom) * 100.0
         defensive_pct = (defensive_total / denom) * 100.0
-        top = sorted(((val, idx) for idx, val in enumerate(flattened)), reverse=True)[:3]
+        top = sorted(((val, idx) for idx, val in enumerate(flattened)), reverse=True)[
+            :3
+        ]
         top_cells: list[str] = []
         for position, (val, cell_index) in enumerate(top):
             if x_bins:
@@ -921,7 +1141,6 @@ class _MarkdownComposer:
             ("Top Cells", "; ".join(top_cells)),
         ]
         return self._tabulate(rows)
-
 
     def _load_teams(self, teams: dict[str, Any]) -> dict[str, _TeamEntry]:
         result: dict[str, _TeamEntry] = {}

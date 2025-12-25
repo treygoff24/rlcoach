@@ -10,7 +10,6 @@ References:
 
 from __future__ import annotations
 
-
 # =============================================================================
 # Unit Conversions
 # =============================================================================
@@ -32,7 +31,7 @@ BOOST_SPEED_MAX_UU_S: float = 2200.0  # Below this is "boost speed"
 SUPERSONIC_SPEED_UU_S: float = 2200.0  # At or above this is "supersonic"
 
 # Supersonic threshold squared (for avoiding sqrt in hot paths)
-SUPERSONIC_SPEED_SQUARED: float = SUPERSONIC_SPEED_UU_S ** 2
+SUPERSONIC_SPEED_SQUARED: float = SUPERSONIC_SPEED_UU_S**2
 
 
 # =============================================================================

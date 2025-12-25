@@ -3,14 +3,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base
-
 
 _engine: Engine | None = None
 _SessionFactory: sessionmaker | None = None

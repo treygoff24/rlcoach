@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from ..ingest import ingest_replay
-from .errors import HeaderParseError, NetworkParseError
+from .errors import HeaderParseError
 from .interface import ParserAdapter
-from .types import Header, NetworkFrames, PlayerInfo, GoalHeader, Highlight
+from .types import GoalHeader, Header, Highlight, NetworkFrames, PlayerInfo
 
 try:  # best-effort import of Rust core
     import rlreplay_rust as _rust
@@ -49,7 +49,11 @@ class RustAdapter(ParserAdapter):
             platform_id, platform_ids = self._extract_platform_ids(stats)
             camera_settings = self._extract_camera_settings(stats)
             loadout = self._extract_loadout(stats)
-            score = stats.get("Score") if isinstance(stats.get("Score"), (int, float)) else 0
+            score = (
+                stats.get("Score")
+                if isinstance(stats.get("Score"), (int, float))
+                else 0
+            )
 
             normalized_stats: dict[str, Any] = {}
             if isinstance(stats, dict):
@@ -77,7 +81,11 @@ class RustAdapter(ParserAdapter):
                 GoalHeader(
                     frame=int(g.get("frame")) if g.get("frame") is not None else None,
                     player_name=g.get("player_name"),
-                    player_team=(int(g.get("player_team")) if g.get("player_team") is not None else None),
+                    player_team=(
+                        int(g.get("player_team"))
+                        if g.get("player_team") is not None
+                        else None
+                    ),
                 )
             )
         highlights = []
@@ -109,7 +117,9 @@ class RustAdapter(ParserAdapter):
         )
 
     @staticmethod
-    def _extract_platform_ids(stats: dict[str, Any]) -> tuple[str | None, dict[str, str]]:
+    def _extract_platform_ids(
+        stats: dict[str, Any],
+    ) -> tuple[str | None, dict[str, str]]:
         platform_map = {
             "OnlinePlatform_Steam": "steam",
             "OnlinePlatform_Epic": "epic",
@@ -122,6 +132,7 @@ class RustAdapter(ParserAdapter):
         platform_ids: dict[str, str] = {}
         primary_platform_id: str | None = None
 
+        # Extract platform type from Platform struct
         platform_struct = stats.get("Platform")
         primary_platform_key = None
         if isinstance(platform_struct, dict):
@@ -129,20 +140,24 @@ class RustAdapter(ParserAdapter):
             if isinstance(raw_value, str):
                 primary_platform_key = platform_map.get(raw_value, raw_value.lower())
 
-        player_id_struct = stats.get("PlayerID")
+        # Try PlayerID struct first (newer format), then UniqueId (boxcars format)
+        player_id_struct = stats.get("PlayerID") or stats.get("UniqueId")
         if isinstance(player_id_struct, dict):
+            # Steam UID - only use if non-zero (0 means missing/placeholder)
             uid = player_id_struct.get("Uid")
-            if uid is not None:
+            if uid is not None and int(uid) != 0:
                 platform_ids.setdefault("steam", str(uid))
                 if primary_platform_key == "steam":
                     primary_platform_id = str(uid)
 
+            # Epic Account ID
             epic_id = player_id_struct.get("EpicAccountId")
             if epic_id:
                 platform_ids["epic"] = str(epic_id)
                 if primary_platform_key == "epic":
                     primary_platform_id = str(epic_id)
 
+            # PSN ID (nested structure)
             npid = player_id_struct.get("NpId")
             if isinstance(npid, dict):
                 handle = npid.get("Handle")
@@ -153,8 +168,33 @@ class RustAdapter(ParserAdapter):
                         if primary_platform_key == "psn":
                             primary_platform_id = str(data)
 
+            # Remote ID (another format used by boxcars)
+            remote_id = player_id_struct.get("Remote")
+            if isinstance(remote_id, dict):
+                for rid_key, rid_val in remote_id.items():
+                    if isinstance(rid_val, dict):
+                        # Handle nested Remote structs like Steam(123456)
+                        for _inner_k, inner_v in rid_val.items():
+                            if inner_v and str(inner_v) != "0":
+                                platform = rid_key.lower()
+                                platform_ids.setdefault(platform, str(inner_v))
+                                if primary_platform_id is None:
+                                    primary_platform_id = str(inner_v)
+                                    primary_platform_key = platform
+                    elif rid_val and str(rid_val) != "0":
+                        platform = rid_key.lower()
+                        platform_ids.setdefault(platform, str(rid_val))
+                        if primary_platform_id is None:
+                            primary_platform_id = str(rid_val)
+                            primary_platform_key = platform
+
+        # Fallback: OnlineID (older replays)
         online_id = stats.get("OnlineID")
-        if primary_platform_id is None and online_id is not None:
+        if (
+            primary_platform_id is None
+            and online_id is not None
+            and str(online_id) != "0"
+        ):
             primary_platform_id = str(online_id)
             if primary_platform_key and primary_platform_key not in platform_ids:
                 platform_ids[primary_platform_key] = primary_platform_id
@@ -172,7 +212,9 @@ class RustAdapter(ParserAdapter):
             if key.startswith("_"):
                 continue
             if isinstance(value, (int, float)):
-                normalized_key = key.replace("Camera", "").replace("Settings", "").strip("_")
+                normalized_key = (
+                    key.replace("Camera", "").replace("Settings", "").strip("_")
+                )
                 normalized_key = normalized_key or key
                 result[normalized_key.lower()] = float(value)
         return result or None
@@ -197,7 +239,9 @@ class RustAdapter(ParserAdapter):
                 # Use Rust implementation
                 d = _rust.parse_header(str(path))  # returns dict-like
                 if not isinstance(d, dict):  # defensive check
-                    raise HeaderParseError(str(path), "Rust core returned non-dict header")
+                    raise HeaderParseError(
+                        str(path), "Rust core returned non-dict header"
+                    )
                 header = self._header_from_rust_dict(d)
                 return header
 
@@ -249,7 +293,9 @@ class RustAdapter(ParserAdapter):
                 anonymous_index = 0
                 for player in players:
                     key: str
-                    if isinstance(player, dict) and isinstance(player.get("player_id"), str):
+                    if isinstance(player, dict) and isinstance(
+                        player.get("player_id"), str
+                    ):
                         key = player["player_id"]  # keep stable key per player id
                     else:
                         key = f"__anon_{anonymous_index}"
@@ -266,7 +312,7 @@ class RustAdapter(ParserAdapter):
             except Exception:
                 hz = 30.0
             return NetworkFrames(frame_count=len(frames), sample_rate=hz, frames=frames)
-        except Exception as e:
+        except Exception:
             # Degrade gracefully to header-only when network parsing fails
             # (e.g., malformed or synthetic test file)
             return None

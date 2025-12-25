@@ -6,12 +6,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
-from ...db.session import create_session
-from ...db.models import Replay, PlayerGameStats, Benchmark
 from ...analysis.patterns import compute_pattern_analysis
 from ...analysis.weaknesses import detect_weaknesses
+from ...db.models import Benchmark, PlayerGameStats, Replay
+from ...db.session import create_session
 
 router = APIRouter(tags=["analysis"])
 
@@ -42,7 +42,7 @@ async def get_trends(
         query = (
             session.query(Replay.play_date, PlayerGameStats)
             .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me == True)
+            .filter(PlayerGameStats.is_me)
         )
 
         if date_from:
@@ -58,10 +58,12 @@ async def get_trends(
         for play_date, stats in results:
             value = getattr(stats, metric, None)
             if value is not None:
-                values.append({
-                    "date": play_date.isoformat(),
-                    "value": value,
-                })
+                values.append(
+                    {
+                        "date": play_date.isoformat(),
+                        "value": value,
+                    }
+                )
 
         return {
             "metric": metric,
@@ -101,16 +103,18 @@ async def list_benchmarks(
 
         items = []
         for b in benchmarks:
-            items.append({
-                "metric": b.metric,
-                "playlist": b.playlist,
-                "rank_tier": b.rank_tier,
-                "median_value": b.median_value,
-                "p25_value": b.p25_value,
-                "p75_value": b.p75_value,
-                "elite_threshold": b.elite_threshold,
-                "source": b.source,
-            })
+            items.append(
+                {
+                    "metric": b.metric,
+                    "playlist": b.playlist,
+                    "rank_tier": b.rank_tier,
+                    "median_value": b.median_value,
+                    "p25_value": b.p25_value,
+                    "p75_value": b.p75_value,
+                    "elite_threshold": b.elite_threshold,
+                    "source": b.source,
+                }
+            )
 
         return {"items": items}
 
@@ -144,7 +148,7 @@ async def get_comparison(
         query = (
             session.query(PlayerGameStats)
             .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me == True)
+            .filter(PlayerGameStats.is_me)
             .filter(Replay.playlist == playlist)
         )
 
@@ -176,7 +180,9 @@ async def get_comparison(
         comparisons = []
 
         for metric in metric_attrs:
-            values = [getattr(s, metric) for s in my_stats if getattr(s, metric) is not None]
+            values = [
+                getattr(s, metric) for s in my_stats if getattr(s, metric) is not None
+            ]
             if not values:
                 continue
 
@@ -185,23 +191,31 @@ async def get_comparison(
             benchmark = benchmark_map.get(metric)
             if benchmark:
                 diff = my_avg - benchmark.median_value
-                diff_pct = (diff / benchmark.median_value * 100) if benchmark.median_value else 0
+                diff_pct = (
+                    (diff / benchmark.median_value * 100)
+                    if benchmark.median_value
+                    else 0
+                )
 
-                comparisons.append({
-                    "metric": metric,
-                    "my_value": round(my_avg, 2),
-                    "target_median": benchmark.median_value,
-                    "difference": round(diff, 2),
-                    "difference_pct": round(diff_pct, 1),
-                })
+                comparisons.append(
+                    {
+                        "metric": metric,
+                        "my_value": round(my_avg, 2),
+                        "target_median": benchmark.median_value,
+                        "difference": round(diff, 2),
+                        "difference_pct": round(diff_pct, 1),
+                    }
+                )
             else:
-                comparisons.append({
-                    "metric": metric,
-                    "my_value": round(my_avg, 2),
-                    "target_median": None,
-                    "difference": None,
-                    "difference_pct": None,
-                })
+                comparisons.append(
+                    {
+                        "metric": metric,
+                        "my_value": round(my_avg, 2),
+                        "target_median": None,
+                        "difference": None,
+                        "difference_pct": None,
+                    }
+                )
 
         return {
             "target_rank": rank,
@@ -242,7 +256,7 @@ async def get_patterns(
         query = (
             session.query(PlayerGameStats, Replay.result)
             .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me == True)
+            .filter(PlayerGameStats.is_me)
             .filter(Replay.playlist == playlist)
         )
 
@@ -274,14 +288,16 @@ async def get_patterns(
 
         pattern_list = []
         for p in patterns:
-            pattern_list.append({
-                "metric": p.metric,
-                "win_avg": round(p.win_avg, 2),
-                "loss_avg": round(p.loss_avg, 2),
-                "delta": round(p.delta, 2),
-                "effect_size": round(p.effect_size, 3),
-                "direction": p.direction,
-            })
+            pattern_list.append(
+                {
+                    "metric": p.metric,
+                    "win_avg": round(p.win_avg, 2),
+                    "loss_avg": round(p.loss_avg, 2),
+                    "delta": round(p.delta, 2),
+                    "effect_size": round(p.effect_size, 3),
+                    "direction": p.direction,
+                }
+            )
 
         return {
             "patterns": pattern_list,
@@ -321,7 +337,7 @@ async def get_weaknesses(
         query = (
             session.query(PlayerGameStats)
             .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me == True)
+            .filter(PlayerGameStats.is_me)
             .filter(Replay.playlist == playlist)
         )
 
@@ -342,7 +358,9 @@ async def get_weaknesses(
         my_averages = {}
 
         for metric in metric_attrs:
-            values = [getattr(s, metric) for s in my_stats if getattr(s, metric) is not None]
+            values = [
+                getattr(s, metric) for s in my_stats if getattr(s, metric) is not None
+            ]
             if values:
                 my_averages[metric] = sum(values) / len(values)
 

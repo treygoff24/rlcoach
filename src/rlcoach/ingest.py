@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import struct
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from .errors import (
     CRCValidationError,
@@ -209,10 +209,10 @@ def basic_format_check(data: bytes) -> tuple[bool, str]:
     return False, "No known replay format markers found"
 
 
-def crc_check_header(data: bytes) -> Tuple[bool, str, Dict[str, Any]]:
+def crc_check_header(data: bytes) -> tuple[bool, str, dict[str, Any]]:
     """Perform Rocket League replay CRC validation for header and content sections."""
 
-    details: Dict[str, Any] = {}
+    details: dict[str, Any] = {}
 
     min_size = 4 + 4 + 4 + 4  # header_size + header_crc + content_size + content_crc
     if len(data) < min_size:
@@ -241,7 +241,7 @@ def crc_check_header(data: bytes) -> Tuple[bool, str, Dict[str, Any]]:
     header_section = data[offset:header_end]
     header_crc_actual = _calc_replay_crc(header_section)
 
-    versions: Dict[str, Any] = {}
+    versions: dict[str, Any] = {}
     if len(header_section) >= 8:
         major = _read_i32(header_section, 0)
         minor = _read_i32(header_section, 4)

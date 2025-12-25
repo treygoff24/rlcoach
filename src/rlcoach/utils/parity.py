@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .identity import sanitize_display_name
 
@@ -135,7 +136,9 @@ def load_ballchasing_teams(csv_path: Path) -> dict[str, dict[str, Any]]:
     return teams
 
 
-def extract_rlcoach_player_metrics(report: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+def extract_rlcoach_player_metrics(
+    report: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
     """Flatten rlcoach per-player metrics for comparison."""
     players_meta = {p["player_id"]: p for p in report.get("players", [])}
     per_player = report.get("analysis", {}).get("per_player", {})
@@ -170,7 +173,9 @@ def extract_rlcoach_player_metrics(report: Mapping[str, Any]) -> dict[str, dict[
     return flattened
 
 
-def extract_rlcoach_team_metrics(report: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+def extract_rlcoach_team_metrics(
+    report: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
     """Flatten rlcoach per-team metrics for comparison."""
     per_team = report.get("analysis", {}).get("per_team", {})
     teams: dict[str, dict[str, Any]] = {}
@@ -210,7 +215,13 @@ def collect_metric_deltas(
             continue
         if abs(rl_value - ref_value) > tolerance + 1e-6:
             deltas.append(
-                MetricDelta(subject=subject, metric=key, rlcoach_value=rl_value, reference_value=ref_value, tolerance=tolerance)
+                MetricDelta(
+                    subject=subject,
+                    metric=key,
+                    rlcoach_value=rl_value,
+                    reference_value=ref_value,
+                    tolerance=tolerance,
+                )
             )
     return deltas
 
@@ -230,4 +241,3 @@ __all__ = [
     "load_ballchasing_teams",
     "summarize_deltas",
 ]
-

@@ -18,21 +18,22 @@ from typing import Any
 
 from .analysis import aggregate_analysis
 from .events import (
+    build_timeline,
     detect_boost_pickups,
     detect_challenge_events,
     detect_demos,
     detect_goals,
     detect_kickoffs,
     detect_touches,
-    build_timeline,
 )
 from .ingest import ingest_replay
-from .normalize import build_timeline as build_normalized_frames, measure_frame_rate
-from .parser.types import NetworkFrames as NFType
+from .normalize import build_timeline as build_normalized_frames
+from .normalize import measure_frame_rate
 from .parser import get_adapter
+from .parser.types import NetworkFrames as NFType
 from .schema import validate_report
-from .version import get_schema_version
 from .utils.identity import build_player_identities
+from .version import get_schema_version
 
 _ALLOWED_PLAYLISTS = {
     "DUEL",
@@ -44,9 +45,31 @@ _ALLOWED_PLAYLISTS = {
     "UNKNOWN",
 }
 
+# Rocket League numeric playlist ID mappings
+# Reference: https://wiki.rlbot.org/botmaking/useful-game-values/#playlist-ids
+_PLAYLIST_ID_MAP = {
+    "1": "DUEL",
+    "2": "DOUBLES",
+    "3": "STANDARD",
+    "4": "CHAOS",
+    "10": "DUEL",  # Ranked Solo Duel
+    "11": "DOUBLES",  # Ranked Doubles
+    "13": "STANDARD",  # Ranked Standard
+    "6": "PRIVATE",  # Private Match
+    "22": "EXTRA_MODE",  # Dropshot
+    "23": "EXTRA_MODE",  # Hoops
+    "24": "EXTRA_MODE",  # Snow Day
+    "27": "EXTRA_MODE",  # Rumble
+}
+
 
 def _utc_now_iso() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        _dt.datetime.now(_dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def _normalize_playlist_id(raw_value: Any) -> tuple[str, list[str]]:
@@ -55,9 +78,14 @@ def _normalize_playlist_id(raw_value: Any) -> tuple[str, list[str]]:
         return "UNKNOWN", []
 
     playlist_str = str(raw_value).strip()
-    if not playlist_str:
+    if not playlist_str or playlist_str == "unknown":
         return "UNKNOWN", []
 
+    # Check numeric ID mapping first
+    if playlist_str in _PLAYLIST_ID_MAP:
+        return _PLAYLIST_ID_MAP[playlist_str], []
+
+    # Try string normalization
     normalized = playlist_str.upper().replace("-", "_").replace(" ", "_")
     if normalized in _ALLOWED_PLAYLISTS:
         return normalized, []
@@ -90,7 +118,9 @@ def _timeline_event_to_dict(ev: Any) -> dict[str, Any]:
     return entry
 
 
-def generate_report(replay_path: Path, header_only: bool = False, adapter_name: str = "rust") -> dict[str, Any]:
+def generate_report(
+    replay_path: Path, header_only: bool = False, adapter_name: str = "rust"
+) -> dict[str, Any]:
     """Generate a schema-conformant replay report.
 
     On failure to read/parse the replay, returns the error contract:
@@ -154,10 +184,14 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         # Metadata
         recorded_hz = measure_frame_rate(normalized_frames)
         playlist_value, playlist_warnings = _normalize_playlist_id(
-            getattr(header, "playlist_id", None) if hasattr(header, "playlist_id") else None
+            getattr(header, "playlist_id", None)
+            if hasattr(header, "playlist_id")
+            else None
         )
 
-        match_duration = float(normalized_frames[-1].timestamp if normalized_frames else 0.0)
+        match_duration = float(
+            normalized_frames[-1].timestamp if normalized_frames else 0.0
+        )
 
         metadata = {
             "engine_build": getattr(header, "engine_build", None) or "unknown",
@@ -183,7 +217,9 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         crc_msg = str(crc_info.get("message", ""))
         crc_passed = bool(crc_info.get("passed", False))
         # Until real CRC is implemented, do not claim it was checked
-        crc_checked_flag = False if "not yet implemented" in crc_msg.lower() else crc_passed
+        crc_checked_flag = (
+            False if "not yet implemented" in crc_msg.lower() else crc_passed
+        )
 
         quality = {
             "parser": {
@@ -193,12 +229,16 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
                 "parsed_network_data": network_data_available,
                 "crc_checked": crc_checked_flag,
             },
-            "warnings": (header.quality_warnings if hasattr(header, "quality_warnings") else []),
+            "warnings": (
+                header.quality_warnings if hasattr(header, "quality_warnings") else []
+            ),
         }
         if playlist_warnings:
             quality["warnings"] = list(quality["warnings"]) + playlist_warnings
         if not crc_checked_flag:
-            quality["warnings"] = list(quality["warnings"]) + ["CRC not verified (stubbed)"]
+            quality["warnings"] = list(quality["warnings"]) + [
+                "CRC not verified (stubbed)"
+            ]
         if adapter.supports_network_parsing and not network_data_available:
             quality["warnings"] = list(quality["warnings"]) + [
                 "network_data_unavailable_fell_back_to_header_only"
@@ -216,9 +256,13 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         if identities:
             for identity in identities:
                 player_info = header.players[identity.header_index]
-                implied_team_index = player_info.team if player_info.team is not None else 0
-                team_name = identity.team if identity.team in {"BLUE", "ORANGE"} else (
-                    "BLUE" if implied_team_index == 0 else "ORANGE"
+                implied_team_index = (
+                    player_info.team if player_info.team is not None else 0
+                )
+                team_name = (
+                    identity.team
+                    if identity.team in {"BLUE", "ORANGE"}
+                    else ("BLUE" if implied_team_index == 0 else "ORANGE")
                 )
                 team_players.setdefault(team_name, [])
                 team_players[team_name].append(identity.canonical_id)
@@ -253,8 +297,16 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
             team_players["BLUE"].append("player_0")
 
         teams_block = {
-            "blue": {"name": "BLUE", "score": int(header.team0_score or 0), "players": team_players["BLUE"]},
-            "orange": {"name": "ORANGE", "score": int(header.team1_score or 0), "players": team_players["ORANGE"]},
+            "blue": {
+                "name": "BLUE",
+                "score": int(header.team0_score or 0),
+                "players": team_players["BLUE"],
+            },
+            "orange": {
+                "name": "ORANGE",
+                "score": int(header.team1_score or 0),
+                "players": team_players["ORANGE"],
+            },
         }
 
         # Events block (serialize dataclasses to dicts)
@@ -284,7 +336,11 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
                     "ball_speed_kph": t.ball_speed_kph,
                     "outcome": t.outcome,
                     "is_save": t.is_save,
-                    "touch_context": t.touch_context.value if hasattr(t.touch_context, 'value') else str(t.touch_context),
+                    "touch_context": (
+                        t.touch_context.value
+                        if hasattr(t.touch_context, "value")
+                        else str(t.touch_context)
+                    ),
                     "car_height": t.car_height,
                     "is_first_touch": t.is_first_touch,
                 }
@@ -331,7 +387,9 @@ def generate_report(replay_path: Path, header_only: bool = False, adapter_name: 
         return {"error": "unreadable_replay_file", "details": str(e)}
 
 
-def write_report_atomically(report: dict[str, Any], out_path: Path, pretty: bool = False) -> None:
+def write_report_atomically(
+    report: dict[str, Any], out_path: Path, pretty: bool = False
+) -> None:
     """Write JSON file atomically to avoid partial writes."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = out_path.with_suffix(out_path.suffix + ".tmp")

@@ -14,12 +14,13 @@ from typing import Any
 @dataclass
 class TendencyProfile:
     """Playstyle tendency profile for a player."""
+
     aggression_score: float  # 0-100, higher = more aggressive
-    challenge_rate: float    # % of challenges won
+    challenge_rate: float  # % of challenges won
     first_man_tendency: float  # How often they play first man
-    boost_priority: float    # How much they prioritize boost
+    boost_priority: float  # How much they prioritize boost
     mechanical_index: float  # Mechanical skill indicator
-    defensive_index: float   # Defensive tendency
+    defensive_index: float  # Defensive tendency
 
 
 def _safe_avg(values: list[float | None]) -> float:
@@ -51,7 +52,7 @@ def compute_tendencies(stats: list[dict[str, Any]]) -> TendencyProfile | None:
     goals = [s.get("goals") for s in stats]
     saves = [s.get("saves") for s in stats]
     shots = [s.get("shots") for s in stats]
-    assists = [s.get("assists") for s in stats]
+    [s.get("assists") for s in stats]
 
     challenge_wins = [s.get("challenge_wins") for s in stats]
     challenge_losses = [s.get("challenge_losses") for s in stats]
@@ -124,7 +125,9 @@ def compute_tendencies(stats: list[dict[str, Any]]) -> TendencyProfile | None:
     last_def_component = min(avg_last_defender / 2, 30)  # Max 30
     behind_ball_component = min(avg_behind_ball * 0.5, 30)  # Max 30
 
-    defensive_index = min(100, saves_component + last_def_component + behind_ball_component)
+    defensive_index = min(
+        100, saves_component + last_def_component + behind_ball_component
+    )
 
     return TendencyProfile(
         aggression_score=aggression_score,
@@ -163,7 +166,7 @@ def compute_adaptation_score(
     ]
 
     # RMS of differences (penalizes large differences more)
-    rms = math.sqrt(sum(d ** 2 for d in diffs) / len(diffs))
+    rms = math.sqrt(sum(d**2 for d in diffs) / len(diffs))
 
     # Cap at 100
     return min(100, rms)
