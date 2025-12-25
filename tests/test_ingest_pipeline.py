@@ -17,7 +17,12 @@ from rlcoach.db.writer import ReplayExistsError
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a mock config for testing."""
-    from rlcoach.config import RLCoachConfig, IdentityConfig, PathsConfig, PreferencesConfig
+    from rlcoach.config import (
+        RLCoachConfig,
+        IdentityConfig,
+        PathsConfig,
+        PreferencesConfig,
+    )
 
     return RLCoachConfig(
         identity=IdentityConfig(
@@ -46,10 +51,12 @@ class TestProcessReplayFile:
         replay_path.write_bytes(b"x" * 100)
 
         # Mock the pipeline components
-        with patch("rlcoach.pipeline.ingest_replay") as mock_ingest, \
-             patch("rlcoach.pipeline.generate_report") as mock_report, \
-             patch("rlcoach.pipeline.write_report") as mock_write, \
-             patch("rlcoach.pipeline.init_db"):
+        with (
+            patch("rlcoach.pipeline.ingest_replay") as mock_ingest,
+            patch("rlcoach.pipeline.generate_report") as mock_report,
+            patch("rlcoach.pipeline.write_report") as mock_write,
+            patch("rlcoach.pipeline.init_db"),
+        ):
 
             mock_ingest.return_value = {"sha256": "abc123", "status": "success"}
             mock_report.return_value = {
@@ -71,10 +78,12 @@ class TestProcessReplayFile:
         replay_path = tmp_path / "test.replay"
         replay_path.write_bytes(b"x" * 100)
 
-        with patch("rlcoach.pipeline.ingest_replay") as mock_ingest, \
-             patch("rlcoach.pipeline.generate_report") as mock_report, \
-             patch("rlcoach.pipeline.write_report") as mock_write, \
-             patch("rlcoach.pipeline.init_db"):
+        with (
+            patch("rlcoach.pipeline.ingest_replay") as mock_ingest,
+            patch("rlcoach.pipeline.generate_report") as mock_report,
+            patch("rlcoach.pipeline.write_report") as mock_write,
+            patch("rlcoach.pipeline.init_db"),
+        ):
 
             mock_ingest.return_value = {"sha256": "abc123", "status": "success"}
             mock_report.return_value = {
@@ -94,8 +103,10 @@ class TestProcessReplayFile:
         replay_path = tmp_path / "test.replay"
         replay_path.write_bytes(b"x" * 100)
 
-        with patch("rlcoach.pipeline.ingest_replay") as mock_ingest, \
-             patch("rlcoach.pipeline.init_db"):
+        with (
+            patch("rlcoach.pipeline.ingest_replay") as mock_ingest,
+            patch("rlcoach.pipeline.init_db"),
+        ):
 
             mock_ingest.side_effect = ValueError("Parse error")
 
@@ -109,10 +120,12 @@ class TestProcessReplayFile:
         replay_path = tmp_path / "test.replay"
         replay_path.write_bytes(b"x" * 100)
 
-        with patch("rlcoach.pipeline.ingest_replay") as mock_ingest, \
-             patch("rlcoach.pipeline.generate_report") as mock_report, \
-             patch("rlcoach.pipeline.write_report") as mock_write, \
-             patch("rlcoach.pipeline.init_db") as mock_init:
+        with (
+            patch("rlcoach.pipeline.ingest_replay") as mock_ingest,
+            patch("rlcoach.pipeline.generate_report") as mock_report,
+            patch("rlcoach.pipeline.write_report") as mock_write,
+            patch("rlcoach.pipeline.init_db") as mock_init,
+        ):
 
             mock_ingest.return_value = {"sha256": "abc123", "status": "success"}
             mock_report.return_value = {
@@ -126,3 +139,102 @@ class TestProcessReplayFile:
             process_replay_file(replay_path, mock_config)
 
             mock_init.assert_called_once_with(mock_config.db_path)
+
+    def test_process_replay_excludes_when_me_is_excluded(self, tmp_path):
+        """Should return EXCLUDED status when 'me' matches an excluded name."""
+        from rlcoach.config import (
+            RLCoachConfig,
+            IdentityConfig,
+            PathsConfig,
+            PreferencesConfig,
+        )
+
+        # Config with excluded account
+        config = RLCoachConfig(
+            identity=IdentityConfig(
+                display_names=["MainAccount"],
+                excluded_names=["CasualAccount"],
+            ),
+            paths=PathsConfig(
+                watch_folder=tmp_path / "replays",
+                data_dir=tmp_path / "data",
+                reports_dir=tmp_path / "reports",
+            ),
+            preferences=PreferencesConfig(),
+        )
+
+        replay_path = tmp_path / "test.replay"
+        replay_path.write_bytes(b"x" * 100)
+
+        with (
+            patch("rlcoach.pipeline.ingest_replay") as mock_ingest,
+            patch("rlcoach.pipeline.generate_report") as mock_report,
+            patch("rlcoach.pipeline.init_db"),
+        ):
+
+            mock_ingest.return_value = {"sha256": "abc123", "status": "success"}
+            # "me" is playing as CasualAccount (excluded)
+            mock_report.return_value = {
+                "replay_id": "test123",
+                "players": [
+                    {"player_id": "steam:123", "display_name": "CasualAccount"},
+                    {"player_id": "steam:456", "display_name": "Opponent"},
+                ],
+                "metadata": {},
+                "teams": {"blue": {"score": 0}, "orange": {"score": 0}},
+            }
+
+            result = process_replay_file(replay_path, config)
+
+            assert result.status == IngestionStatus.EXCLUDED
+
+    def test_process_replay_not_excluded_when_only_opponent_matches(self, tmp_path):
+        """Should NOT exclude when only an opponent matches excluded name."""
+        from rlcoach.config import (
+            RLCoachConfig,
+            IdentityConfig,
+            PathsConfig,
+            PreferencesConfig,
+        )
+
+        # Config with excluded account
+        config = RLCoachConfig(
+            identity=IdentityConfig(
+                display_names=["MainAccount"],
+                excluded_names=["CasualAccount"],
+            ),
+            paths=PathsConfig(
+                watch_folder=tmp_path / "replays",
+                data_dir=tmp_path / "data",
+                reports_dir=tmp_path / "reports",
+            ),
+            preferences=PreferencesConfig(),
+        )
+
+        replay_path = tmp_path / "test.replay"
+        replay_path.write_bytes(b"x" * 100)
+
+        with (
+            patch("rlcoach.pipeline.ingest_replay") as mock_ingest,
+            patch("rlcoach.pipeline.generate_report") as mock_report,
+            patch("rlcoach.pipeline.write_report") as mock_write,
+            patch("rlcoach.pipeline.init_db"),
+        ):
+
+            mock_ingest.return_value = {"sha256": "abc123", "status": "success"}
+            # "me" is MainAccount, opponent happens to be CasualAccount
+            mock_report.return_value = {
+                "replay_id": "test123",
+                "players": [
+                    {"player_id": "steam:123", "display_name": "MainAccount"},
+                    {"player_id": "steam:456", "display_name": "CasualAccount"},
+                ],
+                "metadata": {},
+                "teams": {"blue": {"score": 0}, "orange": {"score": 0}},
+            }
+            mock_write.return_value = "test123"
+
+            result = process_replay_file(replay_path, config)
+
+            # Should NOT be excluded - CasualAccount is an opponent, not "me"
+            assert result.status == IngestionStatus.SUCCESS

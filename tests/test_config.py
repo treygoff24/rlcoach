@@ -86,3 +86,87 @@ def test_validate_platform_id_format():
 
     with pytest.raises(ConfigError, match="platform"):
         config.validate()
+
+
+def test_validate_excluded_names_overlap():
+    """Names cannot appear in both display_names and excluded_names."""
+    config = RLCoachConfig(
+        identity=IdentityConfig(
+            display_names=["MainAccount", "TrainingAccount"],
+            excluded_names=["CasualAccount", "mainaccount"],  # Overlap (case-insensitive)
+        ),
+        paths=PathsConfig(
+            watch_folder=Path("~/Replays"),
+            data_dir=Path("~/.rlcoach/data"),
+            reports_dir=Path("~/.rlcoach/reports"),
+        ),
+        preferences=PreferencesConfig(),
+    )
+
+    with pytest.raises(ConfigError, match="display_names and excluded_names"):
+        config.validate()
+
+
+def test_validate_excluded_names_no_overlap():
+    """Non-overlapping names should pass validation."""
+    config = RLCoachConfig(
+        identity=IdentityConfig(
+            display_names=["MainAccount"],
+            excluded_names=["CasualAccount"],
+        ),
+        paths=PathsConfig(
+            watch_folder=Path("~/Replays"),
+            data_dir=Path("~/.rlcoach/data"),
+            reports_dir=Path("~/.rlcoach/reports"),
+        ),
+        preferences=PreferencesConfig(),
+    )
+
+    # Should not raise
+    config.validate()
+
+
+def test_load_config_with_excluded_names(tmp_path):
+    """Should load excluded_names from TOML config."""
+    config_file = tmp_path / "config.toml"
+    config_file.write_text('''
+[identity]
+platform_ids = ["steam:123"]
+display_names = ["MainAccount"]
+excluded_names = ["CasualAccount", "FamilyAccount"]
+
+[paths]
+watch_folder = "~/Replays"
+data_dir = "~/.rlcoach/data"
+reports_dir = "~/.rlcoach/reports"
+
+[preferences]
+primary_playlist = "DOUBLES"
+target_rank = "GC1"
+''')
+
+    config = load_config(config_file)
+
+    assert config.identity.excluded_names == ["CasualAccount", "FamilyAccount"]
+
+
+def test_load_config_excluded_names_defaults_empty(tmp_path):
+    """excluded_names should default to empty list if not specified."""
+    config_file = tmp_path / "config.toml"
+    config_file.write_text('''
+[identity]
+display_names = ["MainAccount"]
+
+[paths]
+watch_folder = "~/Replays"
+data_dir = "~/.rlcoach/data"
+reports_dir = "~/.rlcoach/reports"
+
+[preferences]
+primary_playlist = "DOUBLES"
+target_rank = "GC1"
+''')
+
+    config = load_config(config_file)
+
+    assert config.identity.excluded_names == []

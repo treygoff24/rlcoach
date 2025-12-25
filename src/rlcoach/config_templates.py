@@ -1,7 +1,7 @@
 # src/rlcoach/config_templates.py
 """Configuration file templates."""
 
-CONFIG_TEMPLATE = '''# RLCoach Configuration
+CONFIG_TEMPLATE = """# RLCoach Configuration
 # Edit this file with your player info before running RLCoach.
 
 [identity]
@@ -14,6 +14,9 @@ platform_ids = [
 ]
 # Fallback display names (case-insensitive, used if platform_id not found)
 display_names = ["YourGamertag"]
+# Accounts to exclude from analysis entirely (replays skipped, not deleted)
+# Use for casual/family accounts you don't want in your stats
+excluded_names = []
 
 [paths]
 # Watch folder for incoming replays (Dropbox sync target)
@@ -36,4 +39,4 @@ target_rank = "GC1"
 # Tagged teammates for tracking (display_name = "optional notes")
 [teammates.tagged]
 # "DuoPartnerName" = "Main 2s partner"
-'''
+"""
