@@ -46,10 +46,15 @@ def detect_demos(frames: list[Frame]) -> list[DemoEvent]:
                         and not other_player.is_demolished
                     ):
                         distance = distance_3d(player.position, other_player.position)
-                        if distance < DEMO_POSITION_TOLERANCE and distance < min_distance:
+                        if (
+                            distance < DEMO_POSITION_TOLERANCE
+                            and distance < min_distance
+                        ):
                             min_distance = distance
                             attacker = other_player.player_id
-                            attacker_team = "BLUE" if other_player.team == 0 else "ORANGE"
+                            attacker_team = (
+                                "BLUE" if other_player.team == 0 else "ORANGE"
+                            )
 
                 victim_team = "BLUE" if player.team == 0 else "ORANGE"
 

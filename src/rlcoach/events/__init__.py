@@ -22,58 +22,64 @@ Example:
 """
 
 # Types - all event dataclasses and enums
-from .types import (
-    GoalEvent,
-    DemoEvent,
-    KickoffEvent,
-    BoostPickupEvent,
-    PadState,
-    PadEnvelope,
-    TouchContext,
-    TouchEvent,
-    ChallengeEvent,
-    TimelineEvent,
-)
+from .boost import _merge_pickup_events, detect_boost_pickups, determine_team_sides
+from .challenges import detect_challenge_events
 
 # Constants - detection thresholds (exported for analyzer compatibility)
 from .constants import (
-    GOAL_LINE_THRESHOLD,
-    GOAL_EXIT_THRESHOLD,
-    TOUCH_PROXIMITY_THRESHOLD,
-    DEMO_POSITION_TOLERANCE,
-    BOOST_PICKUP_MIN_GAIN,
     BALL_STATIONARY_THRESHOLD,
+    BOOST_PICKUP_MIN_GAIN,
+    CENTERLINE_TOLERANCE,
+    CHALLENGE_MIN_BALL_SPEED_KPH,
+    CHALLENGE_MIN_DISTANCE_UU,
+    CHALLENGE_RADIUS_UU,
+    CHALLENGE_WINDOW_S,
+    DEMO_POSITION_TOLERANCE,
+    GOAL_EXIT_THRESHOLD,
+    GOAL_LINE_THRESHOLD,
     KICKOFF_CENTER_POSITION,
-    KICKOFF_POSITION_TOLERANCE,
     KICKOFF_MAX_DURATION,
     KICKOFF_MIN_COOLDOWN,
-    CHALLENGE_WINDOW_S,
-    CHALLENGE_RADIUS_UU,
-    CHALLENGE_MIN_DISTANCE_UU,
-    CHALLENGE_MIN_BALL_SPEED_KPH,
+    KICKOFF_POSITION_TOLERANCE,
     NEUTRAL_RETOUCH_WINDOW_S,
     PAD_ENVELOPES,
-    CENTERLINE_TOLERANCE,
     PAD_NEUTRAL_TOLERANCE,
+    TOUCH_PROXIMITY_THRESHOLD,
 )
+from .demos import detect_demos
 
 # Detector functions
 from .goals import detect_goals
-from .demos import detect_demos
 from .kickoffs import detect_kickoffs
-from .boost import detect_boost_pickups, determine_team_sides, _merge_pickup_events
-from .touches import detect_touches
-from .challenges import detect_challenge_events
 
 # Timeline builder
 from .timeline import build_timeline
+from .touches import detect_touches
+from .types import (
+    BoostPickupEvent,
+    ChallengeEvent,
+    DemoEvent,
+    GoalEvent,
+    KickoffEvent,
+    PadEnvelope,
+    PadState,
+    TimelineEvent,
+    TouchContext,
+    TouchEvent,
+)
 
 # Utilities (exported for backward compatibility)
 from .utils import (
     distance_3d as _distance_3d,
-    vector_magnitude as _vector_magnitude,
+)
+from .utils import (
     relative_speed as _relative_speed,
+)
+from .utils import (
     team_name as _team_name,
+)
+from .utils import (
+    vector_magnitude as _vector_magnitude,
 )
 
 __all__ = [
@@ -98,12 +104,25 @@ __all__ = [
     "determine_team_sides",
     # Timeline
     "build_timeline",
-    # Constants (commonly used externally)
+    # Constants
     "GOAL_LINE_THRESHOLD",
+    "GOAL_EXIT_THRESHOLD",
     "TOUCH_PROXIMITY_THRESHOLD",
+    "DEMO_POSITION_TOLERANCE",
+    "BOOST_PICKUP_MIN_GAIN",
+    "BALL_STATIONARY_THRESHOLD",
+    "KICKOFF_CENTER_POSITION",
+    "KICKOFF_POSITION_TOLERANCE",
+    "KICKOFF_MAX_DURATION",
+    "KICKOFF_MIN_COOLDOWN",
     "CHALLENGE_WINDOW_S",
     "CHALLENGE_RADIUS_UU",
+    "CHALLENGE_MIN_DISTANCE_UU",
+    "CHALLENGE_MIN_BALL_SPEED_KPH",
+    "NEUTRAL_RETOUCH_WINDOW_S",
     "PAD_ENVELOPES",
+    "CENTERLINE_TOLERANCE",
+    "PAD_NEUTRAL_TOLERANCE",
     # Private helpers (for backward compat with underscore prefix)
     "_distance_3d",
     "_vector_magnitude",

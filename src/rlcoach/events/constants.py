@@ -104,7 +104,9 @@ RISK_LAST_MAN_WEIGHT = 0.3
 # =============================================================================
 PAD_ENVELOPES: dict[int, PadEnvelope] = {}
 for _pad in FIELD.BOOST_PADS:
-    _base_radius = _pad.radius + (BIG_PAD_EXTRA_RADIUS if _pad.is_big else SMALL_PAD_EXTRA_RADIUS)
+    _base_radius = _pad.radius + (
+        BIG_PAD_EXTRA_RADIUS if _pad.is_big else SMALL_PAD_EXTRA_RADIUS
+    )
     _height_tol = 220.0 if _pad.is_big else 150.0
     _max_distance = _base_radius + (650.0 if _pad.is_big else 420.0)
     PAD_ENVELOPES[_pad.pad_id] = PadEnvelope(

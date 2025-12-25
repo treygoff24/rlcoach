@@ -8,19 +8,19 @@ from __future__ import annotations
 from ..field_constants import Vec3
 from ..parser.types import Frame, PlayerFrame
 from .constants import (
-    CHALLENGE_WINDOW_S,
-    CHALLENGE_RADIUS_UU,
-    CHALLENGE_MIN_DISTANCE_UU,
     CHALLENGE_MIN_BALL_SPEED_KPH,
+    CHALLENGE_MIN_DISTANCE_UU,
+    CHALLENGE_RADIUS_UU,
+    CHALLENGE_WINDOW_S,
     NEUTRAL_RETOUCH_WINDOW_S,
-    RISK_LOW_BOOST_THRESHOLD,
     RISK_AHEAD_OF_BALL_WEIGHT,
-    RISK_LOW_BOOST_WEIGHT,
     RISK_LAST_MAN_WEIGHT,
+    RISK_LOW_BOOST_THRESHOLD,
+    RISK_LOW_BOOST_WEIGHT,
 )
-from .types import TouchEvent, ChallengeEvent
 from .touches import detect_touches
-from .utils import distance_3d, team_name, nearest_player_ball_frame
+from .types import ChallengeEvent, TouchEvent
+from .utils import distance_3d, nearest_player_ball_frame, team_name
 
 
 def detect_challenge_events(
@@ -109,8 +109,12 @@ def detect_challenge_events(
             (first.location.z + second.location.z) / 2.0,
         )
 
-        pf_first, ball_first = nearest_player_ball_frame(frames, first.player_id, first.t)
-        pf_second, ball_second = nearest_player_ball_frame(frames, second.player_id, second.t)
+        pf_first, ball_first = nearest_player_ball_frame(
+            frames, first.player_id, first.t
+        )
+        pf_second, ball_second = nearest_player_ball_frame(
+            frames, second.player_id, second.t
+        )
         risk_first = _compute_challenge_risk(pf_first, ball_first, team_first)
         risk_second = _compute_challenge_risk(pf_second, ball_second, team_second)
 
@@ -155,7 +159,9 @@ def _compute_challenge_risk(
         last_man = player_frame.position.y >= ball_pos.y
 
     ahead_score = 1.0 if ahead else 0.0
-    low_boost_score = 1.0 if player_frame.boost_amount <= RISK_LOW_BOOST_THRESHOLD else 0.0
+    low_boost_score = (
+        1.0 if player_frame.boost_amount <= RISK_LOW_BOOST_THRESHOLD else 0.0
+    )
     last_man_score = 1.0 if last_man else 0.0
 
     risk = (

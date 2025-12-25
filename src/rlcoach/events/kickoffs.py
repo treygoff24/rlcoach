@@ -9,20 +9,22 @@ from __future__ import annotations
 from typing import Any
 
 from ..field_constants import Vec3
-from ..parser.types import Header, Frame
+from ..parser.types import Frame, Header
 from .constants import (
     BALL_STATIONARY_THRESHOLD,
     KICKOFF_CENTER_POSITION,
-    KICKOFF_POSITION_TOLERANCE,
     KICKOFF_MAX_DURATION,
     KICKOFF_MIN_COOLDOWN,
+    KICKOFF_POSITION_TOLERANCE,
     TOUCH_PROXIMITY_THRESHOLD,
 )
 from .types import KickoffEvent
 from .utils import distance_3d, vector_magnitude
 
 
-def detect_kickoffs(frames: list[Frame], header: Header | None = None) -> list[KickoffEvent]:
+def detect_kickoffs(
+    frames: list[Frame], header: Header | None = None
+) -> list[KickoffEvent]:
     """Detect kickoff events with enriched per-player metrics.
 
     The detector tracks the full kickoff window (ball at center -> first
@@ -42,8 +44,10 @@ def detect_kickoffs(frames: list[Frame], header: Header | None = None) -> list[K
         ball = frame.ball
 
         at_center = (
-            abs(ball.position.x - KICKOFF_CENTER_POSITION.x) <= KICKOFF_POSITION_TOLERANCE
-            and abs(ball.position.y - KICKOFF_CENTER_POSITION.y) <= KICKOFF_POSITION_TOLERANCE
+            abs(ball.position.x - KICKOFF_CENTER_POSITION.x)
+            <= KICKOFF_POSITION_TOLERANCE
+            and abs(ball.position.y - KICKOFF_CENTER_POSITION.y)
+            <= KICKOFF_POSITION_TOLERANCE
             and abs(ball.position.z - KICKOFF_CENTER_POSITION.z) <= 60.0
         )
         ball_speed = vector_magnitude(ball.velocity)
@@ -135,10 +139,12 @@ def _assign_kickoff_roles(player_states: dict[str, dict[str, Any]]) -> None:
             continue
         # Sort by distance to centre spot (closer players are the goers)
         entries.sort(
-            key=lambda item: distance_3d(item[1]["start_pos"], Vec3(0.0, 0.0, item[1]["start_pos"].z))
+            key=lambda item: distance_3d(
+                item[1]["start_pos"], Vec3(0.0, 0.0, item[1]["start_pos"].z)
+            )
         )
 
-        for index, (pid, state) in enumerate(entries):
+        for index, (_pid, state) in enumerate(entries):
             role = _classify_kickoff_role(state["start_pos"], team, index)
             state["role"] = role
 
@@ -209,7 +215,9 @@ def _update_kickoff_state(state: dict[str, Any], frame: Frame) -> None:
                 }
 
 
-def _finalize_kickoff(state: dict[str, Any], frame: Frame, header: Header | None) -> KickoffEvent | None:
+def _finalize_kickoff(
+    state: dict[str, Any], frame: Frame, header: Header | None
+) -> KickoffEvent | None:
     """Produce the KickoffEvent dataclass from tracked state."""
     t_start = state["t_start"]
     elapsed = frame.timestamp - t_start
@@ -236,7 +244,9 @@ def _finalize_kickoff(state: dict[str, Any], frame: Frame, header: Header | None
                 "role": pdata["role"],
                 "boost_used": round(boost_used, 2),
                 "approach_type": approach_type,
-                "time_to_first_touch": None if time_to_contact is None else round(time_to_contact, 3),
+                "time_to_first_touch": None
+                if time_to_contact is None
+                else round(time_to_contact, 3),
             }
         )
 
@@ -249,7 +259,9 @@ def _finalize_kickoff(state: dict[str, Any], frame: Frame, header: Header | None
         players=players_payload,
         outcome=outcome,
         first_touch_player=first_touch_player,
-        time_to_first_touch=None if time_to_first_touch is None else round(time_to_first_touch, 3),
+        time_to_first_touch=None
+        if time_to_first_touch is None
+        else round(time_to_first_touch, 3),
     )
 
 
@@ -327,7 +339,9 @@ def _is_delay_kickoff(pdata: dict[str, Any]) -> bool:
         return False
 
     # Find velocity profile near contact (last 0.5s before touch)
-    pre_contact_velocities = [(t, v) for t, v in velocities if contact_time - 0.5 < t < contact_time]
+    pre_contact_velocities = [
+        (t, v) for t, v in velocities if contact_time - 0.5 < t < contact_time
+    ]
 
     if len(pre_contact_velocities) < 3:
         return False
@@ -456,7 +470,9 @@ def _determine_kickoff_phase(kickoff_start: float, header: Header | None) -> str
     """Determine kickoff phase (INITIAL vs OT)."""
     if header:
         match_length = float(getattr(header, "match_length", 0.0) or 0.0)
-        if getattr(header, "overtime", False) and kickoff_start >= max(300.0, match_length):
+        if getattr(header, "overtime", False) and kickoff_start >= max(
+            300.0, match_length
+        ):
             return "OT"
     if kickoff_start >= 300.0:
         return "OT"

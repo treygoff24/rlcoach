@@ -13,24 +13,24 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from ..field_constants import FIELD, Vec3, BoostPad
+from ..field_constants import FIELD, BoostPad, Vec3
 from ..parser.types import Frame
 from .constants import (
-    BOOST_PICKUP_MIN_GAIN,
-    BOOST_HISTORY_WINDOW_S,
-    BOOST_HISTORY_MAX_SAMPLES,
-    BIG_PAD_RESPAWN_S,
-    SMALL_PAD_RESPAWN_S,
-    PAD_RESPAWN_TOLERANCE,
-    BOOST_PICKUP_MERGE_WINDOW,
-    DEBUG_BOOST_ENV,
     BIG_PAD_MIN_GAIN,
+    BIG_PAD_RESPAWN_S,
+    BOOST_HISTORY_MAX_SAMPLES,
+    BOOST_HISTORY_WINDOW_S,
+    BOOST_PICKUP_MERGE_WINDOW,
+    BOOST_PICKUP_MIN_GAIN,
+    CHAIN_PAD_RADIUS,
+    DEBUG_BOOST_ENV,
+    MIN_ORIENTATION_SAMPLES,
+    PAD_ENVELOPES,
+    PAD_NEUTRAL_TOLERANCE,
+    PAD_RESPAWN_TOLERANCE,
     RESPAWN_BOOST_AMOUNT,
     RESPAWN_DISTANCE_THRESHOLD,
-    CHAIN_PAD_RADIUS,
-    PAD_NEUTRAL_TOLERANCE,
-    PAD_ENVELOPES,
-    MIN_ORIENTATION_SAMPLES,
+    SMALL_PAD_RESPAWN_S,
 )
 from .types import BoostPickupEvent, PadState
 from .utils import distance_3d
@@ -88,7 +88,9 @@ def _frames_have_pad_events(frames: list[Frame]) -> bool:
     return False
 
 
-def _detect_boost_pickups_from_pad_events(frames: list[Frame]) -> list[BoostPickupEvent]:
+def _detect_boost_pickups_from_pad_events(
+    frames: list[Frame],
+) -> list[BoostPickupEvent]:
     """Compute boost pickups directly from pad replication events."""
     pickups: list[BoostPickupEvent] = []
     team_sides = determine_team_sides(frames)
@@ -122,7 +124,8 @@ def _detect_boost_pickups_from_pad_events(frames: list[Frame]) -> list[BoostPick
                     player_id = candidate
             if player_id is None:
                 raise ValueError(
-                    "Missing player attribution for boost pad event; falling back to legacy detection"
+                    "Missing player attribution for boost pad event; "
+                    "falling back to legacy detection"
                 )
 
             player_frame = players_by_id.get(player_id)
@@ -133,7 +136,9 @@ def _detect_boost_pickups_from_pad_events(frames: list[Frame]) -> list[BoostPick
             event_time = getattr(event, "timestamp", None)
             timestamp = float(event_time) if event_time is not None else frame.timestamp
 
-            respawn_window = BIG_PAD_RESPAWN_S if pad_meta.is_big else SMALL_PAD_RESPAWN_S
+            respawn_window = (
+                BIG_PAD_RESPAWN_S if pad_meta.is_big else SMALL_PAD_RESPAWN_S
+            )
             last_collect = pad_last_collect.get(pad_meta.pad_id)
             if last_collect is not None and (timestamp - last_collect) < (
                 respawn_window - PAD_RESPAWN_TOLERANCE
@@ -141,7 +146,9 @@ def _detect_boost_pickups_from_pad_events(frames: list[Frame]) -> list[BoostPick
                 continue
 
             previous_boost = player_boost.get(player_id)
-            current_boost = float(player_frame.boost_amount) if player_frame is not None else None
+            current_boost = (
+                float(player_frame.boost_amount) if player_frame is not None else None
+            )
             pad_capacity = 100.0 if pad_meta.is_big else 12.0
 
             boost_before = previous_boost
@@ -156,7 +163,9 @@ def _detect_boost_pickups_from_pad_events(frames: list[Frame]) -> list[BoostPick
             available_room = max(0.0, 100.0 - boost_before)
             if boost_after is None:
                 if available_room > 0.5:
-                    boost_after = min(100.0, boost_before + min(pad_capacity, available_room))
+                    boost_after = min(
+                        100.0, boost_before + min(pad_capacity, available_room)
+                    )
                 else:
                     boost_after = boost_before
 
@@ -218,7 +227,9 @@ def _detect_boost_pickups_legacy(frames: list[Frame]) -> list[BoostPickupEvent]:
     pickups: list[BoostPickupEvent] = []
     player_state: dict[str, dict[str, Any]] = {}
     recent_pickup_index: dict[tuple[str, int], tuple[int, float]] = {}
-    pad_states: dict[int, PadState] = {pad.pad_id: PadState() for pad in FIELD.BOOST_PADS}
+    pad_states: dict[int, PadState] = {
+        pad.pad_id: PadState() for pad in FIELD.BOOST_PADS
+    }
     team_sides = determine_team_sides(frames)
 
     pads_by_id: dict[int, BoostPad] = {pad.pad_id: pad for pad in FIELD.BOOST_PADS}
@@ -302,7 +313,10 @@ def _detect_boost_pickups_legacy(frames: list[Frame]) -> list[BoostPickupEvent]:
                     decision_debug.setdefault("fallback", fallback_debug)
 
                 pad_events: list[BoostPickupEvent]
-                if matched_pad.is_big or boost_increase <= (100.0 if matched_pad.is_big else 12.0) + 1.0:
+                if (
+                    matched_pad.is_big
+                    or boost_increase <= (100.0 if matched_pad.is_big else 12.0) + 1.0
+                ):
                     event = BoostPickupEvent(
                         t=frame_time,
                         player_id=player_id,
@@ -317,7 +331,9 @@ def _detect_boost_pickups_legacy(frames: list[Frame]) -> list[BoostPickupEvent]:
                     )
                     pad_events = [event]
                     pad_state = pad_states.setdefault(matched_pad.pad_id, PadState())
-                    respawn = BIG_PAD_RESPAWN_S if matched_pad.is_big else SMALL_PAD_RESPAWN_S
+                    respawn = (
+                        BIG_PAD_RESPAWN_S if matched_pad.is_big else SMALL_PAD_RESPAWN_S
+                    )
                     pad_state.available_at = frame_time + respawn
                     pad_state.last_pickup = frame_time
                 else:
@@ -337,10 +353,15 @@ def _detect_boost_pickups_legacy(frames: list[Frame]) -> list[BoostPickupEvent]:
                 for idx, event in enumerate(pad_events):
                     key = (player_id, event.pad_id)
                     existing = recent_pickup_index.get(key)
-                    if existing is not None and frame_time - existing[1] <= BOOST_PICKUP_MERGE_WINDOW:
+                    if (
+                        existing is not None
+                        and frame_time - existing[1] <= BOOST_PICKUP_MERGE_WINDOW
+                    ):
                         event_idx, _ = existing
                         prev_event = pickups[event_idx]
-                        updated_gain = prev_event.boost_gain + max(0.0, event.boost_gain)
+                        updated_gain = prev_event.boost_gain + max(
+                            0.0, event.boost_gain
+                        )
                         pickups[event_idx] = replace(
                             prev_event,
                             boost_after=event.boost_after,
@@ -362,7 +383,8 @@ def _detect_boost_pickups_legacy(frames: list[Frame]) -> list[BoostPickupEvent]:
                             "boost_after": event.boost_after,
                             "boost_delta": event.boost_gain,
                             "stolen": bool(event.stolen),
-                            "decision": decision_debug | ({"chain_index": idx} if idx else {}),
+                            "decision": decision_debug
+                            | ({"chain_index": idx} if idx else {}),
                         }
                         debug_records.append(record)
 
@@ -398,13 +420,17 @@ def _select_boost_pad(
 
     for pad in FIELD.BOOST_PADS:
         envelope = PAD_ENVELOPES[pad.pad_id]
-        distance, closest_time, height_delta = _minimum_distance_to_pad(history, pad.position)
+        distance, closest_time, height_delta = _minimum_distance_to_pad(
+            history, pad.position
+        )
         time_in_envelope = max(0.0, timestamp - closest_time)
         inside_radius = distance <= envelope.radius
 
         if distance > envelope.max_distance:
             # Still consider as low-confidence candidate with penalty.
-            distance_penalty = (distance - envelope.max_distance) / max(envelope.radius, 1.0)
+            distance_penalty = (distance - envelope.max_distance) / max(
+                envelope.radius, 1.0
+            )
         else:
             distance_penalty = 0.0
         if height_delta > envelope.height_tolerance:
@@ -425,7 +451,12 @@ def _select_boost_pad(
             gain_score += 2.0
 
         distance_score = distance / max(envelope.radius, 1.0)
-        score = distance_score + 0.6 * gain_score + 0.1 * time_in_envelope + distance_penalty
+        score = (
+            distance_score
+            + 0.6 * gain_score
+            + 0.1 * time_in_envelope
+            + distance_penalty
+        )
         if not inside_radius:
             score += 0.8
         if not pad.is_big and boost_increase >= BIG_PAD_MIN_GAIN:
@@ -451,7 +482,10 @@ def _select_boost_pad(
             best_score = score
             best_pad = pad
 
-    return best_pad, {"candidates": candidates, "selected_pad": best_pad.pad_id if best_pad else None}
+    return best_pad, {
+        "candidates": candidates,
+        "selected_pad": best_pad.pad_id if best_pad else None,
+    }
 
 
 def _minimum_distance_to_pad(
@@ -519,7 +553,11 @@ def _fallback_nearest_pad(
             best_pad = pad
     if best_pad is None:
         best_pad = next(iter(pads_by_id.values()))
-    return best_pad, {"reason": "capacity_adjusted_nearest", "score": best_score, "candidates": debug_candidates}
+    return best_pad, {
+        "reason": "capacity_adjusted_nearest",
+        "score": best_score,
+        "candidates": debug_candidates,
+    }
 
 
 def _nearest_pad_distance(history: deque[tuple[float, Vec3]]) -> float:
@@ -550,14 +588,24 @@ def _merge_pickup_events(pickups: list[BoostPickupEvent]) -> list[BoostPickupEve
         same_player = last.player_id == event.player_id
         near_time = abs(event.t - last.t) <= BOOST_PICKUP_MERGE_WINDOW
         near_space = (
-            last.location and event.location and distance_3d(last.location, event.location) <= 320.0
+            last.location
+            and event.location
+            and distance_3d(last.location, event.location) <= 320.0
         )
-        same_pad = last.pad_id >= 0 and event.pad_id >= 0 and last.pad_id == event.pad_id
+        same_pad = (
+            last.pad_id >= 0 and event.pad_id >= 0 and last.pad_id == event.pad_id
+        )
         no_location = last.location is None and event.location is None
         if same_player and near_time and (same_pad or near_space or no_location):
             merged_gain = max(0.0, last.boost_gain + max(0.0, event.boost_gain))
-            merged_after = event.boost_after if event.boost_after is not None else last.boost_after
-            merged_before = last.boost_before if last.boost_before is not None else event.boost_before
+            merged_after = (
+                event.boost_after if event.boost_after is not None else last.boost_after
+            )
+            merged_before = (
+                last.boost_before
+                if last.boost_before is not None
+                else event.boost_before
+            )
             merged[-1] = replace(
                 last,
                 t=min(last.t, event.t),
@@ -585,7 +633,9 @@ def _order_small_pad_candidates(
     for pad in FIELD.BOOST_PADS:
         if pad.is_big:
             continue
-        distance, closest_time, height_delta = _minimum_distance_to_pad(history, pad.position)
+        distance, closest_time, height_delta = _minimum_distance_to_pad(
+            history, pad.position
+        )
         if distance > CHAIN_PAD_RADIUS or height_delta > 260.0:
             continue
         if timestamp < pad_states[pad.pad_id].available_at - PAD_RESPAWN_TOLERANCE:
@@ -620,7 +670,9 @@ def _generate_small_pad_chain(
     """Split large small-pad gains across a chain of nearby pads."""
     remaining_gain = max(0.0, current_boost - previous_boost)
     current_level = previous_boost
-    ordered_pads = _order_small_pad_candidates(history, pad_states, timestamp, matched_pad)
+    ordered_pads = _order_small_pad_candidates(
+        history, pad_states, timestamp, matched_pad
+    )
     events: list[BoostPickupEvent] = []
 
     for pad in ordered_pads:

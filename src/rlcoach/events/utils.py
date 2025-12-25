@@ -96,4 +96,7 @@ def nearest_player_ball_frame(
             closest = fr
     if closest is None:
         return None, None
-    return closest.get_player_by_id(player_id), (closest.ball.position, closest.ball.velocity)
+    return closest.get_player_by_id(player_id), (
+        closest.ball.position,
+        closest.ball.velocity,
+    )

@@ -10,25 +10,25 @@ from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, PlayerFrame
 from ..physics_constants import UU_S_TO_KPH
 from .constants import (
-    TOUCH_PROXIMITY_THRESHOLD,
-    TOUCH_DEBOUNCE_TIME,
-    TOUCH_LOCATION_EPS,
+    AERIAL_HEIGHT_THRESHOLD,
+    CEILING_HEIGHT_THRESHOLD,
+    HALF_VOLLEY_HEIGHT,
     MIN_BALL_SPEED_FOR_TOUCH,
     MIN_RELATIVE_SPEED_FOR_TOUCH,
+    TOUCH_DEBOUNCE_TIME,
+    TOUCH_LOCATION_EPS,
+    TOUCH_PROXIMITY_THRESHOLD,
     WALL_PROXIMITY_THRESHOLD,
-    CEILING_HEIGHT_THRESHOLD,
-    AERIAL_HEIGHT_THRESHOLD,
-    HALF_VOLLEY_HEIGHT,
 )
-from .types import TouchEvent, TouchContext
+from .types import TouchContext, TouchEvent
 from .utils import (
     distance_3d,
-    vector_magnitude,
-    relative_speed,
+    is_in_defensive_third,
+    is_shot_on_target,
     is_toward_opponent_goal,
     is_toward_own_goal,
-    is_shot_on_target,
-    is_in_defensive_third,
+    relative_speed,
+    vector_magnitude,
 )
 
 
@@ -57,10 +57,16 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
                 delta_t = frame.timestamp - prev_event.t
                 if delta_t < 0.05:
                     continue
-                same_area = distance_3d(player.position, prev_event.location) <= TOUCH_LOCATION_EPS
+                same_area = (
+                    distance_3d(player.position, prev_event.location)
+                    <= TOUCH_LOCATION_EPS
+                )
                 if same_area and delta_t < TOUCH_DEBOUNCE_TIME:
                     rel_speed = relative_speed(player.velocity, frame.ball.velocity)
-                    if ball_speed < MIN_BALL_SPEED_FOR_TOUCH and rel_speed < MIN_RELATIVE_SPEED_FOR_TOUCH:
+                    if (
+                        ball_speed < MIN_BALL_SPEED_FOR_TOUCH
+                        and rel_speed < MIN_RELATIVE_SPEED_FOR_TOUCH
+                    ):
                         continue
 
             outcome, is_save = _classify_touch_outcome(
@@ -128,14 +134,18 @@ def _classify_touch_context(player: PlayerFrame, ball_position: Vec3) -> TouchCo
         return TouchContext.AERIAL
 
     # Half volley: car slightly off ground (just jumped)
-    if car_height > 17.0 and car_height < HALF_VOLLEY_HEIGHT and not player.is_on_ground:
+    if (
+        car_height > 17.0
+        and car_height < HALF_VOLLEY_HEIGHT
+        and not player.is_on_ground
+    ):
         return TouchContext.HALF_VOLLEY
 
     # Ground touch: car is on or near ground
     if car_height < 30.0 or player.is_on_ground:
         return TouchContext.GROUND
 
-    # If car is elevated but not clearly aerial/wall, default to aerial for higher touches
+    # If car is elevated but not clearly aerial/wall, default to aerial
     if car_height >= 100.0:
         return TouchContext.AERIAL
 

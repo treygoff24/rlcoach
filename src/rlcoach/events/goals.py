@@ -10,17 +10,21 @@ from typing import Any
 
 from ..field_constants import FIELD, Vec3
 from ..normalize import measure_frame_rate
-from ..parser.types import Header, Frame, PlayerFrame
-from ..utils.identity import build_alias_lookup, build_player_identities, sanitize_display_name
+from ..parser.types import Frame, Header, PlayerFrame
+from ..utils.identity import (
+    build_alias_lookup,
+    build_player_identities,
+    sanitize_display_name,
+)
 from .constants import (
-    GOAL_LINE_THRESHOLD,
     GOAL_EXIT_THRESHOLD,
+    GOAL_LINE_THRESHOLD,
     GOAL_LOOKBACK_WINDOW_S,
     MIN_SHOT_VELOCITY_UU_S,
     TOUCH_PROXIMITY_THRESHOLD,
 )
 from .types import GoalEvent
-from .utils import distance_3d, vector_magnitude, team_name
+from .utils import distance_3d, team_name, vector_magnitude
 
 
 def detect_goals(frames: list[Frame], header: Header | None = None) -> list[GoalEvent]:
@@ -71,7 +75,9 @@ def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalE
     identities = build_player_identities(getattr(header, "players", []))
     alias_lookup = build_alias_lookup(identities)
     name_lookup = {
-        sanitize_display_name(getattr(header.players[identity.header_index], "name", "")).lower(): identity.canonical_id
+        sanitize_display_name(
+            getattr(header.players[identity.header_index], "name", "")
+        ).lower(): identity.canonical_id
         for identity in identities
     }
 
@@ -121,8 +127,12 @@ def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalE
                 else ((target_frame / frame_rate) if frame_rate > 0 else 0.0)
             )
 
-            scorer_team = team_name(getattr(header_goals[goal_index], "player_team", None))
-            scorer = _resolve_goal_scorer(header_goals[goal_index], identities, name_lookup, scorer_team)
+            scorer_team = team_name(
+                getattr(header_goals[goal_index], "player_team", None)
+            )
+            scorer = _resolve_goal_scorer(
+                header_goals[goal_index], identities, name_lookup, scorer_team
+            )
             assist = _resolve_recent_assist(
                 last_touch_times,
                 last_touch_by_player,
@@ -132,13 +142,21 @@ def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalE
             )
 
             # Use lookback to find actual shot velocity (avoids post-goal physics reset)
-            ball_velocity = _find_shot_velocity_before_goal(frames, frame_ref_idx, frame_rate)
+            ball_velocity = _find_shot_velocity_before_goal(
+                frames, frame_ref_idx, frame_rate
+            )
             ball_pos = frame_ref.ball.position if frame_ref else Vec3(0.0, 0.0, 0.0)
-            goal_line_y = FIELD.BACK_WALL_Y if scorer_team == "BLUE" else -FIELD.BACK_WALL_Y
+            goal_line_y = (
+                FIELD.BACK_WALL_Y if scorer_team == "BLUE" else -FIELD.BACK_WALL_Y
+            )
             distance_m = abs(goal_line_y - ball_pos.y) / 100.0
             shot_speed_kph = vector_magnitude(ball_velocity) * 3.6
 
-            highlight_frame = highlight_frames[goal_index] if goal_index < len(highlight_frames) else None
+            highlight_frame = (
+                highlight_frames[goal_index]
+                if goal_index < len(highlight_frames)
+                else None
+            )
             tickmark_lead = 0.0
             if highlight_frame is not None and frame_rate > 0:
                 delta_frames = max(0, target_frame - highlight_frame)
@@ -180,14 +198,18 @@ def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalE
         scorer_team = team_name(getattr(gh, "player_team", None))
         scorer = _resolve_goal_scorer(gh, identities, name_lookup, scorer_team)
 
-        highlight_frame = highlight_frames[goal_index] if goal_index < len(highlight_frames) else None
+        highlight_frame = (
+            highlight_frames[goal_index] if goal_index < len(highlight_frames) else None
+        )
         tickmark_lead = 0.0
         if highlight_frame is not None and frame_rate > 0:
             delta_frames = max(0, frame_idx - highlight_frame)
             tickmark_lead = delta_frames / frame_rate
 
         # Use lookback to find actual shot velocity (avoids post-goal physics reset)
-        ball_velocity = _find_shot_velocity_before_goal(frames, frame_ref_idx, frame_rate)
+        ball_velocity = _find_shot_velocity_before_goal(
+            frames, frame_ref_idx, frame_rate
+        )
         ball_pos = frame_ref.ball.position if frame_ref else Vec3(0.0, 0.0, 0.0)
         goal_line_y = FIELD.BACK_WALL_Y if scorer_team == "BLUE" else -FIELD.BACK_WALL_Y
         distance_m = abs(goal_line_y - ball_pos.y) / 100.0
@@ -211,10 +233,15 @@ def _detect_goals_from_header(frames: list[Frame], header: Header) -> list[GoalE
 
 
 def _resolve_goal_scorer(
-    goal_header: Any, identities: list[Any], name_lookup: dict[str, str], team: str | None
+    goal_header: Any,
+    identities: list[Any],
+    name_lookup: dict[str, str],
+    team: str | None,
 ) -> str | None:
     """Resolve scorer ID using header metadata and identity lookup."""
-    name_token = sanitize_display_name(getattr(goal_header, "player_name", None)).lower()
+    name_token = sanitize_display_name(
+        getattr(goal_header, "player_name", None)
+    ).lower()
     if name_token and name_token in name_lookup:
         return name_lookup[name_token]
 
@@ -255,7 +282,9 @@ def _resolve_recent_assist(
     return candidates[0][1]
 
 
-def _detect_goals_from_ball_path(frames: list[Frame], header: Header | None) -> list[GoalEvent]:
+def _detect_goals_from_ball_path(
+    frames: list[Frame], header: Header | None
+) -> list[GoalEvent]:
     """Fallback goal detection using ball travel across goal lines."""
     goals = []
     last_touch_by_player = {}  # Track last player to touch ball
@@ -265,7 +294,9 @@ def _detect_goals_from_ball_path(frames: list[Frame], header: Header | None) -> 
     highlight_frames: list[int] = []
     if header is not None:
         header_goal_frames = [
-            int(g.frame) for g in getattr(header, "goals", []) if getattr(g, "frame", None) is not None
+            int(g.frame)
+            for g in getattr(header, "goals", [])
+            if getattr(g, "frame", None) is not None
         ]
         highlight_frames = [
             int(h.frame)
@@ -297,7 +328,11 @@ def _detect_goals_from_ball_path(frames: list[Frame], header: Header | None) -> 
             goal_team = "ORANGE"
 
         # Reset goal gating once the ball fully leaves the goal.
-        if goal_team is None and ball_inside_goal is not None and abs(ball_y) <= GOAL_EXIT_THRESHOLD:
+        if (
+            goal_team is None
+            and ball_inside_goal is not None
+            and abs(ball_y) <= GOAL_EXIT_THRESHOLD
+        ):
             ball_inside_goal = None
 
         if goal_team is not None and ball_inside_goal is None:
@@ -324,17 +359,31 @@ def _detect_goals_from_ball_path(frames: list[Frame], header: Header | None) -> 
             ball_speed = vector_magnitude(ball_velocity)
             shot_speed_kph = ball_speed * 3.6
 
-            goal_line_y = GOAL_LINE_THRESHOLD if goal_team == "BLUE" else -GOAL_LINE_THRESHOLD
+            goal_line_y = (
+                GOAL_LINE_THRESHOLD if goal_team == "BLUE" else -GOAL_LINE_THRESHOLD
+            )
             distance_m = abs(ball_y - goal_line_y) / 100.0
 
             header_goal_frame = (
-                header_goal_frames[goal_index] if goal_index < len(header_goal_frames) else None
+                header_goal_frames[goal_index]
+                if goal_index < len(header_goal_frames)
+                else None
             )
-            highlight_frame = highlight_frames[goal_index] if goal_index < len(highlight_frames) else None
+            highlight_frame = (
+                highlight_frames[goal_index]
+                if goal_index < len(highlight_frames)
+                else None
+            )
 
-            goal_frame_reference = header_goal_frame if header_goal_frame is not None else i
+            goal_frame_reference = (
+                header_goal_frame if header_goal_frame is not None else i
+            )
             tickmark_lead = 0.0
-            if highlight_frame is not None and frame_rate > 0 and goal_frame_reference is not None:
+            if (
+                highlight_frame is not None
+                and frame_rate > 0
+                and goal_frame_reference is not None
+            ):
                 delta_frames = max(0, goal_frame_reference - highlight_frame)
                 tickmark_lead = delta_frames / frame_rate
 
