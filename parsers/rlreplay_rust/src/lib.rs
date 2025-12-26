@@ -124,6 +124,33 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                         playlist_id = Some(i.to_string());
                     }
                 }
+                // Read TeamSize early (needed for playlist inference)
+                if let Some(p) = find_prop(&properties, "TeamSize") {
+                    if let Some(ts) = p.as_i32() {
+                        team_size = ts as i64;
+                    }
+                }
+                // Fallback: infer playlist from MatchType + TeamSize when PlaylistID is missing
+                if playlist_id.is_none() {
+                    let match_type = find_prop(&properties, "MatchType")
+                        .and_then(|p| p.as_string())
+                        .map(|s| s.to_string());
+                    if let Some(mt) = match_type {
+                        match mt.as_str() {
+                            "Online" => {
+                                // Use TeamSize to determine playlist
+                                playlist_id = Some(format!("inferred_{}", team_size));
+                            }
+                            "Tournament" => {
+                                playlist_id = Some("tournament".to_string());
+                            }
+                            "Private" | "Offline" => {
+                                playlist_id = Some("private".to_string());
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 if let Some(p) = find_prop(&properties, "BuildVersion") {
                     if let Some(s) = p.as_string() {
                         warnings_vec.push(format!("build_version:{}", s));

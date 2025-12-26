@@ -48,6 +48,7 @@ _ALLOWED_PLAYLISTS = {
 # Rocket League numeric playlist ID mappings
 # Reference: https://wiki.rlbot.org/botmaking/useful-game-values/#playlist-ids
 _PLAYLIST_ID_MAP = {
+    # Numeric playlist IDs
     "1": "DUEL",
     "2": "DOUBLES",
     "3": "STANDARD",
@@ -60,6 +61,13 @@ _PLAYLIST_ID_MAP = {
     "23": "EXTRA_MODE",  # Hoops
     "24": "EXTRA_MODE",  # Snow Day
     "27": "EXTRA_MODE",  # Rumble
+    # Inferred from MatchType + TeamSize (when PlaylistID missing)
+    "inferred_1": "DUEL",
+    "inferred_2": "DOUBLES",
+    "inferred_3": "STANDARD",
+    "inferred_4": "CHAOS",
+    "tournament": "STANDARD",  # Tournament matches (treat as competitive)
+    "private": "PRIVATE",
 }
 
 
