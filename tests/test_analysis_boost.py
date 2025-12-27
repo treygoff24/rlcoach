@@ -57,9 +57,9 @@ class TestBoostAnalysis:
         assert result["bcpm"] == 0.0
         assert result["avg_boost"] == 0.0
         assert result["time_zero_boost_s"] == 0.0
-        assert result["time_hundred_boost_s"] == 0.0
-        assert result["amount_collected"] == 0.0
-        assert result["amount_stolen"] == 0.0
+        assert result["time_full_boost_s"] == 0.0
+        assert result["boost_collected"] == 0.0
+        assert result["boost_stolen"] == 0.0
         assert result["big_pads"] == 0
         assert result["small_pads"] == 0
         assert result["stolen_big_pads"] == 0
@@ -118,8 +118,8 @@ class TestBoostAnalysis:
         
         result = analyze_boost(frames, events, player_id="player1")
         
-        assert result["amount_collected"] == 112.0  # 100 (big) + 12 (small)
-        assert result["amount_stolen"] == 0.0  # Neither pickup was stolen
+        assert result["boost_collected"] == 112.0  # 100 (big) + 12 (small)
+        assert result["boost_stolen"] == 0.0  # Neither pickup was stolen
         assert result["big_pads"] == 1
         assert result["small_pads"] == 1
         assert result["stolen_big_pads"] == 0
@@ -178,8 +178,8 @@ class TestBoostAnalysis:
         
         result = analyze_boost(frames, events, player_id="player1")
         
-        assert result["amount_collected"] == 212.0  # 200 (2 big) + 12 (1 small)
-        assert result["amount_stolen"] == 112.0    # 100 (1 big) + 12 (1 small)
+        assert result["boost_collected"] == 212.0  # 200 (2 big) + 12 (1 small)
+        assert result["boost_stolen"] == 112.0    # 100 (1 big) + 12 (1 small)
         assert result["big_pads"] == 2
         assert result["small_pads"] == 1
         assert result["stolen_big_pads"] == 1
@@ -202,7 +202,7 @@ class TestBoostAnalysis:
         result = analyze_boost(frames, events, player_id="player1")
         
         assert result["time_zero_boost_s"] == 20.0   # 0-20s at zero boost  
-        assert result["time_hundred_boost_s"] == 30.0 # 30-60s at full boost
+        assert result["time_full_boost_s"] == 30.0 # 30-60s at full boost
         assert abs(result["avg_boost"] - 54.57) < 0.1  # Average of all boost amounts (allow small rounding)
     
     def test_overfill_detection(self):
@@ -336,7 +336,7 @@ class TestBoostAnalysis:
         assert result["bpm"] == 106.0
         # 3 pickups in 2 minutes = 1.5 BCPM
         assert result["bcpm"] == 1.5
-        assert result["amount_collected"] == 212.0
+        assert result["boost_collected"] == 212.0
     
     def test_team_analysis_aggregation(self):
         """Test team-level boost analysis aggregation."""
@@ -393,7 +393,7 @@ class TestBoostAnalysis:
         result = analyze_boost(frames, events, team="BLUE")
         
         # Blue team collected: 100 (player1) + 12 (player2) = 112
-        assert result["amount_collected"] == 112.0
+        assert result["boost_collected"] == 112.0
         assert result["big_pads"] == 1      # player1's big pad
         assert result["small_pads"] == 1    # player2's small pad
         assert result["bpm"] == 112.0       # 112 in 1 minute
@@ -414,7 +414,7 @@ class TestBoostAnalysis:
         
         result = analyze_boost(frames, events, player_id="player1")
         
-        assert result["amount_collected"] == 0.0
+        assert result["boost_collected"] == 0.0
         assert result["big_pads"] == 0
         assert result["small_pads"] == 0
         assert result["bpm"] == 0.0
@@ -451,9 +451,9 @@ class TestBoostAnalysis:
         # Player1 not in frames, so frame-based metrics should be zero
         assert result["avg_boost"] == 0.0
         assert result["time_zero_boost_s"] == 0.0
-        assert result["time_hundred_boost_s"] == 0.0
+        assert result["time_full_boost_s"] == 0.0
         # But pickup-based metrics should still work
-        assert result["amount_collected"] == 100.0
+        assert result["boost_collected"] == 100.0
         assert result["big_pads"] == 1
     
     def test_header_only_mode(self):
@@ -481,8 +481,8 @@ class TestBoostAnalysis:
         
         # Should handle empty frames gracefully
         assert result["avg_boost"] == 0.0
-        assert result["time_zero_boost_s"] == 0.0  
-        assert result["time_hundred_boost_s"] == 0.0
+        assert result["time_zero_boost_s"] == 0.0
+        assert result["time_full_boost_s"] == 0.0
         # Pickup data should still be processed
-        assert result["amount_collected"] == 100.0
+        assert result["boost_collected"] == 100.0
         assert result["bpm"] == 100.0  # 100 boost collected in default 1 minute duration

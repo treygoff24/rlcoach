@@ -159,8 +159,9 @@ def extract_rlcoach_player_metrics(
             "shooting_percentage": _to_float(fundamentals.get("shooting_percentage")),
             "bpm": _to_float(boost.get("bpm")),
             "avg_boost": _to_float(boost.get("avg_boost")),
-            "amount_collected": _to_float(boost.get("amount_collected")),
-            "amount_stolen": _to_float(boost.get("amount_stolen")),
+            # Map from internal 'boost_collected'/'boost_stolen' to parity comparison keys
+            "amount_collected": _to_float(boost.get("boost_collected")),
+            "amount_stolen": _to_float(boost.get("boost_stolen")),
             "time_slow_s": _to_float(movement.get("time_slow_s")),
             "time_boost_speed_s": _to_float(movement.get("time_boost_speed_s")),
             "time_supersonic_s": _to_float(movement.get("time_supersonic_s")),

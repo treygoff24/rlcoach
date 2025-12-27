@@ -29,8 +29,9 @@ def _apply_fixture_boost(report: dict, fixture: dict[str, dict]) -> dict:
             continue
         boost_block.update(
             {
-                "amount_collected": float(values.get("amount_collected", boost_block.get("amount_collected", 0.0))),
-                "amount_stolen": float(values.get("amount_stolen", boost_block.get("amount_stolen", 0.0))),
+                # Map Ballchasing 'amount_collected' to our 'boost_collected'
+                "boost_collected": float(values.get("amount_collected", boost_block.get("boost_collected", 0.0))),
+                "boost_stolen": float(values.get("amount_stolen", boost_block.get("boost_stolen", 0.0))),
                 "big_pads": int(values.get("count_collected_big_pads", boost_block.get("big_pads", 0))),
                 "small_pads": int(values.get("count_collected_small_pads", boost_block.get("small_pads", 0))),
                 "stolen_big_pads": int(values.get("count_stolen_big_pads", boost_block.get("stolen_big_pads", 0))),
@@ -59,8 +60,9 @@ def test_boost_metrics_match_ballchasing_fixture():
         boost_metrics = per_player[player_id].get("boost", {})
 
         comparisons = {
-            "amount_collected": (expected["amount_collected"], 5.0),
-            "amount_stolen": (expected["amount_stolen"], 5.0),
+            # Ballchasing uses 'amount_collected', we use 'boost_collected'
+            "boost_collected": (expected["amount_collected"], 5.0),
+            "boost_stolen": (expected["amount_stolen"], 5.0),
             "big_pads": (expected["count_collected_big_pads"], 0.0),
             "small_pads": (expected["count_collected_small_pads"], 0.0),
             "stolen_big_pads": (expected["count_stolen_big_pads"], 0.0),

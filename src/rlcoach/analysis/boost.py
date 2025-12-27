@@ -60,9 +60,9 @@ def analyze_boost(
             "bcpm": float,
             "avg_boost": float,
             "time_zero_boost_s": float,
-            "time_hundred_boost_s": float,
-            "amount_collected": float,
-            "amount_stolen": float,
+            "time_full_boost_s": float,
+            "boost_collected": float,
+            "boost_stolen": float,
             "big_pads": int,
             "small_pads": int,
             "stolen_big_pads": int,
@@ -318,9 +318,9 @@ def _analyze_player_boost(
         "bcpm": round(bcpm, 2),
         "avg_boost": round(avg_boost, 2),
         "time_zero_boost_s": round(time_zero_boost, 2),
-        "time_hundred_boost_s": round(time_hundred_boost, 2),
-        "amount_collected": round(amount_collected, 1),
-        "amount_stolen": round(amount_stolen, 1),
+        "time_full_boost_s": round(time_hundred_boost, 2),
+        "boost_collected": round(amount_collected, 1),
+        "boost_stolen": round(amount_stolen, 1),
         "big_pads": big_pads,
         "small_pads": small_pads,
         "stolen_big_pads": stolen_big_pads,
@@ -529,8 +529,8 @@ def _analyze_team_boost(
         )
 
         # Sum most metrics
-        team_metrics["amount_collected"] += player_metrics["amount_collected"]
-        team_metrics["amount_stolen"] += player_metrics["amount_stolen"]
+        team_metrics["boost_collected"] += player_metrics["boost_collected"]
+        team_metrics["boost_stolen"] += player_metrics["boost_stolen"]
         team_metrics["big_pads"] += player_metrics["big_pads"]
         team_metrics["small_pads"] += player_metrics["small_pads"]
         team_metrics["stolen_big_pads"] += player_metrics["stolen_big_pads"]
@@ -538,14 +538,14 @@ def _analyze_team_boost(
         team_metrics["overfill"] += player_metrics["overfill"]
         team_metrics["waste"] += player_metrics["waste"]
         team_metrics["time_zero_boost_s"] += player_metrics["time_zero_boost_s"]
-        team_metrics["time_hundred_boost_s"] += player_metrics["time_hundred_boost_s"]
+        team_metrics["time_full_boost_s"] += player_metrics["time_full_boost_s"]
 
         # Average these metrics
         team_metrics["avg_boost"] += player_metrics["avg_boost"]
 
     # Calculate team rates
     minutes = max(match_duration / 60.0, 1.0)
-    team_metrics["bpm"] = round(team_metrics["amount_collected"] / minutes, 2)
+    team_metrics["bpm"] = round(team_metrics["boost_collected"] / minutes, 2)
     team_metrics["bcpm"] = round(
         (team_metrics["big_pads"] + team_metrics["small_pads"]) / minutes, 2
     )
@@ -554,12 +554,12 @@ def _analyze_team_boost(
 
     # Round accumulated values
     for key in [
-        "amount_collected",
-        "amount_stolen",
+        "boost_collected",
+        "boost_stolen",
         "overfill",
         "waste",
         "time_zero_boost_s",
-        "time_hundred_boost_s",
+        "time_full_boost_s",
     ]:
         team_metrics[key] = round(team_metrics[key], 2)
 
@@ -573,9 +573,9 @@ def _empty_boost() -> dict[str, Any]:
         "bcpm": 0.0,
         "avg_boost": 0.0,
         "time_zero_boost_s": 0.0,
-        "time_hundred_boost_s": 0.0,
-        "amount_collected": 0.0,
-        "amount_stolen": 0.0,
+        "time_full_boost_s": 0.0,
+        "boost_collected": 0.0,
+        "boost_stolen": 0.0,
         "big_pads": 0,
         "small_pads": 0,
         "stolen_big_pads": 0,

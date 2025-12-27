@@ -408,8 +408,8 @@ def _analyze_team_boost(blue_data: dict, orange_data: dict) -> list[dict[str, An
     """Generate team boost economy insights."""
     insights = []
 
-    blue_stolen = blue_data.get("boost", {}).get("amount_stolen", 0)
-    orange_stolen = orange_data.get("boost", {}).get("amount_stolen", 0)
+    blue_stolen = blue_data.get("boost", {}).get("boost_stolen", 0)
+    orange_stolen = orange_data.get("boost", {}).get("boost_stolen", 0)
 
     # Boost denial advantage
     if blue_stolen - orange_stolen > 500:

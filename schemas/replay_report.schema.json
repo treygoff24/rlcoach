@@ -368,15 +368,15 @@
 
     "boost": {
       "type": "object",
-      "required": ["bpm","bcpm","avg_boost","time_zero_boost_s","time_hundred_boost_s","amount_collected","amount_stolen","big_pads","small_pads","overfill","waste"],
+      "required": ["bpm","bcpm","avg_boost","time_zero_boost_s","time_full_boost_s","boost_collected","boost_stolen","big_pads","small_pads","overfill","waste"],
       "properties": {
         "bpm": { "type": "number" },
         "bcpm": { "type": "number" },
         "avg_boost": { "type": "number" },
         "time_zero_boost_s": { "type": "number" },
-        "time_hundred_boost_s": { "type": "number" },
-        "amount_collected": { "type": "number" },
-        "amount_stolen": { "type": "number" },
+        "time_full_boost_s": { "type": "number" },
+        "boost_collected": { "type": "number" },
+        "boost_stolen": { "type": "number" },
         "big_pads": { "type": "integer" },
         "small_pads": { "type": "integer" },
         "stolen_big_pads": { "type": "integer" },

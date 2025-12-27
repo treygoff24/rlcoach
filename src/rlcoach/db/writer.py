@@ -243,19 +243,13 @@ def insert_player_stats(report: dict[str, Any], config: RLCoachConfig) -> None:
                 score=fundamentals.get("score"),
                 demos_inflicted=fundamentals.get("demos_inflicted"),
                 demos_taken=fundamentals.get("demos_taken"),
-                # Boost
-                # Note: analysis returns bpm (boost amount/min) which is the industry-standard BCPM
-                # Analysis returns bcpm (pad count/min) which is mislabeled - we use bpm for actual BCPM
-                bcpm=boost.get(
-                    "bpm"
-                ),  # Use bpm (boost amount per minute), not bcpm (pad count)
+                # Boost - keys now match between analyzer and metrics catalog
+                bcpm=boost.get("bpm"),  # Boost amount per minute (industry-standard BCPM)
                 avg_boost=boost.get("avg_boost"),
                 time_zero_boost_s=boost.get("time_zero_boost_s"),
-                time_full_boost_s=boost.get(
-                    "time_hundred_boost_s"
-                ),  # Map from analysis key
-                boost_collected=boost.get("amount_collected"),  # Map from analysis key
-                boost_stolen=boost.get("amount_stolen"),  # Map from analysis key
+                time_full_boost_s=boost.get("time_full_boost_s"),
+                boost_collected=boost.get("boost_collected"),
+                boost_stolen=boost.get("boost_stolen"),
                 small_pads=boost.get("small_pads"),
                 big_pads=boost.get("big_pads"),
                 # Movement

@@ -31,6 +31,7 @@ PLAYER_TOLERANCES = {
     "shooting_percentage": 5.0,
     "bpm": 75.0,
     "avg_boost": 10.0,
+    # These keys match parity extractor output (which matches Ballchasing CSV keys)
     "amount_collected": 400.0,
     "amount_stolen": 400.0,
     "time_slow_s": 60.0,

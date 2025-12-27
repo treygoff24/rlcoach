@@ -359,17 +359,17 @@
           "total_reads": 0
         },
         "boost": {
-          "amount_collected": 0.0,
-          "amount_stolen": 0.0,
           "avg_boost": 50.0,
           "bcpm": 0.0,
           "big_pads": 0,
+          "boost_collected": 0.0,
+          "boost_stolen": 0.0,
           "bpm": 0.0,
           "overfill": 0.0,
           "small_pads": 0,
           "stolen_big_pads": 0,
           "stolen_small_pads": 0,
-          "time_hundred_boost_s": 0.0,
+          "time_full_boost_s": 0.0,
           "time_zero_boost_s": 0.0,
           "waste": 0.0
         },
@@ -617,17 +617,17 @@
           "total_reads": 0
         },
         "boost": {
-          "amount_collected": 0.0,
-          "amount_stolen": 0.0,
           "avg_boost": 50.0,
           "bcpm": 0.0,
           "big_pads": 0,
+          "boost_collected": 0.0,
+          "boost_stolen": 0.0,
           "bpm": 0.0,
           "overfill": 0.0,
           "small_pads": 0,
           "stolen_big_pads": 0,
           "stolen_small_pads": 0,
-          "time_hundred_boost_s": 0.0,
+          "time_full_boost_s": 0.0,
           "time_zero_boost_s": 0.0,
           "waste": 0.0
         },
@@ -863,17 +863,17 @@
     "per_team": {
       "blue": {
         "boost": {
-          "amount_collected": 0.0,
-          "amount_stolen": 0.0,
           "avg_boost": 50.0,
           "bcpm": 0.0,
           "big_pads": 0,
+          "boost_collected": 0.0,
+          "boost_stolen": 0.0,
           "bpm": 0.0,
           "overfill": 0.0,
           "small_pads": 0,
           "stolen_big_pads": 0,
           "stolen_small_pads": 0,
-          "time_hundred_boost_s": 0.0,
+          "time_full_boost_s": 0.0,
           "time_zero_boost_s": 0.0,
           "waste": 0.0
         },
@@ -968,17 +968,17 @@
       },
       "orange": {
         "boost": {
-          "amount_collected": 0.0,
-          "amount_stolen": 0.0,
           "avg_boost": 50.0,
           "bcpm": 0.0,
           "big_pads": 0,
+          "boost_collected": 0.0,
+          "boost_stolen": 0.0,
           "bpm": 0.0,
           "overfill": 0.0,
           "small_pads": 0,
           "stolen_big_pads": 0,
           "stolen_small_pads": 0,
-          "time_hundred_boost_s": 0.0,
+          "time_full_boost_s": 0.0,
           "time_zero_boost_s": 0.0,
           "waste": 0.0
         },

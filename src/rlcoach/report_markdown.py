@@ -232,13 +232,13 @@ class _MarkdownComposer:
                 "Boost Economy",
                 "boost",
                 {
-                    "amount_collected": ("Boost Collected", "count"),
-                    "amount_stolen": ("Boost Stolen", "count"),
+                    "boost_collected": ("Boost Collected", "count"),
+                    "boost_stolen": ("Boost Stolen", "count"),
                     "avg_boost": ("Average Boost", "avg"),
                     "bpm": ("BPM", "rate"),
                     "bcpm": ("BCPM", "rate"),
                     "time_zero_boost_s": ("Time Zero Boost (s)", "seconds"),
-                    "time_hundred_boost_s": ("Time 100 Boost (s)", "seconds"),
+                    "time_full_boost_s": ("Time 100 Boost (s)", "seconds"),
                     "big_pads": ("Big Pads", "count"),
                     "small_pads": ("Small Pads", "count"),
                     "stolen_big_pads": ("Stolen Big Pads", "count"),
@@ -890,16 +890,16 @@ class _MarkdownComposer:
         if boost:
             derived["boost"] = {
                 "collected_per_min": round(
-                    self._rate_per_minute_value(boost.get("amount_collected")), 3
+                    self._rate_per_minute_value(boost.get("boost_collected")), 3
                 ),
                 "stolen_per_min": round(
-                    self._rate_per_minute_value(boost.get("amount_stolen")), 3
+                    self._rate_per_minute_value(boost.get("boost_stolen")), 3
                 ),
                 "zero_boost_pct": round(
                     self._percentage_of_match(boost.get("time_zero_boost_s")), 2
                 ),
                 "hundred_boost_pct": round(
-                    self._percentage_of_match(boost.get("time_hundred_boost_s")), 2
+                    self._percentage_of_match(boost.get("time_full_boost_s")), 2
                 ),
             }
         movement = pdata.get("movement", {}) or {}
