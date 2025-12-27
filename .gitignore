@@ -192,3 +192,10 @@ Temporary Items
 out/
 Replay_files/**/*.json
 Replay_files/**/*.md
+
+# Node.js
+node_modules/
+
+# Local data (not committed)
+data/
+replays/
