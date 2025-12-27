@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .analysis import aggregate_analysis
+from .config import IdentityConfig
 from .events import (
     build_timeline,
     detect_boost_pickups,
@@ -26,6 +27,7 @@ from .events import (
     detect_kickoffs,
     detect_touches,
 )
+from .identity import PlayerIdentityResolver
 from .ingest import ingest_replay
 from .normalize import build_timeline as build_normalized_frames
 from .normalize import measure_frame_rate
@@ -127,7 +129,11 @@ def _timeline_event_to_dict(ev: Any) -> dict[str, Any]:
 
 
 def generate_report(
-    replay_path: Path, header_only: bool = False, adapter_name: str = "rust"
+    replay_path: Path,
+    header_only: bool = False,
+    adapter_name: str = "rust",
+    *,
+    identity_config: IdentityConfig | None = None,
 ) -> dict[str, Any]:
     """Generate a schema-conformant replay report.
 
@@ -303,6 +309,13 @@ def generate_report(
                 }
             ]
             team_players["BLUE"].append("player_0")
+
+        if identity_config is not None:
+            resolver = PlayerIdentityResolver(identity_config)
+            for player in players_block:
+                player_id = str(player.get("player_id", ""))
+                display_name = str(player.get("display_name", ""))
+                player["is_me"] = resolver.is_me(player_id, display_name)
 
         teams_block = {
             "blue": {

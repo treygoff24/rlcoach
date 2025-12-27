@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import ConfigError, get_default_config_path, load_config
+from .config import ConfigError, IdentityConfig, get_default_config_path, load_config
 from .config_templates import CONFIG_TEMPLATE
 from .errors import RLCoachError
 from .identity import PlayerIdentityResolver
@@ -49,6 +49,18 @@ def check_exclusion(report: dict) -> str | None:
             return display_name
 
     return None
+
+
+def _load_identity_config() -> IdentityConfig | None:
+    config_path = get_default_config_path()
+    try:
+        config = load_config(config_path)
+        config.validate()
+    except (ConfigError, FileNotFoundError):
+        return None
+    except Exception:
+        return None
+    return config.identity
 
 
 def handle_ingest_watch(args) -> int:
@@ -520,8 +532,12 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "analyze":
         # Generate report and write to output directory
         replay_path = Path(args.replay_file)
+        identity_config = _load_identity_config()
         report = generate_report(
-            replay_path, header_only=args.header_only, adapter_name=args.adapter
+            replay_path,
+            header_only=args.header_only,
+            adapter_name=args.adapter,
+            identity_config=identity_config,
         )
 
         # Check exclusion unless --ignore-exclusion is set
@@ -557,8 +573,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if not is_error else 1
     elif args.command == "report-md":
         replay_path = Path(args.replay_file)
+        identity_config = _load_identity_config()
         report = generate_report(
-            replay_path, header_only=args.header_only, adapter_name=args.adapter
+            replay_path,
+            header_only=args.header_only,
+            adapter_name=args.adapter,
+            identity_config=identity_config,
         )
 
         # Check exclusion unless --ignore-exclusion is set

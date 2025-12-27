@@ -1,4 +1,4 @@
-# Autonomous Build Protocol — Universal Edition
+# Autonomous Build Protocol — Codex Edition
 
 > For building complete applications from scratch OR adding features to existing codebases. Codex drives, Claude advises. Execute with precision.
 
@@ -7,7 +7,7 @@
 ## Quick Start
 
 ```
-Read AUTONOMOUS_BUILD_UNIVERSAL.md and the spec at [SPEC_PATH]. Build autonomously. Do not stop until complete.
+Read AUTONOMOUS_BUILD_CODEX.md and the spec at [SPEC_PATH]. Build autonomously. Do not stop until complete.
 ```
 
 If no spec exists, read `SPEC_WRITING.md` first. If no implementation plan exists, read `IMPLEMENTATION_PLAN_WRITING.md` after the spec is approved.
@@ -40,6 +40,58 @@ claude -p --model opus --dangerously-skip-permissions --output-format text "[YOU
 
 ---
 
+## Context Management
+
+Long sessions cause context loss. Proactive context preservation is critical.
+
+### CONTEXT.md
+
+`CONTEXT.md` is your lifeline. It must contain:
+- Current goal and constraints
+- What's done vs. what's next
+- Key decisions made and why
+- Important file paths and utilities
+- Current phase in the implementation plan
+
+**Update CONTEXT.md at least twice per phase.** More frequent updates = better recovery if context degrades.
+
+### Context Recovery
+
+If context feels stale or you've lost track:
+
+1. Re-read `CONTEXT.md` for current state
+2. Re-read this protocol (`AUTONOMOUS_BUILD_CODEX.md`) for methodology
+3. Check `IMPLEMENTATION_PLAN.md` for current phase and progress
+4. Review recent git commits: `git log --oneline -10`
+
+### Learning Loop
+
+The system accumulates insights across sessions. This creates compound improvement over time.
+
+**At session end**, append to `LEARNINGS.md` (project-specific) or a global learnings file:
+
+```markdown
+## YYYY-MM-DD — [Feature/Project Name]
+
+**What Worked:**
+- [Specific technique or decision that paid off]
+
+**What Failed:**
+- [Approach that didn't work and why]
+
+**Patterns:**
+- [Reusable insight for future builds]
+```
+
+**At session start**, read the last 2-3 entries from `LEARNINGS.md` to surface recent patterns.
+
+| Learnings File | When to Use |
+|----------------|-------------|
+| Project `LEARNINGS.md` | Project-specific patterns (e.g., "this codebase uses X pattern") |
+| Global learnings file | Universal patterns (e.g., "always test empty states first") |
+
+---
+
 ## Pre-Flight
 
 Before writing any code:
@@ -68,6 +120,7 @@ Before writing any code:
 
 **For both:**
 - Copy `CONTEXT_TEMPLATE.md` to `CONTEXT.md` and fill it in
+- Read recent entries from `LEARNINGS.md` if it exists
 - Read the full spec and implementation plan
 - Resolve any ambiguities before proceeding
 
@@ -155,6 +208,25 @@ Run the application. Verify core flows work. For UI: keyboard navigation, screen
 2. `IMPLEMENTATION_PLAN.md` marked complete
 3. For feature branches: open PR with summary
 
+### Step 5: Capture Learnings
+
+Before ending the session, append to `LEARNINGS.md`:
+
+```markdown
+## YYYY-MM-DD — [Feature/Project Name]
+
+**What Worked:**
+- [What techniques or decisions paid off?]
+
+**What Failed:**
+- [What didn't work and why?]
+
+**Patterns:**
+- [What would you do the same way next time?]
+```
+
+This is how the system gets smarter over time.
+
 ---
 
 ## Error Recovery
@@ -170,15 +242,7 @@ If still stuck: log the blocker, skip to an unblocked phase, return later.
 
 **Build failing mysteriously:** Clear caches (`rm -rf node_modules .next dist .vite && npm install`), check for circular imports.
 
----
-
-## Context Management
-
-Long sessions cause context loss. That's why `CONTEXT.md` exists.
-
-**After context loss:** Re-read `CONTEXT.md`, check current phase in `IMPLEMENTATION_PLAN.md`, continue.
-
-**Prevention:** Update `CONTEXT.md` at least twice per phase.
+**Context feels degraded:** Stop and re-read `CONTEXT.md`, `IMPLEMENTATION_PLAN.md`, and recent git history. Update `CONTEXT.md` with current state before continuing.
 
 ---
 
@@ -217,12 +281,6 @@ Build tests as you build features, not as an afterthought.
 
 ---
 
-## CONTEXT.md
-
-Copy `CONTEXT_TEMPLATE.md` to `CONTEXT.md` at the project root before starting. Update it frequently.
-
----
-
 ## Companion Files
 
 These files should be at repo root alongside this protocol:
@@ -234,6 +292,7 @@ These files should be at repo root alongside this protocol:
 | `IMPLEMENTATION_PLAN_WRITING.md` | Guide for creating phased build plans |
 | `SPEC_QUALITY_CHECKLIST.md` | Validation checklist for specs |
 | `ACCESSIBILITY_CHECKLIST.md` | A11y checks for UI components |
+| `LEARNINGS.md` | Project-specific learnings accumulator |
 
 ---
 
@@ -241,13 +300,14 @@ These files should be at repo root alongside this protocol:
 
 The build is complete when:
 
-1. All phases marked complete
+1. All phases marked complete in `IMPLEMENTATION_PLAN.md`
 2. All cross-agent review checkpoints passed
 3. All quality gates pass
 4. Claude's final cross-check verdict is "ship it"
 5. Manual verification confirms core flows work
 6. All commits pushed
 7. For feature branches: PR opened
+8. Learnings captured in `LEARNINGS.md`
 
 ---
 
@@ -259,7 +319,7 @@ Call Claude at the designated checkpoints. Trust the process. Execute with preci
 
 You've done this before. Complete applications shipped in under 2 hours. Features built and deployed in single sessions. The methodology works—it's been battle-tested across dozens of autonomous builds.
 
-When you hit a wall, call Claude. When you're unsure, re-read the spec. When context gets fuzzy, re-read `CONTEXT.md`. The system is designed to keep you on track.
+When you hit a wall, call Claude. When you're unsure, re-read the spec. When context gets fuzzy, re-read `CONTEXT.md` and update it. The system is designed to keep you on track.
 
 This is what you're built for. Execute with confidence.
 

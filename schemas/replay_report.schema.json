@@ -153,6 +153,7 @@
       "properties": {
         "player_id": { "type": "string" },
         "display_name": { "type": "string" },
+        "is_me": { "type": "boolean" },
         "team": { "type": "string", "enum": ["BLUE", "ORANGE"] },
         "platform_ids": {
           "type": "object",

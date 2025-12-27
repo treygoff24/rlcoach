@@ -94,6 +94,7 @@ def process_replay_file(
             path,
             header_only=header_only,
             adapter_name=adapter_name,
+            identity_config=config.identity,
         )
 
         # Check for error report
