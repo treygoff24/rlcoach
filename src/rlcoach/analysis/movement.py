@@ -18,6 +18,7 @@ from typing import Any
 
 from ..field_constants import Vec3
 from ..parser.types import Frame, Header, PlayerFrame, Rotation
+from ..physics_constants import UU_S_TO_KPH, UU_TO_METERS
 
 # Movement analysis thresholds mirror Ballchasing definitions:
 # - slow speed: < 1400 uu/s
@@ -77,6 +78,8 @@ def analyze_movement(
         Dictionary matching schema movement definition:
         {
             "avg_speed_kph": float,
+            "distance_km": float,
+            "max_speed_kph": float,
             "time_slow_s": float,
             "time_boost_speed_s": float,
             "time_supersonic_s": float,
@@ -129,8 +132,10 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     frame_durations = _compute_frame_durations(frames)
 
     # Initialize counters
-    total_distance = 0.0
+    total_speed_distance = 0.0
+    total_distance_uu = 0.0
     total_time = 0.0
+    max_speed_uu_s = 0.0
 
     time_slow = 0.0
     time_boost_speed = 0.0
@@ -172,8 +177,14 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
         else:
             prev_dt = frame_dt
 
-        total_distance += speed * frame_dt
+        total_speed_distance += speed * frame_dt
         total_time += frame_dt
+        max_speed_uu_s = max(max_speed_uu_s, speed)
+
+        if prev_player_frame is not None:
+            total_distance_uu += _distance_between_positions(
+                player_frame.position, prev_player_frame.position
+            )
 
         # Speed bucket classification using current frame's state
         derivative_speed = 0.0
@@ -262,11 +273,16 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     # Calculate average speed in kph
     avg_speed_kph = 0.0
     if total_time > 0:
-        avg_speed_uu_s = total_distance / total_time
+        avg_speed_uu_s = total_speed_distance / total_time
         avg_speed_kph = _uu_s_to_kph(avg_speed_uu_s)
+
+    distance_km = _uu_to_km(total_distance_uu)
+    max_speed_kph = _uu_s_to_kph(max_speed_uu_s)
 
     return {
         "avg_speed_kph": round(avg_speed_kph, 2),
+        "distance_km": round(distance_km, 2),
+        "max_speed_kph": round(max_speed_kph, 2),
         "time_slow_s": round(time_slow, 2),
         "time_boost_speed_s": round(time_boost_speed, 2),
         "time_supersonic_s": round(time_supersonic, 2),
@@ -311,6 +327,11 @@ def _analyze_team_movement(frames: list[Frame], team: str) -> dict[str, Any]:
         team_metrics["time_high_air_s"] += player_metrics["time_high_air_s"]
         team_metrics["powerslide_duration_s"] += player_metrics["powerslide_duration_s"]
         team_metrics["aerial_time_s"] += player_metrics["aerial_time_s"]
+        team_metrics["distance_km"] += player_metrics["distance_km"]
+
+        team_metrics["max_speed_kph"] = max(
+            team_metrics["max_speed_kph"], player_metrics["max_speed_kph"]
+        )
 
         # Sum count metrics
         team_metrics["powerslide_count"] += player_metrics["powerslide_count"]
@@ -344,6 +365,14 @@ def _calculate_speed(velocity: Vec3) -> float:
 def _horizontal_speed(velocity: Vec3) -> float:
     """Ground-plane speed magnitude."""
     return math.hypot(velocity.x, velocity.y)
+
+
+def _distance_between_positions(current: Vec3, previous: Vec3) -> float:
+    """Compute Euclidean distance between two positions in UU."""
+    dx = current.x - previous.x
+    dy = current.y - previous.y
+    dz = current.z - previous.z
+    return math.sqrt(dx * dx + dy * dy + dz * dz)
 
 
 def _detect_powerslide(
@@ -430,14 +459,20 @@ def _estimate_derivative_speed(
 
 def _uu_s_to_kph(speed_uu_s: float) -> float:
     """Convert Unreal Units per second to kilometers per hour."""
-    # 1 UU = ~1.9 cm, 3600 seconds per hour, 1000 m per km
-    return speed_uu_s * 0.019 * 3.6
+    return speed_uu_s * UU_S_TO_KPH
+
+
+def _uu_to_km(distance_uu: float) -> float:
+    """Convert Unreal Units to kilometers."""
+    return distance_uu * UU_TO_METERS / 1000.0
 
 
 def _empty_movement() -> dict[str, Any]:
     """Return empty movement dict for degraded scenarios."""
     return {
         "avg_speed_kph": 0.0,
+        "distance_km": 0.0,
+        "max_speed_kph": 0.0,
         "time_slow_s": 0.0,
         "time_boost_speed_s": 0.0,
         "time_supersonic_s": 0.0,

@@ -1,8 +1,9 @@
 # tests/test_cli_benchmarks.py
-import pytest
 import json
-from pathlib import Path
 from unittest.mock import patch
+
+import pytest
+
 from rlcoach.cli import main
 from rlcoach.db.session import reset_engine
 

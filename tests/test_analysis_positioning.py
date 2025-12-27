@@ -1,16 +1,14 @@
 """Tests for positioning analysis."""
 
-import pytest
 import math
-from unittest.mock import Mock
 
 from rlcoach.analysis.positioning import (
-    analyze_positioning, 
+    _calculate_distance,
+    analyze_positioning,
     calculate_rotation_compliance,
-    _calculate_distance
 )
-from rlcoach.field_constants import Vec3, FieldConstants
-from rlcoach.parser.types import Header, Frame, PlayerFrame, BallFrame
+from rlcoach.field_constants import Vec3
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def create_test_frame(timestamp: float, ball_pos: Vec3, players: list[PlayerFrame]) -> Frame:

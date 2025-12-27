@@ -1,11 +1,13 @@
 # tests/db/test_writer_full.py
-import pytest
-from datetime import datetime, date, timezone
+from datetime import date
 from pathlib import Path
-from rlcoach.db.writer import write_report
-from rlcoach.db.session import init_db, create_session, reset_engine
-from rlcoach.db.models import Player, Replay, PlayerGameStats
+
+import pytest
+
 from rlcoach.config import IdentityConfig, PathsConfig, PreferencesConfig, RLCoachConfig
+from rlcoach.db.models import Player, PlayerGameStats, Replay
+from rlcoach.db.session import create_session, init_db, reset_engine
+from rlcoach.db.writer import write_report
 
 
 @pytest.fixture(autouse=True)

@@ -1,13 +1,17 @@
 # tests/test_config.py
-import pytest
 from datetime import datetime, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
+
+import pytest
 
 from rlcoach.config import (
-    RLCoachConfig, load_config, ConfigError,
-    IdentityConfig, PathsConfig, PreferencesConfig,
+    ConfigError,
+    IdentityConfig,
+    PathsConfig,
+    PreferencesConfig,
+    RLCoachConfig,
     compute_play_date,
+    load_config,
 )
 
 

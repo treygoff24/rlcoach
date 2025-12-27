@@ -13,7 +13,6 @@ from rlcoach.errors import (
     FileTooSmallError,
     InvalidReplayFormatError,
     ReplayFileNotFoundError,
-    ReplayIOError,
 )
 from rlcoach.ingest import (
     MAX_REPLAY_SIZE,

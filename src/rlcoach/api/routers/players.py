@@ -41,7 +41,7 @@ async def list_players(
     """
     session = create_session()
     try:
-        query = session.query(Player).filter(not Player.is_me)
+        query = session.query(Player).filter(Player.is_me.is_(False))
 
         if tagged is not None:
             query = query.filter(Player.is_tagged_teammate == tagged)

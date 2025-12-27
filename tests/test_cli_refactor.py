@@ -1,5 +1,6 @@
 # tests/test_cli_refactor.py
 import pytest
+
 from rlcoach.cli import main
 
 

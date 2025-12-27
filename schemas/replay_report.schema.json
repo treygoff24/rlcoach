@@ -388,9 +388,11 @@
 
     "movement": {
       "type": "object",
-      "required": ["avg_speed_kph","time_slow_s","time_boost_speed_s","time_supersonic_s","time_ground_s","time_low_air_s","time_high_air_s","powerslide_count","powerslide_duration_s","aerial_count","aerial_time_s"],
+      "required": ["avg_speed_kph","distance_km","max_speed_kph","time_slow_s","time_boost_speed_s","time_supersonic_s","time_ground_s","time_low_air_s","time_high_air_s","powerslide_count","powerslide_duration_s","aerial_count","aerial_time_s"],
       "properties": {
         "avg_speed_kph": { "type": "number" },
+        "distance_km": { "type": "number" },
+        "max_speed_kph": { "type": "number" },
         "time_slow_s": { "type": "number" },
         "time_boost_speed_s": { "type": "number" },
         "time_supersonic_s": { "type": "number" },

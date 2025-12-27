@@ -1,6 +1,5 @@
 """End-to-end tests for report generation and CLI."""
 
-import os
 from pathlib import Path
 
 from rlcoach.cli import main as cli_main

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from rlcoach.analysis.boost import analyze_boost
-from rlcoach.events import BoostPickupEvent, detect_boost_pickups, _merge_pickup_events
-from rlcoach.field_constants import Vec3, FIELD
+from rlcoach.events import BoostPickupEvent, _merge_pickup_events, detect_boost_pickups
+from rlcoach.field_constants import FIELD, Vec3
 from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 

@@ -1,7 +1,6 @@
 # tests/test_cli_config.py
-import pytest
-from pathlib import Path
 from unittest.mock import patch
+
 from rlcoach.cli import main
 
 

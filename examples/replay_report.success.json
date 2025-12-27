@@ -35,12 +35,20 @@
     "blue": {
       "name": "BLUE",
       "score": 3,
-      "players": ["p1", "p2", "p3"]
+      "players": [
+        "p1",
+        "p2",
+        "p3"
+      ]
     },
     "orange": {
       "name": "ORANGE",
       "score": 2,
-      "players": ["p4", "p5", "p6"]
+      "players": [
+        "p4",
+        "p5",
+        "p6"
+      ]
     }
   },
   "players": [
@@ -203,6 +211,8 @@
         },
         "movement": {
           "avg_speed_kph": 117.4,
+          "distance_km": 12.51,
+          "max_speed_kph": 199.58,
           "time_slow_s": 498.1,
           "time_boost_speed_s": 402.7,
           "time_supersonic_s": 95.3,
@@ -289,6 +299,8 @@
         },
         "movement": {
           "avg_speed_kph": 115.8,
+          "distance_km": 12.34,
+          "max_speed_kph": 196.86,
           "time_slow_s": 512.4,
           "time_boost_speed_s": 387.2,
           "time_supersonic_s": 88.7,
@@ -378,6 +390,8 @@
         },
         "movement": {
           "avg_speed_kph": 118.9,
+          "distance_km": 12.67,
+          "max_speed_kph": 202.13,
           "time_slow_s": 165.4,
           "time_boost_speed_s": 138.2,
           "time_supersonic_s": 31.1,
@@ -446,8 +460,18 @@
               "ymax": 5120
             },
             "values": [
-              [0.00, 0.01, 0.02, 0.01],
-              [0.01, 0.05, 0.08, 0.03]
+              [
+                0.0,
+                0.01,
+                0.02,
+                0.01
+              ],
+              [
+                0.01,
+                0.05,
+                0.08,
+                0.03
+              ]
             ]
           },
           "touch_density_grid": {
@@ -460,8 +484,18 @@
               "ymax": 5120
             },
             "values": [
-              [0.00, 0.02, 0.04, 0.01],
-              [0.00, 0.01, 0.03, 0.02]
+              [
+                0.0,
+                0.02,
+                0.04,
+                0.01
+              ],
+              [
+                0.0,
+                0.01,
+                0.03,
+                0.02
+              ]
             ]
           },
           "boost_pickup_grid": {
@@ -474,14 +508,26 @@
               "ymax": 5120
             },
             "values": [
-              [0.00, 0.01, 0.02, 0.00],
-              [0.00, 0.00, 0.01, 0.01]
+              [
+                0.0,
+                0.01,
+                0.02,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.01,
+                0.01
+              ]
             ]
           }
         },
         "rotation_compliance": {
           "score_0_to_100": 78.5,
-          "flags": ["double_commit@312.4s"]
+          "flags": [
+            "double_commit@312.4s"
+          ]
         },
         "insights": [
           {

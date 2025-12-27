@@ -1,11 +1,13 @@
 # tests/db/test_aggregates.py
 """Tests for daily stats aggregation."""
 
-import pytest
 from datetime import date, datetime, timezone
+
+import pytest
+
 from rlcoach.db.aggregates import update_daily_stats
-from rlcoach.db.session import init_db, create_session, reset_engine
-from rlcoach.db.models import Replay, Player, PlayerGameStats, DailyStats
+from rlcoach.db.models import DailyStats, Player, PlayerGameStats, Replay
+from rlcoach.db.session import create_session, init_db, reset_engine
 
 
 @pytest.fixture(autouse=True)

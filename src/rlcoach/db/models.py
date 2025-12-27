@@ -115,6 +115,8 @@ class PlayerGameStats(Base):
 
     # Movement
     avg_speed_kph = Column(Float)
+    distance_km = Column(Float)
+    max_speed_kph = Column(Float)
     time_supersonic_s = Column(Float)
     time_slow_s = Column(Float)
     time_ground_s = Column(Float)

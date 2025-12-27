@@ -17,7 +17,6 @@ from rlcoach.utils.parity import (
     summarize_deltas,
 )
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RLCOACH_JSON = REPO_ROOT / "out" / "0925.json"
 BALLCHASING_DIR = REPO_ROOT / "Replay_files" / "ballchasing_output"

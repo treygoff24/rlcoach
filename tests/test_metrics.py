@@ -1,11 +1,10 @@
 # tests/test_metrics.py
-import pytest
 from rlcoach.metrics import (
     METRIC_CATALOG,
+    MetricDirection,
     get_metric,
     get_metrics_by_category,
     is_valid_metric,
-    MetricDirection,
 )
 
 

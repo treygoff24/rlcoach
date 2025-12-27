@@ -2,10 +2,11 @@
 """Tests for teammate tendency analysis."""
 
 import pytest
+
 from rlcoach.analysis.tendencies import (
-    compute_tendencies,
-    compute_adaptation_score,
     TendencyProfile,
+    compute_adaptation_score,
+    compute_tendencies,
 )
 
 

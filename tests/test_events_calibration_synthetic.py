@@ -5,13 +5,15 @@ output and asserts that normalization ingests them and detectors fire
 for kickoff and touch events.
 """
 
-from rlcoach.normalize import build_timeline, measure_frame_rate
 from rlcoach.events import (
-    detect_kickoffs,
-    detect_touches,
-    detect_challenge_events,
     build_timeline as build_events_timeline,
 )
+from rlcoach.events import (
+    detect_challenge_events,
+    detect_kickoffs,
+    detect_touches,
+)
+from rlcoach.normalize import build_timeline, measure_frame_rate
 from rlcoach.parser.types import Header, PlayerInfo
 
 

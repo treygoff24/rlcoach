@@ -2,11 +2,11 @@
 """Tests for weakness detection algorithm."""
 
 import pytest
+
 from rlcoach.analysis.weaknesses import (
+    Severity,
     compute_z_score,
     detect_weaknesses,
-    WeaknessResult,
-    Severity,
 )
 
 

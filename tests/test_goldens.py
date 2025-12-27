@@ -11,17 +11,17 @@ from typing import Any
 
 from rlcoach.analysis import aggregate_analysis
 from rlcoach.events import (
-    detect_goals,
-    detect_demos,
-    detect_kickoffs,
-    detect_boost_pickups,
-    detect_touches,
-    detect_challenge_events,
     build_timeline,
+    detect_boost_pickups,
+    detect_challenge_events,
+    detect_demos,
+    detect_goals,
+    detect_kickoffs,
+    detect_touches,
 )
 from rlcoach.field_constants import Vec3
 from rlcoach.normalize import measure_frame_rate
-from rlcoach.parser.types import Header, PlayerInfo, Frame, PlayerFrame, BallFrame
+from rlcoach.parser.types import BallFrame, Frame, Header, PlayerFrame, PlayerInfo
 from rlcoach.schema import validate_report
 from rlcoach.utils.identity import build_player_identities
 

@@ -1,9 +1,9 @@
 """Tests for possession and passing analysis."""
 
-from rlcoach.analysis.passing import analyze_passing, POSSESSION_TAU_S
+from rlcoach.analysis.passing import analyze_passing
 from rlcoach.events import TouchEvent
 from rlcoach.field_constants import Vec3
-from rlcoach.parser.types import Frame, PlayerFrame, BallFrame
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def make_frame(t: float, ball_pos: Vec3, ball_vel: Vec3, players: list[PlayerFrame]) -> Frame:

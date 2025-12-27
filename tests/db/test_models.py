@@ -1,11 +1,10 @@
 # tests/db/test_models.py
-import pytest
-from datetime import datetime, timezone, date
-from pathlib import Path
+from datetime import date, datetime, timezone
+
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session
 
-from rlcoach.db.models import Base, Replay, Player, PlayerGameStats, DailyStats, Benchmark
+from rlcoach.db.models import Base, Player, Replay
 
 
 def test_create_tables(tmp_path):

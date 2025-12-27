@@ -1,16 +1,22 @@
 # tests/api/test_analysis.py
 """Tests for analysis API endpoints."""
 
-import pytest
 from datetime import date, datetime, timezone
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a mock config for testing."""
-    from rlcoach.config import RLCoachConfig, IdentityConfig, PathsConfig, PreferencesConfig
+    from rlcoach.config import (
+        IdentityConfig,
+        PathsConfig,
+        PreferencesConfig,
+        RLCoachConfig,
+    )
 
     config = RLCoachConfig(
         identity=IdentityConfig(
@@ -34,8 +40,8 @@ def mock_config(tmp_path):
 @pytest.fixture
 def db_with_analysis_data(mock_config):
     """Initialize database with analysis test data."""
-    from rlcoach.db.session import init_db, create_session, reset_engine
-    from rlcoach.db.models import Player, Replay, PlayerGameStats, Benchmark
+    from rlcoach.db.models import Benchmark, Player, PlayerGameStats, Replay
+    from rlcoach.db.session import create_session, init_db, reset_engine
 
     init_db(mock_config.db_path)
     session = create_session()

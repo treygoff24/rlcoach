@@ -1,10 +1,10 @@
 # tests/db/test_writer_players.py
 import pytest
-from datetime import datetime, timezone
-from rlcoach.db.writer import upsert_players
-from rlcoach.db.session import init_db, create_session, reset_engine
-from rlcoach.db.models import Player
+
 from rlcoach.config import IdentityConfig
+from rlcoach.db.models import Player
+from rlcoach.db.session import create_session, init_db, reset_engine
+from rlcoach.db.writer import upsert_players
 
 
 @pytest.fixture(autouse=True)

@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from rlcoach.field_constants import Vec3
-from rlcoach.parser.types import Frame, PlayerFrame, BallFrame, Rotation
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 from rlcoach.physics_constants import SUPERSONIC_SPEED_SQUARED
 
 

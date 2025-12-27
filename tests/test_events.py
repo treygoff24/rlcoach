@@ -1,17 +1,21 @@
 """Tests for event detection and timeline aggregation."""
 
-import pytest
-from unittest.mock import Mock
 
 from rlcoach.events import (
-    detect_goals, detect_demos, detect_kickoffs, detect_boost_pickups,
-    detect_touches, detect_challenge_events, build_timeline,
-    GoalEvent, DemoEvent, KickoffEvent, BoostPickupEvent, TouchEvent,
-    ChallengeEvent, TimelineEvent,
-    GOAL_LINE_THRESHOLD, TOUCH_PROXIMITY_THRESHOLD
+    GOAL_LINE_THRESHOLD,
+    DemoEvent,
+    GoalEvent,
+    TouchEvent,
+    build_timeline,
+    detect_boost_pickups,
+    detect_challenge_events,
+    detect_demos,
+    detect_goals,
+    detect_kickoffs,
+    detect_touches,
 )
-from rlcoach.field_constants import Vec3, FIELD
-from rlcoach.parser.types import Header, PlayerInfo, Frame, PlayerFrame, BallFrame
+from rlcoach.field_constants import FIELD, Vec3
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def create_test_frame(timestamp: float, ball_pos: Vec3, ball_vel: Vec3, players: list[PlayerFrame]) -> Frame:

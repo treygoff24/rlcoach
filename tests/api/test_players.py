@@ -1,16 +1,22 @@
 # tests/api/test_players.py
 """Tests for players API endpoints."""
 
-import pytest
 from datetime import date, datetime, timezone
 from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a mock config for testing."""
-    from rlcoach.config import RLCoachConfig, IdentityConfig, PathsConfig, PreferencesConfig
+    from rlcoach.config import (
+        IdentityConfig,
+        PathsConfig,
+        PreferencesConfig,
+        RLCoachConfig,
+    )
 
     config = RLCoachConfig(
         identity=IdentityConfig(
@@ -34,8 +40,8 @@ def mock_config(tmp_path):
 @pytest.fixture
 def db_with_players(mock_config):
     """Initialize database with player test data."""
-    from rlcoach.db.session import init_db, create_session, reset_engine
-    from rlcoach.db.models import Player, Replay, PlayerGameStats
+    from rlcoach.db.models import Player, PlayerGameStats, Replay
+    from rlcoach.db.session import create_session, init_db, reset_engine
 
     init_db(mock_config.db_path)
     session = create_session()

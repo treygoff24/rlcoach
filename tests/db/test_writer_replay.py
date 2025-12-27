@@ -1,11 +1,13 @@
 # tests/db/test_writer_replay.py
-import pytest
-from datetime import datetime, date, timezone
+from datetime import date
 from pathlib import Path
-from rlcoach.db.writer import insert_replay, ReplayExistsError
-from rlcoach.db.session import init_db, create_session, reset_engine
-from rlcoach.db.models import Replay, Player
+
+import pytest
+
 from rlcoach.config import IdentityConfig, PathsConfig, PreferencesConfig, RLCoachConfig
+from rlcoach.db.models import Player, Replay
+from rlcoach.db.session import create_session, init_db, reset_engine
+from rlcoach.db.writer import ReplayExistsError, insert_replay
 
 
 @pytest.fixture(autouse=True)

@@ -1,7 +1,7 @@
 """Tests for the Markdown report composer."""
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 from rlcoach import report_markdown
 

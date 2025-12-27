@@ -249,6 +249,26 @@ _register(
 )
 _register(
     MetricDefinition(
+        key="distance_km",
+        display_name="Distance",
+        unit="km",
+        direction=MetricDirection.CONTEXT_DEPENDENT,
+        category="movement",
+        description="Total distance traveled",
+    )
+)
+_register(
+    MetricDefinition(
+        key="max_speed_kph",
+        display_name="Max Speed",
+        unit="km/h",
+        direction=MetricDirection.HIGHER_BETTER,
+        category="movement",
+        description="Maximum speed reached",
+    )
+)
+_register(
+    MetricDefinition(
         key="time_supersonic_s",
         display_name="Supersonic Time",
         unit="seconds",

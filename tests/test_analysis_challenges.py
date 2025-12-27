@@ -3,7 +3,7 @@
 from rlcoach.analysis.challenges import analyze_challenges
 from rlcoach.events import TouchEvent
 from rlcoach.field_constants import Vec3
-from rlcoach.parser.types import Frame, PlayerFrame, BallFrame
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def make_frame(t: float, ball_pos: Vec3, players: list[PlayerFrame]) -> Frame:

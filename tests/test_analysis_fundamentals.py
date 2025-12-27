@@ -1,12 +1,11 @@
 """Tests for fundamentals analysis."""
 
-import pytest
 from unittest.mock import Mock
 
 from rlcoach.analysis.fundamentals import analyze_fundamentals
-from rlcoach.events import GoalEvent, DemoEvent, TouchEvent
+from rlcoach.events import DemoEvent, GoalEvent, TouchEvent
 from rlcoach.field_constants import Vec3
-from rlcoach.parser.types import Header, Frame, PlayerFrame, BallFrame
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def create_test_frame(timestamp: float, players: list[PlayerFrame]) -> Frame:

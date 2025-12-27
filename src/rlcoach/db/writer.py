@@ -254,6 +254,8 @@ def insert_player_stats(report: dict[str, Any], config: RLCoachConfig) -> None:
                 big_pads=boost.get("big_pads"),
                 # Movement
                 avg_speed_kph=movement.get("avg_speed_kph"),
+                distance_km=movement.get("distance_km"),
+                max_speed_kph=movement.get("max_speed_kph"),
                 time_supersonic_s=movement.get("time_supersonic_s"),
                 time_slow_s=movement.get("time_slow_s"),
                 time_ground_s=movement.get("time_ground_s"),

@@ -1,7 +1,6 @@
 # tests/test_identity.py
-import pytest
-from rlcoach.identity import PlayerIdentityResolver
 from rlcoach.config import IdentityConfig
+from rlcoach.identity import PlayerIdentityResolver
 
 
 def test_resolve_by_platform_id():

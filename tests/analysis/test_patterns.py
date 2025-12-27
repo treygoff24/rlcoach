@@ -2,10 +2,10 @@
 """Tests for win/loss pattern analysis."""
 
 import pytest
+
 from rlcoach.analysis.patterns import (
-    compute_pattern_analysis,
     compute_cohens_d,
-    PatternResult,
+    compute_pattern_analysis,
 )
 
 

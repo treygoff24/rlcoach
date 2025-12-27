@@ -1,22 +1,20 @@
 """Tests for new analysis modules: mechanics, recovery, xg, defense, ball_prediction."""
 
-import pytest
-from unittest.mock import Mock
 
+from rlcoach.analysis.ball_prediction import analyze_ball_prediction
+from rlcoach.analysis.defense import analyze_defense
+from rlcoach.analysis.mechanics import analyze_mechanics
+from rlcoach.analysis.recovery import analyze_recoveries
+from rlcoach.analysis.xg import analyze_shots_xg
 from rlcoach.field_constants import Vec3
 from rlcoach.parser.types import (
-    Frame,
-    PlayerFrame,
     BallFrame,
-    Rotation,
+    Frame,
     Header,
+    PlayerFrame,
     PlayerInfo,
+    Rotation,
 )
-from rlcoach.analysis.mechanics import analyze_mechanics, MechanicType
-from rlcoach.analysis.recovery import analyze_recoveries, RecoveryQuality
-from rlcoach.analysis.xg import analyze_shots_xg, calculate_xg, ShotType
-from rlcoach.analysis.defense import analyze_defense, DefensiveRole
-from rlcoach.analysis.ball_prediction import analyze_ball_prediction, ReadQuality
 
 
 def create_test_frame(

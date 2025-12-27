@@ -1,17 +1,16 @@
 """Tests for the normalization layer."""
 
-import pytest
 from unittest.mock import Mock
 
+from rlcoach.field_constants import FIELD, Vec3
 from rlcoach.normalize import (
-    measure_frame_rate,
-    to_field_coords,
-    normalize_players,
-    build_timeline,
     GOAL_POST_BUFFER_S,
+    build_timeline,
+    measure_frame_rate,
+    normalize_players,
+    to_field_coords,
 )
-from rlcoach.field_constants import Vec3, FIELD
-from rlcoach.parser.types import Header, PlayerInfo, NetworkFrames, Frame, GoalHeader
+from rlcoach.parser.types import GoalHeader, Header, PlayerInfo
 
 
 class TestFrameRateMeasurement:

@@ -252,6 +252,8 @@ class _MarkdownComposer:
                 "movement",
                 {
                     "avg_speed_kph": ("Average Speed (kph)", "avg"),
+                    "distance_km": ("Distance (km)", "count"),
+                    "max_speed_kph": ("Max Speed (kph)", "avg"),
                     "time_slow_s": ("Slow Time (s)", "seconds"),
                     "time_boost_speed_s": ("Boost Speed Time (s)", "seconds"),
                     "time_supersonic_s": ("Supersonic Time (s)", "seconds"),
@@ -798,6 +800,8 @@ class _MarkdownComposer:
         if key.endswith("_pct") or key.endswith("percentage"):
             return "-"
         if key.startswith("avg_") or key.startswith("risk"):
+            return "-"
+        if key.startswith("max_"):
             return "-"
         if value is None or value == "":
             return "-"

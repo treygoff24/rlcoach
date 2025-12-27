@@ -9,7 +9,6 @@ import pytest
 
 from rlcoach.report import generate_report
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPLAY_PATH = REPO_ROOT / "Replay_files" / "0925.replay"
 BALLCHASING_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "boost_parity" / "0925_ballchasing_players.json"

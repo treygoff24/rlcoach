@@ -1,10 +1,11 @@
 # tests/test_benchmarks.py
-import pytest
 import json
-from pathlib import Path
-from rlcoach.benchmarks import import_benchmarks, validate_benchmark_data, BenchmarkValidationError
-from rlcoach.db.session import init_db, create_session, reset_engine
+
+import pytest
+
+from rlcoach.benchmarks import import_benchmarks, validate_benchmark_data
 from rlcoach.db.models import Benchmark
+from rlcoach.db.session import create_session, init_db, reset_engine
 
 
 @pytest.fixture(autouse=True)
@@ -15,7 +16,6 @@ def reset_db():
 
 def test_validate_uses_metric_catalog():
     """Validation should use the metric catalog, not a hardcoded list."""
-    from rlcoach.metrics import METRIC_CATALOG
 
     data = {
         "metadata": {"source": "test"},

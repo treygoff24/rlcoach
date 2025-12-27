@@ -1,17 +1,16 @@
 # tests/test_watcher.py
 """Tests for watch folder service and file stability check."""
 
-import pytest
-import time
 import threading
+import time
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+
+import pytest
 
 from rlcoach.watcher import (
-    wait_for_stable_file,
     FileStabilityTimeout,
     ReplayWatcher,
-    WatcherCallback,
+    wait_for_stable_file,
 )
 
 

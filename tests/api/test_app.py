@@ -1,15 +1,21 @@
 # tests/api/test_app.py
 """Tests for FastAPI app setup."""
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a mock config for testing."""
-    from rlcoach.config import RLCoachConfig, IdentityConfig, PathsConfig, PreferencesConfig
+    from rlcoach.config import (
+        IdentityConfig,
+        PathsConfig,
+        PreferencesConfig,
+        RLCoachConfig,
+    )
 
     config = RLCoachConfig(
         identity=IdentityConfig(

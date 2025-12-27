@@ -1,27 +1,26 @@
 # tests/test_ingest_pipeline.py
 """Tests for the integrated ingestion pipeline."""
 
-import pytest
-import json
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
+import pytest
+
+from rlcoach.db.writer import ReplayExistsError
 from rlcoach.pipeline import (
-    process_replay_file,
     IngestionResult,
     IngestionStatus,
+    process_replay_file,
 )
-from rlcoach.db.writer import ReplayExistsError
 
 
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a mock config for testing."""
     from rlcoach.config import (
-        RLCoachConfig,
         IdentityConfig,
         PathsConfig,
         PreferencesConfig,
+        RLCoachConfig,
     )
 
     return RLCoachConfig(
@@ -143,10 +142,10 @@ class TestProcessReplayFile:
     def test_process_replay_excludes_when_me_is_excluded(self, tmp_path):
         """Should return EXCLUDED status when 'me' matches an excluded name."""
         from rlcoach.config import (
-            RLCoachConfig,
             IdentityConfig,
             PathsConfig,
             PreferencesConfig,
+            RLCoachConfig,
         )
 
         # Config with excluded account
@@ -191,10 +190,10 @@ class TestProcessReplayFile:
     def test_process_replay_not_excluded_when_only_opponent_matches(self, tmp_path):
         """Should NOT exclude when only an opponent matches excluded name."""
         from rlcoach.config import (
-            RLCoachConfig,
             IdentityConfig,
             PathsConfig,
             PreferencesConfig,
+            RLCoachConfig,
         )
 
         # Config with excluded account

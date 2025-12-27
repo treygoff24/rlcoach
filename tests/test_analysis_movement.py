@@ -1,12 +1,17 @@
 """Tests for movement analysis."""
 
-import pytest
 import math
-from unittest.mock import Mock
 
-from rlcoach.analysis.movement import analyze_movement, _calculate_speed, _uu_s_to_kph
+import pytest
+
+from rlcoach.analysis.movement import (
+    _calculate_speed,
+    _uu_s_to_kph,
+    _uu_to_km,
+    analyze_movement,
+)
 from rlcoach.field_constants import Vec3
-from rlcoach.parser.types import Header, Frame, PlayerFrame, BallFrame
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def create_test_frame(timestamp: float, players: list[PlayerFrame]) -> Frame:
@@ -58,6 +63,8 @@ class TestMovementAnalysis:
         result = analyze_movement(frames, events, player_id="player1")
         
         assert result["avg_speed_kph"] == 0.0
+        assert result["distance_km"] == 0.0
+        assert result["max_speed_kph"] == 0.0
         assert result["time_slow_s"] == 0.0
         assert result["time_boost_speed_s"] == 0.0
         assert result["time_supersonic_s"] == 0.0
@@ -97,6 +104,44 @@ class TestMovementAnalysis:
         avg_speed_uu_s = (200.0 + 1800.0 + 2500.0) / 3
         expected_avg_kph = _uu_s_to_kph(avg_speed_uu_s)
         assert abs(result["avg_speed_kph"] - expected_avg_kph) < 0.01
+
+    def test_distance_accumulation(self):
+        """Distance should accumulate from frame-to-frame position deltas."""
+        players = [
+            create_test_player("player1", 0, position=Vec3(0.0, 0.0, 0.0)),
+            create_test_player("player1", 0, position=Vec3(1000.0, 0.0, 0.0)),
+            create_test_player("player1", 0, position=Vec3(2000.0, 0.0, 0.0)),
+        ]
+
+        frames = [
+            create_test_frame(0.0, [players[0]]),
+            create_test_frame(1.0, [players[1]]),
+            create_test_frame(2.0, [players[2]]),
+        ]
+
+        result = analyze_movement(frames, {}, player_id="player1")
+
+        expected_distance_km = round(_uu_to_km(2000.0), 2)
+        assert result["distance_km"] == pytest.approx(expected_distance_km, rel=1e-3)
+
+    def test_max_speed_tracking(self):
+        """Max speed should reflect the highest observed speed."""
+        players = [
+            create_test_player("player1", 0, velocity=Vec3(500.0, 0.0, 0.0)),
+            create_test_player("player1", 0, velocity=Vec3(1500.0, 0.0, 0.0)),
+            create_test_player("player1", 0, velocity=Vec3(2500.0, 0.0, 0.0)),
+        ]
+
+        frames = [
+            create_test_frame(0.0, [players[0]]),
+            create_test_frame(1.0, [players[1]]),
+            create_test_frame(2.0, [players[2]]),
+        ]
+
+        result = analyze_movement(frames, {}, player_id="player1")
+
+        expected_max_kph = round(_uu_s_to_kph(2500.0), 2)
+        assert result["max_speed_kph"] == pytest.approx(expected_max_kph, rel=1e-3)
     
     def test_ground_vs_air_classification(self):
         """Test ground vs air time classification."""
@@ -238,6 +283,8 @@ class TestMovementAnalysis:
         
         # Should return zeros since player1 not found
         assert result["avg_speed_kph"] == 0.0
+        assert result["distance_km"] == 0.0
+        assert result["max_speed_kph"] == 0.0
         assert result["time_ground_s"] == 0.0
         assert result["powerslide_count"] == 0
         assert result["aerial_count"] == 0

@@ -1,8 +1,8 @@
 # tests/db/test_session.py
 import pytest
-from pathlib import Path
 from sqlalchemy import inspect
-from rlcoach.db.session import init_db, create_session, reset_engine
+
+from rlcoach.db.session import create_session, init_db, reset_engine
 
 
 @pytest.fixture(autouse=True)

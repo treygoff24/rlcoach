@@ -166,6 +166,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -252,6 +254,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -399,6 +403,8 @@ class TestSchemaValidation:
                             },
                             "movement": {
                                 "avg_speed_kph": 0,
+                                "distance_km": 0,
+                                "max_speed_kph": 0,
                                 "time_slow_s": 0,
                                 "time_boost_speed_s": 0,
                                 "time_supersonic_s": 0,
@@ -485,6 +491,8 @@ class TestSchemaValidation:
                             },
                             "movement": {
                                 "avg_speed_kph": 0,
+                                "distance_km": 0,
+                                "max_speed_kph": 0,
                                 "time_slow_s": 0,
                                 "time_boost_speed_s": 0,
                                 "time_supersonic_s": 0,
@@ -636,6 +644,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -722,6 +732,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -901,6 +913,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -987,6 +1001,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1125,6 +1141,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1211,6 +1229,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1362,6 +1382,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1448,6 +1470,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1603,6 +1627,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1689,6 +1715,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1853,6 +1881,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,
@@ -1939,6 +1969,8 @@ class TestSchemaValidation:
                         },
                         "movement": {
                             "avg_speed_kph": 0,
+                            "distance_km": 0,
+                            "max_speed_kph": 0,
                             "time_slow_s": 0,
                             "time_boost_speed_s": 0,
                             "time_supersonic_s": 0,

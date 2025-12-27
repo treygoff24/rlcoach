@@ -1,12 +1,11 @@
 """Tests for boost analysis."""
 
-import pytest
 from unittest.mock import Mock
 
 from rlcoach.analysis.boost import analyze_boost
 from rlcoach.events import BoostPickupEvent
-from rlcoach.field_constants import Vec3, FIELD
-from rlcoach.parser.types import Header, Frame, PlayerFrame, BallFrame
+from rlcoach.field_constants import Vec3
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def create_test_frame(timestamp: float, players: list[PlayerFrame]) -> Frame:

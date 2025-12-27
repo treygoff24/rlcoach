@@ -1,9 +1,9 @@
 """Tests for kickoff analysis."""
 
-from rlcoach.analysis.kickoffs import analyze_kickoffs, APPROACH_KEYS
+from rlcoach.analysis.kickoffs import APPROACH_KEYS, analyze_kickoffs
 from rlcoach.events import KickoffEvent
 from rlcoach.field_constants import Vec3
-from rlcoach.parser.types import Frame, PlayerFrame, BallFrame
+from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
 def make_frame(t: float, players: list[PlayerFrame]) -> Frame:

@@ -97,6 +97,8 @@
 | Metric               | Blue | Blue Rate | Orange | Orange Rate | Delta Blue-Orange |
 | -------------------- | ---- | --------- | ------ | ----------- | ----------------- |
 | Average Speed (kph)  | 0    | -         | 0      | -           | 0                 |
+| Distance (km)        | 0.01 | 0.30      | 0      | 0           | 0.01              |
+| Max Speed (kph)      | 0    | -         | 0      | -           | 0                 |
 | Slow Time (s)        | 1.20 | 36        | 1.20   | 36          | 0                 |
 | Boost Speed Time (s) | 0    | 0         | 0      | 0           | 0                 |
 | Supersonic Time (s)  | 0    | 0         | 0      | 0           | 0                 |
@@ -546,6 +548,8 @@
           "aerial_count": 0,
           "aerial_time_s": 0.0,
           "avg_speed_kph": 0.0,
+          "distance_km": 0.01,
+          "max_speed_kph": 0.0,
           "powerslide_count": 0,
           "powerslide_duration_s": 0.0,
           "time_boost_speed_s": 0.0,
@@ -804,6 +808,8 @@
           "aerial_count": 0,
           "aerial_time_s": 0.0,
           "avg_speed_kph": 0.0,
+          "distance_km": 0.0,
+          "max_speed_kph": 0.0,
           "powerslide_count": 0,
           "powerslide_duration_s": 0.0,
           "time_boost_speed_s": 0.0,
@@ -934,6 +940,8 @@
           "aerial_count": 0,
           "aerial_time_s": 0.0,
           "avg_speed_kph": 0.0,
+          "distance_km": 0.01,
+          "max_speed_kph": 0.0,
           "powerslide_count": 0,
           "powerslide_duration_s": 0.0,
           "time_boost_speed_s": 0.0,
@@ -1039,6 +1047,8 @@
           "aerial_count": 0,
           "aerial_time_s": 0.0,
           "avg_speed_kph": 0.0,
+          "distance_km": 0.0,
+          "max_speed_kph": 0.0,
           "powerslide_count": 0,
           "powerslide_duration_s": 0.0,
           "time_boost_speed_s": 0.0,
