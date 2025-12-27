@@ -201,33 +201,6 @@ def test_overfill_and_waste_metrics():
 def test_merge_window_keeps_same_pad():
     """Merge window should consolidate multi-frame refills into a single pad event."""
     pad = FIELD.BOOST_PADS[0]
-    frames = [
-        create_frame(
-            0.0,
-            [
-                create_player("p1", 0, Vec3(pad.position.x, pad.position.y, 17.0), 0),
-            ],
-        ),
-        create_frame(
-            0.1,
-            [
-                create_player("p1", 0, Vec3(pad.position.x, pad.position.y, 17.0), 40),
-            ],
-        ),
-        create_frame(
-            0.3,
-            [
-                create_player("p1", 0, Vec3(pad.position.x, pad.position.y, 17.0), 80),
-            ],
-        ),
-        create_frame(
-            0.5,
-            [
-                create_player("p1", 0, Vec3(pad.position.x, pad.position.y, 17.0), 100),
-            ],
-        ),
-    ]
-
     # Use the merge helper directly to ensure duplicates on the same pad collapse.
     pickups = [
         BoostPickupEvent(t=0.1, player_id="p1", pad_type="BIG", stolen=False, pad_id=pad.pad_id, location=pad.position, frame=1, boost_before=0.0, boost_after=40.0, boost_gain=40.0),

@@ -193,8 +193,6 @@ class TestXGAnalysis:
         """Shots close to goal should have higher xG."""
         # Ball very close to orange goal (y = -5120)
         close_pos = Vec3(0.0, -4500.0, 100.0)
-        # Ball far from orange goal
-        far_pos = Vec3(0.0, 0.0, 100.0)
 
         # xG should be higher for close shot
         # Note: calculate_xg takes position, velocity, shooter_team, frames

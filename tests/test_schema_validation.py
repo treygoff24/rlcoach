@@ -811,12 +811,6 @@ class TestSchemaValidation:
 
     def test_invalid_nested_structures(self):
         """Test validation fails for invalid nested structures like malformed vec3."""
-        invalid_report = {
-            "error": "unreadable_replay_file",
-            "details": "Test error",
-            # This should be valid, but let's also test a success report with bad nested data
-        }
-
         # Test with malformed vec3 in a success report
         malformed_success = {
             "replay_id": "test123",

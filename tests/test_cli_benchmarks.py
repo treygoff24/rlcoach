@@ -15,7 +15,6 @@ def reset_db():
 
 
 def test_benchmarks_import_success(tmp_path, capsys):
-    db_path = tmp_path / "data" / "rlcoach.db"
     config_path = tmp_path / "config.toml"
     config_path.write_text(f'''
 [identity]
@@ -44,7 +43,6 @@ reports_dir = "{tmp_path / "reports"}"
 
 
 def test_benchmarks_list_shows_data(tmp_path, capsys):
-    db_path = tmp_path / "data" / "rlcoach.db"
     config_path = tmp_path / "config.toml"
     config_path.write_text(f'''
 [identity]

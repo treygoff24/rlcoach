@@ -5,6 +5,7 @@ for common failure modes. They complement, not replace, existing tests.
 """
 
 import jsonschema
+import pytest
 
 from rlcoach.schema import validate_report
 
@@ -25,7 +26,7 @@ def test_enum_error_has_validator_and_path():
         path = list(getattr(cause, "path", []))
         assert path and path[-1] == "error"
     else:
-        assert False, "Expected ValidationError was not raised"
+        pytest.fail("Expected ValidationError was not raised")
 
 
 def test_type_error_has_validator():
@@ -47,7 +48,7 @@ def test_type_error_has_validator():
         assert cause is not None
         assert cause.validator in {"type", "required", "oneOf"}
     else:
-        assert False, "Expected ValidationError was not raised"
+        pytest.fail("Expected ValidationError was not raised")
 
 
 def test_schema_version_pattern_has_validator():
@@ -72,7 +73,7 @@ def test_schema_version_pattern_has_validator():
             # Fallback: message should mention schema_version
             assert "schema_version" in str(e)
     else:
-        assert False, "Expected ValidationError was not raised"
+        pytest.fail("Expected ValidationError was not raised")
 
 
 def test_nested_vec3_missing_component_reports_required():
@@ -96,5 +97,5 @@ def test_nested_vec3_missing_component_reports_required():
         assert cause is not None
         assert cause.validator in {"required", "type"}
     else:
-        assert False, "Expected ValidationError was not raised"
+        pytest.fail("Expected ValidationError was not raised")
 
