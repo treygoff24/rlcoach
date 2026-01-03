@@ -244,7 +244,9 @@ def insert_player_stats(report: dict[str, Any], config: RLCoachConfig) -> None:
                 demos_inflicted=fundamentals.get("demos_inflicted"),
                 demos_taken=fundamentals.get("demos_taken"),
                 # Boost - keys now match between analyzer and metrics catalog
-                bcpm=boost.get("bpm"),  # Boost amount per minute (industry-standard BCPM)
+                bcpm=boost.get(
+                    "bpm"
+                ),  # Boost amount per minute (industry-standard BCPM)
                 avg_boost=boost.get("avg_boost"),
                 time_zero_boost_s=boost.get("time_zero_boost_s"),
                 time_full_boost_s=boost.get("time_full_boost_s"),

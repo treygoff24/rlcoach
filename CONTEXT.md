@@ -1,7 +1,7 @@
 # rlcoach Context — SaaS Build
 
 **Last Updated**: 2026-01-03
-**Current Phase**: Phase 2 (Database & Migration)
+**Current Phase**: Phase 3 (Authentication & Authorization)
 
 ## Protocol Reminder
 
@@ -38,8 +38,8 @@ black --check src/
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Infrastructure Foundation | **COMPLETE** |
-| 2 | PostgreSQL Database & Migration | **READY TO START** |
-| 3 | Authentication & Authorization | Pending |
+| 2 | PostgreSQL Database & Migration | **COMPLETE** |
+| 3 | Authentication & Authorization | **READY TO START** |
 | 4 | Replay Upload & Processing | Pending |
 | 5 | Dashboard Frontend | Pending |
 | 6 | Stripe Payments & Subscription | Pending |
@@ -47,8 +47,6 @@ black --check src/
 | 8 | Polish, Testing & Launch | Pending |
 
 **Critical Path**: Infrastructure -> Database -> Auth -> Upload -> Dashboard -> AI Coach
-
-Phase 6 (Payments) can run parallel to Phase 5 after Phase 3 completes.
 
 ## Phase 1 Deliverables (Complete)
 
@@ -76,22 +74,41 @@ Worker module:
 - `src/rlcoach/worker/` - Celery tasks for replay processing
 - Enhanced health endpoint with Redis check
 
-## Codex Checkpoints
+## Phase 2 Deliverables (Complete)
 
-- [x] After drafting spec — Approved
-- [x] After drafting implementation plan — Approved
-- [ ] After completing Phase 1 — **PENDING REVIEW**
-- [ ] After completing Phase 2
-- [ ] ...after each phase...
-- [ ] Before declaring build complete
+Database models added:
+- `User` - Account with subscription fields (tier, stripe IDs, token budget)
+- `OAuthAccount` - NextAuth accounts table for OAuth providers
+- `Session` - NextAuth session storage
+- `VerificationToken` - Email verification
+- `CoachSession` - AI coach conversation tracking
+- `CoachMessage` - Individual messages with token counts
+- `CoachNote` - Persistent coaching notes (user + AI)
+- `UploadedReplay` - Upload tracking with status
+- `UserReplay` - Many-to-many replay ownership
+
+Session management:
+- Updated `session.py` to support both SQLite and PostgreSQL
+- `DATABASE_URL` env var controls backend
+- Connection pooling for PostgreSQL
+
+Replay sessions:
+- `replay_sessions.py` - Session detection and grouping
+- 30-minute gap default for session boundaries
+- Deterministic session ID generation
+
+Migration:
+- `migrations/versions/20260103_001_initial_schema.py`
+- Full schema with all tables and indexes
+- PostgreSQL partial index for is_me optimization
 
 ## Next Action
 
-**Begin Phase 2: PostgreSQL Database & Migration**
-1. Design PostgreSQL schema (User, OAuthAccount, CoachSession, etc.)
-2. Set up Alembic migrations
-3. Update database session for PostgreSQL + async
-4. Migrate existing SQLite models
-5. Add UserReplay and session detection logic
+**Begin Phase 3: Authentication & Authorization**
+1. Create NextAuth configuration for Next.js
+2. Implement Discord, Steam, Google OAuth providers
+3. Create FastAPI JWT middleware
+4. Add auth-required endpoints
+5. Implement subscription tier checks
 
-See `IMPLEMENTATION_PLAN.md` Phase 2 for full task list.
+See `IMPLEMENTATION_PLAN.md` Phase 3 for full task list.
