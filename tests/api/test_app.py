@@ -50,19 +50,31 @@ class TestHealthEndpoint:
     """Tests for the health check endpoint."""
 
     def test_health_returns_ok(self, client):
-        """Should return healthy status."""
+        """Should return a valid health status (healthy or degraded)."""
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "healthy"
+        assert data["status"] in ["healthy", "degraded"]
         assert "version" in data
 
     def test_health_includes_db_status(self, client):
-        """Should include database status."""
+        """Should include database status in checks."""
         response = client.get("/health")
         data = response.json()
-        assert "database" in data
-        assert data["database"] in ["connected", "not_initialized"]
+        assert "checks" in data
+        assert "database" in data["checks"]
+        assert data["checks"]["database"] in [
+            "connected",
+            "disconnected",
+            "not_initialized",
+        ]
+
+    def test_health_includes_service_info(self, client):
+        """Should include service name and timestamp."""
+        response = client.get("/health")
+        data = response.json()
+        assert data["service"] == "rlcoach-backend"
+        assert "timestamp" in data
 
 
 class TestCORS:

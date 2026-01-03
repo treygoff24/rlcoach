@@ -199,3 +199,36 @@ node_modules/
 # Local data (not committed)
 data/
 replays/
+
+# SaaS Infrastructure
+.env.local
+.env.production
+.env.*.local
+*.pem
+*.key
+*.crt
+ssl/
+
+# Docker
+docker-compose.override.yml
+
+# Backups (local)
+backups/
+*.sql.gz
+*.sql.gz.gpg
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/.cache/
+
+# Storage volumes
+storage/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/

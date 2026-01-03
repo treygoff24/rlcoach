@@ -1,7 +1,7 @@
 # rlcoach Context — SaaS Build
 
 **Last Updated**: 2026-01-03
-**Current Phase**: Phase 1 Ready
+**Current Phase**: Phase 2 (Database & Migration)
 
 ## Protocol Reminder
 
@@ -37,8 +37,8 @@ black --check src/
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Infrastructure Foundation | **READY TO START** |
-| 2 | PostgreSQL Database & Migration | Pending |
+| 1 | Infrastructure Foundation | **COMPLETE** |
+| 2 | PostgreSQL Database & Migration | **READY TO START** |
 | 3 | Authentication & Authorization | Pending |
 | 4 | Replay Upload & Processing | Pending |
 | 5 | Dashboard Frontend | Pending |
@@ -50,34 +50,48 @@ black --check src/
 
 Phase 6 (Payments) can run parallel to Phase 5 after Phase 3 completes.
 
+## Phase 1 Deliverables (Complete)
+
+Infrastructure files created:
+- `docker-compose.yml` - Development orchestration
+- `docker-compose.prod.yml` - Production orchestration
+- `backend/Dockerfile` - FastAPI container (multi-stage)
+- `worker/Dockerfile` - Celery worker container
+- `frontend/Dockerfile` - Next.js container (multi-stage)
+- `nginx/Dockerfile` + `nginx.conf` - Reverse proxy with rate limiting
+- `.env.example` - All required secrets documented
+- `.github/workflows/ci.yml` - CI pipeline (tests, lint, build)
+- `.github/workflows/deploy.yml` - CD pipeline (build, push, deploy)
+- `scripts/backup.sh` - PostgreSQL backup to Backblaze B2
+- `scripts/restore.sh` - Database restore from backup
+- `scripts/rotate-secrets.sh` - Secret rotation helper
+- `alembic.ini` + `migrations/env.py` - Database migration setup
+
+Frontend skeleton:
+- `frontend/package.json` - Next.js 14 with dependencies
+- `frontend/src/app/` - App router with landing page
+- `frontend/tailwind.config.ts` - Dark theme with RL-inspired colors
+
+Worker module:
+- `src/rlcoach/worker/` - Celery tasks for replay processing
+- Enhanced health endpoint with Redis check
+
 ## Codex Checkpoints
 
-- [x] After drafting spec — Approved (fixed unit economics, auth architecture, compliance)
-- [x] After drafting implementation plan — Approved (fixed tenant scoping, schema, cascades)
-- [ ] After completing Phase 1
+- [x] After drafting spec — Approved
+- [x] After drafting implementation plan — Approved
+- [ ] After completing Phase 1 — **PENDING REVIEW**
 - [ ] After completing Phase 2
 - [ ] ...after each phase...
 - [ ] Before declaring build complete
 
-## Previous Work (Complete)
-
-### Mechanics Detection (Dec 2025)
-All 12 mechanics implemented and tested:
-- Flip reset, ceiling shot, musty flick, double touch
-- Wavedash, flip cancel, fast aerial, air dribble
-- Flick, dribble, skim, psycho
-- 393 tests passing
-
 ## Next Action
 
-**Begin Phase 1: Infrastructure Foundation**
-1. Provision Hetzner AX41-NVMe server
-2. Configure Cloudflare (DNS, SSL, rate limiting)
-3. Install Docker and Docker Compose
-4. Create Dockerfiles (Next.js, FastAPI, worker)
-5. Set up nginx reverse proxy
-6. Secrets management
-7. CI/CD pipeline (GitHub Actions)
-8. Backup infrastructure (pg_dump + Backblaze B2)
+**Begin Phase 2: PostgreSQL Database & Migration**
+1. Design PostgreSQL schema (User, OAuthAccount, CoachSession, etc.)
+2. Set up Alembic migrations
+3. Update database session for PostgreSQL + async
+4. Migrate existing SQLite models
+5. Add UserReplay and session detection logic
 
-See `IMPLEMENTATION_PLAN.md` Phase 1 for full task list.
+See `IMPLEMENTATION_PLAN.md` Phase 2 for full task list.

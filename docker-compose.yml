@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rlcoach-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rlcoach}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rlcoach_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-rlcoach}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rlcoach}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rlcoach-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: rlcoach-backend
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-rlcoach}:${POSTGRES_PASSWORD:-rlcoach_dev}@postgres:5432/${POSTGRES_DB:-rlcoach}
+      - REDIS_URL=redis://redis:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./replays:/app/replays
+      - replay_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: rlcoach-worker
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-rlcoach}:${POSTGRES_PASSWORD:-rlcoach_dev}@postgres:5432/${POSTGRES_DB:-rlcoach}
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./src:/app/src
+      - ./replays:/app/replays
+      - replay_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: rlcoach-frontend
+    environment:
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  replay_storage:

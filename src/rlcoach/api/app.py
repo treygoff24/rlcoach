@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -99,19 +101,49 @@ def _register_routes(app: FastAPI) -> None:
 
     @app.get("/health")
     async def health():
-        """Health check endpoint."""
+        """Health check endpoint for container orchestration."""
         db_status = "not_initialized"
+        redis_status = "not_configured"
 
+        # Check database
         try:
-            # Try to get a session to verify DB is working
             session = create_session()
             session.close()
             db_status = "connected"
         except Exception:
-            pass
+            db_status = "disconnected"
+
+        # Check Redis if configured
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            try:
+                import redis
+
+                r = redis.from_url(redis_url)
+                r.ping()
+                redis_status = "connected"
+            except Exception:
+                redis_status = "disconnected"
+
+        overall_status = "healthy"
+        if db_status != "connected":
+            overall_status = "degraded"
 
         return {
-            "status": "healthy",
+            "status": overall_status,
+            "service": "rlcoach-backend",
             "version": __version__,
-            "database": db_status,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "checks": {
+                "database": db_status,
+                "redis": redis_status,
+            },
         }
+
+    @app.get("/api/v1/health")
+    async def api_health():
+        """API health endpoint (mirrors /health for frontend proxy)."""
+        return await health()
+
+
+app = create_app()

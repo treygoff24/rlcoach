@@ -10,14 +10,31 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "jsonschema>=4.0.0",
-    # New dependencies for full system
+    # API & Web
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
-    "sqlalchemy>=2.0.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
     "python-multipart>=0.0.6",
     "httpx>=0.25.0",
+    # Database
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.0",
+    # Data validation
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    # Background tasks
+    "celery[redis]>=5.3.0",
+    "redis>=5.0.0",
+    # Payments & Auth
+    "stripe>=8.0.0",
+    "PyJWT>=2.8.0",
+    # AI Coach
+    "anthropic>=0.40.0",
+    # Storage & Backups
+    "b2sdk>=2.0.0",
+    # Utilities
+    "python-dotenv>=1.0.0",
 ]
 authors = [
     {name = "rlcoach contributors"},
