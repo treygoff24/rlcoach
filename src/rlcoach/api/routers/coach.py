@@ -131,6 +131,8 @@ async def send_message(
             history=previous_messages,
             replay_id=request.replay_id,
             user_notes=_get_user_notes(db, user.id),
+            user_id=user.id,
+            db=db,
         )
     except Exception as e:
         raise HTTPException(
@@ -398,15 +400,20 @@ async def _get_coach_response(
     history: list[CoachMessage],
     replay_id: str | None,
     user_notes: list[str],
+    user_id: str | None = None,
+    db: DBSession | None = None,
 ) -> tuple[str, str | None, dict[str, int]]:
     """Get response from Claude Opus 4.5.
 
-    Uses extended thinking for deep analysis.
+    Uses extended thinking for deep analysis and tool use for data access.
 
     Returns:
         Tuple of (response_content, thinking_content, token_counts)
     """
     import anthropic
+
+    from ...services.coach.prompts import build_system_prompt, get_tool_descriptions
+    from ...services.coach.tools import execute_tool
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -414,35 +421,19 @@ async def _get_coach_response(
 
     client = anthropic.Anthropic(api_key=api_key)
 
-    # Build system prompt
-    system = """You are an expert Rocket League coach with deep knowledge of:
-- Mechanics: aerials, wave dashes, flip resets, ceiling shots, ground play
-- Rotation and positioning: proper rotation, shadow defense, boost management
-- Game sense: reading the play, predicting opponents, decision making
-- Team play: passing, communication, trust
+    # Build system prompt with context
+    system = build_system_prompt(user_notes=user_notes)
 
-You have access to the user's replay analysis data and can provide specific,
-actionable feedback based on their actual gameplay. Be encouraging but honest.
-Focus on 1-2 key improvements per session rather than overwhelming with feedback.
-
-Your communication style is:
-- Direct and concise
-- Uses RL-specific terminology
-- Provides specific examples when possible
-- Asks clarifying questions when needed"""
-
-    # Add user notes as context
-    if user_notes:
-        notes_str = "\n".join(f"- {n}" for n in user_notes[:10])
-        system += f"\n\nPrevious coaching notes:\n{notes_str}"
-
-    # Build messages
+    # Build messages from history
     messages = []
     for msg in history:
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": user_message})
 
-    # Call Claude with extended thinking
+    # Get tool definitions
+    tools = get_tool_descriptions()
+
+    # Initial call with extended thinking and tools
     response = client.messages.create(
         model="claude-opus-4-5-20250514",
         max_tokens=8192,
@@ -452,9 +443,61 @@ Your communication style is:
         },
         system=system,
         messages=messages,
+        tools=tools,
     )
 
-    # Extract response and thinking
+    # Track total tokens
+    total_input = response.usage.input_tokens
+    total_output = response.usage.output_tokens
+
+    # Handle tool use loop (max 5 iterations)
+    max_iterations = 5
+    iteration = 0
+
+    while response.stop_reason == "tool_use" and iteration < max_iterations:
+        iteration += 1
+
+        # Extract tool calls
+        tool_results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                # Execute the tool
+                if user_id and db:
+                    result = await execute_tool(
+                        tool_name=block.name,
+                        tool_input=block.input,
+                        user_id=user_id,
+                        db=db,
+                    )
+                else:
+                    result = '{"error": "Tool execution not available"}'
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result,
+                })
+
+        # Continue conversation with tool results
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "user", "content": tool_results})
+
+        response = client.messages.create(
+            model="claude-opus-4-5-20250514",
+            max_tokens=8192,
+            thinking={
+                "type": "enabled",
+                "budget_tokens": 2048,  # Smaller budget for follow-ups
+            },
+            system=system,
+            messages=messages,
+            tools=tools,
+        )
+
+        total_input += response.usage.input_tokens
+        total_output += response.usage.output_tokens
+
+    # Extract final response and thinking
     response_text = ""
     thinking_text = None
 
@@ -465,8 +508,8 @@ Your communication style is:
             response_text = block.text
 
     token_counts = {
-        "input": response.usage.input_tokens,
-        "output": response.usage.output_tokens,
+        "input": total_input,
+        "output": total_output,
     }
 
     return response_text, thinking_text, token_counts

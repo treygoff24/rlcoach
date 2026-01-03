@@ -1,7 +1,7 @@
 # rlcoach Context — SaaS Build
 
 **Last Updated**: 2026-01-03
-**Current Phase**: Phase 6 (Stripe Payments & Subscription)
+**Current Phase**: Phase 8 (Polish, Testing & Launch)
 
 ## Protocol Reminder
 
@@ -42,9 +42,9 @@ black --check src/
 | 3 | Authentication & Authorization | **COMPLETE** |
 | 4 | Replay Upload & Processing | **COMPLETE** |
 | 5 | Dashboard Frontend | **COMPLETE** |
-| 6 | Stripe Payments & Subscription | **IN PROGRESS** |
-| 7 | AI Coach | Pending |
-| 8 | Polish, Testing & Launch | Pending |
+| 6 | Stripe Payments & Subscription | **COMPLETE** |
+| 7 | AI Coach | **COMPLETE** |
+| 8 | Polish, Testing & Launch | **IN PROGRESS** |
 
 **Critical Path**: Infrastructure -> Database -> Auth -> Upload -> Dashboard -> AI Coach
 
@@ -173,13 +173,54 @@ Fixes applied:
 - Simplified globals.css (removed shadcn CSS variables)
 - Fixed gitignore to allow frontend/replays directory
 
+## Phase 6 Deliverables (Complete)
+
+Backend billing API:
+- `src/rlcoach/api/routers/billing.py` - Stripe checkout, portal, status endpoints
+- POST /billing/checkout - Create Stripe Checkout session
+- POST /billing/portal - Create customer billing portal session
+- GET /billing/status - Get subscription status
+- POST /stripe/webhook - Handle Stripe webhook events
+
+Webhook handlers:
+- checkout.session.completed - Activate Pro subscription
+- customer.subscription.updated - Sync subscription status
+- customer.subscription.deleted - Downgrade to free tier
+- invoice.payment_failed - Mark subscription past_due
+
+Frontend routes:
+- /api/stripe/create-checkout - Proxy to backend
+- /api/stripe/create-portal - Proxy to backend
+- /api/stripe/webhook - Forward webhooks
+
+## Phase 7 Deliverables (Complete)
+
+AI Coach services:
+- `src/rlcoach/services/coach/` - Coach service module
+- `prompts.py` - System prompt with RL coaching expertise
+- `tools.py` - Data access tools (get_recent_games, get_stats_by_mode, etc.)
+- `budget.py` - Token budget management (150K/month)
+
+Coach tools:
+- get_recent_games - Fetch player's recent matches
+- get_stats_by_mode - Aggregate stats by playlist
+- get_game_details - Deep dive into a specific replay
+- get_rank_benchmarks - Compare to rank averages
+- save_coaching_note - Persist coaching observations
+
+Frontend integration:
+- Updated coach page to call real API
+- Session continuity across messages
+- Token budget display
+- Error handling
+
 ## Next Action
 
-**Phase 6: Stripe Payments & Subscription**
-1. Create Stripe products/prices (Pro tier $10/mo)
-2. Implement checkout session API endpoint
-3. Add webhook handler for subscription events
-4. Connect upgrade flow to Stripe
-5. Store subscription status in user model
+**Phase 8: Polish, Testing & Launch**
+1. End-to-end testing of all flows
+2. Error handling and edge cases
+3. Performance optimization
+4. Documentation and deployment guide
+5. Final verification and launch prep
 
-See `IMPLEMENTATION_PLAN.md` Phase 6 for full task list.
+See `IMPLEMENTATION_PLAN.md` Phase 8 for full task list.

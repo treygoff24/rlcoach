@@ -13,12 +13,14 @@ interface Message {
   timestamp: Date;
 }
 
-// Mock for demo - real implementation uses API
-const mockResponses = [
-  "Based on your recent replays, I notice you're leaving the ball early on aerial challenges. Try holding your aerial slightly longer - even an extra 0.3 seconds can make the difference between a 50/50 and winning the challenge cleanly.",
-  "Looking at your boost management, you're often at 0 boost in crucial moments. Focus on grabbing small pads on rotations - you should rarely drop below 30 boost. Your mechanics are solid, it's about having resources when you need them.",
-  "Your positioning is actually quite good for your rank! The main area to improve is your recovery speed. After each aerial, try to land on your wheels and immediately start building speed. This will let you apply pressure faster.",
-];
+interface APIMessage {
+  session_id: string;
+  message_id: string;
+  content: string;
+  thinking?: string;
+  tokens_used: number;
+  budget_remaining: number;
+}
 
 export default function CoachPage() {
   const { data: session } = useSession();
@@ -26,10 +28,13 @@ export default function CoachPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showThinking, setShowThinking] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [budgetRemaining, setBudgetRemaining] = useState<number>(150000);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Check if user is Pro (mock for now)
-  const isPro = true; // TODO: Get from session
+  const user = session?.user as { subscriptionTier?: string } | undefined;
+  const isPro = user?.subscriptionTier === 'pro';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,19 +57,48 @@ export default function CoachPage() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setError(null);
 
-    // Simulate API response
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/coach/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage.content,
+          session_id: sessionId,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || err.error || 'Failed to send message');
+      }
+
+      const data: APIMessage = await response.json();
+
+      // Update session ID for conversation continuity
+      if (data.session_id) {
+        setSessionId(data.session_id);
+      }
+
+      // Update budget display
+      if (data.budget_remaining !== undefined) {
+        setBudgetRemaining(data.budget_remaining);
+      }
+
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: data.message_id,
         role: 'assistant',
-        content: mockResponses[Math.floor(Math.random() * mockResponses.length)],
-        thinking: "Analyzing the user's recent replays... Looking at aerial challenge success rate, boost management patterns, and positioning data. Comparing to rank benchmarks...",
+        content: data.content,
+        thinking: data.thinking,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -117,7 +151,9 @@ export default function CoachPage() {
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-400">Token Budget</p>
-            <p className="text-sm font-medium text-white">42,500 / 150,000</p>
+            <p className="text-sm font-medium text-white">
+              {budgetRemaining.toLocaleString()} / 150,000
+            </p>
           </div>
         </div>
       </div>
@@ -190,6 +226,14 @@ export default function CoachPage() {
                 <div className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '150ms' }} />
                 <div className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex justify-center">
+            <div className="bg-red-500/20 border border-red-500/50 rounded-lg px-4 py-3 text-red-400 text-sm">
+              {error}
             </div>
           </div>
         )}
