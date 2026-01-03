@@ -82,13 +82,24 @@ def create_app() -> FastAPI:
 
 def _register_routes(app: FastAPI) -> None:
     """Register all API routes."""
-    from .routers import analysis_router, dashboard_router, games_router, players_router
+    from .routers import (
+        analysis_router,
+        coach_router,
+        dashboard_router,
+        games_router,
+        players_router,
+        replays_router,
+        users_router,
+    )
 
     # Include routers
     app.include_router(games_router)
     app.include_router(dashboard_router)
     app.include_router(analysis_router)
     app.include_router(players_router)
+    app.include_router(users_router)
+    app.include_router(replays_router)
+    app.include_router(coach_router)
 
     @app.get("/")
     async def root():

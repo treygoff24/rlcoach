@@ -1,7 +1,7 @@
 # rlcoach Context — SaaS Build
 
 **Last Updated**: 2026-01-03
-**Current Phase**: Phase 3 (Authentication & Authorization)
+**Current Phase**: Phase 4 (Replay Upload & Processing)
 
 ## Protocol Reminder
 
@@ -39,8 +39,8 @@ black --check src/
 |-------|------|--------|
 | 1 | Infrastructure Foundation | **COMPLETE** |
 | 2 | PostgreSQL Database & Migration | **COMPLETE** |
-| 3 | Authentication & Authorization | **READY TO START** |
-| 4 | Replay Upload & Processing | Pending |
+| 3 | Authentication & Authorization | **COMPLETE** |
+| 4 | Replay Upload & Processing | **READY TO START** |
 | 5 | Dashboard Frontend | Pending |
 | 6 | Stripe Payments & Subscription | Pending |
 | 7 | AI Coach | Pending |
@@ -102,13 +102,41 @@ Migration:
 - Full schema with all tables and indexes
 - PostgreSQL partial index for is_me optimization
 
+## Phase 3 Deliverables (Complete)
+
+Frontend auth:
+- `frontend/src/lib/auth.ts` - NextAuth v5 configuration
+- `frontend/src/middleware.ts` - Route protection middleware
+- `frontend/src/app/api/auth/[...nextauth]/route.ts` - Auth API handlers
+- `frontend/src/app/login/page.tsx` - OAuth login page (Discord, Google)
+- `frontend/src/app/upgrade/page.tsx` - Pro subscription upgrade page
+
+OAuth providers:
+- Discord (primary - RL community)
+- Google (convenience fallback)
+- Steam (placeholder, disabled until OpenID implementation)
+
+Backend auth:
+- `src/rlcoach/api/auth.py` - JWT middleware with PyJWT
+- Token validation and user extraction
+- `AuthenticatedUser`, `OptionalUser`, `ProUser` dependencies
+
+Protected API endpoints:
+- `src/rlcoach/api/routers/users.py` - User profile, subscription info
+- `src/rlcoach/api/routers/replays.py` - Replay upload, list, delete
+- `src/rlcoach/api/routers/coach.py` - AI coach (Pro tier only)
+
+Subscription tier checks:
+- JWT includes subscriptionTier claim
+- Middleware checks Pro tier for /coach routes
+- FastAPI `require_pro` dependency for coach endpoints
+
 ## Next Action
 
-**Begin Phase 3: Authentication & Authorization**
-1. Create NextAuth configuration for Next.js
-2. Implement Discord, Steam, Google OAuth providers
-3. Create FastAPI JWT middleware
-4. Add auth-required endpoints
-5. Implement subscription tier checks
+**Begin Phase 4: Replay Upload & Processing**
+1. Complete Celery worker for replay processing
+2. Integrate with existing parser pipeline
+3. Add progress tracking and webhooks
+4. Create upload status polling endpoint
 
-See `IMPLEMENTATION_PLAN.md` Phase 3 for full task list.
+See `IMPLEMENTATION_PLAN.md` Phase 4 for full task list.
