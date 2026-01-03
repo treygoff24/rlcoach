@@ -1,14 +1,13 @@
 # src/rlcoach/services/coach/tools.py
 """Data access tools for AI Coach."""
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
-import json
 
 from sqlalchemy.orm import Session as DBSession
-from sqlalchemy import func
 
-from ...db.models import Replay, CoachNote
+from ...db.models import CoachNote, Replay
 
 
 def get_data_tools():

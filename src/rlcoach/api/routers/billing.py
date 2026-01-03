@@ -1,18 +1,18 @@
 # src/rlcoach/api/routers/billing.py
 """Stripe billing endpoints for subscription management."""
 
-import os
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
+import stripe
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
-import stripe
 
-from ..auth import AuthenticatedUser
-from ...db.session import get_session
 from ...db.models import User
+from ...db.session import get_session
+from ..auth import AuthenticatedUser
 
 logger = logging.getLogger(__name__)
 

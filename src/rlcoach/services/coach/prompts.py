@@ -1,7 +1,6 @@
 # src/rlcoach/services/coach/prompts.py
 """System prompts for AI Coach."""
 
-from typing import Optional
 
 SYSTEM_PROMPT = """You are an expert Rocket League coach powered by Claude Opus 4.5 with extended thinking. You have deep knowledge of all aspects of Rocket League gameplay and access to the player's replay analysis data.
 

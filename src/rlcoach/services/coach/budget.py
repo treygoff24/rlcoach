@@ -2,12 +2,11 @@
 """Token budget management for AI Coach."""
 
 from datetime import datetime, timezone
-from dateutil.relativedelta import relativedelta
 
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session as DBSession
 
 from ...db.models import User
-
 
 # Monthly token budgets
 MONTHLY_TOKEN_BUDGET = 150_000  # 150K tokens per month for Pro users
