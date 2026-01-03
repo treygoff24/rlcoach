@@ -2,6 +2,8 @@
 """API routers for RLCoach."""
 
 from .analysis import router as analysis_router
+from .billing import router as billing_router
+from .billing import webhook_router
 from .coach import router as coach_router
 from .dashboard import router as dashboard_router
 from .games import router as games_router
@@ -11,10 +13,12 @@ from .users import router as users_router
 
 __all__ = [
     "analysis_router",
+    "billing_router",
     "coach_router",
     "dashboard_router",
     "games_router",
     "players_router",
     "replays_router",
     "users_router",
+    "webhook_router",
 ]

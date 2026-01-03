@@ -1,7 +1,7 @@
 # rlcoach Context — SaaS Build
 
 **Last Updated**: 2026-01-03
-**Current Phase**: Phase 5 (Dashboard Frontend)
+**Current Phase**: Phase 6 (Stripe Payments & Subscription)
 
 ## Protocol Reminder
 
@@ -41,8 +41,8 @@ black --check src/
 | 2 | PostgreSQL Database & Migration | **COMPLETE** |
 | 3 | Authentication & Authorization | **COMPLETE** |
 | 4 | Replay Upload & Processing | **COMPLETE** |
-| 5 | Dashboard Frontend | **READY TO START** |
-| 6 | Stripe Payments & Subscription | Pending |
+| 5 | Dashboard Frontend | **COMPLETE** |
+| 6 | Stripe Payments & Subscription | **IN PROGRESS** |
 | 7 | AI Coach | Pending |
 | 8 | Polish, Testing & Launch | Pending |
 
@@ -150,13 +150,36 @@ Frontend upload:
 - Multiple file upload support
 - Status polling for processing updates
 
+## Phase 5 Deliverables (Complete)
+
+Dashboard layout:
+- `frontend/src/components/layout/Sidebar.tsx` - Navigation sidebar
+- `frontend/src/components/layout/Navbar.tsx` - Top navbar with mobile menu
+- `frontend/src/components/layout/UploadModal.tsx` - Modal wrapper for upload
+- `frontend/src/app/(dashboard)/layout.tsx` - Dashboard layout wrapper
+
+Dashboard pages (all 7):
+- `page.tsx` - Home: Topline stats, mechanics breakdown, quick actions
+- `replays/page.tsx` - Replay list with filters and pagination
+- `replays/[id]/page.tsx` - Replay detail with 7 tabs (Overview, Mechanics, Boost, Positioning, Timeline, Defense, Offense)
+- `sessions/page.tsx` - Sessions grouped by play session
+- `trends/page.tsx` - Performance trends with time-series charts
+- `compare/page.tsx` - Comparison vs Rank and vs Self modes
+- `coach/page.tsx` - AI coach chat interface (Pro tier gated)
+- `settings/page.tsx` - Profile, subscription, linked accounts, preferences
+
+Fixes applied:
+- Downgraded ESLint 9→8 for eslint-config-next compatibility
+- Simplified globals.css (removed shadcn CSS variables)
+- Fixed gitignore to allow frontend/replays directory
+
 ## Next Action
 
-**Begin Phase 5: Dashboard Frontend**
-1. Design and implement the dashboard layout and components.
-2. Integrate with the existing API endpoints for user and replay data.
-3. Add user profile and subscription management UI.
-4. Implement replay list, delete, and download features.
-5. Create a simple AI coach widget for the dashboard.
+**Phase 6: Stripe Payments & Subscription**
+1. Create Stripe products/prices (Pro tier $10/mo)
+2. Implement checkout session API endpoint
+3. Add webhook handler for subscription events
+4. Connect upgrade flow to Stripe
+5. Store subscription status in user model
 
-See `IMPLEMENTATION_PLAN.md` Phase 5 for full task list.
+See `IMPLEMENTATION_PLAN.md` Phase 6 for full task list.

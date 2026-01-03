@@ -8,9 +8,30 @@ import Link from 'next/link';
 export default function SettingsPage() {
   const { data: session } = useSession();
   const [sessionGap, setSessionGap] = useState(30);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const user = session?.user;
-  const isPro = false; // TODO: Get from session
+  const user = session?.user as { id?: string; name?: string | null; email?: string | null; image?: string | null; subscriptionTier?: string } | undefined;
+  // Check subscription tier from session (auth.ts exposes it in session.user.subscriptionTier)
+  const isPro = user?.subscriptionTier === 'pro';
+
+  const handleManageSubscription = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/stripe/create-portal', {
+        method: 'POST',
+      });
+      const { url, error } = await res.json();
+      if (url) {
+        window.location.href = url;
+      } else if (error) {
+        console.error('Portal error:', error);
+      }
+    } catch (error) {
+      console.error('Failed to open billing portal:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl">
@@ -59,8 +80,12 @@ export default function SettingsPage() {
               </p>
             </div>
             {isPro ? (
-              <button className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors">
-                Manage Subscription
+              <button
+                onClick={handleManageSubscription}
+                disabled={isLoading}
+                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                {isLoading ? 'Loading...' : 'Manage Subscription'}
               </button>
             ) : (
               <Link
