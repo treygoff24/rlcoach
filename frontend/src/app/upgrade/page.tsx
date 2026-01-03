@@ -7,12 +7,9 @@
 
 'use client';
 
-import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function UpgradePage() {
-  const { data: session } = useSession();
-
   const handleUpgrade = async () => {
     try {
       const res = await fetch('/api/stripe/create-checkout', {
