@@ -1,7 +1,7 @@
 # rlcoach Context — SaaS Build
 
 **Last Updated**: 2026-01-03
-**Current Phase**: Phase 4 (Replay Upload & Processing)
+**Current Phase**: Phase 5 (Dashboard Frontend)
 
 ## Protocol Reminder
 
@@ -40,8 +40,8 @@ black --check src/
 | 1 | Infrastructure Foundation | **COMPLETE** |
 | 2 | PostgreSQL Database & Migration | **COMPLETE** |
 | 3 | Authentication & Authorization | **COMPLETE** |
-| 4 | Replay Upload & Processing | **READY TO START** |
-| 5 | Dashboard Frontend | Pending |
+| 4 | Replay Upload & Processing | **COMPLETE** |
+| 5 | Dashboard Frontend | **READY TO START** |
 | 6 | Stripe Payments & Subscription | Pending |
 | 7 | AI Coach | Pending |
 | 8 | Polish, Testing & Launch | Pending |
@@ -131,12 +131,32 @@ Subscription tier checks:
 - Middleware checks Pro tier for /coach routes
 - FastAPI `require_pro` dependency for coach endpoints
 
+## Phase 4 Deliverables (Complete)
+
+Upload API:
+- `src/rlcoach/api/routers/replays.py` - Upload, list, delete, library endpoints
+- SHA256 deduplication to avoid re-processing identical files
+- Queue backpressure check rejects uploads when system overloaded
+
+Background worker:
+- `src/rlcoach/worker/tasks.py` - Celery tasks for replay processing
+- `process_replay` task with database status updates
+- `migrate_to_cold_storage` task for Backblaze B2 archival
+- `cleanup_temp_files` and `check_disk_usage` maintenance tasks
+- Subprocess with 30s timeout and 512MB memory limit
+
+Frontend upload:
+- `frontend/src/components/UploadDropzone.tsx` - Drag-drop with progress
+- Multiple file upload support
+- Status polling for processing updates
+
 ## Next Action
 
-**Begin Phase 4: Replay Upload & Processing**
-1. Complete Celery worker for replay processing
-2. Integrate with existing parser pipeline
-3. Add progress tracking and webhooks
-4. Create upload status polling endpoint
+**Begin Phase 5: Dashboard Frontend**
+1. Design and implement the dashboard layout and components.
+2. Integrate with the existing API endpoints for user and replay data.
+3. Add user profile and subscription management UI.
+4. Implement replay list, delete, and download features.
+5. Create a simple AI coach widget for the dashboard.
 
-See `IMPLEMENTATION_PLAN.md` Phase 4 for full task list.
+See `IMPLEMENTATION_PLAN.md` Phase 5 for full task list.

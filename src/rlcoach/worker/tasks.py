@@ -1,5 +1,7 @@
 """Celery tasks for background replay processing."""
 
+import hashlib
+import json
 import logging
 import os
 import resource
@@ -26,69 +28,122 @@ def set_memory_limit():
     resource.setrlimit(resource.RLIMIT_AS, (MEMORY_LIMIT_BYTES, MEMORY_LIMIT_BYTES))
 
 
+def get_db_session():
+    """Get a database session for worker tasks."""
+    from rlcoach.db.session import create_session, init_db
+
+    # Initialize DB if not already done
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        from rlcoach.db.session import init_db_from_url
+
+        init_db_from_url(database_url)
+    else:
+        init_db()
+
+    return create_session()
+
+
 @celery_app.task(
     bind=True,
     max_retries=3,
     default_retry_delay=60,
     autoretry_for=(Exception,),
     retry_backoff=True,
+    soft_time_limit=60,
+    time_limit=90,
 )
-def process_replay(
-    self,
-    upload_id: str,
-    file_path: str,
-    user_id: str,
-) -> dict:
+def process_replay(self, upload_id: str) -> dict:
     """
     Process a single replay file.
 
     Args:
         upload_id: UUID of the UploadedReplay record
-        file_path: Path to the .replay file
-        user_id: UUID of the user who uploaded
 
     Returns:
         dict with processing result
     """
-    logger.info(f"Processing replay {upload_id} for user {user_id}")
+    logger.info(f"Processing replay {upload_id}")
 
+    session = get_db_session()
     try:
+        from rlcoach.db import UploadedReplay, UserReplay
+
+        # Get the upload record
+        upload = session.query(UploadedReplay).filter_by(id=upload_id).first()
+        if not upload:
+            logger.error(f"Upload record not found: {upload_id}")
+            return {"status": "failed", "error": "Upload not found"}
+
+        # Update status to processing
+        upload.status = "processing"
+        session.commit()
+
         # Validate file exists
-        replay_path = Path(file_path)
+        replay_path = Path(upload.stored_path)
         if not replay_path.exists():
-            logger.error(f"Replay file not found: {file_path}")
-            return {
-                "status": "failed",
-                "error": "File not found",
-                "upload_id": upload_id,
-            }
+            upload.status = "failed"
+            upload.error_message = "File not found"
+            session.commit()
+            return {"status": "failed", "error": "File not found"}
 
         # Create output directory
-        output_dir = STORAGE_PATH / "parsed" / user_id
+        output_dir = STORAGE_PATH / "parsed" / upload.user_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Run the parsing pipeline in a subprocess with memory limits
+        # Run the parsing pipeline
         result = _run_parser_subprocess(replay_path, output_dir, upload_id)
 
         if result["status"] == "success":
-            # Update database with results
-            # This will be implemented when we have async DB session
+            # Read the parsed JSON to extract replay_id and metadata
+            output_file = Path(result["output_path"])
+            if output_file.exists():
+                with open(output_file) as f:
+                    parsed_data = json.load(f)
+
+                # Extract replay_id from parsed data
+                replay_id = parsed_data.get("metadata", {}).get("replay_id")
+                if replay_id:
+                    upload.replay_id = replay_id
+
+                    # Create UserReplay association
+                    user_replay = UserReplay(
+                        user_id=upload.user_id,
+                        replay_id=replay_id,
+                        ownership_type="uploaded",
+                    )
+                    session.merge(user_replay)
+
+            upload.status = "completed"
+            upload.processed_at = datetime.now(timezone.utc)
+            session.commit()
             logger.info(f"Successfully processed replay {upload_id}")
         else:
+            upload.status = "failed"
+            upload.error_message = result.get("error", "Unknown error")[:500]
+            session.commit()
             logger.error(f"Failed to process replay {upload_id}: {result.get('error')}")
 
         return result
 
     except SoftTimeLimitExceeded:
         logger.warning(f"Soft time limit exceeded for replay {upload_id}")
-        return {
-            "status": "failed",
-            "error": "Processing timeout",
-            "upload_id": upload_id,
-        }
-    except Exception:
+        upload = session.query(UploadedReplay).filter_by(id=upload_id).first()
+        if upload:
+            upload.status = "failed"
+            upload.error_message = "Processing timeout"
+            session.commit()
+        return {"status": "failed", "error": "Processing timeout"}
+    except Exception as e:
         logger.exception(f"Error processing replay {upload_id}")
-        raise  # Let Celery handle retry
+        upload = session.query(UploadedReplay).filter_by(id=upload_id).first()
+        if upload:
+            upload.status = "failed"
+            upload.error_message = str(e)[:500]
+            session.commit()
+        raise
+    finally:
+        session.close()
 
 
 def _run_parser_subprocess(
@@ -152,11 +207,7 @@ def _run_parser_subprocess(
 
 
 @celery_app.task(bind=True)
-def migrate_to_cold_storage(
-    self,
-    replay_id: str,
-    file_path: str,
-) -> dict:
+def migrate_to_cold_storage(self, replay_id: str, file_path: str) -> dict:
     """
     Migrate an old replay file to Backblaze B2 cold storage.
 
@@ -170,12 +221,67 @@ def migrate_to_cold_storage(
     logger.info(f"Migrating replay {replay_id} to cold storage")
 
     try:
-        # This will use the B2 SDK when implemented
-        # For now, just log the intent
+        import b2sdk.v2 as b2
+
+        # Get B2 credentials
+        key_id = os.getenv("BACKBLAZE_KEY_ID")
+        app_key = os.getenv("BACKBLAZE_APPLICATION_KEY")
+        bucket_name = os.getenv("BACKBLAZE_BUCKET_NAME")
+
+        if not all([key_id, app_key, bucket_name]):
+            return {
+                "status": "failed",
+                "error": "B2 credentials not configured",
+            }
+
+        # Initialize B2
+        info = b2.InMemoryAccountInfo()
+        b2_api = b2.B2Api(info)
+        b2_api.authorize_account("production", key_id, app_key)
+        bucket = b2_api.get_bucket_by_name(bucket_name)
+
+        # Upload file
+        local_path = Path(file_path)
+        if not local_path.exists():
+            return {"status": "failed", "error": "Local file not found"}
+
+        remote_name = f"replays/{replay_id}.replay"
+        bucket.upload_local_file(
+            local_file=str(local_path),
+            file_name=remote_name,
+        )
+
+        # Get the download URL
+        download_url = f"https://f002.backblazeb2.com/file/{bucket_name}/{remote_name}"
+
+        # Update database with new storage path
+        session = get_db_session()
+        try:
+            from rlcoach.db import UploadedReplay
+
+            upload = (
+                session.query(UploadedReplay).filter_by(replay_id=replay_id).first()
+            )
+            if upload:
+                upload.stored_path = download_url
+                session.commit()
+        finally:
+            session.close()
+
+        # Delete local file
+        local_path.unlink()
+
+        logger.info(f"Migrated replay {replay_id} to B2: {download_url}")
         return {
-            "status": "pending",
+            "status": "success",
             "replay_id": replay_id,
-            "message": "Cold storage migration not yet implemented",
+            "b2_url": download_url,
+        }
+
+    except ImportError:
+        return {
+            "status": "failed",
+            "error": "b2sdk not installed",
         }
     except Exception as e:
         logger.exception(f"Error migrating replay {replay_id}")
@@ -227,3 +333,79 @@ def cleanup_temp_files(max_age_hours: int = 24) -> dict:
             "error": str(e),
             "deleted_count": deleted_count,
         }
+
+
+@celery_app.task
+def check_disk_usage() -> dict:
+    """
+    Check disk usage and return stats.
+
+    Returns:
+        dict with disk usage info
+    """
+    import shutil
+
+    try:
+        total, used, free = shutil.disk_usage(STORAGE_PATH)
+        usage_pct = (used / total) * 100
+
+        result = {
+            "status": "success",
+            "total_gb": round(total / (1024**3), 2),
+            "used_gb": round(used / (1024**3), 2),
+            "free_gb": round(free / (1024**3), 2),
+            "usage_percent": round(usage_pct, 1),
+        }
+
+        if usage_pct >= 90:
+            result["warning"] = "CRITICAL: Disk usage above 90%"
+            logger.warning(f"Critical disk usage: {usage_pct:.1f}%")
+        elif usage_pct >= 80:
+            result["warning"] = "WARNING: Disk usage above 80%"
+            logger.warning(f"High disk usage: {usage_pct:.1f}%")
+
+        return result
+
+    except Exception as e:
+        logger.exception("Error checking disk usage")
+        return {"status": "failed", "error": str(e)}
+
+
+def get_queue_length() -> int:
+    """Get the current length of the replay processing queue."""
+    try:
+        from rlcoach.worker.celery_app import celery_app
+
+        with celery_app.connection() as conn:
+            queue = conn.default_channel.queue_declare(
+                "celery", passive=True
+            )
+            return queue.message_count
+    except Exception:
+        return 0
+
+
+def can_accept_upload() -> tuple[bool, str | None]:
+    """
+    Check if we can accept new uploads.
+
+    Returns:
+        Tuple of (can_accept, reason_if_not)
+    """
+    import shutil
+
+    # Check disk usage
+    try:
+        total, used, _ = shutil.disk_usage(STORAGE_PATH)
+        usage_pct = (used / total) * 100
+        if usage_pct >= 90:
+            return False, "Disk space low. Please try again later."
+    except Exception:
+        pass
+
+    # Check queue length
+    queue_len = get_queue_length()
+    if queue_len >= 1000:
+        return False, f"Processing queue full ({queue_len} pending). Try again later."
+
+    return True, None

@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as DBSession
 
@@ -76,6 +76,20 @@ async def upload_replay(
 
     Requires authentication. Files are queued for background processing.
     """
+    # Check if system can accept uploads (backpressure)
+    try:
+        from ...worker.tasks import can_accept_upload
+
+        can_accept, reason = can_accept_upload()
+        if not can_accept:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=reason or "System temporarily unavailable. Please try again.",
+            )
+    except ImportError:
+        # Worker not available - continue without backpressure check
+        pass
+
     # Validate filename
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename required")
