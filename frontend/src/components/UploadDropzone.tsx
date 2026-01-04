@@ -18,6 +18,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Link from 'next/link';
 import { parseApiError, formatError } from '@/lib/errors';
+import { useToast } from '@/components/Toast';
 
 interface UploadFile {
   id: string;
@@ -45,6 +46,7 @@ const POLL_INTERVALS = [2000, 5000, 10000, 30000];
 
 export function UploadDropzone({ onUploadComplete, className }: UploadDropzoneProps) {
   const [files, setFiles] = useState<UploadFile[]>([]);
+  const { addToast } = useToast();
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     // Filter for .replay files
@@ -127,6 +129,11 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
             : f
         )
       );
+      addToast({
+        type: 'error',
+        title: 'Upload failed',
+        description: message,
+      });
     }
   };
 
@@ -161,13 +168,21 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         const result = await response.json();
 
         if (result.status === 'completed') {
-          setFiles((prev) =>
-            prev.map((f) =>
+          setFiles((prev) => {
+            const file = prev.find((f) => f.id === fileId);
+            if (file) {
+              addToast({
+                type: 'success',
+                title: 'Analysis complete',
+                description: `${file.file.name} is ready to view.`,
+              });
+            }
+            return prev.map((f) =>
               f.id === fileId
                 ? { ...f, status: 'completed', replayId: result.replay_id }
                 : f
-            )
-          );
+            );
+          });
           if (onUploadComplete) {
             onUploadComplete(uploadId, result.replay_id);
           }
@@ -175,13 +190,22 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         }
 
         if (result.status === 'failed') {
-          setFiles((prev) =>
-            prev.map((f) =>
+          const errorMessage = result.error_message || 'Processing failed';
+          setFiles((prev) => {
+            const file = prev.find((f) => f.id === fileId);
+            if (file) {
+              addToast({
+                type: 'error',
+                title: 'Analysis failed',
+                description: `${file.file.name}: ${errorMessage}`,
+              });
+            }
+            return prev.map((f) =>
               f.id === fileId
-                ? { ...f, status: 'failed', error: result.error_message || 'Processing failed' }
+                ? { ...f, status: 'failed', error: errorMessage }
                 : f
-            )
-          );
+            );
+          });
           return;
         }
 
