@@ -7,12 +7,16 @@
  * - Multiple file upload
  * - Progress tracking per file
  * - Duplicate detection (SHA256)
+ * - Exponential backoff polling
+ * - Success navigation to replay
+ * - Retry for failed uploads
  */
 
 'use client';
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import Link from 'next/link';
 
 interface UploadFile {
   id: string;
@@ -21,12 +25,22 @@ interface UploadFile {
   progress: number;
   error?: string;
   uploadId?: string;
+  replayId?: string;
 }
 
 interface UploadDropzoneProps {
-  onUploadComplete?: (uploadId: string) => void;
+  onUploadComplete?: (uploadId: string, replayId?: string) => void;
   className?: string;
 }
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// Exponential backoff intervals in ms: 2s, 5s, 10s, 30s
+const POLL_INTERVALS = [2000, 5000, 10000, 30000];
 
 export function UploadDropzone({ onUploadComplete, className }: UploadDropzoneProps) {
   const [files, setFiles] = useState<UploadFile[]>([]);
@@ -90,6 +104,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
                 status: result.status === 'completed' ? 'completed' : 'processing',
                 progress: 100,
                 uploadId: result.upload_id,
+                replayId: result.replay_id,
               }
             : f
         )
@@ -99,7 +114,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
       if (result.status === 'pending' || result.status === 'processing') {
         pollUploadStatus(uploadFile.id, result.upload_id);
       } else if (result.status === 'completed' && onUploadComplete) {
-        onUploadComplete(result.upload_id);
+        onUploadComplete(result.upload_id, result.replay_id);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed';
@@ -114,10 +129,27 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
   };
 
   const pollUploadStatus = async (fileId: string, uploadId: string) => {
-    const maxAttempts = 60; // 2 minutes max
-    let attempts = 0;
+    const maxDuration = 5 * 60 * 1000; // 5 minutes max
+    const startTime = Date.now();
+    let pollIndex = 0;
 
     const poll = async () => {
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= maxDuration) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? {
+                  ...f,
+                  status: 'failed',
+                  error: 'Processing is taking longer than expected. Check status later.',
+                }
+              : f
+          )
+        );
+        return;
+      }
+
       try {
         const response = await fetch(`/api/v1/replays/uploads/${uploadId}`);
         if (!response.ok) {
@@ -129,11 +161,13 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         if (result.status === 'completed') {
           setFiles((prev) =>
             prev.map((f) =>
-              f.id === fileId ? { ...f, status: 'completed' } : f
+              f.id === fileId
+                ? { ...f, status: 'completed', replayId: result.replay_id }
+                : f
             )
           );
           if (onUploadComplete) {
-            onUploadComplete(uploadId);
+            onUploadComplete(uploadId, result.replay_id);
           }
           return;
         }
@@ -142,35 +176,40 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
           setFiles((prev) =>
             prev.map((f) =>
               f.id === fileId
-                ? { ...f, status: 'failed', error: result.error_message }
+                ? { ...f, status: 'failed', error: result.error_message || 'Processing failed' }
                 : f
             )
           );
           return;
         }
 
-        // Continue polling
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 2000);
-        } else {
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === fileId
-                ? { ...f, status: 'failed', error: 'Processing timeout' }
-                : f
-            )
-          );
-        }
+        // Continue polling with exponential backoff
+        const interval = POLL_INTERVALS[Math.min(pollIndex, POLL_INTERVALS.length - 1)];
+        pollIndex++;
+        setTimeout(poll, interval);
       } catch (error) {
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 2000);
-        }
+        // On network error, retry with backoff
+        const interval = POLL_INTERVALS[Math.min(pollIndex, POLL_INTERVALS.length - 1)];
+        pollIndex++;
+        setTimeout(poll, interval);
       }
     };
 
     poll();
+  };
+
+  const retryUpload = async (fileId: string) => {
+    const file = files.find((f) => f.id === fileId);
+    if (!file) return;
+
+    // Reset status
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === fileId ? { ...f, status: 'pending', error: undefined, progress: 0 } : f
+      )
+    );
+
+    await uploadSingleFile(file);
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -197,6 +236,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         className={`
           border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
           transition-colors duration-200
+          focus-within:ring-2 focus-within:ring-orange-500
           ${
             isDragActive
               ? 'border-orange-500 bg-orange-500/10'
@@ -204,13 +244,14 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
           }
         `}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} aria-label="Upload replay files" />
         <div className="flex flex-col items-center gap-4">
           <svg
             className={`w-12 h-12 ${isDragActive ? 'text-orange-500' : 'text-gray-500'}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -241,7 +282,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
             {files.every((f) => f.status === 'completed' || f.status === 'failed') && (
               <button
                 onClick={() => setFiles([])}
-                className="text-orange-500 hover:underline"
+                className="text-orange-500 hover:underline focus:outline-none focus:underline focus:text-orange-400"
               >
                 Clear all
               </button>
@@ -255,7 +296,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
                 className="flex items-center gap-3 bg-gray-800 rounded-lg p-3"
               >
                 {/* Status Icon */}
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0" aria-hidden="true">
                   {file.status === 'completed' && (
                     <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -288,29 +329,53 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
                   <p className="text-sm text-white truncate">{file.file.name}</p>
                   <p className="text-xs text-gray-400">
                     {file.status === 'uploading' && 'Uploading...'}
-                    {file.status === 'processing' && 'Processing...'}
-                    {file.status === 'completed' && 'Complete'}
+                    {file.status === 'processing' && 'Analyzing... typically 30 seconds'}
+                    {file.status === 'completed' && 'Analysis ready!'}
                     {file.status === 'failed' && (file.error || 'Failed')}
                     {file.status === 'pending' && 'Waiting...'}
                   </p>
                 </div>
 
-                {/* Size */}
+                {/* Size - human readable */}
                 <span className="text-xs text-gray-500 flex-shrink-0">
-                  {(file.file.size / 1024 / 1024).toFixed(1)} MB
+                  {formatFileSize(file.file.size)}
                 </span>
 
-                {/* Remove Button */}
-                {(file.status === 'completed' || file.status === 'failed') && (
-                  <button
-                    onClick={() => removeFile(file.id)}
-                    className="text-gray-500 hover:text-gray-300"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* View Replay button for completed uploads */}
+                  {file.status === 'completed' && file.replayId && (
+                    <Link
+                      href={`/dashboard/replays/${file.replayId}`}
+                      className="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                    >
+                      View
+                    </Link>
+                  )}
+
+                  {/* Retry button for failed uploads */}
+                  {file.status === 'failed' && (
+                    <button
+                      onClick={() => retryUpload(file.id)}
+                      className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  )}
+
+                  {/* Remove Button */}
+                  {(file.status === 'completed' || file.status === 'failed') && (
+                    <button
+                      onClick={() => removeFile(file.id)}
+                      className="text-gray-500 hover:text-gray-300 focus:outline-none focus:text-orange-400"
+                      aria-label={`Remove ${file.file.name}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

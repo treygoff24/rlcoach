@@ -2,41 +2,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
-interface DashboardStats {
-  totalReplays: number;
-  recentWinRate: number;
-  avgGoals: number;
-  avgAssists: number;
-  avgSaves: number;
-  avgShots: number;
-  topMechanics: Array<{
-    name: string;
-    count: number;
-    percentile: number;
-  }>;
-  recentTrend: 'up' | 'down' | 'stable';
+interface MechanicStat {
+  name: string;
+  count: number;
 }
 
-// Mock data for now - will be replaced with API call
-const mockStats: DashboardStats = {
-  totalReplays: 247,
-  recentWinRate: 54.3,
-  avgGoals: 1.2,
-  avgAssists: 0.8,
-  avgSaves: 1.4,
-  avgShots: 2.1,
-  topMechanics: [
-    { name: 'Flip Resets', count: 47, percentile: 97 },
-    { name: 'Ceiling Shots', count: 23, percentile: 89 },
-    { name: 'Wave Dashes', count: 156, percentile: 82 },
-    { name: 'Fast Aerials', count: 312, percentile: 75 },
-    { name: 'Air Dribbles', count: 18, percentile: 71 },
-    { name: 'Double Touches', count: 34, percentile: 68 },
-  ],
-  recentTrend: 'up',
-};
+interface DashboardStats {
+  total_replays: number;
+  recent_win_rate: number | null;
+  avg_goals: number | null;
+  avg_assists: number | null;
+  avg_saves: number | null;
+  avg_shots: number | null;
+  top_mechanics: MechanicStat[];
+  recent_trend: 'up' | 'down' | 'stable';
+  has_data: boolean;
+}
 
 function StatCard({
   label,
@@ -63,80 +47,161 @@ function StatCard({
 function MechanicCard({
   name,
   count,
-  percentile,
 }: {
   name: string;
   count: number;
-  percentile: number;
 }) {
-  const getPercentileColor = (p: number) => {
-    if (p >= 90) return 'text-orange-400 bg-orange-500/20';
-    if (p >= 75) return 'text-green-400 bg-green-500/20';
-    if (p >= 50) return 'text-blue-400 bg-blue-500/20';
-    return 'text-gray-400 bg-gray-500/20';
-  };
-
-  const getRankLabel = (p: number) => {
-    if (p >= 99) return 'SSL';
-    if (p >= 95) return 'GC';
-    if (p >= 85) return 'Champ';
-    if (p >= 70) return 'Diamond';
-    if (p >= 50) return 'Plat';
-    return 'Gold';
-  };
-
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors">
       <div className="flex items-start justify-between mb-3">
         <h3 className="font-medium text-white">{name}</h3>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getPercentileColor(percentile)}`}>
-          Top {100 - percentile}%
-        </span>
       </div>
       <div className="flex items-end justify-between">
         <div>
           <p className="text-3xl font-bold text-white">{count}</p>
           <p className="text-sm text-gray-400">total</p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-400">Avg rank:</p>
-          <p className="text-lg font-semibold text-orange-400">{getRankLabel(percentile)}</p>
-        </div>
       </div>
     </div>
   );
 }
 
+function StatSkeleton({ large = false }: { large?: boolean }) {
+  return (
+    <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 animate-pulse">
+      <div className="h-4 w-20 bg-gray-700 rounded mb-2" />
+      <div className={`${large ? 'h-9 w-24' : 'h-8 w-16'} bg-gray-700 rounded`} />
+    </div>
+  );
+}
+
+function MechanicSkeleton() {
+  return (
+    <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 animate-pulse">
+      <div className="h-5 w-24 bg-gray-700 rounded mb-4" />
+      <div className="h-9 w-16 bg-gray-700 rounded" />
+    </div>
+  );
+}
+
 export default function DashboardHome() {
+  const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API call
-    const timer = setTimeout(() => {
-      setStats(mockStats);
-      setLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
+    async function fetchStats() {
+      if (!session?.accessToken) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/v1/users/me/dashboard', {
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+        });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            setError('Session expired. Please sign in again.');
+          } else {
+            setError('Failed to load dashboard stats.');
+          }
+          return;
+        }
+
+        const data = await res.json();
+        setStats(data);
+      } catch (err) {
+        setError('Unable to connect to server.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStats();
+  }, [session?.accessToken]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full" />
+      <div className="p-6 lg:p-8 space-y-8">
+        {/* Hero skeleton */}
+        <div className="animate-pulse">
+          <div className="h-8 w-48 bg-gray-700 rounded mb-2" />
+          <div className="h-4 w-32 bg-gray-800 rounded" />
+        </div>
+
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatSkeleton large />
+          <StatSkeleton />
+          <StatSkeleton />
+          <StatSkeleton />
+          <StatSkeleton />
+        </div>
+
+        {/* Mechanics skeleton */}
+        <div>
+          <div className="h-6 w-40 bg-gray-700 rounded mb-4" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <MechanicSkeleton />
+            <MechanicSkeleton />
+            <MechanicSkeleton />
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (!stats) {
+  if (error) {
     return (
       <div className="p-6 lg:p-8">
         <div className="text-center py-16">
-          <h2 className="text-2xl font-bold text-white mb-4">Welcome to rlcoach!</h2>
-          <p className="text-gray-400 mb-6">Upload your first replay to get started</p>
-          <button className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors">
-            Upload Replays
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
+          <p className="text-gray-400 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+          >
+            Try Again
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state - no replays yet
+  if (!stats || !stats.has_data) {
+    return (
+      <div className="p-6 lg:p-8">
+        <div className="text-center py-16">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+            <svg className="w-10 h-10 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Welcome to rlcoach!</h2>
+          <p className="text-gray-400 mb-8 max-w-md mx-auto">
+            Upload your first replay to unlock detailed performance analytics,
+            mechanic tracking, and personalized AI coaching.
+          </p>
+          <Link
+            href="/dashboard/replays"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Upload Your First Replay
+          </Link>
         </div>
       </div>
     );
@@ -151,11 +216,11 @@ export default function DashboardHome() {
             Your Performance
           </h1>
           <p className="text-gray-400 mt-1">
-            Based on {stats.totalReplays} replays analyzed
+            Based on {stats.total_replays} {stats.total_replays === 1 ? 'replay' : 'replays'} analyzed
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {stats.recentTrend === 'up' && (
+          {stats.recent_trend === 'up' && (
             <span className="flex items-center gap-1 text-green-400 text-sm">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
@@ -163,12 +228,20 @@ export default function DashboardHome() {
               Improving
             </span>
           )}
-          {stats.recentTrend === 'down' && (
+          {stats.recent_trend === 'down' && (
             <span className="flex items-center gap-1 text-red-400 text-sm">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
               Needs work
+            </span>
+          )}
+          {stats.recent_trend === 'stable' && (
+            <span className="flex items-center gap-1 text-gray-400 text-sm">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14" />
+              </svg>
+              Stable
             </span>
           )}
         </div>
@@ -178,41 +251,58 @@ export default function DashboardHome() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label="Win Rate"
-          value={`${stats.recentWinRate}%`}
+          value={stats.recent_win_rate !== null ? `${stats.recent_win_rate}%` : '--'}
           subtext="Last 20 games"
           large
         />
-        <StatCard label="Avg Goals" value={stats.avgGoals.toFixed(1)} subtext="per game" />
-        <StatCard label="Avg Assists" value={stats.avgAssists.toFixed(1)} subtext="per game" />
-        <StatCard label="Avg Saves" value={stats.avgSaves.toFixed(1)} subtext="per game" />
-        <StatCard label="Avg Shots" value={stats.avgShots.toFixed(1)} subtext="per game" />
+        <StatCard
+          label="Avg Goals"
+          value={stats.avg_goals !== null ? stats.avg_goals.toFixed(1) : '--'}
+          subtext="per game"
+        />
+        <StatCard
+          label="Avg Assists"
+          value={stats.avg_assists !== null ? stats.avg_assists.toFixed(1) : '--'}
+          subtext="per game"
+        />
+        <StatCard
+          label="Avg Saves"
+          value={stats.avg_saves !== null ? stats.avg_saves.toFixed(1) : '--'}
+          subtext="per game"
+        />
+        <StatCard
+          label="Avg Shots"
+          value={stats.avg_shots !== null ? stats.avg_shots.toFixed(1) : '--'}
+          subtext="per game"
+        />
       </div>
 
       {/* Mechanics Breakdown */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">Mechanics Breakdown</h2>
-          <Link
-            href="/dashboard/replays"
-            className="text-sm text-orange-400 hover:text-orange-300 flex items-center gap-1"
-          >
-            View all replays
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
+      {stats.top_mechanics.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-white">Mechanics Breakdown</h2>
+            <Link
+              href="/dashboard/replays"
+              className="text-sm text-orange-400 hover:text-orange-300 flex items-center gap-1"
+            >
+              View all replays
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stats.top_mechanics.map((mechanic) => (
+              <MechanicCard
+                key={mechanic.name}
+                name={mechanic.name}
+                count={mechanic.count}
+              />
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {stats.topMechanics.map((mechanic) => (
-            <MechanicCard
-              key={mechanic.name}
-              name={mechanic.name}
-              count={mechanic.count}
-              percentile={mechanic.percentile}
-            />
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

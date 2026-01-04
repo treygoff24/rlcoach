@@ -106,7 +106,7 @@ class PlayerGameStats(Base):
     replay_id = Column(
         String, ForeignKey("replays.replay_id", ondelete="CASCADE"), nullable=False
     )
-    player_id = Column(String, ForeignKey("players.player_id"), nullable=False)
+    player_id = Column(String, ForeignKey("players.player_id", ondelete="CASCADE"), nullable=False)
     team = Column(String, nullable=False)
     is_me = Column(Boolean, default=False)
     is_teammate = Column(Boolean, default=False)
@@ -291,6 +291,9 @@ class User(Base):
     token_budget_used = Column(Integer, default=0, nullable=False)
     token_budget_reset_at = Column(DateTime(timezone=True), default=_utc_now)
 
+    # Free tier coach preview (1 free message for non-Pro users)
+    free_coach_message_used = Column(Boolean, default=False, nullable=False)
+
     # Terms acceptance
     tos_accepted_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -360,6 +363,8 @@ class Session(Base):
     expires = Column(DateTime(timezone=True), nullable=False)
 
     user = relationship("User", back_populates="sessions")
+
+    __table_args__ = (Index("ix_sessions_user_id", "user_id"),)
 
 
 class VerificationToken(Base):
@@ -461,6 +466,7 @@ class UploadedReplay(Base):
     __table_args__ = (
         Index("ix_uploaded_replays_user", "user_id"),
         Index("ix_uploaded_replays_status", "status"),
+        Index("ix_uploaded_replays_replay_id", "replay_id"),
     )
 
 
