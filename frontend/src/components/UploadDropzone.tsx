@@ -17,6 +17,7 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Link from 'next/link';
+import { parseApiError, formatError } from '@/lib/errors';
 
 interface UploadFile {
   id: string;
@@ -89,8 +90,9 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Upload failed');
+        const body = await response.json().catch(() => ({}));
+        const { message } = parseApiError(response, body);
+        throw new Error(message);
       }
 
       const result = await response.json();
@@ -117,7 +119,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         onUploadComplete(result.upload_id, result.replay_id);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Upload failed';
+      const message = formatError(error);
       setFiles((prev) =>
         prev.map((f) =>
           f.id === uploadFile.id

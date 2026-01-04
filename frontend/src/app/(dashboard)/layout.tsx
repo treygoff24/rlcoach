@@ -6,6 +6,7 @@ import { SessionProvider } from 'next-auth/react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Navbar } from '@/components/layout/Navbar';
 import { UploadModal } from '@/components/layout/UploadModal';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function DashboardLayout({
   children,
@@ -34,7 +35,9 @@ export default function DashboardLayout({
 
           {/* Page content */}
           <main className="flex-1 overflow-y-auto">
-            {children}
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
           </main>
         </div>
 
