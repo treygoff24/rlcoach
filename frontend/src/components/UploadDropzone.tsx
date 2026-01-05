@@ -372,7 +372,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
                   {/* View Replay button for completed uploads */}
                   {file.status === 'completed' && file.replayId && (
                     <Link
-                      href={`/dashboard/replays/${file.replayId}`}
+                      href={`/replays/${file.replayId}`}
                       className="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
                     >
                       View

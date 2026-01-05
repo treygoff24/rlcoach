@@ -261,7 +261,7 @@ export default function DashboardHome() {
             mechanic tracking, and personalized AI coaching.
           </p>
           <Link
-            href="/dashboard/replays"
+            href="/replays"
             className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -357,7 +357,7 @@ export default function DashboardHome() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-white">Mechanics Breakdown</h2>
             <Link
-              href="/dashboard/replays"
+              href="/replays"
               className="text-sm text-orange-400 hover:text-orange-300 flex items-center gap-1"
             >
               View all replays
@@ -381,7 +381,7 @@ export default function DashboardHome() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Link
-          href="/dashboard/coach"
+          href="/coach"
           className="bg-gradient-to-r from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-xl p-6 hover:border-orange-500/50 transition-colors group"
         >
           <div className="flex items-center gap-4">
@@ -400,7 +400,7 @@ export default function DashboardHome() {
         </Link>
 
         <Link
-          href="/dashboard/trends"
+          href="/trends"
           className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-colors group"
         >
           <div className="flex items-center gap-4">
@@ -419,7 +419,7 @@ export default function DashboardHome() {
         </Link>
 
         <Link
-          href="/dashboard/compare"
+          href="/compare"
           className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-colors group"
         >
           <div className="flex items-center gap-4">

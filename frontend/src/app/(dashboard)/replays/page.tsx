@@ -83,8 +83,9 @@ export default function ReplaysPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full" />
+      <div className="flex items-center justify-center min-h-[60vh]" role="status" aria-label="Loading replays">
+        <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full" aria-hidden="true" />
+        <span className="sr-only">Loading replays...</span>
       </div>
     );
   }
@@ -99,12 +100,13 @@ export default function ReplaysPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" role="group" aria-label="Filter replays">
           {(['all', 'completed', 'processing'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              aria-pressed={filter === f}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
                 filter === f
                   ? 'bg-orange-500 text-white'
                   : 'bg-gray-800 text-gray-400 hover:text-white'
@@ -120,24 +122,25 @@ export default function ReplaysPage() {
       <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
+            <caption className="sr-only">Your uploaded replays</caption>
             <thead>
               <tr className="border-b border-gray-800">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Replay
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">
                   Map
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">
                   Playlist
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Result
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">
                   Date
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Status
                 </th>
               </tr>
@@ -150,8 +153,8 @@ export default function ReplaysPage() {
                 >
                   <td className="px-4 py-4">
                     <Link
-                      href={`/dashboard/replays/${replay.id}`}
-                      className="text-white hover:text-orange-400 font-medium transition-colors"
+                      href={`/replays/${replay.id}`}
+                      className="text-white hover:text-orange-400 font-medium transition-colors focus:outline-none focus:text-orange-400 focus:underline"
                     >
                       {replay.filename}
                     </Link>
@@ -184,7 +187,11 @@ export default function ReplaysPage() {
 
         {filteredReplays.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-400">No replays found</p>
+            <svg className="w-12 h-12 mx-auto text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <p className="text-gray-400 mb-4">No replays found</p>
+            <p className="text-sm text-gray-500">Upload some replays to get started</p>
           </div>
         )}
       </div>
