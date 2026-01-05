@@ -56,30 +56,33 @@ async def get_trends(
             detail=f"Invalid metric. Allowed: {sorted(ALLOWED_METRICS)}"
         )
 
-    # Parse period
+    # Parse period with validation
+    allowed_periods = {"7d", "30d", "90d", "all"}
+    if period not in allowed_periods:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid period. Allowed: {sorted(allowed_periods)}"
+        )
+
     if period == "all":
         date_from = None
     else:
         days = int(period.rstrip("d"))
         date_from = date.today() - timedelta(days=days)
 
-    # Build query for user's replay stats
-    # If authenticated, scope to user's data via UserReplay join
-    # If not authenticated (CLI mode), fall back to is_me filter
-    if user:
-        query = (
-            db.query(Replay.play_date, PlayerGameStats)
-            .join(UserReplay, Replay.replay_id == UserReplay.replay_id)
-            .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(UserReplay.user_id == user.id)
-            .filter(PlayerGameStats.is_me == True)  # noqa: E712
-        )
-    else:
-        query = (
-            db.query(Replay.play_date, PlayerGameStats)
-            .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me == True)  # noqa: E712
-        )
+    # Require authentication to prevent data leakage
+    # Unauthenticated requests return empty (use CLI with --token for auth)
+    if not user:
+        return {"metric": metric, "period": period, "values": []}
+
+    # Build query scoped to user's data via UserReplay join
+    query = (
+        db.query(Replay.play_date, PlayerGameStats)
+        .join(UserReplay, Replay.replay_id == UserReplay.replay_id)
+        .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
+        .filter(UserReplay.user_id == user.id)
+        .filter(PlayerGameStats.is_me == True)  # noqa: E712
+    )
 
     if date_from:
         query = query.filter(Replay.play_date >= date_from)

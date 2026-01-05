@@ -12,20 +12,19 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session as DBSession
 
-from sqlalchemy import func
-
+from ...data.benchmarks import (
+    RANK_DISPLAY_NAMES,
+    compare_to_benchmark,
+    get_benchmark_for_rank,
+)
 from ...db import User, get_session
 from ...db.models import CoachNote, CoachSession, PlayerGameStats, Replay, UserReplay
-from ...services.coach.budget import MONTHLY_TOKEN_BUDGET, get_token_budget_remaining
-from ...data.benchmarks import (
-    get_benchmark_for_rank,
-    get_closest_rank_tier,
-    compare_to_benchmark,
-    RANK_DISPLAY_NAMES,
-)
+from ...services.coach.budget import get_token_budget_remaining
 from ..auth import AuthenticatedUser
+from ..rate_limit import check_rate_limit, rate_limit_response
 from ..security import sanitize_display_name
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
@@ -425,6 +424,11 @@ async def get_benchmark_comparison(
 
     If rank_tier is not provided, estimates rank from user's performance.
     """
+    # Rate limit this endpoint (aggregation queries are expensive)
+    rate_result = check_rate_limit(user.id, "benchmarks")
+    if not rate_result.allowed:
+        raise rate_limit_response(rate_result)
+
     # Get user's replay IDs
     user_replay_ids = (
         db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
