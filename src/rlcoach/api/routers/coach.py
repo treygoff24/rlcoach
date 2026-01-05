@@ -20,9 +20,8 @@ from sqlalchemy.orm import Session as DBSession
 
 from ...db import CoachMessage, CoachNote, CoachSession, User, get_session
 from ...services.coach.budget import (
-    MONTHLY_TOKEN_BUDGET,
-    get_token_budget_remaining,
     estimate_request_tokens,
+    get_token_budget_remaining,
 )
 from ..auth import AuthenticatedUser, ProUser
 from ..rate_limit import check_rate_limit, rate_limit_response
@@ -130,7 +129,10 @@ async def send_message(
         if db_user.free_coach_message_used:
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="You've used your free coach preview. Upgrade to Pro for unlimited coaching at $10/month.",
+                detail=(
+                    "You've used your free coach preview. "
+                    "Upgrade to Pro for unlimited coaching at $10/month."
+                ),
             )
         # This will be their free preview message
         is_free_preview = True
@@ -152,18 +154,21 @@ async def send_message(
     )
 
     budget_remaining = get_token_budget_remaining(db_user)
-    
+
     # Check if we have enough budget for estimated usage
     if budget_remaining <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail="Monthly token budget exhausted. Resets next billing cycle.",
         )
-    
+
     if estimated_tokens > budget_remaining:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Insufficient token budget. Estimated: {estimated_tokens}, remaining: {budget_remaining}.",
+            detail=(
+                f"Insufficient token budget. "
+                f"Estimated: {estimated_tokens}, remaining: {budget_remaining}."
+            ),
         )
 
     # PRE-RESERVE tokens to prevent race condition
@@ -405,6 +410,122 @@ async def delete_session(
     return {"status": "deleted"}
 
 
+class SessionRecapResponse(BaseModel):
+    """Session recap response."""
+
+    session_id: str
+    message_count: int
+    strengths: list[str]
+    weaknesses: list[str]
+    action_items: list[str]
+    summary: str
+
+
+@router.get("/sessions/{session_id}/recap", response_model=SessionRecapResponse)
+async def get_session_recap(
+    session_id: str,
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> SessionRecapResponse:
+    """Generate a structured recap of a coaching session.
+
+    Requires at least 3 messages in the session.
+    Available to both free and pro users for sessions they participated in.
+    """
+    # Get session
+    session = (
+        db.query(CoachSession)
+        .filter(
+            CoachSession.id == session_id,
+            CoachSession.user_id == user.id,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Get messages
+    messages = (
+        db.query(CoachMessage)
+        .filter(CoachMessage.session_id == session_id)
+        .order_by(CoachMessage.created_at)
+        .all()
+    )
+
+    if len(messages) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Session needs at least 3 messages to generate a recap",
+        )
+
+    # Extract insights from assistant messages
+    strengths = []
+    weaknesses = []
+    action_items = []
+
+    # Keyword sets for extraction
+    strength_kws = ["strength", "good at", "well done", "excellent", "impressive"]
+    weakness_kws = ["weakness", "improve", "work on", "focus on", "lacking"]
+    action_kws = ["practice", "try", "recommend", "should", "drill"]
+
+    for msg in messages:
+        if msg.role != "assistant" or not msg.content:
+            continue
+
+        content = msg.content.lower()
+
+        # Simple keyword extraction for strengths
+        if any(kw in content for kw in strength_kws):
+            # Extract a summary sentence
+            for sentence in msg.content.split("."):
+                if any(kw in sentence.lower() for kw in strength_kws[:4]):
+                    cleaned = sentence.strip()
+                    if cleaned and len(cleaned) > 10:
+                        strengths.append(cleaned[:200])
+                        break
+
+        # Simple keyword extraction for weaknesses
+        if any(kw in content for kw in weakness_kws):
+            for sentence in msg.content.split("."):
+                if any(kw in sentence.lower() for kw in weakness_kws[:4]):
+                    cleaned = sentence.strip()
+                    if cleaned and len(cleaned) > 10:
+                        weaknesses.append(cleaned[:200])
+                        break
+
+        # Simple keyword extraction for action items
+        if any(kw in content for kw in action_kws):
+            for sentence in msg.content.split("."):
+                if any(kw in sentence.lower() for kw in action_kws[:4]):
+                    cleaned = sentence.strip()
+                    if cleaned and len(cleaned) > 10:
+                        action_items.append(cleaned[:200])
+                        break
+
+    # Deduplicate
+    strengths = list(dict.fromkeys(strengths))[:5]
+    weaknesses = list(dict.fromkeys(weaknesses))[:5]
+    action_items = list(dict.fromkeys(action_items))[:5]
+
+    # Generate summary
+    summary = f"Coaching session with {len(messages)} messages. "
+    if strengths:
+        summary += f"Identified {len(strengths)} strength(s). "
+    if weaknesses:
+        summary += f"Found {len(weaknesses)} area(s) to improve. "
+    if action_items:
+        summary += f"Suggested {len(action_items)} action item(s)."
+
+    return SessionRecapResponse(
+        session_id=session_id,
+        message_count=len(messages),
+        strengths=strengths,
+        weaknesses=weaknesses,
+        action_items=action_items,
+        summary=summary.strip(),
+    )
+
+
 # --- Notes endpoints ---
 
 
@@ -428,7 +549,7 @@ async def create_note(
     if request.category is not None and request.category not in ALLOWED_NOTE_CATEGORIES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid category. Allowed: strength, weakness, goal, observation",
+            detail="Invalid category. Allowed: strength, weakness, goal, observation",
         )
 
     # Sanitize content to prevent XSS

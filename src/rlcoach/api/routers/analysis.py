@@ -4,20 +4,40 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session as DBSession
 
 from ...analysis.patterns import compute_pattern_analysis
 from ...analysis.weaknesses import detect_weaknesses
-from ...db.models import Benchmark, PlayerGameStats, Replay
-from ...db.session import create_session
+from ...db import create_session, get_session
+from ...db.models import Benchmark, PlayerGameStats, Replay, UserReplay
+from ..auth import OptionalUser
 
 router = APIRouter(tags=["analysis"])
+
+# Allowlist of metrics that can be trended (prevents schema enumeration)
+ALLOWED_METRICS = {
+    "bcpm",
+    "avg_boost",
+    "goals",
+    "assists",
+    "saves",
+    "shots",
+    "score",
+    "avg_speed_kph",
+    "time_supersonic_s",
+    "behind_ball_pct",
+    "demos_inflicted",
+    "demos_taken",
+}
 
 
 @router.get("/trends")
 async def get_trends(
+    user: OptionalUser,
+    db: Annotated[DBSession, Depends(get_session)],
     metric: str = Query(..., description="Metric to trend (e.g., bcpm, goals)"),
     period: str = Query(default="30d", description="Time period (7d, 30d, 90d, all)"),
     playlist: str | None = None,
@@ -29,6 +49,13 @@ async def get_trends(
         period: Time period to analyze
         playlist: Optional playlist filter
     """
+    # Security: Validate metric against allowlist
+    if metric not in ALLOWED_METRICS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid metric. Allowed: {sorted(ALLOWED_METRICS)}"
+        )
+
     # Parse period
     if period == "all":
         date_from = None
@@ -36,43 +63,49 @@ async def get_trends(
         days = int(period.rstrip("d"))
         date_from = date.today() - timedelta(days=days)
 
-    session = create_session()
-    try:
-        # Build query for my stats
+    # Build query for user's replay stats
+    # If authenticated, scope to user's data via UserReplay join
+    # If not authenticated (CLI mode), fall back to is_me filter
+    if user:
         query = (
-            session.query(Replay.play_date, PlayerGameStats)
+            db.query(Replay.play_date, PlayerGameStats)
+            .join(UserReplay, Replay.replay_id == UserReplay.replay_id)
             .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me)
+            .filter(UserReplay.user_id == user.id)
+            .filter(PlayerGameStats.is_me == True)  # noqa: E712
+        )
+    else:
+        query = (
+            db.query(Replay.play_date, PlayerGameStats)
+            .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
+            .filter(PlayerGameStats.is_me == True)  # noqa: E712
         )
 
-        if date_from:
-            query = query.filter(Replay.play_date >= date_from)
-        if playlist:
-            query = query.filter(Replay.playlist == playlist)
+    if date_from:
+        query = query.filter(Replay.play_date >= date_from)
+    if playlist:
+        query = query.filter(Replay.playlist == playlist)
 
-        query = query.order_by(Replay.play_date)
-        results = query.all()
+    query = query.order_by(Replay.play_date)
+    results = query.all()
 
-        # Extract values by date
-        values = []
-        for play_date, stats in results:
-            value = getattr(stats, metric, None)
-            if value is not None:
-                values.append(
-                    {
-                        "date": play_date.isoformat(),
-                        "value": value,
-                    }
-                )
+    # Extract values by date (metric already validated)
+    values = []
+    for play_date, stats in results:
+        value = getattr(stats, metric, None)
+        if value is not None:
+            values.append(
+                {
+                    "date": play_date.isoformat() if play_date else None,
+                    "value": value,
+                }
+            )
 
-        return {
-            "metric": metric,
-            "period": period,
-            "values": values,
-        }
-
-    finally:
-        session.close()
+    return {
+        "metric": metric,
+        "period": period,
+        "values": values,
+    }
 
 
 @router.get("/benchmarks")

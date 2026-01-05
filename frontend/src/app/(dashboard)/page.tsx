@@ -22,16 +22,65 @@ interface DashboardStats {
   has_data: boolean;
 }
 
+interface StatComparison {
+  value: number;
+  benchmark: number;
+  rank_name: string;
+  difference: number;
+  percentage: number;
+  comparison: 'above' | 'below' | 'on_par';
+}
+
+interface BenchmarkData {
+  rank_tier: number;
+  rank_name: string;
+  comparisons: Record<string, StatComparison>;
+  has_data: boolean;
+}
+
+function ComparisonBadge({ comparison }: { comparison: 'above' | 'below' | 'on_par' }) {
+  if (comparison === 'above') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-green-400">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+        Above rank
+      </span>
+    );
+  }
+  if (comparison === 'below') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-red-400">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+        </svg>
+        Below rank
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14" />
+      </svg>
+      On par
+    </span>
+  );
+}
+
 function StatCard({
   label,
   value,
   subtext,
   large = false,
+  comparison,
 }: {
   label: string;
   value: string | number;
   subtext?: string;
   large?: boolean;
+  comparison?: StatComparison;
 }) {
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
@@ -39,7 +88,10 @@ function StatCard({
       <p className={`font-bold ${large ? 'text-3xl' : 'text-2xl'} text-white`}>
         {value}
       </p>
-      {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+      <div className="flex items-center justify-between mt-1">
+        {subtext && <p className="text-xs text-gray-500">{subtext}</p>}
+        {comparison && <ComparisonBadge comparison={comparison.comparison} />}
+      </div>
     </div>
   );
 }
@@ -87,25 +139,34 @@ function MechanicSkeleton() {
 export default function DashboardHome() {
   const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [benchmarks, setBenchmarks] = useState<BenchmarkData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchStats() {
+    async function fetchData() {
       if (!session?.accessToken) {
         setLoading(false);
         return;
       }
 
       try {
-        const res = await fetch('/api/v1/users/me/dashboard', {
-          headers: {
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-        });
+        // Fetch stats and benchmarks in parallel
+        const [statsRes, benchmarksRes] = await Promise.all([
+          fetch('/api/v1/users/me/dashboard', {
+            headers: {
+              Authorization: `Bearer ${session.accessToken}`,
+            },
+          }),
+          fetch('/api/v1/users/me/benchmarks', {
+            headers: {
+              Authorization: `Bearer ${session.accessToken}`,
+            },
+          }),
+        ]);
 
-        if (!res.ok) {
-          if (res.status === 401) {
+        if (!statsRes.ok) {
+          if (statsRes.status === 401) {
             setError('Session expired. Please sign in again.');
           } else {
             setError('Failed to load dashboard stats.');
@@ -113,8 +174,14 @@ export default function DashboardHome() {
           return;
         }
 
-        const data = await res.json();
-        setStats(data);
+        const statsData = await statsRes.json();
+        setStats(statsData);
+
+        // Benchmarks are optional - don't fail if unavailable
+        if (benchmarksRes.ok) {
+          const benchmarksData = await benchmarksRes.json();
+          setBenchmarks(benchmarksData);
+        }
       } catch (err) {
         setError('Unable to connect to server.');
       } finally {
@@ -122,7 +189,7 @@ export default function DashboardHome() {
       }
     }
 
-    fetchStats();
+    fetchData();
   }, [session?.accessToken]);
 
   if (loading) {
@@ -217,6 +284,9 @@ export default function DashboardHome() {
           </h1>
           <p className="text-gray-400 mt-1">
             Based on {stats.total_replays} {stats.total_replays === 1 ? 'replay' : 'replays'} analyzed
+            {benchmarks?.has_data && (
+              <span className="ml-2 text-orange-400">• Comparing to {benchmarks.rank_name}</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -259,21 +329,25 @@ export default function DashboardHome() {
           label="Avg Goals"
           value={stats.avg_goals !== null ? stats.avg_goals.toFixed(1) : '--'}
           subtext="per game"
+          comparison={benchmarks?.comparisons?.goals_per_game}
         />
         <StatCard
           label="Avg Assists"
           value={stats.avg_assists !== null ? stats.avg_assists.toFixed(1) : '--'}
           subtext="per game"
+          comparison={benchmarks?.comparisons?.assists_per_game}
         />
         <StatCard
           label="Avg Saves"
           value={stats.avg_saves !== null ? stats.avg_saves.toFixed(1) : '--'}
           subtext="per game"
+          comparison={benchmarks?.comparisons?.saves_per_game}
         />
         <StatCard
           label="Avg Shots"
           value={stats.avg_shots !== null ? stats.avg_shots.toFixed(1) : '--'}
           subtext="per game"
+          comparison={benchmarks?.comparisons?.shots_per_game}
         />
       </div>
 

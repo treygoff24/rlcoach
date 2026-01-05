@@ -19,6 +19,12 @@ from sqlalchemy import func
 from ...db import User, get_session
 from ...db.models import CoachNote, CoachSession, PlayerGameStats, Replay, UserReplay
 from ...services.coach.budget import MONTHLY_TOKEN_BUDGET, get_token_budget_remaining
+from ...data.benchmarks import (
+    get_benchmark_for_rank,
+    get_closest_rank_tier,
+    compare_to_benchmark,
+    RANK_DISPLAY_NAMES,
+)
 from ..auth import AuthenticatedUser
 from ..security import sanitize_display_name
 
@@ -387,3 +393,159 @@ async def export_user_data(
         ],
         "exported_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+class StatComparison(BaseModel):
+    """Single stat comparison against benchmark."""
+
+    value: float
+    benchmark: float
+    rank_name: str
+    difference: float
+    percentage: float
+    comparison: str  # "above", "below", "on_par"
+
+
+class BenchmarkComparisonResponse(BaseModel):
+    """Benchmark comparison response."""
+
+    rank_tier: int
+    rank_name: str
+    comparisons: dict[str, StatComparison]
+    has_data: bool
+
+
+@router.get("/me/benchmarks", response_model=BenchmarkComparisonResponse)
+async def get_benchmark_comparison(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+    rank_tier: int | None = None,
+) -> BenchmarkComparisonResponse:
+    """Compare user stats against rank benchmarks.
+
+    If rank_tier is not provided, estimates rank from user's performance.
+    """
+    # Get user's replay IDs
+    user_replay_ids = (
+        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
+    )
+
+    # Get user's aggregated stats (where is_me = True)
+    stats_query = (
+        db.query(
+            func.count(PlayerGameStats.id).label("game_count"),
+            func.avg(PlayerGameStats.goals).label("avg_goals"),
+            func.avg(PlayerGameStats.assists).label("avg_assists"),
+            func.avg(PlayerGameStats.saves).label("avg_saves"),
+            func.avg(PlayerGameStats.shots).label("avg_shots"),
+            func.avg(PlayerGameStats.boost_per_minute).label("avg_bcpm"),
+            func.avg(PlayerGameStats.supersonic_pct).label("avg_supersonic"),
+            func.sum(PlayerGameStats.aerial_count).label("total_aerials"),
+            func.sum(PlayerGameStats.wavedash_count).label("total_wavedash"),
+        )
+        .filter(
+            PlayerGameStats.replay_id.in_(user_replay_ids),
+            PlayerGameStats.is_me == True,  # noqa: E712
+        )
+        .first()
+    )
+
+    game_count = stats_query.game_count if stats_query else 0
+
+    if game_count == 0:
+        return BenchmarkComparisonResponse(
+            rank_tier=10,  # Default to Platinum I
+            rank_name=RANK_DISPLAY_NAMES.get(10, "Platinum I"),
+            comparisons={},
+            has_data=False,
+        )
+
+    # Extract user stats
+    avg_goals = float(stats_query.avg_goals) if stats_query.avg_goals else 0
+    avg_assists = float(stats_query.avg_assists) if stats_query.avg_assists else 0
+    avg_saves = float(stats_query.avg_saves) if stats_query.avg_saves else 0
+    avg_shots = float(stats_query.avg_shots) if stats_query.avg_shots else 0
+    avg_bcpm = float(stats_query.avg_bcpm) if stats_query.avg_bcpm else 0
+    avg_supersonic = float(stats_query.avg_supersonic) if stats_query.avg_supersonic else 0
+    aerials_per_game = (
+        float(stats_query.total_aerials) / game_count
+        if stats_query.total_aerials
+        else 0
+    )
+    wavedash_per_game = (
+        float(stats_query.total_wavedash) / game_count
+        if stats_query.total_wavedash
+        else 0
+    )
+
+    # Calculate shooting percentage
+    total_shots = avg_shots * game_count
+    total_goals = avg_goals * game_count
+    shooting_pct = (total_goals / total_shots * 100) if total_shots > 0 else 0
+
+    # If no rank_tier provided, estimate based on performance
+    if rank_tier is None:
+        # Simple estimation based on goals + assists + boost
+        # This is a rough heuristic; real implementation could use ML model
+        performance_score = (
+            avg_goals * 100 +
+            avg_assists * 80 +
+            avg_saves * 60 +
+            avg_bcpm * 0.3 +
+            avg_supersonic * 2
+        )
+
+        # Map performance score to rank tier (rough estimates)
+        if performance_score < 180:
+            rank_tier = 7  # Gold
+        elif performance_score < 230:
+            rank_tier = 10  # Platinum
+        elif performance_score < 280:
+            rank_tier = 13  # Diamond
+        elif performance_score < 330:
+            rank_tier = 16  # Champion
+        elif performance_score < 380:
+            rank_tier = 19  # GC
+        else:
+            rank_tier = 22  # SSL
+
+    # Get benchmarks for this rank
+    benchmark = get_benchmark_for_rank(rank_tier)
+    if not benchmark:
+        benchmark = get_benchmark_for_rank(10)  # Default to Platinum I
+
+    # Build comparisons
+    comparisons = {}
+
+    def add_comparison(
+        key: str,
+        user_value: float,
+        bench_value: float,
+        higher_is_better: bool = True,
+    ) -> None:
+        result = compare_to_benchmark(user_value, bench_value, higher_is_better)
+        comparisons[key] = StatComparison(
+            value=round(user_value, 2),
+            benchmark=round(bench_value, 2),
+            rank_name=benchmark.rank_name,
+            difference=result["difference"],
+            percentage=result["percentage"],
+            comparison=result["comparison"],
+        )
+
+    add_comparison("goals_per_game", avg_goals, benchmark.goals_per_game)
+    add_comparison("assists_per_game", avg_assists, benchmark.assists_per_game)
+    add_comparison("saves_per_game", avg_saves, benchmark.saves_per_game)
+    add_comparison("shots_per_game", avg_shots, benchmark.shots_per_game)
+    add_comparison("shooting_pct", shooting_pct, benchmark.shooting_pct)
+    add_comparison("boost_per_minute", avg_bcpm, benchmark.boost_per_minute)
+    add_comparison("supersonic_pct", avg_supersonic, benchmark.supersonic_pct)
+    add_comparison("aerials_per_game", aerials_per_game, benchmark.aerials_per_game)
+    add_comparison("wavedashes_per_game", wavedash_per_game, benchmark.wavedashes_per_game)
+
+    return BenchmarkComparisonResponse(
+        rank_tier=rank_tier,
+        rank_name=RANK_DISPLAY_NAMES.get(rank_tier, "Unknown"),
+        comparisons=comparisons,
+        has_data=True,
+    )

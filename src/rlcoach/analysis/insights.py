@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+# Priority levels for insight ranking (higher = more impactful)
+PRIORITY_CRITICAL = 100  # Major issues blocking improvement
+PRIORITY_HIGH = 75  # Significant areas for growth
+PRIORITY_MEDIUM = 50  # Moderate improvement opportunities
+PRIORITY_LOW = 25  # Minor optimizations
+PRIORITY_INFO = 10  # Positive feedback / informational
+
 
 def generate_player_insights(analysis_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Generate coaching insights for a specific player.
@@ -12,7 +19,7 @@ def generate_player_insights(analysis_data: dict[str, Any]) -> list[dict[str, An
         analysis_data: Complete player analysis data including all metrics
 
     Returns:
-        List of insight objects with severity, message, and evidence
+        List of insight objects with severity, message, evidence, and priority
     """
     insights = []
     player_id = analysis_data.get("player_id")
@@ -40,6 +47,9 @@ def generate_player_insights(analysis_data: dict[str, Any]) -> list[dict[str, An
     # Challenges insights
     challenges = analysis_data.get("challenges", {})
     insights.extend(_analyze_challenges_insights(challenges, player_id))
+
+    # Sort by priority (highest first)
+    insights.sort(key=lambda x: x.get("priority", 0), reverse=True)
 
     return insights
 
@@ -91,10 +101,18 @@ def _analyze_positioning_insights(
         insights.append(
             {
                 "severity": "SUGGESTION",
+                "priority": PRIORITY_HIGH,
                 "message": (
-                    "Consider more back-post defensive positioning - "
-                    "spending significant time ahead of ball without "
-                    "being primary attacker."
+                    "Over-committing to offense without ball control"
+                ),
+                "contributing_factors": [
+                    f"Ahead of ball {ahead_ball_pct:.0f}% of the time",
+                    f"But only first man {first_man_pct:.0f}% of the time",
+                    "This leaves teammates in difficult rotation positions",
+                ],
+                "recommendation": (
+                    "Focus on back-post positioning when not actively "
+                    "challenging. Let plays develop before committing."
                 ),
                 "evidence": {
                     "ahead_ball_pct": ahead_ball_pct,
@@ -104,14 +122,21 @@ def _analyze_positioning_insights(
         )
 
     # Not enough third man presence in 3v3
-    # (only applies when third_man_pct is available)
     if third_man_pct is not None and third_man_pct < 25:
         insights.append(
             {
                 "severity": "SUGGESTION",
+                "priority": PRIORITY_MEDIUM,
                 "message": (
-                    "Increase back-post coverage and third man rotation "
-                    "presence for better defensive structure."
+                    "Insufficient third man coverage"
+                ),
+                "contributing_factors": [
+                    f"Only in third man position {third_man_pct:.0f}% of the time",
+                    "Third man should be ~30-35% in balanced 3v3 rotation",
+                ],
+                "recommendation": (
+                    "After rotating back, hold position briefly before "
+                    "pushing up. Trust teammates to maintain pressure."
                 ),
                 "evidence": {"third_man_pct": third_man_pct},
             }
@@ -122,9 +147,18 @@ def _analyze_positioning_insights(
         insights.append(
             {
                 "severity": "WARNING",
+                "priority": PRIORITY_CRITICAL,
                 "message": (
-                    "High first-man presence may indicate ball-chasing "
-                    "tendencies - consider rotating back more frequently."
+                    "Potential ball-chasing detected"
+                ),
+                "contributing_factors": [
+                    f"First man position {first_man_pct:.0f}% of the time",
+                    "Healthy first man % is 30-45% depending on playstyle",
+                    "Excessive first man time disrupts team rotation",
+                ],
+                "recommendation": (
+                    "Practice 'fake challenging' — approach ball then peel "
+                    "back to create passing opportunities for teammates."
                 ),
                 "evidence": {"first_man_pct": first_man_pct},
             }
@@ -147,9 +181,16 @@ def _analyze_boost_insights(boost: dict, player_id: str) -> list[dict[str, Any]]
         insights.append(
             {
                 "severity": "SUGGESTION",
-                "message": (
-                    f"Reduce time at zero boost ({time_zero_boost_s:.1f}s) "
-                    "by improving boost collection patterns and efficiency."
+                "priority": PRIORITY_HIGH,
+                "message": "Boost starvation limiting options",
+                "contributing_factors": [
+                    f"Spent {time_zero_boost_s:.0f}s at zero boost",
+                    f"Average boost level only {avg_boost:.0f}",
+                    "Zero boost = no aerial threat, slow recovery",
+                ],
+                "recommendation": (
+                    "Prioritize small pads on rotation. A quick detour "
+                    "through mid-boost is often faster than going for corners."
                 ),
                 "evidence": {
                     "time_zero_boost_s": time_zero_boost_s,
@@ -163,9 +204,15 @@ def _analyze_boost_insights(boost: dict, player_id: str) -> list[dict[str, Any]]
         insights.append(
             {
                 "severity": "INFO",
-                "message": (
-                    f"Consider optimizing boost usage - detected {waste:.0f} "
-                    "units of inefficient boost consumption."
+                "priority": PRIORITY_LOW,
+                "message": "Boost efficiency can improve",
+                "contributing_factors": [
+                    f"Wasted {waste:.0f} units of boost",
+                    "Waste = collecting boost when nearly full",
+                ],
+                "recommendation": (
+                    "Before grabbing big boost, check your meter. "
+                    "If above 70, small pads may be more efficient."
                 ),
                 "evidence": {"boost_waste": waste},
             }
@@ -176,9 +223,15 @@ def _analyze_boost_insights(boost: dict, player_id: str) -> list[dict[str, Any]]
         insights.append(
             {
                 "severity": "INFO",
-                "message": (
-                    f"Good boost denial - stole {stolen_big_pads} corner "
-                    "boosts from opponents."
+                "priority": PRIORITY_INFO,
+                "message": "Effective boost denial",
+                "contributing_factors": [
+                    f"Stole {stolen_big_pads} corner boosts from opponents",
+                    "Boost denial limits opponent options",
+                ],
+                "recommendation": (
+                    "Keep it up! Starving opponents of boost is as valuable "
+                    "as getting it yourself."
                 ),
                 "evidence": {"stolen_big_pads": stolen_big_pads},
             }
@@ -194,7 +247,6 @@ def _analyze_movement_insights(movement: dict, player_id: str) -> list[dict[str,
     time_slow_s = movement.get("time_slow_s", 0)
     time_supersonic_s = movement.get("time_supersonic_s", 0)
     aerial_count = movement.get("aerial_count", 0)
-    movement.get("powerslide_count", 0)
 
     # Too much slow time
     total_time = time_slow_s + movement.get("time_boost_speed_s", 0) + time_supersonic_s
@@ -204,9 +256,16 @@ def _analyze_movement_insights(movement: dict, player_id: str) -> list[dict[str,
             insights.append(
                 {
                     "severity": "SUGGESTION",
-                    "message": (
-                        f"Increase momentum and speed - {slow_pct:.1f}% of "
-                        "time spent at low speed."
+                    "priority": PRIORITY_MEDIUM,
+                    "message": "Low momentum limiting play impact",
+                    "contributing_factors": [
+                        f"{slow_pct:.0f}% of time at low speed",
+                        "Slow speed = late to challenges, easy to read",
+                        f"Only {time_supersonic_s:.0f}s at supersonic",
+                    ],
+                    "recommendation": (
+                        "Focus on maintaining momentum through turns. "
+                        "Use powerslide to preserve speed while redirecting."
                     ),
                     "evidence": {
                         "slow_speed_percentage": slow_pct,
@@ -220,9 +279,15 @@ def _analyze_movement_insights(movement: dict, player_id: str) -> list[dict[str,
         insights.append(
             {
                 "severity": "INFO",
-                "message": (
-                    f"Limited aerial attempts ({aerial_count}) - consider "
-                    "more aerial challenges and shots."
+                "priority": PRIORITY_LOW,
+                "message": "Limited aerial presence",
+                "contributing_factors": [
+                    f"Only {aerial_count} aerial attempts in a 5+ minute game",
+                    "Aerials create unpredictable threats",
+                ],
+                "recommendation": (
+                    "Practice basic aerials in training. Even simple "
+                    "aerial challenges force opponents to respect your airspace."
                 ),
                 "evidence": {"aerial_count": aerial_count},
             }
@@ -245,9 +310,16 @@ def _analyze_rotation_insights(
         insights.append(
             {
                 "severity": "WARNING",
-                "message": (
-                    f"Rotation compliance score is {score:.1f}/100 - focus "
-                    "on positioning and team coordination."
+                "priority": PRIORITY_CRITICAL,
+                "message": "Rotation issues impacting team play",
+                "contributing_factors": [
+                    f"Rotation score: {score:.0f}/100",
+                    "Poor rotation = double commits & open nets",
+                    f"Violation flags: {', '.join(flags) if flags else 'various'}",
+                ],
+                "recommendation": (
+                    "After every touch, rotate far post. Never cut "
+                    "in front of a teammate who has momentum toward ball."
                 ),
                 "evidence": {"rotation_score": score, "violation_flags": flags},
             }
@@ -258,9 +330,15 @@ def _analyze_rotation_insights(
         insights.append(
             {
                 "severity": "SUGGESTION",
-                "message": (
-                    "Multiple double-commit violations detected - improve "
-                    "communication and positioning awareness."
+                "priority": PRIORITY_HIGH,
+                "message": "Double commits detected",
+                "contributing_factors": [
+                    "Multiple instances of two players challenging simultaneously",
+                    "Leaves net completely open on counter",
+                ],
+                "recommendation": (
+                    "If teammate is closer, shadow the play instead of "
+                    "challenging. Be ready to pick up the second touch."
                 ),
                 "evidence": {"violation_type": "double_commit", "flags": flags},
             }
@@ -277,16 +355,21 @@ def _analyze_fundamentals_insights(
 
     shooting_percentage = fundamentals.get("shooting_percentage", 0)
     shots = fundamentals.get("shots", 0)
-    fundamentals.get("saves", 0)
 
     # Low shooting percentage with reasonable shot count
     if shooting_percentage < 20 and shots >= 5:
         insights.append(
             {
                 "severity": "SUGGESTION",
-                "message": (
-                    f"Shooting accuracy is {shooting_percentage:.1f}% - "
-                    "focus on shot placement and timing."
+                "priority": PRIORITY_HIGH,
+                "message": "Shot quality needs improvement",
+                "contributing_factors": [
+                    f"{shooting_percentage:.0f}% shot conversion ({shots} attempts)",
+                    "Low percentage suggests poor shot selection or placement",
+                ],
+                "recommendation": (
+                    "Wait for better angles before shooting. A pass that "
+                    "creates a 50% chance is better than a 10% shot."
                 ),
                 "evidence": {
                     "shooting_percentage": shooting_percentage,
@@ -300,9 +383,15 @@ def _analyze_fundamentals_insights(
         insights.append(
             {
                 "severity": "INFO",
-                "message": (
-                    f"Excellent shooting accuracy at {shooting_percentage:.1f}% "
-                    "- maintain quality shot selection."
+                "priority": PRIORITY_INFO,
+                "message": "Excellent shot selection",
+                "contributing_factors": [
+                    f"{shooting_percentage:.0f}% shooting accuracy",
+                    "Taking high-quality opportunities only",
+                ],
+                "recommendation": (
+                    "Great discipline! Consider if you could create "
+                    "even more high-% chances with better positioning."
                 ),
                 "evidence": {
                     "shooting_percentage": shooting_percentage,
@@ -329,9 +418,15 @@ def _analyze_challenges_insights(
         insights.append(
             {
                 "severity": "SUGGESTION",
-                "message": (
-                    f"First-to-ball rate is {first_to_ball_pct:.1f}% - work "
-                    "on reading plays and positioning for challenges."
+                "priority": PRIORITY_MEDIUM,
+                "message": "Late to ball in challenges",
+                "contributing_factors": [
+                    f"First to ball only {first_to_ball_pct:.0f}% of the time",
+                    "Being second to ball = reactive instead of proactive",
+                ],
+                "recommendation": (
+                    "Read bounces earlier and commit sooner. Position "
+                    "closer to where the ball will be, not where it is."
                 ),
                 "evidence": {
                     "first_to_ball_pct": first_to_ball_pct,
@@ -347,9 +442,15 @@ def _analyze_challenges_insights(
             insights.append(
                 {
                     "severity": "INFO",
-                    "message": (
-                        f"Strong challenge success rate at {win_rate:.1f}% - "
-                        "good mechanical execution."
+                    "priority": PRIORITY_INFO,
+                    "message": "Strong challenge mechanics",
+                    "contributing_factors": [
+                        f"{win_rate:.0f}% challenge win rate",
+                        f"Won {wins} of {contests} contested situations",
+                    ],
+                    "recommendation": (
+                        "Solid 50/50 mechanics. Now focus on choosing "
+                        "which challenges to take for maximum impact."
                     ),
                     "evidence": {
                         "challenge_win_rate": win_rate,
