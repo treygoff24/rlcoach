@@ -1,7 +1,7 @@
 # rlcoach Context — SaaS Build
 
-**Last Updated**: 2026-01-03
-**Current Phase**: Phase 8 (Polish, Testing & Launch)
+**Last Updated**: 2026-01-05
+**Current Phase**: Post-Launch UX Polish (Complete)
 
 ## Protocol Reminder
 
@@ -246,3 +246,50 @@ To deploy:
 2. Set up Stripe products/prices
 3. Configure OAuth providers (Discord, Google)
 4. Run `docker compose -f docker-compose.prod.yml up`
+
+---
+
+## UX Polish Sprint (2026-01-05)
+
+After initial build, completed 8-phase UX polish pass:
+
+### Phase 1-2: Critical Fixes
+- Dashboard fetches real API data (`/api/v1/users/me/dashboard`)
+- Free tier users get 1 complimentary AI coach message
+- Upload polling with exponential backoff (2s → 30s)
+- Retry button for failed uploads
+
+### Phase 3: Landing Page Redesign
+- Fixed header with blur effect
+- Hero with animated gradient orbs
+- Stats banner, How It Works, 6 feature cards
+- AI Coach spotlight, FAQ accordion
+- Conversion-focused CTAs
+
+### Phase 4-5: Toast & Error Handling
+- Toast notification system (success/error/warning/info)
+- ErrorBoundary component wrapping dashboard
+- Centralized error parsing utilities
+
+### Phase 6: Rank Benchmarks
+- Dashboard stat cards show Above/Below/On-par badges
+- Parallel fetch for benchmarks vs user's rank tier
+- `/api/v1/users/me/benchmarks` endpoint
+
+### Phase 7: Real Trends Data
+- Trends API with optional auth for user scoping
+- UserReplay join for multi-tenant data isolation
+- Frontend fetches real data with loading/error states
+
+### Phase 8: Enhanced Insights
+- Priority ranking (CRITICAL/HIGH/MEDIUM/LOW/INFO)
+- Contributing factors array for cause-effect
+- Actionable recommendations on every insight
+- Session recap endpoint (`/sessions/{id}/recap`)
+
+### Security Fixes (Codex Review)
+- Trends API: Period validation with explicit allowlist
+- Trends API: Unauthenticated requests return empty (prevents data leakage)
+- Benchmarks: Rate limiting (30 req/min)
+
+**Quality:** 388 tests passing, lint clean
