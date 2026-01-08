@@ -134,7 +134,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
-                "challenges": []
+                "challenges": [],
             },
             "analysis": {
                 "per_team": {
@@ -371,7 +371,7 @@ class TestSchemaValidation:
                     "kickoffs": [],
                     "boost_pickups": [],
                     "touches": [],
-                    "challenges": []
+                    "challenges": [],
                 },
                 "analysis": {
                     "per_team": {
@@ -612,7 +612,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
-                "challenges": []
+                "challenges": [],
             },
             "analysis": {
                 "per_team": {
@@ -875,7 +875,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
-                "challenges": []
+                "challenges": [],
             },
             "analysis": {
                 "per_team": {
@@ -1103,7 +1103,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
-                "challenges": []
+                "challenges": [],
             },
             "analysis": {
                 "per_team": {
@@ -1344,7 +1344,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
-                "challenges": []
+                "challenges": [],
             },
             "analysis": {
                 "per_team": {
@@ -1589,7 +1589,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
-                "challenges": []
+                "challenges": [],
             },
             "analysis": {
                 "per_team": {
@@ -1843,7 +1843,7 @@ class TestSchemaValidation:
                 "kickoffs": [],
                 "boost_pickups": [],
                 "touches": [],
-                "challenges": []
+                "challenges": [],
             },
             "analysis": {
                 "per_team": {

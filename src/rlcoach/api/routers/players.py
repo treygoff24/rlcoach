@@ -73,7 +73,7 @@ async def list_players(
         if sort_field not in ALLOWED_SORT_FIELDS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}"
+                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
             )
 
         order_col = getattr(Player, sort_field)

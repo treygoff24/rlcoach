@@ -725,10 +725,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 if let Some(ball_id) = ball_actor {
                     actors.remove(&ball_id);
                 }
-                // Filter using classification when available; otherwise keep for fallback
+                // Filter using classification when available; keep unclassified for fallback
                 actors = actors
                     .into_iter()
-                    .filter(|aid| actor_kind.get(aid).map(|kind| kind.is_car).unwrap_or(false))
+                    .filter(|aid| actor_kind.get(aid).map(|kind| kind.is_car).unwrap_or(true))
                     .collect();
 
                 let mut players_map: BTreeMap<usize, PyObject> = BTreeMap::new();

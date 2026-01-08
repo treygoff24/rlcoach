@@ -171,6 +171,8 @@ def process_replay(self, upload_id: str) -> dict:
         result = _run_parser_subprocess(replay_path, output_dir, upload_id)
 
         if result["status"] == "success":
+            # Track if replay was persisted to DB (for status reporting)
+            replay_persisted = True  # Default True, set False on DB failure
             # Read the parsed JSON to extract replay_id and metadata
             output_file = Path(result["output_path"])
             if output_file.exists():
@@ -184,6 +186,7 @@ def process_replay(self, upload_id: str) -> dict:
 
                     # Persist replay and player stats to database (SaaS mode)
                     # Must happen BEFORE UserReplay creation due to FK constraint
+                    replay_persisted = False  # Reset to track this specific path
                     try:
                         from rlcoach.db.writer import (
                             ReplayExistsError,
@@ -200,25 +203,37 @@ def process_replay(self, upload_id: str) -> dict:
                             user_id=upload.user_id,
                         )
                         logger.info(f"Persisted replay {replay_id} to database")
+                        replay_persisted = True
                     except ReplayExistsError:
                         # Replay already exists - that's fine, just link to it
                         logger.info(f"Replay {replay_id} already exists, linking user")
+                        replay_persisted = True  # Can still create UserReplay
                     except Exception as e:
-                        logger.warning(
+                        logger.error(
                             f"Failed to persist replay {replay_id}: {e}. "
-                            "UserReplay will still be created."
+                            "Skipping UserReplay creation due to FK constraint."
+                        )
+                        # Store warning so user knows replay won't appear in dashboard
+                        upload.error_message = (
+                            "Replay parsed but database save failed. "
+                            "Contact support if issue persists."
                         )
 
-                    # Create UserReplay association
+                    # Create UserReplay association only if Replay exists
                     # (FK constraint requires Replay to exist first)
-                    user_replay = UserReplay(
-                        user_id=upload.user_id,
-                        replay_id=replay_id,
-                        ownership_type="uploaded",
-                    )
-                    session.merge(user_replay)
+                    if replay_persisted:
+                        user_replay = UserReplay(
+                            user_id=upload.user_id,
+                            replay_id=replay_id,
+                            ownership_type="uploaded",
+                        )
+                        session.merge(user_replay)
 
-            upload.status = "completed"
+            # Use partial status if parsing succeeded but persistence failed
+            if result["status"] == "success" and not replay_persisted:
+                upload.status = "completed_partial"
+            else:
+                upload.status = "completed"
             upload.processed_at = datetime.now(timezone.utc)
             session.commit()
             logger.info(f"Successfully processed replay {upload_id}")

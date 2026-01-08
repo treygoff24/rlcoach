@@ -131,12 +131,14 @@ async def _get_stats_by_mode(
     )
 
     if mode != "all":
+        # Playlist values stored as uppercase enums (DUEL, DOUBLES, STANDARD)
         playlist_map = {
-            "duel": "Ranked Duel",
-            "doubles": "Ranked Doubles",
-            "standard": "Ranked Standard",
+            "duel": "DUEL",
+            "doubles": "DOUBLES",
+            "standard": "STANDARD",
         }
-        query = query.filter(Replay.playlist == playlist_map.get(mode, mode))
+        # Use map for known modes, fall back to uppercase for others (rumble, hoops)
+        query = query.filter(Replay.playlist == playlist_map.get(mode, mode.upper()))
 
     replays = query.all()
 

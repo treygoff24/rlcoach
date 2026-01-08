@@ -29,8 +29,17 @@ def _rust_like_frame(ts, ball_pos, ball_vel, players):
     }
 
 
-def _rust_like_player(pid, team, pos, vel=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0), boost=33,
-                      supersonic=False, on_ground=True, demolished=False):
+def _rust_like_player(
+    pid,
+    team,
+    pos,
+    vel=(0.0, 0.0, 0.0),
+    rot=(0.0, 0.0, 0.0),
+    boost=33,
+    supersonic=False,
+    on_ground=True,
+    demolished=False,
+):
     return {
         "player_id": pid,
         "team": team,
@@ -86,7 +95,9 @@ def test_normalization_and_events_from_rust_like_frames():
             (400.0, 600.0, 50.0),
             [
                 _rust_like_player("p_blue", 0, (50.0, -50.0, 17.0), boost=45),
-                _rust_like_player("p_orange", 1, (110.0, 120.0, 17.0), boost=55),  # Near ball
+                _rust_like_player(
+                    "p_orange", 1, (110.0, 120.0, 17.0), boost=55
+                ),  # Near ball
             ],
         )
     )
@@ -109,15 +120,19 @@ def test_normalization_and_events_from_rust_like_frames():
     assert isinstance(kos[0].players[0].get("boost_used"), float)
 
     # Timeline includes KICKOFF and TOUCH entries
-    timeline = build_events_timeline({
-        "goals": [],
-        "demos": [],
-        "kickoffs": kos,
-        "boost_pickups": [],
-        "touches": touches,
-        "challenges": challenge_events,
-    })
+    timeline = build_events_timeline(
+        {
+            "goals": [],
+            "demos": [],
+            "kickoffs": kos,
+            "boost_pickups": [],
+            "touches": touches,
+            "challenges": challenge_events,
+        }
+    )
     kinds = [t.type for t in timeline]
     assert "KICKOFF" in kinds
     assert "TOUCH" in kinds
-    assert "SHOT" in kinds or "TOUCH" in kinds  # shot emission optional in synthetic data
+    assert (
+        "SHOT" in kinds or "TOUCH" in kinds
+    )  # shot emission optional in synthetic data

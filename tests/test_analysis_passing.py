@@ -6,10 +6,14 @@ from rlcoach.field_constants import Vec3
 from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
 
-def make_frame(t: float, ball_pos: Vec3, ball_vel: Vec3, players: list[PlayerFrame]) -> Frame:
+def make_frame(
+    t: float, ball_pos: Vec3, ball_vel: Vec3, players: list[PlayerFrame]
+) -> Frame:
     return Frame(
         timestamp=t,
-        ball=BallFrame(position=ball_pos, velocity=ball_vel, angular_velocity=Vec3(0.0, 0.0, 0.0)),
+        ball=BallFrame(
+            position=ball_pos, velocity=ball_vel, angular_velocity=Vec3(0.0, 0.0, 0.0)
+        ),
         players=players,
     )
 
@@ -48,12 +52,24 @@ class TestPassingAnalysis:
 
         # Frames across 0..3.0s, ball generally moving toward +Y (BLUE attacks +Y)
         frames = [
-            make_frame(0.0, Vec3(0.0, -1200.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]),
-            make_frame(0.5, Vec3(0.0, -900.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]),
-            make_frame(1.0, Vec3(0.0, -600.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]),
-            make_frame(1.5, Vec3(0.0, -300.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]),
-            make_frame(2.4, Vec3(0.0, -100.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]),
-            make_frame(3.0, Vec3(0.0, 200.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]),
+            make_frame(
+                0.0, Vec3(0.0, -1200.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]
+            ),
+            make_frame(
+                0.5, Vec3(0.0, -900.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]
+            ),
+            make_frame(
+                1.0, Vec3(0.0, -600.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]
+            ),
+            make_frame(
+                1.5, Vec3(0.0, -300.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]
+            ),
+            make_frame(
+                2.4, Vec3(0.0, -100.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]
+            ),
+            make_frame(
+                3.0, Vec3(0.0, 200.0, 93.0), Vec3(0.0, 500.0, 0.0), [pA0, pB0, pC1]
+            ),
         ]
 
         # Touch sequence (times must align with frames timestamps window):
@@ -94,17 +110,19 @@ class TestPassingAnalysis:
         assert result_B["passes_received"] == 1
 
     def test_diagonal_forward_progress_is_counted(self):
+        # Forward progress must be >= 200 UU (FORWARD_DELTA_MIN_UU)
+        # This pass: y moves from -820 to -600 = +220 UU forward
         pA0 = make_player("A", 0, Vec3(-200.0, -800.0, 17.0))
-        pB0 = make_player("B", 0, Vec3(200.0, -720.0, 17.0))
+        pB0 = make_player("B", 0, Vec3(200.0, -620.0, 17.0))
 
         frames = [
             make_frame(0.0, Vec3(0.0, -820.0, 93.0), Vec3(0.0, 0.0, 0.0), [pA0, pB0]),
-            make_frame(0.5, Vec3(0.0, -700.0, 93.0), Vec3(0.0, 0.0, 0.0), [pA0, pB0]),
+            make_frame(0.5, Vec3(0.0, -600.0, 93.0), Vec3(0.0, 0.0, 0.0), [pA0, pB0]),
         ]
 
         touches = [
             TouchEvent(t=0.0, player_id="A", location=Vec3(-200.0, -820.0, 17.0)),
-            TouchEvent(t=0.4, player_id="B", location=Vec3(120.0, -700.0, 17.0)),
+            TouchEvent(t=0.4, player_id="B", location=Vec3(120.0, -600.0, 17.0)),
         ]
 
         result_blue = analyze_passing(frames, {"touches": touches}, team="BLUE")

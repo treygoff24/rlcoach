@@ -11,7 +11,9 @@ from rlcoach.report import generate_report
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPLAY_PATH = REPO_ROOT / "Replay_files" / "0925.replay"
-BALLCHASING_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "boost_parity" / "0925_ballchasing_players.json"
+BALLCHASING_FIXTURE = (
+    REPO_ROOT / "tests" / "fixtures" / "boost_parity" / "0925_ballchasing_players.json"
+)
 
 
 def _load_fixture() -> dict[str, dict]:
@@ -29,12 +31,35 @@ def _apply_fixture_boost(report: dict, fixture: dict[str, dict]) -> dict:
         boost_block.update(
             {
                 # Map Ballchasing 'amount_collected' to our 'boost_collected'
-                "boost_collected": float(values.get("amount_collected", boost_block.get("boost_collected", 0.0))),
-                "boost_stolen": float(values.get("amount_stolen", boost_block.get("boost_stolen", 0.0))),
-                "big_pads": int(values.get("count_collected_big_pads", boost_block.get("big_pads", 0))),
-                "small_pads": int(values.get("count_collected_small_pads", boost_block.get("small_pads", 0))),
-                "stolen_big_pads": int(values.get("count_stolen_big_pads", boost_block.get("stolen_big_pads", 0))),
-                "stolen_small_pads": int(values.get("count_stolen_small_pads", boost_block.get("stolen_small_pads", 0))),
+                "boost_collected": float(
+                    values.get(
+                        "amount_collected", boost_block.get("boost_collected", 0.0)
+                    )
+                ),
+                "boost_stolen": float(
+                    values.get("amount_stolen", boost_block.get("boost_stolen", 0.0))
+                ),
+                "big_pads": int(
+                    values.get(
+                        "count_collected_big_pads", boost_block.get("big_pads", 0)
+                    )
+                ),
+                "small_pads": int(
+                    values.get(
+                        "count_collected_small_pads", boost_block.get("small_pads", 0)
+                    )
+                ),
+                "stolen_big_pads": int(
+                    values.get(
+                        "count_stolen_big_pads", boost_block.get("stolen_big_pads", 0)
+                    )
+                ),
+                "stolen_small_pads": int(
+                    values.get(
+                        "count_stolen_small_pads",
+                        boost_block.get("stolen_small_pads", 0),
+                    )
+                ),
             }
         )
     return report

@@ -277,7 +277,9 @@ async def handle_subscription_updated(session, subscription):
         if not user_id:
             # Try to find by customer ID
             user = (
-                session.query(User).filter(User.stripe_customer_id == customer_id).first()
+                session.query(User)
+                .filter(User.stripe_customer_id == customer_id)
+                .first()
             )
         else:
             user = session.query(User).filter(User.id == user_id).first()
@@ -305,7 +307,9 @@ async def handle_subscription_updated(session, subscription):
         logger.info(f"User {user.id} subscription updated: {status}")
     except Exception:
         session.rollback()
-        logger.exception(f"Error handling subscription update for customer {customer_id}")
+        logger.exception(
+            f"Error handling subscription update for customer {customer_id}"
+        )
         raise
 
 
@@ -314,7 +318,9 @@ async def handle_subscription_deleted(session, subscription):
     customer_id = subscription.get("customer")
 
     try:
-        user = session.query(User).filter(User.stripe_customer_id == customer_id).first()
+        user = (
+            session.query(User).filter(User.stripe_customer_id == customer_id).first()
+        )
         if not user:
             logger.warning("User not found for subscription deletion")
             return
@@ -327,7 +333,9 @@ async def handle_subscription_deleted(session, subscription):
         logger.info(f"User {user.id} subscription canceled")
     except Exception:
         session.rollback()
-        logger.exception(f"Error handling subscription deletion for customer {customer_id}")
+        logger.exception(
+            f"Error handling subscription deletion for customer {customer_id}"
+        )
         raise
 
 
@@ -336,7 +344,9 @@ async def handle_payment_failed(session, invoice):
     customer_id = invoice.get("customer")
 
     try:
-        user = session.query(User).filter(User.stripe_customer_id == customer_id).first()
+        user = (
+            session.query(User).filter(User.stripe_customer_id == customer_id).first()
+        )
         if not user:
             logger.warning("User not found for payment failure")
             return

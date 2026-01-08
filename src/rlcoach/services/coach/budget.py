@@ -109,10 +109,16 @@ def check_budget(user: User, estimated_tokens: int = 0) -> tuple[bool, str | Non
     status = get_budget_status(user)
 
     if status.exhausted:
-        return False, f"Monthly token budget exhausted. Resets on {status.reset_date.strftime('%B %d')}."
+        return (
+            False,
+            f"Monthly token budget exhausted. Resets on {status.reset_date.strftime('%B %d')}.",
+        )
 
     if estimated_tokens > status.remaining:
-        return False, f"Request would exceed budget. {status.remaining:,} tokens remaining."
+        return (
+            False,
+            f"Request would exceed budget. {status.remaining:,} tokens remaining.",
+        )
 
     if status.warning:
         # Allow but will include warning in response

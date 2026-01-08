@@ -41,6 +41,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - UPLOAD_DIR=/app/storage/uploads
     ports:
       - "8000:8000"
     volumes:
@@ -66,6 +67,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-rlcoach}:${POSTGRES_PASSWORD:-rlcoach_dev}@postgres:5432/${POSTGRES_DB:-rlcoach}
       - REDIS_URL=redis://redis:6379
+      - UPLOAD_DIR=/app/storage/uploads
     volumes:
       - ./src:/app/src
       - ./replays:/app/replays
@@ -86,6 +88,7 @@ services:
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - BACKEND_URL=http://backend:8000
     ports:
       - "3000:3000"
     volumes:

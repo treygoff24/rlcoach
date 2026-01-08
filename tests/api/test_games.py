@@ -52,46 +52,52 @@ def db_with_data(mock_config):
     # Add replays
     for i in range(5):
         result = "WIN" if i % 2 == 0 else "LOSS"
-        session.add(Replay(
-            replay_id=f"replay_{i}",
-            source_file=f"/path/replay_{i}.replay",
-            file_hash=f"hash_{i}",
-            played_at_utc=datetime(2024, 12, 23, 10 + i, 0, 0, tzinfo=timezone.utc),
-            play_date=date(2024, 12, 23),
-            map="DFH Stadium",
-            playlist="DOUBLES",
-            team_size=2,
-            duration_seconds=300.0,
-            my_player_id="steam:me123",
-            my_team="BLUE",
-            my_score=2 if result == "WIN" else 1,
-            opponent_score=1 if result == "WIN" else 2,
-            result=result,
-            json_report_path=f"/path/replay_{i}.json",
-        ))
-        session.add(PlayerGameStats(
-            replay_id=f"replay_{i}",
-            player_id="steam:me123",
-            team="BLUE",
-            is_me=True,
-            goals=i,
-            assists=1,
-            saves=2,
-            bcpm=350.0 + i * 10,
-        ))
+        session.add(
+            Replay(
+                replay_id=f"replay_{i}",
+                source_file=f"/path/replay_{i}.replay",
+                file_hash=f"hash_{i}",
+                played_at_utc=datetime(2024, 12, 23, 10 + i, 0, 0, tzinfo=timezone.utc),
+                play_date=date(2024, 12, 23),
+                map="DFH Stadium",
+                playlist="DOUBLES",
+                team_size=2,
+                duration_seconds=300.0,
+                my_player_id="steam:me123",
+                my_team="BLUE",
+                my_score=2 if result == "WIN" else 1,
+                opponent_score=1 if result == "WIN" else 2,
+                result=result,
+                json_report_path=f"/path/replay_{i}.json",
+            )
+        )
+        session.add(
+            PlayerGameStats(
+                replay_id=f"replay_{i}",
+                player_id="steam:me123",
+                team="BLUE",
+                is_me=True,
+                goals=i,
+                assists=1,
+                saves=2,
+                bcpm=350.0 + i * 10,
+            )
+        )
 
     # Add daily stats
-    session.add(DailyStats(
-        play_date=date(2024, 12, 23),
-        playlist="DOUBLES",
-        games_played=5,
-        wins=3,
-        losses=2,
-        draws=0,
-        win_rate=60.0,
-        avg_goals=2.0,
-        avg_bcpm=375.0,
-    ))
+    session.add(
+        DailyStats(
+            play_date=date(2024, 12, 23),
+            playlist="DOUBLES",
+            games_played=5,
+            wins=3,
+            losses=2,
+            draws=0,
+            win_rate=60.0,
+            avg_goals=2.0,
+            avg_bcpm=375.0,
+        )
+    )
 
     session.commit()
     session.close()
@@ -106,6 +112,7 @@ def client(db_with_data):
     """Create a test client with database data."""
     with patch("rlcoach.api.app.get_config", return_value=db_with_data):
         from rlcoach.api.app import create_app
+
         app = create_app()
         yield TestClient(app)
 
@@ -189,7 +196,9 @@ class TestGamesEndpoint:
 
         # Should be sorted by date descending
         if len(data["items"]) >= 2:
-            assert data["items"][0]["played_at_utc"] >= data["items"][1]["played_at_utc"]
+            assert (
+                data["items"][0]["played_at_utc"] >= data["items"][1]["played_at_utc"]
+            )
 
 
 class TestReplayEndpoint:

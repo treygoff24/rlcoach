@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -106,7 +107,9 @@ class PlayerGameStats(Base):
     replay_id = Column(
         String, ForeignKey("replays.replay_id", ondelete="CASCADE"), nullable=False
     )
-    player_id = Column(String, ForeignKey("players.player_id", ondelete="CASCADE"), nullable=False)
+    player_id = Column(
+        String, ForeignKey("players.player_id", ondelete="CASCADE"), nullable=False
+    )
     team = Column(String, nullable=False)
     is_me = Column(Boolean, default=False)
     is_teammate = Column(Boolean, default=False)
@@ -186,11 +189,11 @@ class PlayerGameStats(Base):
         UniqueConstraint("replay_id", "player_id", name="uq_replay_player"),
         Index("ix_player_game_stats_replay", "replay_id"),
         Index("ix_player_game_stats_player", "player_id"),
-        # PostgreSQL partial index (replaces sqlite_where)
+        # PostgreSQL partial index using text() for compatibility
         Index(
             "ix_player_game_stats_is_me",
             "is_me",
-            postgresql_where=(Column("is_me") == True),  # noqa: E712
+            postgresql_where=text("is_me = true"),
         ),
     )
 

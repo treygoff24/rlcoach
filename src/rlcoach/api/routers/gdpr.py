@@ -18,7 +18,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session as DBSession
 
 from ...db import get_session
-from ...db.models import PlayerGameStats
+from ...db.models import Player, PlayerGameStats
 from ..rate_limit import check_rate_limit, rate_limit_response
 
 logger = logging.getLogger(__name__)
@@ -117,26 +117,35 @@ async def submit_removal_request(
     if not rate_result.allowed:
         raise rate_limit_response(rate_result)
 
-    # Count affected replays
+    # Count affected replays by searching Player table and joining to stats
     affected_count = 0
 
+    # Build base query joining Player to PlayerGameStats
+    # Note: Player IDs are stored with platform prefix (steam:xxx, epic:xxx)
     if request.identifier_type == "steam_id":
+        # Steam ID format: 76561198xxxxxxxxx (17 digits) -> stored as steam:xxx
+        prefixed_id = f"steam:{request.player_identifier}"
         affected_count = (
             db.query(PlayerGameStats)
-            .filter(PlayerGameStats.steam_id == request.player_identifier)
+            .join(Player, PlayerGameStats.player_id == Player.player_id)
+            .filter(Player.player_id == prefixed_id)
             .count()
         )
     elif request.identifier_type == "epic_id":
+        # Epic ID format: typically a UUID or alphanumeric -> stored as epic:xxx
+        prefixed_id = f"epic:{request.player_identifier}"
         affected_count = (
             db.query(PlayerGameStats)
-            .filter(PlayerGameStats.epic_id == request.player_identifier)
+            .join(Player, PlayerGameStats.player_id == Player.player_id)
+            .filter(Player.player_id == prefixed_id)
             .count()
         )
     elif request.identifier_type == "display_name":
-        # Case-insensitive search for display name
+        # Case-insensitive search for display name via Player table
         affected_count = (
             db.query(PlayerGameStats)
-            .filter(PlayerGameStats.display_name.ilike(request.player_identifier))
+            .join(Player, PlayerGameStats.player_id == Player.player_id)
+            .filter(Player.display_name.ilike(request.player_identifier))
             .count()
         )
 
@@ -220,36 +229,34 @@ async def process_removal_request(
     anonymized_count = 0
 
     try:
+        # Anonymize player data in Player table (not PlayerGameStats)
+        # Note: Player IDs are stored with platform prefix (steam:xxx, epic:xxx)
         if req["identifier_type"] == "steam_id":
+            prefixed_id = f"steam:{req['identifier']}"
             result = (
-                db.query(PlayerGameStats)
-                .filter(PlayerGameStats.steam_id == req["identifier"])
+                db.query(Player)
+                .filter(Player.player_id == prefixed_id)
                 .update(
-                    {
-                        "steam_id": None,
-                        "display_name": f"[Removed Player {request_id[:8]}]",
-                    },
+                    {"display_name": f"[Removed Player {request_id[:8]}]"},
                     synchronize_session=False,
                 )
             )
             anonymized_count = result
         elif req["identifier_type"] == "epic_id":
+            prefixed_id = f"epic:{req['identifier']}"
             result = (
-                db.query(PlayerGameStats)
-                .filter(PlayerGameStats.epic_id == req["identifier"])
+                db.query(Player)
+                .filter(Player.player_id == prefixed_id)
                 .update(
-                    {
-                        "epic_id": None,
-                        "display_name": f"[Removed Player {request_id[:8]}]",
-                    },
+                    {"display_name": f"[Removed Player {request_id[:8]}]"},
                     synchronize_session=False,
                 )
             )
             anonymized_count = result
         elif req["identifier_type"] == "display_name":
             result = (
-                db.query(PlayerGameStats)
-                .filter(PlayerGameStats.display_name.ilike(req["identifier"]))
+                db.query(Player)
+                .filter(Player.display_name.ilike(req["identifier"]))
                 .update(
                     {"display_name": f"[Removed Player {request_id[:8]}]"},
                     synchronize_session=False,

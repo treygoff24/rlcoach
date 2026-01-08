@@ -102,9 +102,7 @@ def _analyze_positioning_insights(
             {
                 "severity": "SUGGESTION",
                 "priority": PRIORITY_HIGH,
-                "message": (
-                    "Over-committing to offense without ball control"
-                ),
+                "message": ("Over-committing to offense without ball control"),
                 "contributing_factors": [
                     f"Ahead of ball {ahead_ball_pct:.0f}% of the time",
                     f"But only first man {first_man_pct:.0f}% of the time",
@@ -127,9 +125,7 @@ def _analyze_positioning_insights(
             {
                 "severity": "SUGGESTION",
                 "priority": PRIORITY_MEDIUM,
-                "message": (
-                    "Insufficient third man coverage"
-                ),
+                "message": ("Insufficient third man coverage"),
                 "contributing_factors": [
                     f"Only in third man position {third_man_pct:.0f}% of the time",
                     "Third man should be ~30-35% in balanced 3v3 rotation",
@@ -148,9 +144,7 @@ def _analyze_positioning_insights(
             {
                 "severity": "WARNING",
                 "priority": PRIORITY_CRITICAL,
-                "message": (
-                    "Potential ball-chasing detected"
-                ),
+                "message": ("Potential ball-chasing detected"),
                 "contributing_factors": [
                     f"First man position {first_man_pct:.0f}% of the time",
                     "Healthy first man % is 30-45% depending on playstyle",

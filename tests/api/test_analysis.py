@@ -53,57 +53,65 @@ def db_with_analysis_data(mock_config):
     for i in range(10):
         result = "WIN" if i % 2 == 0 else "LOSS"
         bcpm = 400.0 if result == "WIN" else 320.0  # Clear pattern
-        session.add(Replay(
-            replay_id=f"replay_{i}",
-            source_file=f"/path/replay_{i}.replay",
-            file_hash=f"hash_{i}",
-            played_at_utc=datetime(2024, 12, 23, 10 + i, 0, 0, tzinfo=timezone.utc),
-            play_date=date(2024, 12, 20 + (i // 3)),
-            map="DFH Stadium",
-            playlist="DOUBLES",
-            team_size=2,
-            duration_seconds=300.0,
-            my_player_id="steam:me123",
-            my_team="BLUE",
-            my_score=2 if result == "WIN" else 1,
-            opponent_score=1 if result == "WIN" else 2,
-            result=result,
-            json_report_path=f"/path/replay_{i}.json",
-        ))
-        session.add(PlayerGameStats(
-            replay_id=f"replay_{i}",
-            player_id="steam:me123",
-            team="BLUE",
-            is_me=True,
-            goals=2 if result == "WIN" else 0,
-            assists=1,
-            saves=2,
-            shots=4,
-            bcpm=bcpm,
-            avg_boost=35.0,
-        ))
+        session.add(
+            Replay(
+                replay_id=f"replay_{i}",
+                source_file=f"/path/replay_{i}.replay",
+                file_hash=f"hash_{i}",
+                played_at_utc=datetime(2024, 12, 23, 10 + i, 0, 0, tzinfo=timezone.utc),
+                play_date=date(2024, 12, 20 + (i // 3)),
+                map="DFH Stadium",
+                playlist="DOUBLES",
+                team_size=2,
+                duration_seconds=300.0,
+                my_player_id="steam:me123",
+                my_team="BLUE",
+                my_score=2 if result == "WIN" else 1,
+                opponent_score=1 if result == "WIN" else 2,
+                result=result,
+                json_report_path=f"/path/replay_{i}.json",
+            )
+        )
+        session.add(
+            PlayerGameStats(
+                replay_id=f"replay_{i}",
+                player_id="steam:me123",
+                team="BLUE",
+                is_me=True,
+                goals=2 if result == "WIN" else 0,
+                assists=1,
+                saves=2,
+                shots=4,
+                bcpm=bcpm,
+                avg_boost=35.0,
+            )
+        )
 
     # Add benchmarks
-    session.add(Benchmark(
-        metric="bcpm",
-        playlist="DOUBLES",
-        rank_tier="GC1",
-        p25_value=320.0,
-        median_value=360.0,
-        p75_value=400.0,
-        elite_threshold=450.0,
-        source="test",
-    ))
-    session.add(Benchmark(
-        metric="avg_boost",
-        playlist="DOUBLES",
-        rank_tier="GC1",
-        p25_value=30.0,
-        median_value=35.0,
-        p75_value=40.0,
-        elite_threshold=48.0,
-        source="test",
-    ))
+    session.add(
+        Benchmark(
+            metric="bcpm",
+            playlist="DOUBLES",
+            rank_tier="GC1",
+            p25_value=320.0,
+            median_value=360.0,
+            p75_value=400.0,
+            elite_threshold=450.0,
+            source="test",
+        )
+    )
+    session.add(
+        Benchmark(
+            metric="avg_boost",
+            playlist="DOUBLES",
+            rank_tier="GC1",
+            p25_value=30.0,
+            median_value=35.0,
+            p75_value=40.0,
+            elite_threshold=48.0,
+            source="test",
+        )
+    )
 
     session.commit()
     session.close()
@@ -118,6 +126,7 @@ def client(db_with_analysis_data):
     """Create a test client with analysis data."""
     with patch("rlcoach.api.app.get_config", return_value=db_with_analysis_data):
         from rlcoach.api.app import create_app
+
         app = create_app()
         yield TestClient(app)
 

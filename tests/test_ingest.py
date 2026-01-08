@@ -213,7 +213,9 @@ class TestCRCCheck:
 
     def test_crc_check_content_mismatch(self):
         """CRC check should fail when content payload is tampered."""
-        data = bytearray(build_minimal_replay(content_payload=b"abc", pad_to_min_size=False))
+        data = bytearray(
+            build_minimal_replay(content_payload=b"abc", pad_to_min_size=False)
+        )
         header_size = struct.unpack_from("<i", data, 0)[0]
         header_total = 8 + header_size
         content_size = struct.unpack_from("<i", data, header_total)[0]

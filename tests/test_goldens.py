@@ -45,7 +45,9 @@ def _normalize(obj: Any) -> Any:
     return obj
 
 
-def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> dict[str, Any]:
+def build_synthetic_report(
+    name: str, header: Header, frames: list[Frame]
+) -> dict[str, Any]:
     # Events
     goals = detect_goals(frames, header)
     demos = detect_demos(frames)
@@ -74,8 +76,10 @@ def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> di
     if identities:
         for identity in identities:
             player_info = header.players[identity.header_index]
-            team_name = identity.team if identity.team in {"BLUE", "ORANGE"} else (
-                "BLUE" if (player_info.team or 0) == 0 else "ORANGE"
+            team_name = (
+                identity.team
+                if identity.team in {"BLUE", "ORANGE"}
+                else ("BLUE" if (player_info.team or 0) == 0 else "ORANGE")
             )
             team_players.setdefault(team_name, [])
             team_players[team_name].append(identity.canonical_id)
@@ -104,8 +108,16 @@ def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> di
         team_players["BLUE"].append("player_0")
 
     teams_block = {
-        "blue": {"name": "BLUE", "score": int(header.team0_score or 0), "players": team_players["BLUE"]},
-        "orange": {"name": "ORANGE", "score": int(header.team1_score or 0), "players": team_players["ORANGE"]},
+        "blue": {
+            "name": "BLUE",
+            "score": int(header.team0_score or 0),
+            "players": team_players["BLUE"],
+        },
+        "orange": {
+            "name": "ORANGE",
+            "score": int(header.team1_score or 0),
+            "players": team_players["ORANGE"],
+        },
     }
 
     # Events block
@@ -122,7 +134,10 @@ def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> di
     def _event_dict_list(items: list[Any]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for it in items:
-            d = {k: _normalize(getattr(it, k)) for k in getattr(it, "__dataclass_fields__").keys()}
+            d = {
+                k: _normalize(getattr(it, k))
+                for k in getattr(it, "__dataclass_fields__").keys()
+            }
             out.append(d)
         return out
 
@@ -154,11 +169,15 @@ def build_synthetic_report(name: str, header: Header, frames: list[Frame]) -> di
             "extent": {"xmin": -1.0, "xmax": 1.0, "ymin": -1.0, "ymax": 1.0},
             "values": [[0.0, 0.0, 0.0, 0.0] for _ in range(4)],
         }
-    
+
     for pdata in per_player_map.values():
         hm = pdata.get("heatmaps")
         if isinstance(hm, dict):
-            for key in ("position_occupancy_grid", "touch_density_grid", "boost_pickup_grid"):
+            for key in (
+                "position_occupancy_grid",
+                "touch_density_grid",
+                "boost_pickup_grid",
+            ):
                 grid = hm.get(key)
                 if isinstance(grid, dict):
                     xb = int(grid.get("x_bins", 0) or 0)
@@ -284,26 +303,80 @@ def test_golden_synthetic_small(tmp_path: Path):
     frames = [
         Frame(
             timestamp=0.0,
-            ball=BallFrame(position=Vec3(0.0, 0.0, 93.15), velocity=Vec3(0.0, 0.0, 0.0), angular_velocity=Vec3(0.0, 0.0, 0.0)),
+            ball=BallFrame(
+                position=Vec3(0.0, 0.0, 93.15),
+                velocity=Vec3(0.0, 0.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
             players=[
-                PlayerFrame("A", 0, Vec3(0.0, -500.0, 17.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), 50),
-                PlayerFrame("B", 1, Vec3(0.0, 1000.0, 17.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), 50),
+                PlayerFrame(
+                    "A",
+                    0,
+                    Vec3(0.0, -500.0, 17.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    50,
+                ),
+                PlayerFrame(
+                    "B",
+                    1,
+                    Vec3(0.0, 1000.0, 17.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    50,
+                ),
             ],
         ),
         Frame(
             timestamp=1.0,
-            ball=BallFrame(position=Vec3(0.0, 120.0, 93.15), velocity=Vec3(0.0, 300.0, 0.0), angular_velocity=Vec3(0.0, 0.0, 0.0)),
+            ball=BallFrame(
+                position=Vec3(0.0, 120.0, 93.15),
+                velocity=Vec3(0.0, 300.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
             players=[
-                PlayerFrame("A", 0, Vec3(0.0, -500.0, 17.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), 50),
-                PlayerFrame("B", 1, Vec3(0.0, 1000.0, 17.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), 50),
+                PlayerFrame(
+                    "A",
+                    0,
+                    Vec3(0.0, -500.0, 17.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    50,
+                ),
+                PlayerFrame(
+                    "B",
+                    1,
+                    Vec3(0.0, 1000.0, 17.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    50,
+                ),
             ],
         ),
         Frame(
             timestamp=1.1,
-            ball=BallFrame(position=Vec3(0.0, 150.0, 93.15), velocity=Vec3(0.0, 900.0, 0.0), angular_velocity=Vec3(0.0, 0.0, 0.0)),
+            ball=BallFrame(
+                position=Vec3(0.0, 150.0, 93.15),
+                velocity=Vec3(0.0, 900.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
             players=[
-                PlayerFrame("A", 0, Vec3(0.0, 160.0, 17.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), 50),
-                PlayerFrame("B", 1, Vec3(0.0, 1000.0, 17.0), Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0), 50),
+                PlayerFrame(
+                    "A",
+                    0,
+                    Vec3(0.0, 160.0, 17.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    50,
+                ),
+                PlayerFrame(
+                    "B",
+                    1,
+                    Vec3(0.0, 1000.0, 17.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    Vec3(0.0, 0.0, 0.0),
+                    50,
+                ),
             ],
         ),
     ]

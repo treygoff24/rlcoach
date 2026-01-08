@@ -20,7 +20,11 @@ def test_upsert_players_creates_new(tmp_path):
     identity = IdentityConfig(platform_ids=["steam:me123"])
     players = [
         {"player_id": "steam:me123", "display_name": "MePlayer", "team": "BLUE"},
-        {"player_id": "steam:other456", "display_name": "OtherPlayer", "team": "ORANGE"},
+        {
+            "player_id": "steam:other456",
+            "display_name": "OtherPlayer",
+            "team": "ORANGE",
+        },
     ]
 
     upsert_players(players, identity)
@@ -47,14 +51,20 @@ def test_upsert_players_updates_existing(tmp_path):
     identity = IdentityConfig(platform_ids=["steam:me123"])
 
     # First call
-    upsert_players([
-        {"player_id": "steam:other456", "display_name": "OldName", "team": "BLUE"},
-    ], identity)
+    upsert_players(
+        [
+            {"player_id": "steam:other456", "display_name": "OldName", "team": "BLUE"},
+        ],
+        identity,
+    )
 
     # Second call with new name
-    upsert_players([
-        {"player_id": "steam:other456", "display_name": "NewName", "team": "BLUE"},
-    ], identity)
+    upsert_players(
+        [
+            {"player_id": "steam:other456", "display_name": "NewName", "team": "BLUE"},
+        ],
+        identity,
+    )
 
     session = create_session()
     try:

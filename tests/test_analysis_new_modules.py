@@ -1,6 +1,5 @@
 """Tests for new analysis modules: mechanics, recovery, xg, defense, ball_prediction."""
 
-
 from rlcoach.analysis.ball_prediction import analyze_ball_prediction
 from rlcoach.analysis.defense import analyze_defense
 from rlcoach.analysis.mechanics import analyze_mechanics
@@ -199,7 +198,9 @@ class TestXGAnalysis:
         # We'll just verify the analyze_shots_xg runs without error for now
         player = create_test_player("player1", 0, position=Vec3(0.0, -4600.0, 17.0))
         frames = [
-            create_test_frame(0.0, [player], ball_pos=close_pos, ball_vel=Vec3(0.0, -1000.0, 0.0)),
+            create_test_frame(
+                0.0, [player], ball_pos=close_pos, ball_vel=Vec3(0.0, -1000.0, 0.0)
+            ),
         ]
 
         # No touches = no shots to analyze

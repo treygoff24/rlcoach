@@ -17,7 +17,8 @@ from rlcoach.config import (
 
 def test_load_config_from_valid_toml(tmp_path):
     config_file = tmp_path / "config.toml"
-    config_file.write_text('''
+    config_file.write_text(
+        """
 [identity]
 platform_ids = ["steam:76561198012345678"]
 display_names = ["TestPlayer"]
@@ -31,7 +32,8 @@ reports_dir = "~/.rlcoach/reports"
 primary_playlist = "DOUBLES"
 target_rank = "GC1"
 timezone = "America/Los_Angeles"
-''')
+"""
+    )
 
     config = load_config(config_file)
 
@@ -97,7 +99,10 @@ def test_validate_excluded_names_overlap():
     config = RLCoachConfig(
         identity=IdentityConfig(
             display_names=["MainAccount", "TrainingAccount"],
-            excluded_names=["CasualAccount", "mainaccount"],  # Overlap (case-insensitive)
+            excluded_names=[
+                "CasualAccount",
+                "mainaccount",
+            ],  # Overlap (case-insensitive)
         ),
         paths=PathsConfig(
             watch_folder=Path("~/Replays"),
@@ -133,7 +138,8 @@ def test_validate_excluded_names_no_overlap():
 def test_load_config_with_excluded_names(tmp_path):
     """Should load excluded_names from TOML config."""
     config_file = tmp_path / "config.toml"
-    config_file.write_text('''
+    config_file.write_text(
+        """
 [identity]
 platform_ids = ["steam:123"]
 display_names = ["MainAccount"]
@@ -147,7 +153,8 @@ reports_dir = "~/.rlcoach/reports"
 [preferences]
 primary_playlist = "DOUBLES"
 target_rank = "GC1"
-''')
+"""
+    )
 
     config = load_config(config_file)
 
@@ -157,7 +164,8 @@ target_rank = "GC1"
 def test_load_config_excluded_names_defaults_empty(tmp_path):
     """excluded_names should default to empty list if not specified."""
     config_file = tmp_path / "config.toml"
-    config_file.write_text('''
+    config_file.write_text(
+        """
 [identity]
 display_names = ["MainAccount"]
 
@@ -169,7 +177,8 @@ reports_dir = "~/.rlcoach/reports"
 [preferences]
 primary_playlist = "DOUBLES"
 target_rank = "GC1"
-''')
+"""
+    )
 
     config = load_config(config_file)
 

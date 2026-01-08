@@ -101,8 +101,7 @@ async def send_message(
     # Validate message length (prevent abuse)
     if len(request.message) > 10000:
         raise HTTPException(
-            status_code=400,
-            detail="Message too long. Maximum 10,000 characters."
+            status_code=400, detail="Message too long. Maximum 10,000 characters."
         )
 
     # Sanitize message content for storage (XSS prevention)

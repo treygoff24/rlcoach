@@ -44,6 +44,7 @@ def create_player(
 def test_detects_big_and_small_pad_pickups():
     """Boost detector maps frame deltas to canonical big/small pad ids."""
     from rlcoach.field_constants import find_big_pad_blue_corner, find_small_pad_neutral
+
     big_pad = find_big_pad_blue_corner()  # Any blue corner big pad
     small_pad = find_small_pad_neutral()  # Any neutral midfield small pad
 
@@ -51,25 +52,33 @@ def test_detects_big_and_small_pad_pickups():
         create_frame(
             0.0,
             [
-                create_player("p1", 0, Vec3(big_pad.position.x, big_pad.position.y, 17.0), 0),
+                create_player(
+                    "p1", 0, Vec3(big_pad.position.x, big_pad.position.y, 17.0), 0
+                ),
             ],
         ),
         create_frame(
             0.1,
             [
-                create_player("p1", 0, Vec3(big_pad.position.x, big_pad.position.y, 17.0), 100),
+                create_player(
+                    "p1", 0, Vec3(big_pad.position.x, big_pad.position.y, 17.0), 100
+                ),
             ],
         ),
         create_frame(
             4.5,
             [
-                create_player("p1", 0, Vec3(small_pad.position.x, small_pad.position.y, 17.0), 60),
+                create_player(
+                    "p1", 0, Vec3(small_pad.position.x, small_pad.position.y, 17.0), 60
+                ),
             ],
         ),
         create_frame(
             4.6,
             [
-                create_player("p1", 0, Vec3(small_pad.position.x, small_pad.position.y, 17.0), 72),
+                create_player(
+                    "p1", 0, Vec3(small_pad.position.x, small_pad.position.y, 17.0), 72
+                ),
             ],
         ),
     ]
@@ -89,6 +98,7 @@ def test_detects_stolen_boost_flags():
         find_small_pad_blue_side,
         find_small_pad_orange_side,
     )
+
     orange_big_pad = find_big_pad_orange_corner()  # Blue steals orange corner
     blue_small_pad = find_small_pad_blue_side()  # Orange steals blue small pad
     mid_orange_small_pad = find_small_pad_orange_side()  # Orange-side small pad
@@ -97,17 +107,55 @@ def test_detects_stolen_boost_flags():
         create_frame(
             1.0,
             [
-                create_player("blue_p", 0, Vec3(orange_big_pad.position.x, orange_big_pad.position.y, 17.0), 20),
-                create_player("orange_p", 1, Vec3(blue_small_pad.position.x, blue_small_pad.position.y, 17.0), 30),
-                create_player("blue_mid", 0, Vec3(mid_orange_small_pad.position.x, mid_orange_small_pad.position.y, 17.0), 10),
+                create_player(
+                    "blue_p",
+                    0,
+                    Vec3(orange_big_pad.position.x, orange_big_pad.position.y, 17.0),
+                    20,
+                ),
+                create_player(
+                    "orange_p",
+                    1,
+                    Vec3(blue_small_pad.position.x, blue_small_pad.position.y, 17.0),
+                    30,
+                ),
+                create_player(
+                    "blue_mid",
+                    0,
+                    Vec3(
+                        mid_orange_small_pad.position.x,
+                        mid_orange_small_pad.position.y,
+                        17.0,
+                    ),
+                    10,
+                ),
             ],
         ),
         create_frame(
             1.1,
             [
-                create_player("blue_p", 0, Vec3(orange_big_pad.position.x, orange_big_pad.position.y, 17.0), 120),
-                create_player("orange_p", 1, Vec3(blue_small_pad.position.x, blue_small_pad.position.y, 17.0), 42),
-                create_player("blue_mid", 0, Vec3(mid_orange_small_pad.position.x, mid_orange_small_pad.position.y, 17.0), 22),
+                create_player(
+                    "blue_p",
+                    0,
+                    Vec3(orange_big_pad.position.x, orange_big_pad.position.y, 17.0),
+                    120,
+                ),
+                create_player(
+                    "orange_p",
+                    1,
+                    Vec3(blue_small_pad.position.x, blue_small_pad.position.y, 17.0),
+                    42,
+                ),
+                create_player(
+                    "blue_mid",
+                    0,
+                    Vec3(
+                        mid_orange_small_pad.position.x,
+                        mid_orange_small_pad.position.y,
+                        17.0,
+                    ),
+                    22,
+                ),
             ],
         ),
     ]
@@ -127,37 +175,49 @@ def test_overfill_and_waste_metrics():
         create_frame(
             0.0,
             [
-                create_player("p1", 0, Vec3(0.0, 0.0, 17.0), 90, Vec3(2400.0, 0.0, 0.0)),
+                create_player(
+                    "p1", 0, Vec3(0.0, 0.0, 17.0), 90, Vec3(2400.0, 0.0, 0.0)
+                ),
             ],
         ),
         create_frame(
             5.0,
             [
-                create_player("p1", 0, Vec3(0.0, 0.0, 17.0), 70, Vec3(2400.0, 0.0, 0.0)),
+                create_player(
+                    "p1", 0, Vec3(0.0, 0.0, 17.0), 70, Vec3(2400.0, 0.0, 0.0)
+                ),
             ],
         ),
         create_frame(
             6.0,
             [
-                create_player("p1", 0, Vec3(0.0, -4240.0, 17.0), 70, Vec3(0.0, 0.0, 0.0)),
+                create_player(
+                    "p1", 0, Vec3(0.0, -4240.0, 17.0), 70, Vec3(0.0, 0.0, 0.0)
+                ),
             ],
         ),
         create_frame(
             6.1,
             [
-                create_player("p1", 0, Vec3(0.0, -4240.0, 17.0), 82, Vec3(0.0, 0.0, 0.0)),
+                create_player(
+                    "p1", 0, Vec3(0.0, -4240.0, 17.0), 82, Vec3(0.0, 0.0, 0.0)
+                ),
             ],
         ),
         create_frame(
             12.0,
             [
-                create_player("p1", 0, Vec3(3584.0, -4096.0, 17.0), 95, Vec3(0.0, 0.0, 0.0)),
+                create_player(
+                    "p1", 0, Vec3(3584.0, -4096.0, 17.0), 95, Vec3(0.0, 0.0, 0.0)
+                ),
             ],
         ),
         create_frame(
             12.1,
             [
-                create_player("p1", 0, Vec3(3584.0, -4096.0, 17.0), 100, Vec3(0.0, 0.0, 0.0)),
+                create_player(
+                    "p1", 0, Vec3(3584.0, -4096.0, 17.0), 100, Vec3(0.0, 0.0, 0.0)
+                ),
             ],
         ),
     ]
@@ -194,7 +254,9 @@ def test_overfill_and_waste_metrics():
     events = {"boost_pickups": pickups}
     result = analyze_boost(frames, events, player_id="p1")
 
-    assert result["overfill"] == 95.0  # Big pad waste: 100 capacity - 5 gain = 95 wasted units
+    assert (
+        result["overfill"] == 95.0
+    )  # Big pad waste: 100 capacity - 5 gain = 95 wasted units
     assert result["waste"] > 0.0  # Supersonic consumption detected between 0-5 seconds
 
 
@@ -203,9 +265,42 @@ def test_merge_window_keeps_same_pad():
     pad = FIELD.BOOST_PADS[0]
     # Use the merge helper directly to ensure duplicates on the same pad collapse.
     pickups = [
-        BoostPickupEvent(t=0.1, player_id="p1", pad_type="BIG", stolen=False, pad_id=pad.pad_id, location=pad.position, frame=1, boost_before=0.0, boost_after=40.0, boost_gain=40.0),
-        BoostPickupEvent(t=0.3, player_id="p1", pad_type="BIG", stolen=False, pad_id=pad.pad_id, location=pad.position, frame=2, boost_before=40.0, boost_after=80.0, boost_gain=40.0),
-        BoostPickupEvent(t=0.5, player_id="p1", pad_type="BIG", stolen=False, pad_id=pad.pad_id, location=pad.position, frame=3, boost_before=80.0, boost_after=100.0, boost_gain=20.0),
+        BoostPickupEvent(
+            t=0.1,
+            player_id="p1",
+            pad_type="BIG",
+            stolen=False,
+            pad_id=pad.pad_id,
+            location=pad.position,
+            frame=1,
+            boost_before=0.0,
+            boost_after=40.0,
+            boost_gain=40.0,
+        ),
+        BoostPickupEvent(
+            t=0.3,
+            player_id="p1",
+            pad_type="BIG",
+            stolen=False,
+            pad_id=pad.pad_id,
+            location=pad.position,
+            frame=2,
+            boost_before=40.0,
+            boost_after=80.0,
+            boost_gain=40.0,
+        ),
+        BoostPickupEvent(
+            t=0.5,
+            player_id="p1",
+            pad_type="BIG",
+            stolen=False,
+            pad_id=pad.pad_id,
+            location=pad.position,
+            frame=3,
+            boost_before=80.0,
+            boost_after=100.0,
+            boost_gain=20.0,
+        ),
     ]
     merged = _merge_pickup_events(pickups)
     assert len(merged) == 1

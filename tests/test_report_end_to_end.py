@@ -85,7 +85,9 @@ def test_generate_report_with_identity_config():
     players = report.get("players", [])
     assert len(players) > 0, "Report should have at least one player"
     for player in players:
-        assert "is_me" in player, "is_me field should be present when identity_config provided"
+        assert (
+            "is_me" in player
+        ), "is_me field should be present when identity_config provided"
         assert isinstance(player["is_me"], bool), "is_me should be a boolean"
         # None of these players should match our fake identity
         assert player["is_me"] is False, "No players should match fake identity"
@@ -103,8 +105,9 @@ def test_generate_report_without_identity_config():
     players = report.get("players", [])
     assert len(players) > 0, "Report should have at least one player"
     for player in players:
-        assert "is_me" not in player, "is_me field should NOT be present without identity_config"
+        assert (
+            "is_me" not in player
+        ), "is_me field should NOT be present without identity_config"
 
     # Validate report still passes schema
     validate_report(report)
-

@@ -21,7 +21,8 @@ def test_config_init_creates_template(tmp_path, capsys):
 
 def test_config_validate_valid(tmp_path, capsys):
     config_path = tmp_path / "config.toml"
-    config_path.write_text('''
+    config_path.write_text(
+        """
 [identity]
 platform_ids = ["steam:76561198012345678"]
 
@@ -33,7 +34,8 @@ reports_dir = "~/.rlcoach/reports"
 [preferences]
 target_rank = "GC1"
 timezone = "America/Los_Angeles"
-''')
+"""
+    )
 
     with patch("rlcoach.cli.get_default_config_path", return_value=config_path):
         exit_code = main(["config", "--validate"])
@@ -45,7 +47,8 @@ timezone = "America/Los_Angeles"
 
 def test_config_validate_invalid_shows_error(tmp_path, capsys):
     config_path = tmp_path / "config.toml"
-    config_path.write_text('''
+    config_path.write_text(
+        """
 [identity]
 # No platform_ids or display_names!
 
@@ -53,7 +56,8 @@ def test_config_validate_invalid_shows_error(tmp_path, capsys):
 watch_folder = "~/Replays"
 data_dir = "~/.rlcoach/data"
 reports_dir = "~/.rlcoach/reports"
-''')
+"""
+    )
 
     with patch("rlcoach.cli.get_default_config_path", return_value=config_path):
         exit_code = main(["config", "--validate"])

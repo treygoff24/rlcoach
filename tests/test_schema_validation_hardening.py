@@ -34,11 +34,34 @@ def test_type_error_has_validator():
         "replay_id": 123,  # should be string
         "schema_version": "1.0.0",
         "metadata": {},
-        "quality": {"parser": {"name": "x", "version": "1", "parsed_header": True, "parsed_network_data": True}, "warnings": []},
-        "teams": {"blue": {"name": "BLUE", "score": 0, "players": []}, "orange": {"name": "ORANGE", "score": 0, "players": []}},
+        "quality": {
+            "parser": {
+                "name": "x",
+                "version": "1",
+                "parsed_header": True,
+                "parsed_network_data": True,
+            },
+            "warnings": [],
+        },
+        "teams": {
+            "blue": {"name": "BLUE", "score": 0, "players": []},
+            "orange": {"name": "ORANGE", "score": 0, "players": []},
+        },
         "players": [],
-        "events": {"timeline": [], "goals": [], "demos": [], "kickoffs": [], "boost_pickups": [], "touches": [], "challenges": []},
-        "analysis": {"per_team": {"blue": {}, "orange": {}}, "per_player": {}, "coaching_insights": []},
+        "events": {
+            "timeline": [],
+            "goals": [],
+            "demos": [],
+            "kickoffs": [],
+            "boost_pickups": [],
+            "touches": [],
+            "challenges": [],
+        },
+        "analysis": {
+            "per_team": {"blue": {}, "orange": {}},
+            "per_player": {},
+            "coaching_insights": [],
+        },
     }
 
     try:
@@ -55,12 +78,43 @@ def test_schema_version_pattern_has_validator():
     invalid = {
         "replay_id": "abc",
         "schema_version": "2.0.0",  # wrong major
-        "metadata": {"engine_build": "x", "playlist": "STANDARD", "map": "DFH_Stadium", "team_size": 3, "match_guid": "g", "started_at_utc": "2025-09-01T00:00:00Z", "duration_seconds": 10},
-        "quality": {"parser": {"name": "x", "version": "1", "parsed_header": True, "parsed_network_data": True}, "warnings": []},
-        "teams": {"blue": {"name": "BLUE", "score": 0, "players": []}, "orange": {"name": "ORANGE", "score": 0, "players": []}},
+        "metadata": {
+            "engine_build": "x",
+            "playlist": "STANDARD",
+            "map": "DFH_Stadium",
+            "team_size": 3,
+            "match_guid": "g",
+            "started_at_utc": "2025-09-01T00:00:00Z",
+            "duration_seconds": 10,
+        },
+        "quality": {
+            "parser": {
+                "name": "x",
+                "version": "1",
+                "parsed_header": True,
+                "parsed_network_data": True,
+            },
+            "warnings": [],
+        },
+        "teams": {
+            "blue": {"name": "BLUE", "score": 0, "players": []},
+            "orange": {"name": "ORANGE", "score": 0, "players": []},
+        },
         "players": [],
-        "events": {"timeline": [], "goals": [], "demos": [], "kickoffs": [], "boost_pickups": [], "touches": [], "challenges": []},
-        "analysis": {"per_team": {"blue": {}, "orange": {}}, "per_player": {}, "coaching_insights": []},
+        "events": {
+            "timeline": [],
+            "goals": [],
+            "demos": [],
+            "kickoffs": [],
+            "boost_pickups": [],
+            "touches": [],
+            "challenges": [],
+        },
+        "analysis": {
+            "per_team": {"blue": {}, "orange": {}},
+            "per_player": {},
+            "coaching_insights": [],
+        },
     }
     try:
         validate_report(invalid)
@@ -80,15 +134,68 @@ def test_nested_vec3_missing_component_reports_required():
     invalid = {
         "replay_id": "abc",
         "schema_version": "1.0.0",
-        "metadata": {"engine_build": "x", "playlist": "STANDARD", "map": "DFH_Stadium", "team_size": 3, "match_guid": "g", "started_at_utc": "2025-09-01T00:00:00Z", "duration_seconds": 10},
-        "quality": {"parser": {"name": "x", "version": "1", "parsed_header": True, "parsed_network_data": True}, "warnings": []},
-        "teams": {"blue": {"name": "BLUE", "score": 0, "players": ["p1"]}, "orange": {"name": "ORANGE", "score": 0, "players": ["p2"]}},
+        "metadata": {
+            "engine_build": "x",
+            "playlist": "STANDARD",
+            "map": "DFH_Stadium",
+            "team_size": 3,
+            "match_guid": "g",
+            "started_at_utc": "2025-09-01T00:00:00Z",
+            "duration_seconds": 10,
+        },
+        "quality": {
+            "parser": {
+                "name": "x",
+                "version": "1",
+                "parsed_header": True,
+                "parsed_network_data": True,
+            },
+            "warnings": [],
+        },
+        "teams": {
+            "blue": {"name": "BLUE", "score": 0, "players": ["p1"]},
+            "orange": {"name": "ORANGE", "score": 0, "players": ["p2"]},
+        },
         "players": [
-            {"player_id": "p1", "display_name": "P1", "team": "BLUE", "platform_ids": {}, "camera": {}, "loadout": {}},
-            {"player_id": "p2", "display_name": "P2", "team": "ORANGE", "platform_ids": {}, "camera": {}, "loadout": {}},
+            {
+                "player_id": "p1",
+                "display_name": "P1",
+                "team": "BLUE",
+                "platform_ids": {},
+                "camera": {},
+                "loadout": {},
+            },
+            {
+                "player_id": "p2",
+                "display_name": "P2",
+                "team": "ORANGE",
+                "platform_ids": {},
+                "camera": {},
+                "loadout": {},
+            },
         ],
-        "events": {"timeline": [], "goals": [], "demos": [{"t": 1.0, "attacker": "p1", "victim": "p2", "team_attacker": "BLUE", "team_victim": "ORANGE", "location": {"x": 1, "y": 2}}], "kickoffs": [], "boost_pickups": [], "touches": []},
-        "analysis": {"per_team": {"blue": {}, "orange": {}}, "per_player": {}, "coaching_insights": []},
+        "events": {
+            "timeline": [],
+            "goals": [],
+            "demos": [
+                {
+                    "t": 1.0,
+                    "attacker": "p1",
+                    "victim": "p2",
+                    "team_attacker": "BLUE",
+                    "team_victim": "ORANGE",
+                    "location": {"x": 1, "y": 2},
+                }
+            ],
+            "kickoffs": [],
+            "boost_pickups": [],
+            "touches": [],
+        },
+        "analysis": {
+            "per_team": {"blue": {}, "orange": {}},
+            "per_player": {},
+            "coaching_insights": [],
+        },
     }
     try:
         validate_report(invalid)
@@ -98,4 +205,3 @@ def test_nested_vec3_missing_component_reports_required():
         assert cause.validator in {"required", "type"}
     else:
         pytest.fail("Expected ValidationError was not raised")
-

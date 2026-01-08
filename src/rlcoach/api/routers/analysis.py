@@ -53,7 +53,7 @@ async def get_trends(
     if metric not in ALLOWED_METRICS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid metric. Allowed: {sorted(ALLOWED_METRICS)}"
+            detail=f"Invalid metric. Allowed: {sorted(ALLOWED_METRICS)}",
         )
 
     # Parse period with validation
@@ -61,7 +61,7 @@ async def get_trends(
     if period not in allowed_periods:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid period. Allowed: {sorted(allowed_periods)}"
+            detail=f"Invalid period. Allowed: {sorted(allowed_periods)}",
         )
 
     if period == "all":

@@ -3,6 +3,10 @@ import type { NextAuthConfig } from 'next-auth';
 import Discord from 'next-auth/providers/discord';
 import Google from 'next-auth/providers/google';
 import type { JWT } from 'next-auth/jwt';
+import * as jose from 'jose';
+
+// Note: NEXTAUTH_SECRET validation happens at runtime in callbacks
+// Build-time checks would fail since env vars aren't available during static analysis
 
 /**
  * NextAuth configuration for rlcoach.
@@ -166,6 +170,25 @@ export const authConfig: NextAuthConfig = {
     async session({ session, token }) {
       session.user.id = token.userId;
       session.user.subscriptionTier = token.subscriptionTier;
+
+      // Create a signed JWT for backend API calls
+      // Backend expects JWT with userId/sub signed with NEXTAUTH_SECRET
+      const secretStr = process.env.NEXTAUTH_SECRET;
+      if (secretStr) {
+        const secret = new TextEncoder().encode(secretStr);
+        const jwt = await new jose.SignJWT({
+          userId: token.userId,
+          sub: token.userId,
+          email: token.email,
+          subscriptionTier: token.subscriptionTier,
+        })
+          .setProtectedHeader({ alg: 'HS256' })
+          .setExpirationTime('15m')
+          .sign(secret);
+
+        session.accessToken = jwt;
+      }
+      // If no secret, accessToken stays undefined (API calls will fail with auth error)
       return session;
     },
     async signIn({ user, account, profile }) {

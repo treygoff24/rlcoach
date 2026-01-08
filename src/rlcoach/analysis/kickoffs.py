@@ -138,18 +138,14 @@ def _analyze_kickoffs_for_team(
     total_approaches = 0
 
     for ko in kickoffs:
-        # Outcomes
+        # Outcomes (tracks first possession only, not kickoff goals)
+        # TODO: Detect goals scored within N seconds of kickoff
         if ko.outcome == "NEUTRAL":
             neutral += 1
         elif ko.outcome == "FIRST_POSSESSION_BLUE" and team_name == "BLUE":
             first_possession += 1
         elif ko.outcome == "FIRST_POSSESSION_ORANGE" and team_name == "ORANGE":
             first_possession += 1
-        elif ko.outcome == "GOAL_FOR":
-            # No team context — cannot attribute
-            pass
-        elif ko.outcome == "GOAL_AGAINST":
-            pass
 
         # Aggregate player stats for this team
         for entry in ko.players:

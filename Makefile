@@ -1,5 +1,10 @@
 .PHONY: test fmt lint clean help install-dev rust-dev rust-build
 
+# Virtual environment activation helper
+# If .venv exists, run commands within it
+# Use absolute path so it works from subdirectories (e.g., cd parsers/...)
+VENV_BIN := $(if $(wildcard .venv/bin/python),$(CURDIR)/.venv/bin/,)
+
 # Default target
 help:
 	@echo "Available targets:"
@@ -13,20 +18,20 @@ help:
 
 # Install development dependencies
 install-dev:
-	pip install -e ".[dev]"
+	$(VENV_BIN)pip install -e ".[dev]"
 	@echo "Tip: run 'make rust-dev' to build the Rust parser extension."
 
 # Run tests
 test:
-	PYTHONPATH=src pytest -q
+	PYTHONPATH=src $(VENV_BIN)pytest -q
 
 # Format code
 fmt:
-	black src/ tests/
+	$(VENV_BIN)black src/ tests/
 
 # Lint code
 lint:
-	ruff check src/ tests/
+	$(VENV_BIN)ruff check src/ tests/
 
 # Clean build artifacts
 clean:
@@ -42,14 +47,14 @@ clean:
 
 # Build/install the Rust extension locally for development
 rust-dev:
-	python -m pip install --upgrade pip
-	pip install maturin
+	$(VENV_BIN)python -m pip install --upgrade pip
+	$(VENV_BIN)pip install maturin
 	# Prefer maturin develop (editable install). If unavailable, build a wheel and pip install it.
-	cd parsers/rlreplay_rust && (maturin develop || (maturin build -r && python -m pip install target/wheels/*.whl))
-	python -c "import rlreplay_rust as m; print('RUST_CORE loaded:', getattr(m, 'RUST_CORE', False))"
+	cd parsers/rlreplay_rust && ($(VENV_BIN)maturin develop || ($(VENV_BIN)maturin build -r && $(VENV_BIN)python -m pip install target/wheels/*.whl))
+	$(VENV_BIN)python -c "import rlreplay_rust as m; print('RUST_CORE loaded:', getattr(m, 'RUST_CORE', False))"
 
 # Build a release wheel for the Rust extension
 rust-build:
-	python -m pip install --upgrade pip
-	pip install maturin
-	cd parsers/rlreplay_rust && maturin build -r
+	$(VENV_BIN)python -m pip install --upgrade pip
+	$(VENV_BIN)pip install maturin
+	cd parsers/rlreplay_rust && $(VENV_BIN)maturin build -r

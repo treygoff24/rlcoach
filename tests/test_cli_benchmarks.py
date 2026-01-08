@@ -16,7 +16,8 @@ def reset_db():
 
 def test_benchmarks_import_success(tmp_path, capsys):
     config_path = tmp_path / "config.toml"
-    config_path.write_text(f'''
+    config_path.write_text(
+        f"""
 [identity]
 platform_ids = ["steam:123"]
 
@@ -24,15 +25,25 @@ platform_ids = ["steam:123"]
 watch_folder = "~/Replays"
 data_dir = "{tmp_path / "data"}"
 reports_dir = "{tmp_path / "reports"}"
-''')
+"""
+    )
 
     benchmark_file = tmp_path / "benchmarks.json"
-    benchmark_file.write_text(json.dumps({
-        "metadata": {"source": "test"},
-        "benchmarks": [
-            {"metric": "bcpm", "playlist": "DOUBLES", "rank_tier": "GC1", "median": 380}
-        ]
-    }))
+    benchmark_file.write_text(
+        json.dumps(
+            {
+                "metadata": {"source": "test"},
+                "benchmarks": [
+                    {
+                        "metric": "bcpm",
+                        "playlist": "DOUBLES",
+                        "rank_tier": "GC1",
+                        "median": 380,
+                    }
+                ],
+            }
+        )
+    )
 
     with patch("rlcoach.cli.get_default_config_path", return_value=config_path):
         exit_code = main(["benchmarks", "import", str(benchmark_file)])
@@ -44,7 +55,8 @@ reports_dir = "{tmp_path / "reports"}"
 
 def test_benchmarks_list_shows_data(tmp_path, capsys):
     config_path = tmp_path / "config.toml"
-    config_path.write_text(f'''
+    config_path.write_text(
+        f"""
 [identity]
 platform_ids = ["steam:123"]
 
@@ -52,15 +64,25 @@ platform_ids = ["steam:123"]
 watch_folder = "~/Replays"
 data_dir = "{tmp_path / "data"}"
 reports_dir = "{tmp_path / "reports"}"
-''')
+"""
+    )
 
     benchmark_file = tmp_path / "benchmarks.json"
-    benchmark_file.write_text(json.dumps({
-        "metadata": {"source": "test"},
-        "benchmarks": [
-            {"metric": "bcpm", "playlist": "DOUBLES", "rank_tier": "GC1", "median": 380}
-        ]
-    }))
+    benchmark_file.write_text(
+        json.dumps(
+            {
+                "metadata": {"source": "test"},
+                "benchmarks": [
+                    {
+                        "metric": "bcpm",
+                        "playlist": "DOUBLES",
+                        "rank_tier": "GC1",
+                        "median": 380,
+                    }
+                ],
+            }
+        )
+    )
 
     with patch("rlcoach.cli.get_default_config_path", return_value=config_path):
         # First import

@@ -19,7 +19,8 @@ const protectedRoutes = [
 ];
 
 // Routes that require Pro subscription
-const proRoutes = ['/coach'];
+// Note: /coach allows free preview (1 message) so it's handled by the backend
+const proRoutes: string[] = [];
 
 export default auth((req) => {
   const { nextUrl } = req;

@@ -9,7 +9,11 @@ from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 def make_frame(t: float, ball_pos: Vec3, players: list[PlayerFrame]) -> Frame:
     return Frame(
         timestamp=t,
-        ball=BallFrame(position=ball_pos, velocity=Vec3(0.0, 0.0, 0.0), angular_velocity=Vec3(0.0, 0.0, 0.0)),
+        ball=BallFrame(
+            position=ball_pos,
+            velocity=Vec3(0.0, 0.0, 0.0),
+            angular_velocity=Vec3(0.0, 0.0, 0.0),
+        ),
         players=players,
     )
 
@@ -31,7 +35,9 @@ def make_player(pid: str, team: int, pos: Vec3, boost: int = 33) -> PlayerFrame:
 class TestChallengesAnalysis:
     def test_basic_contest_and_outcomes(self):
         # Players
-        a = make_player("A", 0, Vec3(0.0, -450.0, 17.0), boost=10)  # BLUE ahead of ball with low boost
+        a = make_player(
+            "A", 0, Vec3(0.0, -450.0, 17.0), boost=10
+        )  # BLUE ahead of ball with low boost
         b = make_player("B", 0, Vec3(0.0, -700.0, 17.0))
         c = make_player("C", 1, Vec3(0.0, -440.0, 17.0))  # ORANGE
 
@@ -44,9 +50,24 @@ class TestChallengesAnalysis:
 
         # Touch sequence forming a contest between BLUE (A) and ORANGE (C)
         touches = [
-            TouchEvent(t=1.0, player_id="A", location=Vec3(0.0, -600.0, 17.0), ball_speed_kph=60.0),
-            TouchEvent(t=1.4, player_id="C", location=Vec3(0.0, -350.0, 17.0), ball_speed_kph=65.0),
-            TouchEvent(t=1.9, player_id="A", location=Vec3(0.0, -200.0, 17.0), ball_speed_kph=55.0),
+            TouchEvent(
+                t=1.0,
+                player_id="A",
+                location=Vec3(0.0, -600.0, 17.0),
+                ball_speed_kph=60.0,
+            ),
+            TouchEvent(
+                t=1.4,
+                player_id="C",
+                location=Vec3(0.0, -350.0, 17.0),
+                ball_speed_kph=65.0,
+            ),
+            TouchEvent(
+                t=1.9,
+                player_id="A",
+                location=Vec3(0.0, -200.0, 17.0),
+                ball_speed_kph=55.0,
+            ),
         ]
         events = {"touches": touches}
 
@@ -76,14 +97,27 @@ class TestChallengesAnalysis:
         c = make_player("C", 1, Vec3(0.0, -120.0, 17.0))
         frames = [make_frame(0.0, Vec3(0.0, -150.0, 93.0), [a, c])]
         touches = [
-            TouchEvent(t=0.1, player_id="A", location=Vec3(0.0, -220.0, 17.0), ball_speed_kph=70.0),
-            TouchEvent(t=0.3, player_id="C", location=Vec3(0.0, 10.0, 17.0), ball_speed_kph=68.0),
+            TouchEvent(
+                t=0.1,
+                player_id="A",
+                location=Vec3(0.0, -220.0, 17.0),
+                ball_speed_kph=70.0,
+            ),
+            TouchEvent(
+                t=0.3,
+                player_id="C",
+                location=Vec3(0.0, 10.0, 17.0),
+                ball_speed_kph=68.0,
+            ),
         ]
         events = {"touches": touches}
 
         res_a = analyze_challenges(frames, events, player_id="A")
         assert res_a["contests"] == 1
-        assert res_a["losses"] in (0, 1)  # depends on neutral/win heuristic; at least present
+        assert res_a["losses"] in (
+            0,
+            1,
+        )  # depends on neutral/win heuristic; at least present
         assert 0.0 <= res_a["risk_index_avg"] <= 1.0
 
     def test_consecutive_same_player_touches_do_not_loop(self):

@@ -76,8 +76,20 @@ class TestKickoffAnalysis:
             phase="INITIAL",
             t_start=0.0,
             players=[
-                {"player_id": "b1", "role": "GO", "boost_used": 10.0, "approach_type": "SPEEDFLIP", "time_to_first_touch": 1.4},
-                {"player_id": "o1", "role": "GO", "boost_used": 8.0, "approach_type": "STANDARD", "time_to_first_touch": 1.6},
+                {
+                    "player_id": "b1",
+                    "role": "GO",
+                    "boost_used": 10.0,
+                    "approach_type": "SPEEDFLIP",
+                    "time_to_first_touch": 1.4,
+                },
+                {
+                    "player_id": "o1",
+                    "role": "GO",
+                    "boost_used": 8.0,
+                    "approach_type": "STANDARD",
+                    "time_to_first_touch": 1.6,
+                },
             ],
             outcome="FIRST_POSSESSION_BLUE",
         )
@@ -85,8 +97,20 @@ class TestKickoffAnalysis:
             phase="INITIAL",
             t_start=60.0,
             players=[
-                {"player_id": "b2", "role": "BACK", "boost_used": 0.0, "approach_type": "FAKE_STATIONARY", "time_to_first_touch": None},
-                {"player_id": "o2", "role": "BACK", "boost_used": 0.0, "approach_type": "DELAY", "time_to_first_touch": None},
+                {
+                    "player_id": "b2",
+                    "role": "BACK",
+                    "boost_used": 0.0,
+                    "approach_type": "FAKE_STATIONARY",
+                    "time_to_first_touch": None,
+                },
+                {
+                    "player_id": "o2",
+                    "role": "BACK",
+                    "boost_used": 0.0,
+                    "approach_type": "DELAY",
+                    "time_to_first_touch": None,
+                },
             ],
             outcome="NEUTRAL",
         )
@@ -120,8 +144,20 @@ class TestKickoffAnalysis:
             phase="INITIAL",
             t_start=0.0,
             players=[
-                {"player_id": "b1", "role": "GO", "boost_used": 12.0, "approach_type": "UNKNOWN", "time_to_first_touch": 1.2},
-                {"player_id": "o1", "role": "GO", "boost_used": 9.0, "approach_type": "STANDARD", "time_to_first_touch": 1.6},
+                {
+                    "player_id": "b1",
+                    "role": "GO",
+                    "boost_used": 12.0,
+                    "approach_type": "UNKNOWN",
+                    "time_to_first_touch": 1.2,
+                },
+                {
+                    "player_id": "o1",
+                    "role": "GO",
+                    "boost_used": 9.0,
+                    "approach_type": "STANDARD",
+                    "time_to_first_touch": 1.6,
+                },
             ],
             outcome="FIRST_POSSESSION_BLUE",
         )
@@ -148,8 +184,20 @@ class TestKickoffApproachTypeVariants:
             phase="INITIAL",
             t_start=0.0,
             players=[
-                {"player_id": "b1", "role": "BACK", "boost_used": 0.0, "approach_type": "FAKE_STATIONARY", "time_to_first_touch": None},
-                {"player_id": "o1", "role": "BACK", "boost_used": 5.0, "approach_type": "FAKE_HALFFLIP", "time_to_first_touch": None},
+                {
+                    "player_id": "b1",
+                    "role": "BACK",
+                    "boost_used": 0.0,
+                    "approach_type": "FAKE_STATIONARY",
+                    "time_to_first_touch": None,
+                },
+                {
+                    "player_id": "o1",
+                    "role": "BACK",
+                    "boost_used": 5.0,
+                    "approach_type": "FAKE_HALFFLIP",
+                    "time_to_first_touch": None,
+                },
             ],
             outcome="NEUTRAL",
         )
@@ -157,8 +205,20 @@ class TestKickoffApproachTypeVariants:
             phase="INITIAL",
             t_start=60.0,
             players=[
-                {"player_id": "b1", "role": "BACK", "boost_used": 15.0, "approach_type": "FAKE_AGGRESSIVE", "time_to_first_touch": None},
-                {"player_id": "o1", "role": "BACK", "boost_used": 0.0, "approach_type": "FAKE_STATIONARY", "time_to_first_touch": None},
+                {
+                    "player_id": "b1",
+                    "role": "BACK",
+                    "boost_used": 15.0,
+                    "approach_type": "FAKE_AGGRESSIVE",
+                    "time_to_first_touch": None,
+                },
+                {
+                    "player_id": "o1",
+                    "role": "BACK",
+                    "boost_used": 0.0,
+                    "approach_type": "FAKE_STATIONARY",
+                    "time_to_first_touch": None,
+                },
             ],
             outcome="NEUTRAL",
         )
@@ -184,8 +244,20 @@ class TestKickoffApproachTypeVariants:
             phase="INITIAL",
             t_start=0.0,
             players=[
-                {"player_id": "b1", "role": "GO", "boost_used": 20.0, "approach_type": "STANDARD_FRONTFLIP", "time_to_first_touch": 2.0},
-                {"player_id": "o1", "role": "GO", "boost_used": 25.0, "approach_type": "STANDARD_DIAGONAL", "time_to_first_touch": 1.9},
+                {
+                    "player_id": "b1",
+                    "role": "GO",
+                    "boost_used": 20.0,
+                    "approach_type": "STANDARD_FRONTFLIP",
+                    "time_to_first_touch": 2.0,
+                },
+                {
+                    "player_id": "o1",
+                    "role": "GO",
+                    "boost_used": 25.0,
+                    "approach_type": "STANDARD_DIAGONAL",
+                    "time_to_first_touch": 1.9,
+                },
             ],
             outcome="FIRST_POSSESSION_ORANGE",
         )
@@ -193,8 +265,20 @@ class TestKickoffApproachTypeVariants:
             phase="INITIAL",
             t_start=60.0,
             players=[
-                {"player_id": "b1", "role": "GO", "boost_used": 15.0, "approach_type": "STANDARD_BOOST", "time_to_first_touch": 2.2},
-                {"player_id": "o1", "role": "GO", "boost_used": 22.0, "approach_type": "STANDARD_WAVEDASH", "time_to_first_touch": 1.95},
+                {
+                    "player_id": "b1",
+                    "role": "GO",
+                    "boost_used": 15.0,
+                    "approach_type": "STANDARD_BOOST",
+                    "time_to_first_touch": 2.2,
+                },
+                {
+                    "player_id": "o1",
+                    "role": "GO",
+                    "boost_used": 22.0,
+                    "approach_type": "STANDARD_WAVEDASH",
+                    "time_to_first_touch": 1.95,
+                },
             ],
             outcome="FIRST_POSSESSION_ORANGE",
         )
@@ -220,8 +304,20 @@ class TestKickoffApproachTypeVariants:
                 phase="INITIAL",
                 t_start=0.0,
                 players=[
-                    {"player_id": "b1", "role": "GO", "boost_used": 25.0, "approach_type": "SPEEDFLIP", "time_to_first_touch": 2.5},
-                    {"player_id": "o1", "role": "GO", "boost_used": 20.0, "approach_type": "STANDARD", "time_to_first_touch": 2.8},
+                    {
+                        "player_id": "b1",
+                        "role": "GO",
+                        "boost_used": 25.0,
+                        "approach_type": "SPEEDFLIP",
+                        "time_to_first_touch": 2.5,
+                    },
+                    {
+                        "player_id": "o1",
+                        "role": "GO",
+                        "boost_used": 20.0,
+                        "approach_type": "STANDARD",
+                        "time_to_first_touch": 2.8,
+                    },
                 ],
                 outcome="FIRST_POSSESSION_BLUE",
             ),
@@ -229,8 +325,20 @@ class TestKickoffApproachTypeVariants:
                 phase="INITIAL",
                 t_start=60.0,
                 players=[
-                    {"player_id": "b1", "role": "GO", "boost_used": 25.0, "approach_type": "SPEEDFLIP", "time_to_first_touch": 2.4},
-                    {"player_id": "o1", "role": "GO", "boost_used": 0.0, "approach_type": "DELAY", "time_to_first_touch": 2.9},
+                    {
+                        "player_id": "b1",
+                        "role": "GO",
+                        "boost_used": 25.0,
+                        "approach_type": "SPEEDFLIP",
+                        "time_to_first_touch": 2.4,
+                    },
+                    {
+                        "player_id": "o1",
+                        "role": "GO",
+                        "boost_used": 0.0,
+                        "approach_type": "DELAY",
+                        "time_to_first_touch": 2.9,
+                    },
                 ],
                 outcome="FIRST_POSSESSION_BLUE",
             ),
@@ -238,8 +346,20 @@ class TestKickoffApproachTypeVariants:
                 phase="INITIAL",
                 t_start=120.0,
                 players=[
-                    {"player_id": "b1", "role": "GO", "boost_used": 22.0, "approach_type": "STANDARD_DIAGONAL", "time_to_first_touch": 2.7},
-                    {"player_id": "o1", "role": "GO", "boost_used": 0.0, "approach_type": "FAKE_STATIONARY", "time_to_first_touch": None},
+                    {
+                        "player_id": "b1",
+                        "role": "GO",
+                        "boost_used": 22.0,
+                        "approach_type": "STANDARD_DIAGONAL",
+                        "time_to_first_touch": 2.7,
+                    },
+                    {
+                        "player_id": "o1",
+                        "role": "GO",
+                        "boost_used": 0.0,
+                        "approach_type": "FAKE_STATIONARY",
+                        "time_to_first_touch": None,
+                    },
                 ],
                 outcome="FIRST_POSSESSION_BLUE",
             ),
@@ -258,4 +378,3 @@ class TestKickoffApproachTypeVariants:
         assert o1_result["approach_types"]["DELAY"] == 1
         assert o1_result["approach_types"]["FAKE_STATIONARY"] == 1
         assert o1_result["count"] == 3
-

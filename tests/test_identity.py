@@ -5,10 +5,7 @@ from rlcoach.identity import PlayerIdentityResolver
 
 def test_resolve_by_platform_id():
     """Should match by platform ID first."""
-    config = IdentityConfig(
-        platform_ids=["steam:123456"],
-        display_names=["OldName"]
-    )
+    config = IdentityConfig(platform_ids=["steam:123456"], display_names=["OldName"])
     resolver = PlayerIdentityResolver(config)
 
     players = [
@@ -25,8 +22,7 @@ def test_resolve_by_platform_id():
 def test_resolve_by_display_name_fallback():
     """Should fallback to display name (case-insensitive) if no platform ID match."""
     config = IdentityConfig(
-        platform_ids=["steam:000000"],  # Not in replay
-        display_names=["TestPlayer"]
+        platform_ids=["steam:000000"], display_names=["TestPlayer"]  # Not in replay
     )
     resolver = PlayerIdentityResolver(config)
 
@@ -43,10 +39,7 @@ def test_resolve_by_display_name_fallback():
 
 def test_resolve_returns_none_if_not_found():
     """Should return None if player not found (don't guess)."""
-    config = IdentityConfig(
-        platform_ids=["steam:123456"],
-        display_names=["MyName"]
-    )
+    config = IdentityConfig(platform_ids=["steam:123456"], display_names=["MyName"])
     resolver = PlayerIdentityResolver(config)
 
     players = [
@@ -61,10 +54,7 @@ def test_resolve_returns_none_if_not_found():
 
 def test_is_me_check():
     """Should correctly identify if a player is me."""
-    config = IdentityConfig(
-        platform_ids=["steam:123456"],
-        display_names=["MyName"]
-    )
+    config = IdentityConfig(platform_ids=["steam:123456"], display_names=["MyName"])
     resolver = PlayerIdentityResolver(config)
 
     assert resolver.is_me("steam:123456", "AnyName") is True
@@ -75,8 +65,7 @@ def test_is_me_check():
 def test_should_exclude_matching_name():
     """Should exclude matching display names."""
     config = IdentityConfig(
-        display_names=["MainAccount"],
-        excluded_names=["CasualAccount"]
+        display_names=["MainAccount"], excluded_names=["CasualAccount"]
     )
     resolver = PlayerIdentityResolver(config)
 
@@ -87,10 +76,7 @@ def test_should_exclude_matching_name():
 
 def test_should_exclude_case_insensitive():
     """Should exclude names case-insensitively using casefold."""
-    config = IdentityConfig(
-        display_names=["Main"],
-        excluded_names=["CasualAccount"]
-    )
+    config = IdentityConfig(display_names=["Main"], excluded_names=["CasualAccount"])
     resolver = PlayerIdentityResolver(config)
 
     assert resolver.should_exclude("casualaccount") is True
@@ -101,8 +87,7 @@ def test_should_exclude_case_insensitive():
 def test_should_exclude_with_whitespace():
     """Should handle whitespace in excluded names."""
     config = IdentityConfig(
-        display_names=["Main"],
-        excluded_names=["  CasualAccount  "]
+        display_names=["Main"], excluded_names=["  CasualAccount  "]
     )
     resolver = PlayerIdentityResolver(config)
 
@@ -112,10 +97,7 @@ def test_should_exclude_with_whitespace():
 
 def test_should_exclude_empty_list():
     """Empty excluded_names should exclude nothing."""
-    config = IdentityConfig(
-        display_names=["MainAccount"],
-        excluded_names=[]
-    )
+    config = IdentityConfig(display_names=["MainAccount"], excluded_names=[])
     resolver = PlayerIdentityResolver(config)
 
     assert resolver.should_exclude("MainAccount") is False

@@ -31,11 +31,7 @@ def _resolve_player_from_accounts(
     user_id: str,
     players: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    accounts = (
-        session.query(OAuthAccount)
-        .filter(OAuthAccount.user_id == user_id)
-        .all()
-    )
+    accounts = session.query(OAuthAccount).filter(OAuthAccount.user_id == user_id).all()
     if not accounts:
         return None
 
@@ -63,7 +59,10 @@ def _resolve_player_from_accounts(
             if value is None:
                 continue
             platform_key = str(platform).strip().lower()
-            if platform_key in provider_ids and str(value) in provider_ids[platform_key]:
+            if (
+                platform_key in provider_ids
+                and str(value) in provider_ids[platform_key]
+            ):
                 return player
     return None
 

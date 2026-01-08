@@ -39,4 +39,3 @@ def test_rust_header_and_frames_smoke():
     assert "position" in first["ball"] and "velocity" in first["ball"]
     assert "angular_velocity" in first["ball"]
     assert "players" in first and isinstance(first["players"], list)
-

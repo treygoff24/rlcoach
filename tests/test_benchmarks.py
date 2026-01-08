@@ -24,9 +24,9 @@ def test_validate_uses_metric_catalog():
                 "metric": "bcpm",  # Valid metric from catalog
                 "playlist": "DOUBLES",
                 "rank_tier": "GC1",
-                "median": 380
+                "median": 380,
             }
-        ]
+        ],
     }
     errors = validate_benchmark_data(data)
     assert errors == []
@@ -41,9 +41,9 @@ def test_validate_rejects_invalid_metric():
                 "metric": "made_up_metric",
                 "playlist": "DOUBLES",
                 "rank_tier": "GC1",
-                "median": 100
+                "median": 100,
             }
-        ]
+        ],
     }
     errors = validate_benchmark_data(data)
     assert any("metric" in e.lower() for e in errors)
@@ -54,40 +54,46 @@ def test_import_benchmarks_success(tmp_path):
     init_db(db_path)
 
     benchmark_file = tmp_path / "benchmarks.json"
-    benchmark_file.write_text(json.dumps({
-        "metadata": {
-            "source": "Test Source",
-            "collected_date": "2024-12-01",
-            "notes": "Test data"
-        },
-        "benchmarks": [
+    benchmark_file.write_text(
+        json.dumps(
             {
-                "metric": "bcpm",
-                "playlist": "DOUBLES",
-                "rank_tier": "GC1",
-                "median": 380,
-                "p25": 330,
-                "p75": 420,
-                "elite": 420
-            },
-            {
-                "metric": "avg_boost",
-                "playlist": "DOUBLES",
-                "rank_tier": "GC1",
-                "median": 30,
-                "p25": 25,
-                "p75": 34,
-                "elite": 20
+                "metadata": {
+                    "source": "Test Source",
+                    "collected_date": "2024-12-01",
+                    "notes": "Test data",
+                },
+                "benchmarks": [
+                    {
+                        "metric": "bcpm",
+                        "playlist": "DOUBLES",
+                        "rank_tier": "GC1",
+                        "median": 380,
+                        "p25": 330,
+                        "p75": 420,
+                        "elite": 420,
+                    },
+                    {
+                        "metric": "avg_boost",
+                        "playlist": "DOUBLES",
+                        "rank_tier": "GC1",
+                        "median": 30,
+                        "p25": 25,
+                        "p75": 34,
+                        "elite": 20,
+                    },
+                ],
             }
-        ]
-    }))
+        )
+    )
 
     count = import_benchmarks(benchmark_file)
     assert count == 2
 
     session = create_session()
     try:
-        benchmark = session.query(Benchmark).filter_by(metric="bcpm", rank_tier="GC1").first()
+        benchmark = (
+            session.query(Benchmark).filter_by(metric="bcpm", rank_tier="GC1").first()
+        )
         assert benchmark is not None
         assert benchmark.median_value == 380
         assert benchmark.source == "Test Source"
@@ -103,22 +109,46 @@ def test_import_benchmarks_upserts(tmp_path):
     benchmark_file = tmp_path / "benchmarks.json"
 
     # First import
-    benchmark_file.write_text(json.dumps({
-        "metadata": {"source": "v1"},
-        "benchmarks": [{"metric": "bcpm", "playlist": "DOUBLES", "rank_tier": "GC1", "median": 100}]
-    }))
+    benchmark_file.write_text(
+        json.dumps(
+            {
+                "metadata": {"source": "v1"},
+                "benchmarks": [
+                    {
+                        "metric": "bcpm",
+                        "playlist": "DOUBLES",
+                        "rank_tier": "GC1",
+                        "median": 100,
+                    }
+                ],
+            }
+        )
+    )
     import_benchmarks(benchmark_file)
 
     # Second import with updated value
-    benchmark_file.write_text(json.dumps({
-        "metadata": {"source": "v2"},
-        "benchmarks": [{"metric": "bcpm", "playlist": "DOUBLES", "rank_tier": "GC1", "median": 200}]
-    }))
+    benchmark_file.write_text(
+        json.dumps(
+            {
+                "metadata": {"source": "v2"},
+                "benchmarks": [
+                    {
+                        "metric": "bcpm",
+                        "playlist": "DOUBLES",
+                        "rank_tier": "GC1",
+                        "median": 200,
+                    }
+                ],
+            }
+        )
+    )
     import_benchmarks(benchmark_file)
 
     session = create_session()
     try:
-        benchmarks = session.query(Benchmark).filter_by(metric="bcpm", rank_tier="GC1").all()
+        benchmarks = (
+            session.query(Benchmark).filter_by(metric="bcpm", rank_tier="GC1").all()
+        )
         assert len(benchmarks) == 1
         assert benchmarks[0].median_value == 200
         assert benchmarks[0].source == "v2"

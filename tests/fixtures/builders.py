@@ -46,7 +46,7 @@ def create_test_player(
         rotation = Vec3(0.0, 0.0, 0.0)
 
     # Calculate is_supersonic from velocity
-    speed_sq = velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2
+    speed_sq = velocity.x**2 + velocity.y**2 + velocity.z**2
     is_supersonic = speed_sq > SUPERSONIC_SPEED_SQUARED
 
     return PlayerFrame(
@@ -140,9 +140,7 @@ def create_simple_replay_frames(
 
     for i in range(num_frames):
         timestamp = i * dt
-        player_frames = [
-            create_test_player(pid, team) for pid, team in players
-        ]
+        player_frames = [create_test_player(pid, team) for pid, team in players]
         frames.append(create_test_frame(timestamp, player_frames))
 
     return frames

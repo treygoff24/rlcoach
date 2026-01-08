@@ -74,8 +74,10 @@ def _get_report() -> dict:
 
 
 @pytest.mark.skipif(
-    not (Path(__file__).resolve().parents[2] / "Replay_files" / "ballchasing_output").exists(),
-    reason="Ballchasing parity test requires external fixtures not in repo"
+    not (
+        Path(__file__).resolve().parents[2] / "Replay_files" / "ballchasing_output"
+    ).exists(),
+    reason="Ballchasing parity test requires external fixtures not in repo",
 )
 def test_ballchasing_parity_snapshot():
     """Compare rlcoach output to Ballchasing CSV exports.
@@ -100,20 +102,26 @@ def test_ballchasing_parity_snapshot():
 
     assert bc_players, "Ballchasing player metrics empty"
     assert rlcoach_players, "rlcoach player metrics empty"
-    assert set(bc_players.keys()) <= set(rlcoach_players.keys()), "rlcoach report missing players present in Ballchasing export"
+    assert set(bc_players.keys()) <= set(
+        rlcoach_players.keys()
+    ), "rlcoach report missing players present in Ballchasing export"
 
     deltas = []
 
     for player_id, bc_metrics in bc_players.items():
         rl_metrics = rlcoach_players[player_id]
         subject = f"player {player_id}"
-        deltas.extend(collect_metric_deltas(subject, bc_metrics, rl_metrics, PLAYER_TOLERANCES))
+        deltas.extend(
+            collect_metric_deltas(subject, bc_metrics, rl_metrics, PLAYER_TOLERANCES)
+        )
 
     for team_color, bc_metrics in bc_teams.items():
         rl_metrics = rlcoach_teams.get(team_color.upper())
         assert rl_metrics is not None, f"Missing rlcoach team metrics for {team_color}"
         subject = f"team {team_color.lower()}"
-        deltas.extend(collect_metric_deltas(subject, bc_metrics, rl_metrics, TEAM_TOLERANCES))
+        deltas.extend(
+            collect_metric_deltas(subject, bc_metrics, rl_metrics, TEAM_TOLERANCES)
+        )
 
     if deltas:
         deltas.sort(key=lambda d: (d.subject, d.metric))

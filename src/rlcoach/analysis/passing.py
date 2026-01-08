@@ -34,7 +34,7 @@ from ..parser.types import Frame, Header
 POSSESSION_TAU_S = 2.0
 OWN_HALF_HIGH_SPEED_UU_S = 1200.0
 PASS_WINDOW_S = 2.0
-FORWARD_DELTA_MIN_UU = 80.0
+FORWARD_DELTA_MIN_UU = 200.0  # Min forward progress for completed pass
 GIVE_AND_GO_WINDOW_S = 3.0
 
 

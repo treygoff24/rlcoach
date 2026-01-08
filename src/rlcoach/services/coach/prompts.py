@@ -26,11 +26,11 @@ MAX_PLAYER_NAME_LENGTH = 50
 
 def sanitize_user_content(content: str, max_length: int = MAX_NOTE_LENGTH) -> str:
     """Sanitize user-provided content to prevent prompt injection.
-    
+
     Args:
         content: Raw user content
         max_length: Maximum allowed length
-        
+
     Returns:
         Sanitized content safe for prompt inclusion
     """

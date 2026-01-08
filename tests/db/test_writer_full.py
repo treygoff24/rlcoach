@@ -53,13 +53,25 @@ def full_report():
         "analysis": {
             "per_player": {
                 "steam:me123": {
-                    "fundamentals": {"goals": 2, "assists": 1, "saves": 3, "shots": 5, "score": 450},
+                    "fundamentals": {
+                        "goals": 2,
+                        "assists": 1,
+                        "saves": 3,
+                        "shots": 5,
+                        "score": 450,
+                    },
                     "boost": {"bpm": 380.5, "avg_boost": 32.1},
                     "movement": {"avg_speed_kph": 58.2, "time_supersonic_s": 65.0},
                     "positioning": {"behind_ball_pct": 58.0},
                 },
                 "steam:opp456": {
-                    "fundamentals": {"goals": 1, "assists": 0, "saves": 1, "shots": 3, "score": 200},
+                    "fundamentals": {
+                        "goals": 1,
+                        "assists": 0,
+                        "saves": 1,
+                        "shots": 3,
+                        "score": 200,
+                    },
                     "boost": {"bpm": 320.0, "avg_boost": 38.0},
                     "movement": {"avg_speed_kph": 52.0, "time_supersonic_s": 45.0},
                     "positioning": {"behind_ball_pct": 52.0},
@@ -98,7 +110,9 @@ def test_write_report_full_pipeline(tmp_path, config, full_report):
         stats = session.query(PlayerGameStats).all()
         assert len(stats) == 2
 
-        my_stats = session.query(PlayerGameStats).filter_by(player_id="steam:me123").first()
+        my_stats = (
+            session.query(PlayerGameStats).filter_by(player_id="steam:me123").first()
+        )
         assert my_stats.goals == 2
         assert my_stats.bcpm == pytest.approx(380.5, rel=0.01)
     finally:

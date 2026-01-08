@@ -28,37 +28,41 @@ def _create_test_data(session, play_date: date, games: list[dict]):
 
     for i, game in enumerate(games):
         replay_id = f"replay_{play_date.isoformat()}_{existing_count + i}"
-        session.add(Replay(
-            replay_id=replay_id,
-            source_file=f"/path/{replay_id}.replay",
-            file_hash=f"hash_{replay_id}",
-            played_at_utc=datetime.now(timezone.utc),
-            play_date=play_date,
-            map="DFH Stadium",
-            playlist=game["playlist"],
-            team_size=2,
-            duration_seconds=300.0,
-            my_player_id="steam:me123",
-            my_team="BLUE",
-            my_score=game["my_score"],
-            opponent_score=game["opp_score"],
-            result=game["result"],
-            json_report_path=f"/path/{replay_id}.json",
-        ))
-        session.add(PlayerGameStats(
-            replay_id=replay_id,
-            player_id="steam:me123",
-            team="BLUE",
-            is_me=True,
-            goals=game.get("goals", 0),
-            assists=game.get("assists", 0),
-            saves=game.get("saves", 0),
-            shots=game.get("shots", 0),
-            bcpm=game.get("bcpm"),
-            avg_boost=game.get("avg_boost"),
-            avg_speed_kph=game.get("avg_speed_kph"),
-            behind_ball_pct=game.get("behind_ball_pct"),
-        ))
+        session.add(
+            Replay(
+                replay_id=replay_id,
+                source_file=f"/path/{replay_id}.replay",
+                file_hash=f"hash_{replay_id}",
+                played_at_utc=datetime.now(timezone.utc),
+                play_date=play_date,
+                map="DFH Stadium",
+                playlist=game["playlist"],
+                team_size=2,
+                duration_seconds=300.0,
+                my_player_id="steam:me123",
+                my_team="BLUE",
+                my_score=game["my_score"],
+                opponent_score=game["opp_score"],
+                result=game["result"],
+                json_report_path=f"/path/{replay_id}.json",
+            )
+        )
+        session.add(
+            PlayerGameStats(
+                replay_id=replay_id,
+                player_id="steam:me123",
+                team="BLUE",
+                is_me=True,
+                goals=game.get("goals", 0),
+                assists=game.get("assists", 0),
+                saves=game.get("saves", 0),
+                shots=game.get("shots", 0),
+                bcpm=game.get("bcpm"),
+                avg_boost=game.get("avg_boost"),
+                avg_speed_kph=game.get("avg_speed_kph"),
+                behind_ball_pct=game.get("behind_ball_pct"),
+            )
+        )
     session.commit()
 
 
@@ -70,30 +74,63 @@ def test_update_daily_stats_creates_record(tmp_path):
     session = create_session()
     today = date(2024, 12, 23)
 
-    _create_test_data(session, today, [
-        {"playlist": "DOUBLES", "result": "WIN", "my_score": 3, "opp_score": 1,
-         "goals": 2, "assists": 1, "saves": 1, "shots": 4, "bcpm": 380.0},
-        {"playlist": "DOUBLES", "result": "LOSS", "my_score": 1, "opp_score": 3,
-         "goals": 1, "assists": 0, "saves": 2, "shots": 3, "bcpm": 350.0},
-        {"playlist": "DOUBLES", "result": "WIN", "my_score": 2, "opp_score": 1,
-         "goals": 1, "assists": 1, "saves": 1, "shots": 3, "bcpm": 400.0},
-    ])
+    _create_test_data(
+        session,
+        today,
+        [
+            {
+                "playlist": "DOUBLES",
+                "result": "WIN",
+                "my_score": 3,
+                "opp_score": 1,
+                "goals": 2,
+                "assists": 1,
+                "saves": 1,
+                "shots": 4,
+                "bcpm": 380.0,
+            },
+            {
+                "playlist": "DOUBLES",
+                "result": "LOSS",
+                "my_score": 1,
+                "opp_score": 3,
+                "goals": 1,
+                "assists": 0,
+                "saves": 2,
+                "shots": 3,
+                "bcpm": 350.0,
+            },
+            {
+                "playlist": "DOUBLES",
+                "result": "WIN",
+                "my_score": 2,
+                "opp_score": 1,
+                "goals": 1,
+                "assists": 1,
+                "saves": 1,
+                "shots": 3,
+                "bcpm": 400.0,
+            },
+        ],
+    )
     session.close()
 
     update_daily_stats(today, "DOUBLES")
 
     session = create_session()
     try:
-        daily = session.query(DailyStats).filter_by(
-            play_date=today, playlist="DOUBLES"
-        ).first()
+        daily = (
+            session.query(DailyStats)
+            .filter_by(play_date=today, playlist="DOUBLES")
+            .first()
+        )
 
         assert daily is not None
         assert daily.games_played == 3
         assert daily.wins == 2
         assert daily.losses == 1
-        assert daily.win_rate == pytest.approx(2/3 * 100, rel=0.01)
-        assert daily.avg_goals == pytest.approx(4/3, rel=0.01)  # (2+1+1)/3
+        assert daily.win_rate == pytest.approx(2 / 3 * 100, rel=0.01)
+        assert daily.avg_goals == pytest.approx(4 / 3, rel=0.01)  # (2+1+1)/3
         assert daily.avg_bcpm == pytest.approx(376.67, rel=0.01)  # (380+350+400)/3
     finally:
         session.close()
@@ -108,10 +145,20 @@ def test_update_daily_stats_updates_existing(tmp_path):
     today = date(2024, 12, 23)
 
     # Create initial games
-    _create_test_data(session, today, [
-        {"playlist": "DOUBLES", "result": "WIN", "my_score": 2, "opp_score": 1,
-         "goals": 1, "bcpm": 350.0},
-    ])
+    _create_test_data(
+        session,
+        today,
+        [
+            {
+                "playlist": "DOUBLES",
+                "result": "WIN",
+                "my_score": 2,
+                "opp_score": 1,
+                "goals": 1,
+                "bcpm": 350.0,
+            },
+        ],
+    )
     session.close()
 
     # First aggregation
@@ -119,16 +166,28 @@ def test_update_daily_stats_updates_existing(tmp_path):
 
     # Verify initial state
     session = create_session()
-    daily = session.query(DailyStats).filter_by(play_date=today, playlist="DOUBLES").first()
+    daily = (
+        session.query(DailyStats).filter_by(play_date=today, playlist="DOUBLES").first()
+    )
     assert daily.games_played == 1
     session.close()
 
     # Add more games
     session = create_session()
-    _create_test_data(session, today, [
-        {"playlist": "DOUBLES", "result": "WIN", "my_score": 3, "opp_score": 0,
-         "goals": 2, "bcpm": 400.0},
-    ])
+    _create_test_data(
+        session,
+        today,
+        [
+            {
+                "playlist": "DOUBLES",
+                "result": "WIN",
+                "my_score": 3,
+                "opp_score": 0,
+                "goals": 2,
+                "bcpm": 400.0,
+            },
+        ],
+    )
     session.close()
 
     # Re-aggregate
@@ -137,7 +196,11 @@ def test_update_daily_stats_updates_existing(tmp_path):
     # Verify updated
     session = create_session()
     try:
-        daily = session.query(DailyStats).filter_by(play_date=today, playlist="DOUBLES").first()
+        daily = (
+            session.query(DailyStats)
+            .filter_by(play_date=today, playlist="DOUBLES")
+            .first()
+        )
         assert daily.games_played == 2  # Now 2 games
         assert daily.wins == 2
     finally:
@@ -154,9 +217,11 @@ def test_update_daily_stats_no_games(tmp_path):
 
     session = create_session()
     try:
-        daily = session.query(DailyStats).filter_by(
-            play_date=today, playlist="DOUBLES"
-        ).first()
+        daily = (
+            session.query(DailyStats)
+            .filter_by(play_date=today, playlist="DOUBLES")
+            .first()
+        )
         # Either no record or zero games
         assert daily is None or daily.games_played == 0
     finally:

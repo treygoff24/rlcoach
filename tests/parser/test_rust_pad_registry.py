@@ -25,7 +25,14 @@ def test_rust_pad_registry_event_completeness():
 
     assert pad_events, "expected boost pad events from Rust adapter"
 
-    required_keys = {"pad_id", "is_big", "object_name", "timestamp", "status", "position"}
+    required_keys = {
+        "pad_id",
+        "is_big",
+        "object_name",
+        "timestamp",
+        "status",
+        "position",
+    }
     for event in pad_events:
         missing = required_keys - event.keys()
         assert not missing, f"event missing keys {missing}: {event}"

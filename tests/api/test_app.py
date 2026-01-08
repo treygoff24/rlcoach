@@ -42,6 +42,7 @@ def client(mock_config):
     """Create a test client with mocked config."""
     with patch("rlcoach.api.app.get_config", return_value=mock_config):
         from rlcoach.api.app import create_app
+
         app = create_app()
         yield TestClient(app)
 
@@ -87,7 +88,7 @@ class TestCORS:
             headers={
                 "Origin": "http://localhost:5173",
                 "Access-Control-Request-Method": "GET",
-            }
+            },
         )
         # CORS preflight should return 200
         assert response.status_code == 200

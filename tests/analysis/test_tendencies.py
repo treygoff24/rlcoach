@@ -14,20 +14,38 @@ def test_compute_tendencies_basic():
     """Compute tendencies from player stats."""
     stats = [
         {
-            "goals": 2, "saves": 1, "shots": 4, "assists": 1,
-            "challenge_wins": 5, "challenge_losses": 3,
-            "first_man_pct": 40.0, "second_man_pct": 35.0, "third_man_pct": 25.0,
-            "bcpm": 380, "avg_boost": 35,
-            "aerial_count": 3, "wavedash_count": 2,
-            "time_last_defender_s": 60.0, "behind_ball_pct": 55.0,
+            "goals": 2,
+            "saves": 1,
+            "shots": 4,
+            "assists": 1,
+            "challenge_wins": 5,
+            "challenge_losses": 3,
+            "first_man_pct": 40.0,
+            "second_man_pct": 35.0,
+            "third_man_pct": 25.0,
+            "bcpm": 380,
+            "avg_boost": 35,
+            "aerial_count": 3,
+            "wavedash_count": 2,
+            "time_last_defender_s": 60.0,
+            "behind_ball_pct": 55.0,
         },
         {
-            "goals": 1, "saves": 2, "shots": 3, "assists": 0,
-            "challenge_wins": 4, "challenge_losses": 4,
-            "first_man_pct": 35.0, "second_man_pct": 40.0, "third_man_pct": 25.0,
-            "bcpm": 360, "avg_boost": 38,
-            "aerial_count": 2, "wavedash_count": 1,
-            "time_last_defender_s": 80.0, "behind_ball_pct": 60.0,
+            "goals": 1,
+            "saves": 2,
+            "shots": 3,
+            "assists": 0,
+            "challenge_wins": 4,
+            "challenge_losses": 4,
+            "first_man_pct": 35.0,
+            "second_man_pct": 40.0,
+            "third_man_pct": 25.0,
+            "bcpm": 360,
+            "avg_boost": 38,
+            "aerial_count": 2,
+            "wavedash_count": 1,
+            "time_last_defender_s": 80.0,
+            "behind_ball_pct": 60.0,
         },
     ]
 
@@ -47,14 +65,23 @@ def test_compute_tendencies_empty_stats():
 
 def test_compute_tendencies_single_game():
     """Should work with just one game."""
-    stats = [{
-        "goals": 1, "saves": 1, "shots": 2, "assists": 0,
-        "challenge_wins": 3, "challenge_losses": 2,
-        "first_man_pct": 50.0,
-        "bcpm": 350, "avg_boost": 40,
-        "aerial_count": 1, "wavedash_count": 0,
-        "time_last_defender_s": 45.0, "behind_ball_pct": 50.0,
-    }]
+    stats = [
+        {
+            "goals": 1,
+            "saves": 1,
+            "shots": 2,
+            "assists": 0,
+            "challenge_wins": 3,
+            "challenge_losses": 2,
+            "first_man_pct": 50.0,
+            "bcpm": 350,
+            "avg_boost": 40,
+            "aerial_count": 1,
+            "wavedash_count": 0,
+            "time_last_defender_s": 45.0,
+            "behind_ball_pct": 50.0,
+        }
+    ]
 
     profile = compute_tendencies(stats)
     assert profile is not None

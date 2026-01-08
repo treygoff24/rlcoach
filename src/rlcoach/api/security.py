@@ -7,10 +7,10 @@ import re
 XSS_PATTERN = re.compile(r'[<>"\'&]')
 
 # Control characters (except newline, tab)
-CONTROL_CHAR_PATTERN = re.compile(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]')
+CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]")
 
 # Path traversal patterns
-PATH_TRAVERSAL_PATTERN = re.compile(r'\.\.|[/\\]')
+PATH_TRAVERSAL_PATTERN = re.compile(r"\.\.|[/\\]")
 
 
 def sanitize_string(
@@ -41,22 +41,22 @@ def sanitize_string(
     # Remove control characters
     if allow_newlines:
         # Keep newlines and tabs
-        value = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', value)
+        value = re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]", "", value)
     else:
-        value = CONTROL_CHAR_PATTERN.sub('', value)
-        value = value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+        value = CONTROL_CHAR_PATTERN.sub("", value)
+        value = value.replace("\n", " ").replace("\r", " ").replace("\t", " ")
 
     # Escape or remove HTML special characters for XSS prevention
     if strip_html:
-        value = value.replace('&', '&amp;')
-        value = value.replace('<', '&lt;')
-        value = value.replace('>', '&gt;')
-        value = value.replace('"', '&quot;')
-        value = value.replace("'", '&#x27;')
+        value = value.replace("&", "&amp;")
+        value = value.replace("<", "&lt;")
+        value = value.replace(">", "&gt;")
+        value = value.replace('"', "&quot;")
+        value = value.replace("'", "&#x27;")
 
     # Collapse multiple spaces (skip for code/chat content to preserve formatting)
     if not preserve_formatting:
-        value = re.sub(r' +', ' ', value)
+        value = re.sub(r" +", " ", value)
 
     return value.strip()
 
@@ -75,32 +75,32 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
         return "unnamed.replay"
 
     # Remove path components (prevent traversal)
-    filename = filename.replace('\\', '/').split('/')[-1]
+    filename = filename.replace("\\", "/").split("/")[-1]
 
     # Remove control characters and null bytes
-    filename = CONTROL_CHAR_PATTERN.sub('', filename)
+    filename = CONTROL_CHAR_PATTERN.sub("", filename)
 
     # Replace dangerous characters with underscore
     # Allow: alphanumeric, dash, underscore, dot, space
-    filename = re.sub(r'[^a-zA-Z0-9\-_. ]', '_', filename)
+    filename = re.sub(r"[^a-zA-Z0-9\-_. ]", "_", filename)
 
     # Collapse multiple underscores/spaces
-    filename = re.sub(r'[_ ]+', '_', filename)
+    filename = re.sub(r"[_ ]+", "_", filename)
 
     # Remove leading/trailing dots and spaces (Windows safety)
-    filename = filename.strip('. ')
+    filename = filename.strip(". ")
 
     # Ensure it ends with .replay
-    if not filename.lower().endswith('.replay'):
+    if not filename.lower().endswith(".replay"):
         # Remove any existing extension and add .replay
-        if '.' in filename:
-            filename = filename.rsplit('.', 1)[0]
+        if "." in filename:
+            filename = filename.rsplit(".", 1)[0]
         filename = f"{filename}.replay"
 
     # Truncate if needed (preserve extension)
     if len(filename) > max_length:
         name_part = filename[:-7]  # Remove .replay
-        name_part = name_part[:max_length - 7]
+        name_part = name_part[: max_length - 7]
         filename = f"{name_part}.replay"
 
     return filename or "unnamed.replay"

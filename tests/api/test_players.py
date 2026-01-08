@@ -47,71 +47,83 @@ def db_with_players(mock_config):
     session = create_session()
 
     # Add players
-    session.add(Player(
-        player_id="steam:me123",
-        display_name="TestPlayer",
-        is_me=True,
-        games_with_me=0,
-    ))
-    session.add(Player(
-        player_id="steam:teammate1",
-        display_name="Teammate1",
-        is_me=False,
-        is_tagged_teammate=True,
-        teammate_notes="Good rotation",
-        games_with_me=5,
-    ))
-    session.add(Player(
-        player_id="steam:teammate2",
-        display_name="Teammate2",
-        is_me=False,
-        games_with_me=3,
-    ))
-    session.add(Player(
-        player_id="epic:opponent1",
-        display_name="Opponent1",
-        is_me=False,
-        games_with_me=2,
-    ))
+    session.add(
+        Player(
+            player_id="steam:me123",
+            display_name="TestPlayer",
+            is_me=True,
+            games_with_me=0,
+        )
+    )
+    session.add(
+        Player(
+            player_id="steam:teammate1",
+            display_name="Teammate1",
+            is_me=False,
+            is_tagged_teammate=True,
+            teammate_notes="Good rotation",
+            games_with_me=5,
+        )
+    )
+    session.add(
+        Player(
+            player_id="steam:teammate2",
+            display_name="Teammate2",
+            is_me=False,
+            games_with_me=3,
+        )
+    )
+    session.add(
+        Player(
+            player_id="epic:opponent1",
+            display_name="Opponent1",
+            is_me=False,
+            games_with_me=2,
+        )
+    )
 
     # Add replays and stats for tendency analysis
     for i in range(5):
-        session.add(Replay(
-            replay_id=f"replay_{i}",
-            source_file=f"/path/replay_{i}.replay",
-            file_hash=f"hash_{i}",
-            played_at_utc=datetime(2024, 12, 23, 10 + i, 0, 0, tzinfo=timezone.utc),
-            play_date=date(2024, 12, 23),
-            map="DFH Stadium",
-            playlist="DOUBLES",
-            team_size=2,
-            duration_seconds=300.0,
-            my_player_id="steam:me123",
-            my_team="BLUE",
-            my_score=2,
-            opponent_score=1,
-            result="WIN",
-            json_report_path=f"/path/replay_{i}.json",
-        ))
+        session.add(
+            Replay(
+                replay_id=f"replay_{i}",
+                source_file=f"/path/replay_{i}.replay",
+                file_hash=f"hash_{i}",
+                played_at_utc=datetime(2024, 12, 23, 10 + i, 0, 0, tzinfo=timezone.utc),
+                play_date=date(2024, 12, 23),
+                map="DFH Stadium",
+                playlist="DOUBLES",
+                team_size=2,
+                duration_seconds=300.0,
+                my_player_id="steam:me123",
+                my_team="BLUE",
+                my_score=2,
+                opponent_score=1,
+                result="WIN",
+                json_report_path=f"/path/replay_{i}.json",
+            )
+        )
         # Add teammate stats
-        session.add(PlayerGameStats(
-            replay_id=f"replay_{i}",
-            player_id="steam:teammate1",
-            team="BLUE",
-            is_me=False,
-            is_teammate=True,
-            goals=1,
-            assists=1,
-            saves=2,
-            shots=3,
-            first_man_pct=40.0,
-            second_man_pct=35.0,
-            third_man_pct=25.0,
-            bcpm=360.0,
-            avg_boost=35.0,
-            behind_ball_pct=55.0,
-            time_last_defender_s=60.0,
-        ))
+        session.add(
+            PlayerGameStats(
+                replay_id=f"replay_{i}",
+                player_id="steam:teammate1",
+                team="BLUE",
+                is_me=False,
+                is_teammate=True,
+                goals=1,
+                assists=1,
+                saves=2,
+                shots=3,
+                first_man_pct=40.0,
+                second_man_pct=35.0,
+                third_man_pct=25.0,
+                bcpm=360.0,
+                avg_boost=35.0,
+                behind_ball_pct=55.0,
+                time_last_defender_s=60.0,
+            )
+        )
 
     session.commit()
     session.close()
@@ -126,6 +138,7 @@ def client(db_with_players):
     """Create a test client with player data."""
     with patch("rlcoach.api.app.get_config", return_value=db_with_players):
         from rlcoach.api.app import create_app
+
         app = create_app()
         yield TestClient(app)
 
@@ -202,8 +215,7 @@ class TestPlayerTagEndpoint:
     def test_tag_player(self, client):
         """Should tag a player as teammate."""
         response = client.post(
-            "/players/steam:teammate2/tag",
-            json={"notes": "Great passes"}
+            "/players/steam:teammate2/tag", json={"notes": "Great passes"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -213,10 +225,7 @@ class TestPlayerTagEndpoint:
 
     def test_untag_player(self, client):
         """Should untag a player."""
-        response = client.post(
-            "/players/steam:teammate1/tag",
-            json={"tagged": False}
-        )
+        response = client.post("/players/steam:teammate1/tag", json={"tagged": False})
         assert response.status_code == 200
         data = response.json()
 
@@ -224,8 +233,5 @@ class TestPlayerTagEndpoint:
 
     def test_tag_nonexistent_player(self, client):
         """Should return 404 for nonexistent player."""
-        response = client.post(
-            "/players/nonexistent/tag",
-            json={"notes": "test"}
-        )
+        response = client.post("/players/nonexistent/tag", json={"notes": "test"})
         assert response.status_code == 404

@@ -75,7 +75,7 @@ async def list_games(
         if sort_field not in ALLOWED_SORT_FIELDS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}"
+                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
             )
 
         order_col = getattr(Replay, sort_field)
