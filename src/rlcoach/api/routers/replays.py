@@ -90,6 +90,7 @@ class ReplayListItem(BaseModel):
     """Replay list item."""
 
     id: str
+    replay_id: str | None = None
     filename: str
     status: str
     played_at: str | None
@@ -171,13 +172,24 @@ async def upload_replay(
             detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
-    # Early size check using Content-Length header (if provided)
+    # Early size check using part Content-Length header (if provided)
     # This rejects obviously oversized files before reading any data
-    if file.size is not None and file.size > MAX_REPLAY_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large. Maximum size: {MAX_REPLAY_SIZE // (1024*1024)}MB",
-        )
+    content_length = None
+    if file.headers is not None:
+        content_length = file.headers.get("content-length")
+    if content_length:
+        try:
+            reported_size = int(content_length)
+        except ValueError:
+            reported_size = None
+        if reported_size is not None and reported_size > MAX_REPLAY_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "File too large. Maximum size: "
+                    f"{MAX_REPLAY_SIZE // (1024*1024)}MB"
+                ),
+            )
 
     # Read file in chunks to check size early (prevent memory DoS)
     # This approach rejects oversized files before fully loading them
@@ -317,6 +329,7 @@ async def list_uploads(
         items.append(
             ReplayListItem(
                 id=upload.id,
+                replay_id=upload.replay_id,
                 filename=upload.filename,
                 status=upload.status,
                 played_at=played_at,
@@ -502,6 +515,7 @@ async def list_library(
         items.append(
             ReplayListItem(
                 id=replay.replay_id,
+                replay_id=replay.replay_id,
                 filename=filename,
                 status=replay_status,
                 played_at=played_at,
@@ -591,10 +605,6 @@ async def get_replay_analysis(
     Requires authentication and ownership of the replay.
     """
     from ...db import Player, PlayerGameStats
-
-    # Validate replay_id is a valid UUID
-    if not _is_valid_uuid(replay_id):
-        raise HTTPException(status_code=400, detail="Invalid replay ID format")
 
     # Check user owns this replay
     ownership = (

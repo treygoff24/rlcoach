@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 
 interface Session {
   id: string;
@@ -107,10 +106,9 @@ export default function SessionsPage() {
               ? Math.round((session.wins / session.replay_count) * 100)
               : 0;
             return (
-              <Link
+              <div
                 key={session.id}
-                href={`/replays?date=${session.date}`}
-                className="block bg-gray-900/50 border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                className="block bg-gray-900/50 border border-gray-800 rounded-xl p-6"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div>
@@ -141,7 +139,7 @@ export default function SessionsPage() {
                     </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>

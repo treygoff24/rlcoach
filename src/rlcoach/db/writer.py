@@ -8,8 +8,9 @@ from typing import Any
 
 from ..config import IdentityConfig, RLCoachConfig, compute_play_date
 from ..identity import PlayerIdentityResolver
+from ..utils.identity import sanitize_display_name, slugify_display_name
 from .aggregates import update_daily_stats
-from .models import Player, PlayerGameStats, Replay
+from .models import OAuthAccount, Player, PlayerGameStats, Replay, User
 from .session import create_session
 
 
@@ -23,6 +24,106 @@ class PlayerNotFoundError(Exception):
     """Raised when player identity cannot be resolved."""
 
     pass
+
+
+def _resolve_player_from_accounts(
+    session: Any,
+    user_id: str,
+    players: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    accounts = (
+        session.query(OAuthAccount)
+        .filter(OAuthAccount.user_id == user_id)
+        .all()
+    )
+    if not accounts:
+        return None
+
+    provider_ids: dict[str, set[str]] = {}
+    for account in accounts:
+        provider = (account.provider or "").strip().lower()
+        provider_id = str(account.provider_account_id or "").strip()
+        if not provider or not provider_id:
+            continue
+        provider_ids.setdefault(provider, set()).add(provider_id)
+
+    if not provider_ids:
+        return None
+
+    for player in players:
+        player_id = player.get("player_id")
+        if player_id and ":" in player_id:
+            platform, value = player_id.split(":", 1)
+            platform = platform.strip().lower()
+            if platform in provider_ids and value in provider_ids[platform]:
+                return player
+
+        platform_ids = player.get("platform_ids") or {}
+        for platform, value in platform_ids.items():
+            if value is None:
+                continue
+            platform_key = str(platform).strip().lower()
+            if platform_key in provider_ids and str(value) in provider_ids[platform_key]:
+                return player
+    return None
+
+
+def _resolve_player_from_user_profile(
+    session: Any,
+    user_id: str,
+    players: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    user = session.get(User, user_id)
+    if not user:
+        return None
+
+    name_candidates: list[str] = []
+    if user.display_name:
+        name_candidates.append(user.display_name)
+    if user.email and "@" in user.email:
+        name_candidates.append(user.email.split("@", 1)[0])
+
+    for raw_name in name_candidates:
+        normalized = sanitize_display_name(raw_name)
+        if not normalized or normalized.casefold() == "unknown":
+            continue
+        target_cf = normalized.casefold()
+        target_slug = slugify_display_name(normalized)
+        matches: dict[str, dict[str, Any]] = {}
+
+        for player in players:
+            raw_display = player.get("display_name")
+            if not raw_display:
+                continue
+            display_name = sanitize_display_name(raw_display)
+            if display_name.casefold() == "unknown":
+                continue
+            player_id = str(player.get("player_id") or "")
+            player_key = player_id or display_name
+            if display_name.casefold() == target_cf:
+                matches.setdefault(player_key, player)
+                continue
+            if slugify_display_name(display_name) == target_slug:
+                matches.setdefault(player_key, player)
+                continue
+            if player_id in {target_slug, f"slug:{target_slug}"}:
+                matches.setdefault(player_key, player)
+
+        if len(matches) == 1:
+            return next(iter(matches.values()))
+
+    return None
+
+
+def _resolve_player_for_user(
+    session: Any,
+    user_id: str,
+    players: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    match = _resolve_player_from_accounts(session, user_id, players)
+    if match:
+        return match
+    return _resolve_player_from_user_profile(session, user_id, players)
 
 
 def upsert_players(
@@ -369,12 +470,13 @@ def write_report_saas(
     report: dict[str, Any],
     file_hash: str,
     json_report_path: str,
+    user_id: str | None = None,
 ) -> str:
     """Write a complete report to the database (SaaS mode, no config file).
 
     Unlike write_report(), this function doesn't require identity configuration.
-    It stores all player stats without determining which player is "me" - that
-    association is handled through UserReplay and linked accounts.
+    If user_id is provided, it attempts to resolve the user's player/team from
+    linked OAuth accounts or profile display name to populate result fields.
 
     Args:
         report: Parsed JSON report from generate_report()
@@ -419,9 +521,34 @@ def write_report_saas(
         # Use UTC date as play_date (no timezone config in SaaS)
         play_date = played_at_utc.date()
 
+        my_player = None
+        if user_id:
+            my_player = _resolve_player_for_user(session, user_id, players)
+
+        my_player_id = my_player.get("player_id") if my_player else None
+        my_team = my_player.get("team") if my_player else None
+
         # Get scores
         blue_score = teams.get("blue", {}).get("score", 0)
         orange_score = teams.get("orange", {}).get("score", 0)
+        my_score = None
+        opponent_score = None
+        result = None
+
+        if my_team == "BLUE":
+            my_score = blue_score
+            opponent_score = orange_score
+        elif my_team == "ORANGE":
+            my_score = orange_score
+            opponent_score = blue_score
+
+        if my_score is not None and opponent_score is not None:
+            if my_score > opponent_score:
+                result = "WIN"
+            elif my_score < opponent_score:
+                result = "LOSS"
+            else:
+                result = "DRAW"
 
         # Create replay record (without my_player_id since no identity config)
         replay = Replay(
@@ -435,12 +562,12 @@ def write_report_saas(
             team_size=metadata.get("team_size", 2),
             duration_seconds=metadata.get("duration_seconds", 0),
             overtime=metadata.get("overtime", False),
-            # SaaS mode: no single "me" player - leave these null
-            my_player_id=None,
-            my_team=None,
-            my_score=blue_score,  # Store blue score as default
-            opponent_score=orange_score,
-            result=None,  # Unknown without "me" designation
+            # SaaS mode: identify "me" only when linked accounts match a player
+            my_player_id=my_player_id,
+            my_team=my_team,
+            my_score=my_score,  # Store blue score as default
+            opponent_score=opponent_score,
+            result=result,
             json_report_path=json_report_path,
         )
         session.add(replay)
@@ -470,7 +597,7 @@ def write_report_saas(
                 )
                 session.add(player)
 
-        # Step 3: Insert player stats (without is_me/is_teammate/is_opponent flags)
+        # Step 3: Insert player stats (set role flags when the uploader is known)
         for p in players:
             pid = p.get("player_id")
             if not pid:
@@ -478,6 +605,14 @@ def write_report_saas(
 
             team = p.get("team")
             player_data = per_player.get(pid, {})
+            is_me = my_player_id is not None and pid == my_player_id
+            is_teammate = False
+            is_opponent = False
+            if my_team and team:
+                if not is_me and team == my_team:
+                    is_teammate = True
+                elif team != my_team:
+                    is_opponent = True
 
             # Extract metrics from nested structure
             fundamentals = player_data.get("fundamentals", {})
@@ -495,11 +630,9 @@ def write_report_saas(
                 replay_id=replay_id,
                 player_id=pid,
                 team=team,
-                # SaaS: role flags set to False by default
-                # These will be updated when user links their game account
-                is_me=False,
-                is_teammate=False,
-                is_opponent=False,
+                is_me=is_me,
+                is_teammate=is_teammate,
+                is_opponent=is_opponent,
                 # Fundamentals
                 goals=fundamentals.get("goals"),
                 assists=fundamentals.get("assists"),

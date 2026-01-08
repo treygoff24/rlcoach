@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 interface Replay {
   id: string;
+  replay_id?: string | null;
   filename: string;
   status: string;
   played_at: string | null;
@@ -139,6 +140,7 @@ function FilterButton({
 }
 
 function ReplayRow({ replay, index }: { replay: Replay; index: number }) {
+  const replayId = replay.replay_id ?? replay.id;
   return (
     <tr
       className="group hover:bg-white/[0.02] transition-colors animate-slide-up opacity-0 [animation-fill-mode:forwards]"
@@ -146,7 +148,7 @@ function ReplayRow({ replay, index }: { replay: Replay; index: number }) {
     >
       <td className="px-5 py-4">
         <Link
-          href={`/replays/${replay.id}`}
+          href={`/replays/${replayId}`}
           className="group/link flex items-center gap-3"
         >
           {/* Replay icon */}

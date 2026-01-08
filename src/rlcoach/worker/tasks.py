@@ -197,6 +197,7 @@ def process_replay(self, upload_id: str) -> dict:
                             report=parsed_data,
                             file_hash=file_hash,
                             json_report_path=str(output_file),
+                            user_id=upload.user_id,
                         )
                         logger.info(f"Persisted replay {replay_id} to database")
                     except ReplayExistsError:
