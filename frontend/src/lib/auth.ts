@@ -37,6 +37,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     userId: string;
     subscriptionTier: 'free' | 'pro';
+    accessToken?: string;
   }
 }
 
@@ -88,6 +89,9 @@ const Steam = {
   },
 };
 
+// Backend URL for server-side calls during auth
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+
 export const authConfig: NextAuthConfig = {
   providers: [
     Discord({
@@ -111,30 +115,49 @@ export const authConfig: NextAuthConfig = {
   },
   callbacks: {
     async jwt({ token, user, account, trigger }) {
-      // Initial sign in
-      if (user) {
-        token.userId = user.id!;
-        token.subscriptionTier = user.subscriptionTier || 'free';
-      }
-
-      // Refresh subscription tier from database on session update
-      if (trigger === 'update') {
-        // Fetch fresh subscription status from API
+      // Initial sign in - bootstrap user in our database
+      if (account && user) {
         try {
-          const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${token.userId}/subscription`,
-            {
-              headers: {
-                Authorization: `Bearer ${token.accessToken}`,
-              },
-            }
-          );
+          // Compute HMAC signature for bootstrap request
+          const crypto = await import('crypto');
+          const bootstrapSecret = process.env.BOOTSTRAP_SECRET || '';
+          const payload = `${account.provider}:${account.providerAccountId}:${user.email || ''}`;
+          const signature = bootstrapSecret
+            ? crypto.createHmac('sha256', bootstrapSecret).update(payload).digest('hex')
+            : '';
+
+          // Call our backend to create/find the user
+          const res = await fetch(`${BACKEND_URL}/api/v1/users/bootstrap`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(signature && { 'X-Bootstrap-Signature': signature }),
+            },
+            body: JSON.stringify({
+              provider: account.provider,
+              provider_account_id: account.providerAccountId,
+              email: user.email,
+              name: user.name,
+              image: user.image,
+            }),
+          });
+
           if (res.ok) {
             const data = await res.json();
-            token.subscriptionTier = data.tier;
+            // Use our database UUID, not the OAuth provider's ID
+            token.userId = data.id;
+            token.subscriptionTier = data.subscription_tier || 'free';
+          } else {
+            // Fallback to OAuth ID if bootstrap fails
+            console.error('User bootstrap failed:', await res.text());
+            token.userId = user.id!;
+            token.subscriptionTier = 'free';
           }
-        } catch {
-          // Keep existing tier on error
+        } catch (error) {
+          // Fallback to OAuth ID if bootstrap fails
+          console.error('User bootstrap error:', error);
+          token.userId = user.id!;
+          token.subscriptionTier = 'free';
         }
       }
 
@@ -147,15 +170,14 @@ export const authConfig: NextAuthConfig = {
     },
     async signIn({ user, account, profile }) {
       // Allow all sign-ins by default
-      // Could add logic here to block certain users or require email verification
+      // Bootstrap happens in jwt callback
       return true;
     },
   },
   events: {
     async signIn({ user, account, profile, isNewUser }) {
       if (isNewUser) {
-        // New user created - could trigger welcome email or analytics
-        console.log(`New user signed up: ${user.id}`);
+        console.log(`New OAuth sign-in: ${account?.provider} - ${user.id}`);
       }
     },
   },

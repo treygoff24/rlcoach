@@ -8,7 +8,6 @@ FastAPI dependencies for protected routes.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
 from typing import Annotated
 
 import jwt
@@ -71,6 +70,7 @@ def decode_token(token: str) -> TokenData:
 
     try:
         secret = get_jwt_secret()
+        # PyJWT validates expiration automatically by default
         payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
 
         # NextAuth JWT structure
@@ -78,24 +78,19 @@ def decode_token(token: str) -> TokenData:
         if user_id is None:
             raise credentials_exception
 
-        # Check expiration
-        exp = payload.get("exp")
-        if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(
-            timezone.utc
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
         return TokenData(
             user_id=user_id,
             email=payload.get("email"),
             subscription_tier=payload.get("subscriptionTier", "free"),
-            exp=exp,
+            exp=payload.get("exp"),
         )
 
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except InvalidTokenError as e:
         raise credentials_exception from e
 
@@ -166,9 +161,9 @@ async def get_current_user(
     return CurrentUser(
         id=user.id,
         email=user.email,
-        name=user.name,
-        subscription_tier=user.subscription_tier.value,
-        is_pro=user.subscription_tier.value == "pro",
+        name=user.display_name,
+        subscription_tier=user.subscription_tier or "free",
+        is_pro=(user.subscription_tier or "free") == "pro",
     )
 
 

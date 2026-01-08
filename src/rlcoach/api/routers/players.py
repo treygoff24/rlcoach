@@ -14,6 +14,16 @@ from ...db.session import create_session
 
 router = APIRouter(tags=["players"])
 
+# Allowlist of sortable fields for security (prevents schema enumeration)
+ALLOWED_SORT_FIELDS = {
+    "display_name",
+    "platform",
+    "games_with_me",
+    "first_seen_utc",
+    "last_seen_utc",
+    "is_tagged_teammate",
+}
+
 
 class TagRequest(BaseModel):
     """Request body for tagging a player."""
@@ -51,7 +61,7 @@ async def list_players(
         # Get total count before pagination
         total = query.count()
 
-        # Apply sorting
+        # Apply sorting with allowlist validation
         if sort.startswith("-"):
             sort_field = sort[1:]
             descending = True
@@ -59,9 +69,15 @@ async def list_players(
             sort_field = sort
             descending = False
 
-        if hasattr(Player, sort_field):
-            order_col = getattr(Player, sort_field)
-            query = query.order_by(order_col.desc() if descending else order_col)
+        # Security: Only allow sorting by allowlisted fields
+        if sort_field not in ALLOWED_SORT_FIELDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}"
+            )
+
+        order_col = getattr(Player, sort_field)
+        query = query.order_by(order_col.desc() if descending else order_col)
 
         # Apply pagination
         players = query.offset(offset).limit(limit).all()

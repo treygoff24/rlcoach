@@ -260,55 +260,95 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
       <div
         {...getRootProps()}
         className={`
-          border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
-          transition-colors duration-200
-          focus-within:ring-2 focus-within:ring-orange-500
+          relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer
+          transition-all duration-300 group overflow-hidden
+          focus-within:ring-2 focus-within:ring-boost focus-within:ring-offset-2 focus-within:ring-offset-void
           ${
             isDragActive
-              ? 'border-orange-500 bg-orange-500/10'
-              : 'border-gray-600 hover:border-gray-500 bg-gray-800/50'
+              ? 'border-fire bg-fire/10 scale-[1.02]'
+              : 'border-white/20 hover:border-white/40 bg-white/[0.02] hover:bg-white/[0.04]'
           }
         `}
       >
         <input {...getInputProps()} aria-label="Upload replay files" />
-        <div className="flex flex-col items-center gap-4">
-          <svg
-            className={`w-12 h-12 ${isDragActive ? 'text-orange-500' : 'text-gray-500'}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
+
+        {/* Animated background gradient */}
+        <div className={`
+          absolute inset-0 bg-gradient-to-br from-fire/10 via-transparent to-boost/10
+          transition-opacity duration-300
+          ${isDragActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}
+        `} />
+
+        {/* Corner accents */}
+        <div className="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-fire/30 rounded-tl-2xl" />
+        <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-boost/30 rounded-br-2xl" />
+
+        <div className="relative flex flex-col items-center gap-5">
+          {/* Upload icon with animation */}
+          <div className={`
+            relative w-16 h-16 rounded-2xl flex items-center justify-center
+            transition-all duration-300
+            ${isDragActive
+              ? 'bg-fire/20 scale-110'
+              : 'bg-white/5 group-hover:bg-white/10'
+            }
+          `}>
+            <svg
+              className={`w-8 h-8 transition-all duration-300 ${
+                isDragActive
+                  ? 'text-fire animate-bounce'
+                  : 'text-white/50 group-hover:text-white/80'
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            {isDragActive && (
+              <div className="absolute inset-0 rounded-2xl border-2 border-fire animate-pulse-ring" />
+            )}
+          </div>
+
           <div>
-            <p className="text-lg font-medium text-white">
-              {isDragActive ? 'Drop replays here' : 'Drag & drop replay files'}
+            <p className="text-lg font-semibold text-white">
+              {isDragActive ? 'Release to upload' : 'Drag & drop replay files'}
             </p>
-            <p className="text-sm text-gray-400 mt-1">
-              or click to select files
+            <p className="text-sm text-white/50 mt-1">
+              or click to browse your files
             </p>
+          </div>
+
+          {/* File type hint */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+            <div className="w-1.5 h-1.5 rounded-full bg-boost" />
+            <span className="text-xs text-white/50">.replay files only</span>
           </div>
         </div>
       </div>
 
       {/* File List */}
       {files.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-white/50">
               {files.length} file{files.length !== 1 ? 's' : ''}
-              {pendingCount > 0 && ` (${pendingCount} processing)`}
+              {pendingCount > 0 && (
+                <span className="ml-2 text-boost">
+                  ({pendingCount} processing)
+                </span>
+              )}
             </span>
             {files.every((f) => f.status === 'completed' || f.status === 'failed') && (
               <button
                 onClick={() => setFiles([])}
-                className="text-orange-500 hover:underline focus:outline-none focus:underline focus:text-orange-400"
+                className="text-sm text-white/50 hover:text-white transition-colors focus:outline-none focus:text-fire"
               >
                 Clear all
               </button>
@@ -316,84 +356,90 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
           </div>
 
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {files.map((file) => (
+            {files.map((file, index) => (
               <div
                 key={file.id}
-                className="flex items-center gap-3 bg-gray-800 rounded-lg p-3"
+                className="group/file flex items-center gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all duration-200 animate-slide-up opacity-0 [animation-fill-mode:forwards]"
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 {/* Status Icon */}
                 <div className="flex-shrink-0" aria-hidden="true">
                   {file.status === 'completed' && (
-                    <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+                    <div className="w-8 h-8 rounded-lg bg-victory/20 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-victory" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
                   )}
                   {file.status === 'failed' && (
-                    <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <div className="w-8 h-8 rounded-lg bg-defeat/20 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-defeat" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
                   )}
                   {(file.status === 'uploading' || file.status === 'processing') && (
-                    <svg className="w-5 h-5 text-orange-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
+                    <div className="w-8 h-8 rounded-lg bg-fire/20 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-fire animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                    </div>
                   )}
                   {file.status === 'pending' && (
-                    <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
                   )}
                 </div>
 
                 {/* File Info */}
                 <div className="flex-grow min-w-0">
-                  <p className="text-sm text-white truncate">{file.file.name}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-sm font-medium text-white truncate">{file.file.name}</p>
+                  <p className="text-xs text-white/40 mt-0.5">
                     {file.status === 'uploading' && 'Uploading...'}
-                    {file.status === 'processing' && 'Analyzing... typically 30 seconds'}
-                    {file.status === 'completed' && 'Analysis ready!'}
+                    {file.status === 'processing' && 'Analyzing replay...'}
+                    {file.status === 'completed' && 'Ready to view'}
                     {file.status === 'failed' && (file.error || 'Failed')}
-                    {file.status === 'pending' && 'Waiting...'}
+                    {file.status === 'pending' && 'Queued'}
                   </p>
                 </div>
 
-                {/* Size - human readable */}
-                <span className="text-xs text-gray-500 flex-shrink-0">
+                {/* Size */}
+                <span className="text-xs text-white/50 flex-shrink-0">
                   {formatFileSize(file.file.size)}
                 </span>
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* View Replay button for completed uploads */}
                   {file.status === 'completed' && file.replayId && (
                     <Link
                       href={`/replays/${file.replayId}`}
-                      className="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                      className="px-3 py-1.5 text-xs font-semibold bg-fire text-white rounded-lg hover:bg-fire-600 transition-colors shadow-glow-fire"
                     >
                       View
                     </Link>
                   )}
 
-                  {/* Retry button for failed uploads */}
                   {file.status === 'failed' && (
                     <button
                       onClick={() => retryUpload(file.id)}
-                      className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors"
+                      className="px-3 py-1.5 text-xs font-semibold bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors"
                     >
                       Retry
                     </button>
                   )}
 
-                  {/* Remove Button */}
                   {(file.status === 'completed' || file.status === 'failed') && (
                     <button
                       onClick={() => removeFile(file.id)}
-                      className="text-gray-500 hover:text-gray-300 focus:outline-none focus:text-orange-400"
+                      className="p-1.5 text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/5 focus:outline-none focus:text-fire"
                       aria-label={`Remove ${file.file.name}`}
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">

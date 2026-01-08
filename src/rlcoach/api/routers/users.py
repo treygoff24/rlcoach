@@ -7,10 +7,14 @@ and user-specific data.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import logging
+import os
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session as DBSession
@@ -21,11 +25,21 @@ from ...data.benchmarks import (
     get_benchmark_for_rank,
 )
 from ...db import User, get_session
-from ...db.models import CoachNote, CoachSession, PlayerGameStats, Replay, UserReplay
+from ...db.models import (
+    CoachMessage,
+    CoachNote,
+    CoachSession,
+    OAuthAccount,
+    PlayerGameStats,
+    Replay,
+    UserReplay,
+)
 from ...services.coach.budget import get_token_budget_remaining
 from ..auth import AuthenticatedUser
 from ..rate_limit import check_rate_limit, rate_limit_response
 from ..security import sanitize_display_name
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -57,6 +71,204 @@ class UpdateProfileRequest(BaseModel):
     """Update profile request."""
 
     name: str | None = None
+
+
+class AcceptTosRequest(BaseModel):
+    """ToS acceptance request."""
+
+    accepted_at: str  # ISO 8601 timestamp from client
+
+
+class AcceptTosResponse(BaseModel):
+    """ToS acceptance response."""
+
+    accepted: bool
+    accepted_at: str
+
+
+class BootstrapRequest(BaseModel):
+    """User bootstrap request from NextAuth signIn callback."""
+
+    provider: str  # discord, google, steam
+    provider_account_id: str  # OAuth provider's user ID
+    email: str | None = None
+    name: str | None = None
+    image: str | None = None
+
+
+class BootstrapResponse(BaseModel):
+    """User bootstrap response."""
+
+    id: str  # Our database UUID
+    subscription_tier: str
+    is_new_user: bool
+
+
+ALLOWED_PROVIDERS = {"discord", "google", "steam", "epic"}
+
+
+def _verify_bootstrap_signature(
+    request: BootstrapRequest, signature: str | None
+) -> bool:
+    """Verify HMAC signature for bootstrap request.
+
+    Prevents abuse of the unauthenticated bootstrap endpoint.
+    The signature is computed by the frontend using a shared secret.
+    """
+    secret = os.getenv("BOOTSTRAP_SECRET")
+    if not secret:
+        # In development without secret, allow but log warning
+        logger.warning("BOOTSTRAP_SECRET not set - bootstrap requests unverified")
+        return True
+
+    if not signature:
+        return False
+
+    # Compute expected signature
+    payload = f"{request.provider}:{request.provider_account_id}:{request.email or ''}"
+    expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+
+    return hmac.compare_digest(expected, signature)
+
+
+@router.post("/bootstrap", response_model=BootstrapResponse)
+async def bootstrap_user(
+    request: BootstrapRequest,
+    db: Annotated[DBSession, Depends(get_session)],
+    x_bootstrap_signature: Annotated[str | None, Header()] = None,
+) -> BootstrapResponse:
+    """Bootstrap a user on OAuth sign-in.
+
+    Called by NextAuth signIn callback to ensure user exists in our database.
+    Creates user and OAuth account if this is a new sign-up.
+    Returns existing user if they've signed in before.
+
+    Security: Requires HMAC signature verification via X-Bootstrap-Signature header.
+    """
+    # Validate provider is in allowlist
+    if request.provider not in ALLOWED_PROVIDERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid provider. Allowed: {', '.join(ALLOWED_PROVIDERS)}",
+        )
+
+    # Verify signature (prevents abuse of unauthenticated endpoint)
+    if not _verify_bootstrap_signature(request, x_bootstrap_signature):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing bootstrap signature",
+        )
+    # Check if this OAuth account already exists
+    existing_account = (
+        db.query(OAuthAccount)
+        .filter(
+            OAuthAccount.provider == request.provider,
+            OAuthAccount.provider_account_id == request.provider_account_id,
+        )
+        .first()
+    )
+
+    if existing_account:
+        # User exists - return their info
+        user = db.query(User).filter(User.id == existing_account.user_id).first()
+        if user:
+            return BootstrapResponse(
+                id=user.id,
+                subscription_tier=user.subscription_tier or "free",
+                is_new_user=False,
+            )
+
+    # Check if email already belongs to another user (account linking scenario)
+    existing_user = None
+    if request.email:
+        existing_user = db.query(User).filter(User.email == request.email).first()
+
+    if existing_user:
+        # Link this OAuth account to existing user
+        oauth_account = OAuthAccount(
+            user_id=existing_user.id,
+            type="oauth",
+            provider=request.provider,
+            provider_account_id=request.provider_account_id,
+        )
+        db.add(oauth_account)
+        db.commit()
+
+        return BootstrapResponse(
+            id=existing_user.id,
+            subscription_tier=existing_user.subscription_tier or "free",
+            is_new_user=False,
+        )
+
+    # Create new user
+    new_user = User(
+        email=request.email,
+        display_name=sanitize_display_name(request.name) if request.name else None,
+        image=request.image,
+        subscription_tier="free",
+        token_budget_used=0,
+        token_budget_reset_at=datetime.now(timezone.utc),
+    )
+    db.add(new_user)
+    db.flush()  # Get the generated ID
+
+    # Create OAuth account link
+    oauth_account = OAuthAccount(
+        user_id=new_user.id,
+        type="oauth",
+        provider=request.provider,
+        provider_account_id=request.provider_account_id,
+    )
+    db.add(oauth_account)
+    db.commit()
+    db.refresh(new_user)
+
+    return BootstrapResponse(
+        id=new_user.id,
+        subscription_tier=new_user.subscription_tier or "free",
+        is_new_user=True,
+    )
+
+
+@router.post("/me/accept-tos", response_model=AcceptTosResponse)
+async def accept_terms_of_service(
+    request: AcceptTosRequest,
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> AcceptTosResponse:
+    """Record Terms of Service acceptance.
+
+    Called after OAuth sign-in to record ToS acceptance timestamp.
+    Requires authentication.
+    """
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Don't overwrite existing acceptance (idempotent, but don't backdate)
+    if db_user.tos_accepted_at is None:
+        # Parse the client-provided timestamp
+        try:
+            accepted_at = datetime.fromisoformat(
+                request.accepted_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            accepted_at = datetime.now(timezone.utc)
+
+        db_user.tos_accepted_at = accepted_at
+        db_user.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(db_user)
+
+    return AcceptTosResponse(
+        accepted=True,
+        accepted_at=(
+            db_user.tos_accepted_at.isoformat() if db_user.tos_accepted_at else ""
+        ),
+    )
 
 
 @router.get("/me", response_model=UserProfile)
@@ -159,15 +371,104 @@ async def get_subscription(
     )
 
 
+class DeletionRequestResponse(BaseModel):
+    """Account deletion request response."""
+
+    status: str
+    deletion_scheduled_at: str | None
+    message: str
+
+
+@router.post("/me/delete-request", response_model=DeletionRequestResponse)
+async def request_account_deletion(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> DeletionRequestResponse:
+    """Request account deletion with 30-day grace period.
+
+    Sets deletion_requested_at timestamp. Account will be deleted
+    30 days from now unless cancelled.
+    """
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Check if already requested
+    if db_user.deletion_requested_at:
+        from datetime import timedelta
+
+        scheduled_at = db_user.deletion_requested_at + timedelta(days=30)
+        return DeletionRequestResponse(
+            status="already_requested",
+            deletion_scheduled_at=scheduled_at.isoformat(),
+            message="Account deletion already scheduled",
+        )
+
+    # Set deletion request timestamp
+    db_user.deletion_requested_at = datetime.now(timezone.utc)
+    db_user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(db_user)
+
+    from datetime import timedelta
+
+    scheduled_at = db_user.deletion_requested_at + timedelta(days=30)
+
+    return DeletionRequestResponse(
+        status="scheduled",
+        deletion_scheduled_at=scheduled_at.isoformat(),
+        message="Account deletion scheduled. You can cancel within 30 days.",
+    )
+
+
+@router.delete("/me/delete-request", response_model=DeletionRequestResponse)
+async def cancel_account_deletion(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> DeletionRequestResponse:
+    """Cancel a pending account deletion request.
+
+    Clears deletion_requested_at if within grace period.
+    """
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if not db_user.deletion_requested_at:
+        return DeletionRequestResponse(
+            status="no_request",
+            deletion_scheduled_at=None,
+            message="No deletion request to cancel",
+        )
+
+    # Clear deletion request
+    db_user.deletion_requested_at = None
+    db_user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return DeletionRequestResponse(
+        status="cancelled",
+        deletion_scheduled_at=None,
+        message="Account deletion cancelled",
+    )
+
+
 @router.delete("/me")
 async def delete_account(
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
 ) -> dict:
-    """Delete the current user's account.
+    """Immediately delete the current user's account.
 
     This anonymizes user data as per GDPR requirements.
     Replay data is preserved for aggregate statistics.
+    Note: Prefer POST /me/delete-request for 30-day grace period.
     """
     db_user = db.query(User).filter(User.id == user.id).first()
     if not db_user:
@@ -183,7 +484,20 @@ async def delete_account(
     db_user.email_verified = None
     db_user.stripe_customer_id = None
     db_user.stripe_subscription_id = None
+    db_user.deletion_requested_at = None  # Clear since we're deleting now
     db_user.updated_at = datetime.now(timezone.utc)
+
+    # Also delete coach sessions and messages
+    coach_sessions = (
+        db.query(CoachSession).filter(CoachSession.user_id == user.id).all()
+    )
+    session_ids = [s.id for s in coach_sessions]
+    if session_ids:
+        db.query(CoachMessage).filter(CoachMessage.session_id.in_(session_ids)).delete(
+            synchronize_session=False
+        )
+    db.query(CoachSession).filter(CoachSession.user_id == user.id).delete()
+    db.query(CoachNote).filter(CoachNote.user_id == user.id).delete()
 
     db.commit()
 
@@ -255,7 +569,7 @@ async def get_dashboard_stats(
         .all()
     )
 
-    wins = sum(1 for r in recent_replays if r.result == "win")
+    wins = sum(1 for r in recent_replays if r.result == "WIN")
     recent_win_rate = (wins / len(recent_replays) * 100) if recent_replays else None
 
     # Get player stats for user's games (where is_me = True)
@@ -286,15 +600,25 @@ async def get_dashboard_stats(
     # Build mechanics list
     mechanics = []
     if stats_query.total_wavedash:
-        mechanics.append(MechanicStat(name="Wave Dashes", count=int(stats_query.total_wavedash)))
+        mechanics.append(
+            MechanicStat(name="Wave Dashes", count=int(stats_query.total_wavedash))
+        )
     if stats_query.total_aerial:
-        mechanics.append(MechanicStat(name="Aerials", count=int(stats_query.total_aerial)))
+        mechanics.append(
+            MechanicStat(name="Aerials", count=int(stats_query.total_aerial))
+        )
     if stats_query.total_speedflip:
-        mechanics.append(MechanicStat(name="Speedflips", count=int(stats_query.total_speedflip)))
+        mechanics.append(
+            MechanicStat(name="Speedflips", count=int(stats_query.total_speedflip))
+        )
     if stats_query.total_halfflip:
-        mechanics.append(MechanicStat(name="Half Flips", count=int(stats_query.total_halfflip)))
+        mechanics.append(
+            MechanicStat(name="Half Flips", count=int(stats_query.total_halfflip))
+        )
     if stats_query.total_flip_cancel:
-        mechanics.append(MechanicStat(name="Flip Cancels", count=int(stats_query.total_flip_cancel)))
+        mechanics.append(
+            MechanicStat(name="Flip Cancels", count=int(stats_query.total_flip_cancel))
+        )
 
     # Sort by count descending and take top 6
     mechanics.sort(key=lambda m: m.count, reverse=True)
@@ -307,8 +631,8 @@ async def get_dashboard_stats(
         prev_10 = recent_replays[10:20] if len(recent_replays) >= 20 else []
 
         if prev_10:
-            last_10_wins = sum(1 for r in last_10 if r.result == "win")
-            prev_10_wins = sum(1 for r in prev_10 if r.result == "win")
+            last_10_wins = sum(1 for r in last_10 if r.result == "WIN")
+            prev_10_wins = sum(1 for r in prev_10 if r.result == "WIN")
             last_10_rate = last_10_wins / len(last_10)
             prev_10_rate = prev_10_wins / len(prev_10)
 
@@ -353,6 +677,17 @@ async def export_user_data(
     )
     coach_notes = db.query(CoachNote).filter(CoachNote.user_id == user.id).all()
 
+    # Get session IDs for message lookup
+    session_ids = [s.id for s in coach_sessions]
+    coach_messages = (
+        db.query(CoachMessage)
+        .filter(CoachMessage.session_id.in_(session_ids))
+        .order_by(CoachMessage.created_at)
+        .all()
+        if session_ids
+        else []
+    )
+
     return {
         "user": {
             "id": db_user.id,
@@ -361,8 +696,15 @@ async def export_user_data(
             "image": db_user.image,
             "subscription_tier": db_user.subscription_tier,
             "subscription_status": db_user.subscription_status,
-            "created_at": db_user.created_at.isoformat() if db_user.created_at else None,
-            "updated_at": db_user.updated_at.isoformat() if db_user.updated_at else None,
+            "tos_accepted_at": (
+                db_user.tos_accepted_at.isoformat() if db_user.tos_accepted_at else None
+            ),
+            "created_at": (
+                db_user.created_at.isoformat() if db_user.created_at else None
+            ),
+            "updated_at": (
+                db_user.updated_at.isoformat() if db_user.updated_at else None
+            ),
         },
         "replays": [
             {
@@ -376,9 +718,22 @@ async def export_user_data(
             {
                 "id": s.id,
                 "started_at": s.started_at.isoformat() if s.started_at else None,
+                "ended_at": s.ended_at.isoformat() if s.ended_at else None,
                 "message_count": s.message_count,
+                "total_input_tokens": s.total_input_tokens,
+                "total_output_tokens": s.total_output_tokens,
             }
             for s in coach_sessions
+        ],
+        "coach_messages": [
+            {
+                "id": m.id,
+                "session_id": m.session_id,
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in coach_messages
         ],
         "coach_notes": [
             {
@@ -442,8 +797,8 @@ async def get_benchmark_comparison(
             func.avg(PlayerGameStats.assists).label("avg_assists"),
             func.avg(PlayerGameStats.saves).label("avg_saves"),
             func.avg(PlayerGameStats.shots).label("avg_shots"),
-            func.avg(PlayerGameStats.boost_per_minute).label("avg_bcpm"),
-            func.avg(PlayerGameStats.supersonic_pct).label("avg_supersonic"),
+            func.avg(PlayerGameStats.bcpm).label("avg_bcpm"),
+            func.avg(PlayerGameStats.time_supersonic_s).label("avg_supersonic_s"),
             func.sum(PlayerGameStats.aerial_count).label("total_aerials"),
             func.sum(PlayerGameStats.wavedash_count).label("total_wavedash"),
         )
@@ -470,7 +825,13 @@ async def get_benchmark_comparison(
     avg_saves = float(stats_query.avg_saves) if stats_query.avg_saves else 0
     avg_shots = float(stats_query.avg_shots) if stats_query.avg_shots else 0
     avg_bcpm = float(stats_query.avg_bcpm) if stats_query.avg_bcpm else 0
-    avg_supersonic = float(stats_query.avg_supersonic) if stats_query.avg_supersonic else 0
+    # avg_supersonic_s is in seconds - convert to rough percentage
+    # assuming 5 min avg game
+    avg_supersonic_s = (
+        float(stats_query.avg_supersonic_s) if stats_query.avg_supersonic_s else 0
+    )
+    # Estimate supersonic percentage (time_supersonic / ~300s game duration * 100)
+    avg_supersonic = (avg_supersonic_s / 300.0) * 100 if avg_supersonic_s > 0 else 0
     aerials_per_game = (
         float(stats_query.total_aerials) / game_count
         if stats_query.total_aerials
@@ -492,11 +853,11 @@ async def get_benchmark_comparison(
         # Simple estimation based on goals + assists + boost
         # This is a rough heuristic; real implementation could use ML model
         performance_score = (
-            avg_goals * 100 +
-            avg_assists * 80 +
-            avg_saves * 60 +
-            avg_bcpm * 0.3 +
-            avg_supersonic * 2
+            avg_goals * 100
+            + avg_assists * 80
+            + avg_saves * 60
+            + avg_bcpm * 0.3
+            + avg_supersonic * 2
         )
 
         # Map performance score to rank tier (rough estimates)
@@ -545,7 +906,9 @@ async def get_benchmark_comparison(
     add_comparison("boost_per_minute", avg_bcpm, benchmark.boost_per_minute)
     add_comparison("supersonic_pct", avg_supersonic, benchmark.supersonic_pct)
     add_comparison("aerials_per_game", aerials_per_game, benchmark.aerials_per_game)
-    add_comparison("wavedashes_per_game", wavedash_per_game, benchmark.wavedashes_per_game)
+    add_comparison(
+        "wavedashes_per_game", wavedash_per_game, benchmark.wavedashes_per_game
+    )
 
     return BenchmarkComparisonResponse(
         rank_tier=rank_tier,

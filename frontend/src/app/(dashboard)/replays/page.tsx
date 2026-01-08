@@ -7,24 +7,23 @@ import Link from 'next/link';
 interface Replay {
   id: string;
   filename: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: string;
   played_at: string | null;
   map_name: string | null;
   playlist: string | null;
   team_size: number | null;
-  result: 'win' | 'loss' | 'unknown';
-  score: string;
+  result: string | null;  // WIN, LOSS, DRAW
+  my_score: number | null;
+  opponent_score: number | null;
   created_at: string;
 }
 
-// Mock data
-const mockReplays: Replay[] = [
-  { id: '1', filename: 'ranked_1v1_neo.replay', status: 'completed', played_at: '2026-01-03T14:30:00Z', map_name: 'Neo Tokyo', playlist: 'Ranked Duels', team_size: 1, result: 'win', score: '5 - 3', created_at: '2026-01-03T14:35:00Z' },
-  { id: '2', filename: 'ranked_2v2_mannfield.replay', status: 'completed', played_at: '2026-01-03T14:15:00Z', map_name: 'Mannfield', playlist: 'Ranked Doubles', team_size: 2, result: 'loss', score: '2 - 4', created_at: '2026-01-03T14:20:00Z' },
-  { id: '3', filename: 'ranked_3v3_beckwith.replay', status: 'completed', played_at: '2026-01-03T14:00:00Z', map_name: 'Beckwith Park', playlist: 'Ranked Standard', team_size: 3, result: 'win', score: '3 - 1', created_at: '2026-01-03T14:05:00Z' },
-  { id: '4', filename: 'ranked_2v2_dfh.replay', status: 'processing', played_at: null, map_name: null, playlist: null, team_size: null, result: 'unknown', score: '-', created_at: '2026-01-03T15:00:00Z' },
-  { id: '5', filename: 'ranked_3v3_aquadome.replay', status: 'completed', played_at: '2026-01-03T13:45:00Z', map_name: 'AquaDome', playlist: 'Ranked Standard', team_size: 3, result: 'win', score: '6 - 2', created_at: '2026-01-03T13:50:00Z' },
-];
+interface PaginatedResponse {
+  items: Replay[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 function formatDate(dateStr: string) {
   const date = new Date(dateStr);
@@ -36,162 +35,311 @@ function formatDate(dateStr: string) {
   }).format(date);
 }
 
-function StatusBadge({ status }: { status: Replay['status'] }) {
-  const styles = {
-    completed: 'bg-green-500/20 text-green-400',
-    processing: 'bg-yellow-500/20 text-yellow-400',
-    pending: 'bg-gray-500/20 text-gray-400',
-    failed: 'bg-red-500/20 text-red-400',
+function StatusBadge({ status }: { status: string }) {
+  const normalizedStatus = status.toLowerCase();
+  const config: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
+    completed: {
+      bg: 'bg-victory/15',
+      border: 'border-victory/30',
+      text: 'text-victory',
+      dot: 'bg-victory',
+      label: 'Analyzed',
+    },
+    processed: {
+      bg: 'bg-victory/15',
+      border: 'border-victory/30',
+      text: 'text-victory',
+      dot: 'bg-victory',
+      label: 'Analyzed',
+    },
+    processing: {
+      bg: 'bg-boost/15',
+      border: 'border-boost/30',
+      text: 'text-boost',
+      dot: 'bg-boost animate-pulse',
+      label: 'Processing',
+    },
+    pending: {
+      bg: 'bg-white/5',
+      border: 'border-white/10',
+      text: 'text-white/60',
+      dot: 'bg-white/40',
+      label: 'Pending',
+    },
+    failed: {
+      bg: 'bg-defeat/15',
+      border: 'border-defeat/30',
+      text: 'text-defeat',
+      dot: 'bg-defeat',
+      label: 'Failed',
+    },
   };
 
+  const style = config[normalizedStatus] || config.pending;
+
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${styles[status]}`}>
-      {status}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${style.bg} ${style.border} ${style.text} border`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+      {style.label}
     </span>
   );
 }
 
-function ResultBadge({ result }: { result: Replay['result'] }) {
-  if (result === 'unknown') return null;
-  const isWin = result === 'win';
+function ResultBadge({ result, myScore, opponentScore }: { result: string | null; myScore: number | null; opponentScore: number | null }) {
+  if (!result || result === 'UNKNOWN') {
+    return <span className="text-white/50">—</span>;
+  }
+
+  const isWin = result === 'WIN';
+  const score = myScore != null && opponentScore != null 
+    ? `${myScore} - ${opponentScore}` 
+    : '-';
+
   return (
-    <span className={`text-xs font-bold px-2 py-0.5 rounded ${isWin ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-      {isWin ? 'W' : 'L'}
-    </span>
+    <div className="flex items-center gap-3">
+      <span className={`
+        inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold
+        ${isWin
+          ? 'bg-victory/20 text-victory border border-victory/30'
+          : 'bg-defeat/20 text-defeat border border-defeat/30'
+        }
+      `}>
+        {isWin ? 'W' : 'L'}
+      </span>
+      <span className="font-display text-lg text-white tracking-wide">{score}</span>
+    </div>
+  );
+}
+
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`
+        px-4 py-2 text-sm font-semibold rounded-xl transition-all duration-200
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-boost
+        ${active
+          ? 'bg-fire text-white shadow-glow-fire'
+          : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
+        }
+      `}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ReplayRow({ replay, index }: { replay: Replay; index: number }) {
+  return (
+    <tr
+      className="group hover:bg-white/[0.02] transition-colors animate-slide-up opacity-0 [animation-fill-mode:forwards]"
+      style={{ animationDelay: `${100 + index * 50}ms` }}
+    >
+      <td className="px-5 py-4">
+        <Link
+          href={`/replays/${replay.id}`}
+          className="group/link flex items-center gap-3"
+        >
+          {/* Replay icon */}
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-surface to-elevated flex items-center justify-center group-hover/link:from-fire/20 group-hover/link:to-fire/10 transition-all duration-200">
+            <svg className="w-5 h-5 text-white/40 group-hover/link:text-fire transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <span className="font-medium text-white group-hover/link:text-fire transition-colors truncate max-w-[200px]">
+            {replay.filename}
+          </span>
+        </Link>
+      </td>
+      <td className="px-5 py-4 hidden sm:table-cell">
+        <span className="text-white/70">{replay.map_name || '—'}</span>
+      </td>
+      <td className="px-5 py-4 hidden md:table-cell">
+        {replay.playlist ? (
+          <span className="badge badge-boost text-[10px]">{replay.playlist}</span>
+        ) : (
+          <span className="text-white/50">—</span>
+        )}
+      </td>
+      <td className="px-5 py-4">
+        <ResultBadge result={replay.result} myScore={replay.my_score} opponentScore={replay.opponent_score} />
+      </td>
+      <td className="px-5 py-4 hidden lg:table-cell">
+        <span className="text-white/50 text-sm">
+          {replay.played_at ? formatDate(replay.played_at) : '—'}
+        </span>
+      </td>
+      <td className="px-5 py-4">
+        <StatusBadge status={replay.status} />
+      </td>
+    </tr>
   );
 }
 
 export default function ReplaysPage() {
   const [replays, setReplays] = useState<Replay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing'>('all');
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setReplays(mockReplays);
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
+    async function fetchReplays() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch('/api/v1/replays/library');
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            setError('Please sign in to view your replays');
+            return;
+          }
+          throw new Error(`Failed to fetch replays: ${response.status}`);
+        }
+        
+        const data: PaginatedResponse = await response.json();
+        setReplays(data.items);
+      } catch (err) {
+        console.error('Error fetching replays:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load replays');
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchReplays();
   }, []);
 
   const filteredReplays = replays.filter((replay) => {
     if (filter === 'all') return true;
-    if (filter === 'completed') return replay.status === 'completed';
-    if (filter === 'processing') return replay.status === 'processing' || replay.status === 'pending';
+    const status = replay.status.toLowerCase();
+    if (filter === 'completed') return status === 'completed' || status === 'processed';
+    if (filter === 'processing') return status === 'processing' || status === 'pending';
     return true;
   });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]" role="status" aria-label="Loading replays">
-        <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full" aria-hidden="true" />
+        <div className="relative">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-fire/30 to-boost/30 animate-pulse" />
+          <div className="absolute inset-1 rounded-xl bg-void flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-fire/30 border-t-fire rounded-full animate-spin" />
+          </div>
+        </div>
         <span className="sr-only">Loading replays...</span>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <div className="card p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-defeat/20 flex items-center justify-center">
+            <svg className="w-8 h-8 text-defeat" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className="text-white/70 mb-2">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn-primary mt-4"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-white">Replays</h1>
-          <p className="text-gray-400 mt-1">{replays.length} replays uploaded</p>
+          <h1 className="text-4xl font-display text-white tracking-wide mb-2">REPLAYS</h1>
+          <p className="text-white/50">
+            {replays.length} {replays.length === 1 ? 'replay' : 'replays'} uploaded
+          </p>
         </div>
 
         {/* Filters */}
         <div className="flex items-center gap-2" role="group" aria-label="Filter replays">
-          {(['all', 'completed', 'processing'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              aria-pressed={filter === f}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
-                filter === f
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
+          <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>
+            All
+          </FilterButton>
+          <FilterButton active={filter === 'completed'} onClick={() => setFilter('completed')}>
+            Analyzed
+          </FilterButton>
+          <FilterButton active={filter === 'processing'} onClick={() => setFilter('processing')}>
+            Processing
+          </FilterButton>
         </div>
       </div>
 
-      {/* Replay List */}
-      <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
+      {/* Table */}
+      <div className="card p-0 overflow-hidden">
+        {/* Glow border effect */}
+        <div className="absolute inset-0 glow-border rounded-2xl pointer-events-none" />
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <caption className="sr-only">Your uploaded replays</caption>
             <thead>
-              <tr className="border-b border-gray-800">
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Replay
+              <tr className="border-b border-white/5">
+                <th scope="col" className="px-5 py-4 text-left">
+                  <span className="stat-label">Replay</span>
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">
-                  Map
+                <th scope="col" className="px-5 py-4 text-left hidden sm:table-cell">
+                  <span className="stat-label">Map</span>
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">
-                  Playlist
+                <th scope="col" className="px-5 py-4 text-left hidden md:table-cell">
+                  <span className="stat-label">Playlist</span>
                 </th>
-                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Result
+                <th scope="col" className="px-5 py-4 text-left">
+                  <span className="stat-label">Result</span>
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">
-                  Date
+                <th scope="col" className="px-5 py-4 text-left hidden lg:table-cell">
+                  <span className="stat-label">Played</span>
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Status
+                <th scope="col" className="px-5 py-4 text-left">
+                  <span className="stat-label">Status</span>
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
-              {filteredReplays.map((replay) => (
-                <tr
-                  key={replay.id}
-                  className="hover:bg-gray-800/50 transition-colors"
-                >
-                  <td className="px-4 py-4">
-                    <Link
-                      href={`/replays/${replay.id}`}
-                      className="text-white hover:text-orange-400 font-medium transition-colors focus:outline-none focus:text-orange-400 focus:underline"
-                    >
-                      {replay.filename}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-4 hidden sm:table-cell">
-                    <span className="text-gray-300">{replay.map_name || '-'}</span>
-                  </td>
-                  <td className="px-4 py-4 hidden md:table-cell">
-                    <span className="text-gray-300">{replay.playlist || '-'}</span>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <ResultBadge result={replay.result} />
-                      <span className="text-gray-300">{replay.score}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 hidden lg:table-cell">
-                    <span className="text-gray-400">
-                      {replay.played_at ? formatDate(replay.played_at) : '-'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <StatusBadge status={replay.status} />
-                  </td>
-                </tr>
+            <tbody className="divide-y divide-white/5">
+              {filteredReplays.map((replay, index) => (
+                <ReplayRow key={replay.id} replay={replay} index={index} />
               ))}
             </tbody>
           </table>
         </div>
 
+        {/* Empty state */}
         {filteredReplays.length === 0 && (
-          <div className="text-center py-12">
-            <svg className="w-12 h-12 mx-auto text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p className="text-gray-400 mb-4">No replays found</p>
-            <p className="text-sm text-gray-500">Upload some replays to get started</p>
+          <div className="text-center py-16 animate-fade-in">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-white/5 flex items-center justify-center">
+              <svg className="w-8 h-8 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-white/50 mb-2 font-medium">No replays found</p>
+            <p className="text-sm text-white/50">
+              {filter === 'all' ? 'Upload some replays to get started' : 'Try adjusting your filter'}
+            </p>
           </div>
         )}
       </div>

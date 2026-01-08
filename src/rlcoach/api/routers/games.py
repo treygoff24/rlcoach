@@ -13,6 +13,17 @@ from ...db.session import create_session
 
 router = APIRouter(tags=["games"])
 
+# Allowlist of sortable fields for security (prevents schema enumeration)
+ALLOWED_SORT_FIELDS = {
+    "played_at_utc",
+    "play_date",
+    "playlist",
+    "result",
+    "duration_seconds",
+    "team_size",
+    "map",
+}
+
 
 @router.get("/games")
 async def list_games(
@@ -52,7 +63,7 @@ async def list_games(
         # Get total count before pagination
         total = query.count()
 
-        # Apply sorting
+        # Apply sorting with allowlist validation
         if sort.startswith("-"):
             sort_field = sort[1:]
             descending = True
@@ -60,9 +71,15 @@ async def list_games(
             sort_field = sort
             descending = False
 
-        if hasattr(Replay, sort_field):
-            order_col = getattr(Replay, sort_field)
-            query = query.order_by(order_col.desc() if descending else order_col)
+        # Security: Only allow sorting by allowlisted fields
+        if sort_field not in ALLOWED_SORT_FIELDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}"
+            )
+
+        order_col = getattr(Replay, sort_field)
+        query = query.order_by(order_col.desc() if descending else order_col)
 
         # Apply pagination
         replays = query.offset(offset).limit(limit).all()

@@ -1,7 +1,7 @@
 // frontend/src/app/(dashboard)/replays/[id]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -17,67 +17,65 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'offense', label: 'Offense' },
 ];
 
-// Mock replay data
-const mockReplay = {
-  id: '1',
-  filename: 'ranked_1v1_neo.replay',
-  map_name: 'Neo Tokyo',
-  playlist: 'Ranked Duels',
-  team_size: 1,
-  duration_seconds: 312,
-  played_at: '2026-01-03T14:30:00Z',
-  result: 'win' as const,
-  score: { blue: 5, orange: 3 },
-  overtime: false,
-  players: [
-    {
-      id: 'p1',
-      name: 'fastbutstupid',
-      team: 'blue' as const,
-      is_me: true,
-      stats: { goals: 3, assists: 0, saves: 2, shots: 5, score: 485 },
-    },
-    {
-      id: 'p2',
-      name: 'OpponentPlayer',
-      team: 'orange' as const,
-      is_me: false,
-      stats: { goals: 3, assists: 0, saves: 1, shots: 4, score: 320 },
-    },
-  ],
-  mechanics: {
-    flip_resets: 2,
-    ceiling_shots: 1,
-    wave_dashes: 8,
-    fast_aerials: 12,
-    air_dribbles: 0,
-    double_touches: 1,
-    speed_flips: 3,
-    half_flips: 5,
-  },
-  boost: {
-    avg_amount: 45,
-    time_empty_pct: 12,
-    time_full_pct: 8,
-    big_pads: 14,
-    small_pads: 32,
-    stolen: 4,
-  },
-  positioning: {
-    third_splits: { defensive: 35, mid: 40, offensive: 25 },
-    avg_distance_to_ball: 2100,
-    time_behind_ball_pct: 62,
-  },
-};
+// API response types
+interface PlayerStats {
+  player_id: string;
+  display_name: string;
+  team: string;
+  is_me: boolean;
+  goals: number;
+  assists: number;
+  saves: number;
+  shots: number;
+  score: number;
+  demos_inflicted: number;
+  demos_taken: number;
+  avg_boost: number | null;
+  big_pads: number | null;
+  small_pads: number | null;
+  boost_stolen: number | null;
+  time_zero_boost_pct: number | null;
+  time_full_boost_pct: number | null;
+  avg_speed_kph: number | null;
+  time_supersonic_pct: number | null;
+  time_offensive_third_pct: number | null;
+  time_middle_third_pct: number | null;
+  time_defensive_third_pct: number | null;
+  behind_ball_pct: number | null;
+  avg_distance_to_ball_m: number | null;
+  wavedash_count: number | null;
+  halfflip_count: number | null;
+  speedflip_count: number | null;
+  aerial_count: number | null;
+}
 
-function formatDuration(seconds: number) {
+interface ReplayData {
+  id: string;
+  filename: string;
+  status: string;
+  map_name: string | null;
+  playlist: string | null;
+  team_size: number | null;
+  duration_seconds: number | null;
+  played_at: string | null;
+  result: string | null;
+  my_score: number | null;
+  opponent_score: number | null;
+  overtime: boolean;
+  players: PlayerStats[];
+}
+
+function formatDuration(seconds: number | null) {
+  if (seconds == null) return '--:--';
   const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-function OverviewTab({ replay }: { replay: typeof mockReplay }) {
+function OverviewTab({ replay }: { replay: ReplayData }) {
   const myPlayer = replay.players.find((p) => p.is_me);
+  const blueTeam = replay.players.filter((p) => p.team === 'blue');
+  const orangeTeam = replay.players.filter((p) => p.team === 'orange');
 
   return (
     <div className="space-y-6">
@@ -86,14 +84,14 @@ function OverviewTab({ replay }: { replay: typeof mockReplay }) {
         <div className="flex items-center justify-between">
           <div className="text-center flex-1">
             <p className="text-sm text-blue-400 font-medium mb-2">Blue Team</p>
-            <p className="text-4xl font-bold text-white">{replay.score.blue}</p>
+            <p className="text-4xl font-bold text-white">{replay.my_score ?? '-'}</p>
           </div>
           <div className="px-6">
             <p className="text-gray-500 text-lg">vs</p>
           </div>
           <div className="text-center flex-1">
             <p className="text-sm text-orange-400 font-medium mb-2">Orange Team</p>
-            <p className="text-4xl font-bold text-white">{replay.score.orange}</p>
+            <p className="text-4xl font-bold text-white">{replay.opponent_score ?? '-'}</p>
           </div>
         </div>
         {replay.overtime && (
@@ -107,33 +105,37 @@ function OverviewTab({ replay }: { replay: typeof mockReplay }) {
           <h3 className="font-medium text-white">Scoreboard</h3>
         </div>
         <table className="w-full">
+          <caption className="sr-only">Game scoreboard showing player stats</caption>
           <thead>
             <tr className="border-b border-gray-800">
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400">Player</th>
-              <th className="px-4 py-2 text-center text-xs font-medium text-gray-400">Score</th>
-              <th className="px-4 py-2 text-center text-xs font-medium text-gray-400">Goals</th>
-              <th className="px-4 py-2 text-center text-xs font-medium text-gray-400">Assists</th>
-              <th className="px-4 py-2 text-center text-xs font-medium text-gray-400">Saves</th>
-              <th className="px-4 py-2 text-center text-xs font-medium text-gray-400">Shots</th>
+              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-400">Player</th>
+              <th scope="col" className="px-4 py-2 text-center text-xs font-medium text-gray-400">Score</th>
+              <th scope="col" className="px-4 py-2 text-center text-xs font-medium text-gray-400">Goals</th>
+              <th scope="col" className="px-4 py-2 text-center text-xs font-medium text-gray-400">Assists</th>
+              <th scope="col" className="px-4 py-2 text-center text-xs font-medium text-gray-400">Saves</th>
+              <th scope="col" className="px-4 py-2 text-center text-xs font-medium text-gray-400">Shots</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
             {replay.players.map((player) => (
-              <tr key={player.id} className={player.is_me ? 'bg-orange-500/5' : ''}>
+              <tr key={player.player_id} className={player.is_me ? 'bg-orange-500/5' : ''}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${player.team === 'blue' ? 'bg-blue-500' : 'bg-orange-500'}`} />
+                    <span
+                      className={`w-2 h-2 rounded-full ${player.team === 'blue' ? 'bg-blue-500' : 'bg-orange-500'}`}
+                      aria-hidden="true"
+                    />
                     <span className={`font-medium ${player.is_me ? 'text-orange-400' : 'text-white'}`}>
-                      {player.name}
+                      {player.display_name}
                       {player.is_me && <span className="text-xs text-gray-500 ml-2">(you)</span>}
                     </span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-center text-gray-300">{player.stats.score}</td>
-                <td className="px-4 py-3 text-center text-gray-300">{player.stats.goals}</td>
-                <td className="px-4 py-3 text-center text-gray-300">{player.stats.assists}</td>
-                <td className="px-4 py-3 text-center text-gray-300">{player.stats.saves}</td>
-                <td className="px-4 py-3 text-center text-gray-300">{player.stats.shots}</td>
+                <td className="px-4 py-3 text-center text-gray-300">{player.score}</td>
+                <td className="px-4 py-3 text-center text-gray-300">{player.goals}</td>
+                <td className="px-4 py-3 text-center text-gray-300">{player.assists}</td>
+                <td className="px-4 py-3 text-center text-gray-300">{player.saves}</td>
+                <td className="px-4 py-3 text-center text-gray-300">{player.shots}</td>
               </tr>
             ))}
           </tbody>
@@ -145,23 +147,23 @@ function OverviewTab({ replay }: { replay: typeof mockReplay }) {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400">Goals</p>
-            <p className="text-3xl font-bold text-white">{myPlayer.stats.goals}</p>
+            <p className="text-3xl font-bold text-white">{myPlayer.goals}</p>
           </div>
           <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400">Saves</p>
-            <p className="text-3xl font-bold text-white">{myPlayer.stats.saves}</p>
+            <p className="text-3xl font-bold text-white">{myPlayer.saves}</p>
           </div>
           <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400">Shot %</p>
             <p className="text-3xl font-bold text-white">
-              {myPlayer.stats.shots > 0
-                ? Math.round((myPlayer.stats.goals / myPlayer.stats.shots) * 100)
+              {myPlayer.shots > 0
+                ? Math.round((myPlayer.goals / myPlayer.shots) * 100)
                 : 0}%
             </p>
           </div>
           <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400">Score</p>
-            <p className="text-3xl font-bold text-white">{myPlayer.stats.score}</p>
+            <p className="text-3xl font-bold text-white">{myPlayer.score}</p>
           </div>
         </div>
       )}
@@ -169,20 +171,24 @@ function OverviewTab({ replay }: { replay: typeof mockReplay }) {
   );
 }
 
-function MechanicsTab({ replay }: { replay: typeof mockReplay }) {
+function MechanicsTab({ replay }: { replay: ReplayData }) {
+  const myPlayer = replay.players.find((p) => p.is_me);
+  
+  if (!myPlayer) {
+    return <div className="text-gray-400 p-4">No player data available</div>;
+  }
+
   const mechanics = [
-    { name: 'Flip Resets', count: replay.mechanics.flip_resets },
-    { name: 'Ceiling Shots', count: replay.mechanics.ceiling_shots },
-    { name: 'Wave Dashes', count: replay.mechanics.wave_dashes },
-    { name: 'Fast Aerials', count: replay.mechanics.fast_aerials },
-    { name: 'Air Dribbles', count: replay.mechanics.air_dribbles },
-    { name: 'Double Touches', count: replay.mechanics.double_touches },
-    { name: 'Speed Flips', count: replay.mechanics.speed_flips },
-    { name: 'Half Flips', count: replay.mechanics.half_flips },
+    { name: 'Wave Dashes', count: myPlayer.wavedash_count ?? 0 },
+    { name: 'Half Flips', count: myPlayer.halfflip_count ?? 0 },
+    { name: 'Speed Flips', count: myPlayer.speedflip_count ?? 0 },
+    { name: 'Aerials', count: myPlayer.aerial_count ?? 0 },
+    { name: 'Demos Given', count: myPlayer.demos_inflicted },
+    { name: 'Demos Taken', count: myPlayer.demos_taken },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
       {mechanics.map((m) => (
         <div key={m.name} className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">{m.name}</p>
@@ -193,65 +199,79 @@ function MechanicsTab({ replay }: { replay: typeof mockReplay }) {
   );
 }
 
-function BoostTab({ replay }: { replay: typeof mockReplay }) {
+function BoostTab({ replay }: { replay: ReplayData }) {
+  const myPlayer = replay.players.find((p) => p.is_me);
+  
+  if (!myPlayer) {
+    return <div className="text-gray-400 p-4">No player data available</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Avg Boost</p>
-          <p className="text-3xl font-bold text-white">{replay.boost.avg_amount}</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.avg_boost?.toFixed(0) ?? '-'}</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Time Empty</p>
-          <p className="text-3xl font-bold text-white">{replay.boost.time_empty_pct}%</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.time_zero_boost_pct?.toFixed(0) ?? '-'}%</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Time Full</p>
-          <p className="text-3xl font-bold text-white">{replay.boost.time_full_pct}%</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.time_full_boost_pct?.toFixed(0) ?? '-'}%</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Big Pads</p>
-          <p className="text-3xl font-bold text-white">{replay.boost.big_pads}</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.big_pads ?? '-'}</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Small Pads</p>
-          <p className="text-3xl font-bold text-white">{replay.boost.small_pads}</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.small_pads ?? '-'}</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Stolen</p>
-          <p className="text-3xl font-bold text-orange-400">{replay.boost.stolen}</p>
+          <p className="text-3xl font-bold text-orange-400">{myPlayer.boost_stolen?.toFixed(0) ?? '-'}</p>
         </div>
       </div>
     </div>
   );
 }
 
-function PositioningTab({ replay }: { replay: typeof mockReplay }) {
-  const { third_splits } = replay.positioning;
+function PositioningTab({ replay }: { replay: ReplayData }) {
+  const myPlayer = replay.players.find((p) => p.is_me);
+  
+  if (!myPlayer) {
+    return <div className="text-gray-400 p-4">No player data available</div>;
+  }
+
+  const defensive = myPlayer.time_defensive_third_pct ?? 0;
+  const mid = myPlayer.time_middle_third_pct ?? 0;
+  const offensive = myPlayer.time_offensive_third_pct ?? 0;
 
   return (
     <div className="space-y-6">
       {/* Third Splits */}
       <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
         <h3 className="font-medium text-white mb-4">Field Position</h3>
-        <div className="flex h-8 rounded-lg overflow-hidden">
+        <div className="flex h-8 rounded-lg overflow-hidden" role="img" aria-label={`Field position: ${defensive.toFixed(0)}% defensive, ${mid.toFixed(0)}% midfield, ${offensive.toFixed(0)}% offensive`}>
           <div
             className="bg-blue-500 flex items-center justify-center"
-            style={{ width: `${third_splits.defensive}%` }}
+            style={{ width: `${defensive}%` }}
           >
-            <span className="text-xs font-medium text-white">{third_splits.defensive}%</span>
+            {defensive > 15 && <span className="text-xs font-medium text-white">{defensive.toFixed(0)}%</span>}
           </div>
           <div
             className="bg-gray-600 flex items-center justify-center"
-            style={{ width: `${third_splits.mid}%` }}
+            style={{ width: `${mid}%` }}
           >
-            <span className="text-xs font-medium text-white">{third_splits.mid}%</span>
+            {mid > 15 && <span className="text-xs font-medium text-white">{mid.toFixed(0)}%</span>}
           </div>
           <div
             className="bg-orange-500 flex items-center justify-center"
-            style={{ width: `${third_splits.offensive}%` }}
+            style={{ width: `${offensive}%` }}
           >
-            <span className="text-xs font-medium text-white">{third_splits.offensive}%</span>
+            {offensive > 15 && <span className="text-xs font-medium text-white">{offensive.toFixed(0)}%</span>}
           </div>
         </div>
         <div className="flex justify-between mt-2 text-xs text-gray-400">
@@ -264,11 +284,15 @@ function PositioningTab({ replay }: { replay: typeof mockReplay }) {
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Avg Distance to Ball</p>
-          <p className="text-3xl font-bold text-white">{(replay.positioning.avg_distance_to_ball / 100).toFixed(0)}m</p>
+          <p className="text-3xl font-bold text-white">
+            {myPlayer.avg_distance_to_ball_m != null 
+              ? `${(myPlayer.avg_distance_to_ball_m / 100).toFixed(0)}m`
+              : '-'}
+          </p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Time Behind Ball</p>
-          <p className="text-3xl font-bold text-white">{replay.positioning.time_behind_ball_pct}%</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.behind_ball_pct?.toFixed(0) ?? '-'}%</p>
         </div>
       </div>
     </div>
@@ -289,20 +313,94 @@ export default function ReplayDetailPage() {
   const params = useParams();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [loading, setLoading] = useState(true);
-  const [replay, setReplay] = useState<typeof mockReplay | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [replay, setReplay] = useState<ReplayData | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setReplay(mockReplay);
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
+    async function fetchReplay() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch(`/api/v1/replays/${params.id}/analysis`);
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            setError('Please sign in to view this replay');
+            return;
+          }
+          if (response.status === 404) {
+            setError('Replay not found');
+            return;
+          }
+          throw new Error(`Failed to fetch replay: ${response.status}`);
+        }
+        
+        const data: ReplayData = await response.json();
+        setReplay(data);
+      } catch (err) {
+        console.error('Error fetching replay:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load replay');
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    if (params.id) {
+      fetchReplay();
+    }
   }, [params.id]);
+
+  // Arrow key navigation for tabs
+  const handleTabKeyDown = useCallback((e: React.KeyboardEvent, currentIndex: number) => {
+    let newIndex = currentIndex;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      newIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      newIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1;
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      newIndex = 0;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      newIndex = tabs.length - 1;
+    } else {
+      return;
+    }
+
+    setActiveTab(tabs[newIndex].id);
+    // Focus the new tab button
+    const tabButton = document.getElementById(`tab-${tabs[newIndex].id}`);
+    tabButton?.focus();
+  }, []);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full" />
+      <div className="flex items-center justify-center min-h-[60vh]" role="status" aria-label="Loading replay">
+        <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full" aria-hidden="true" />
+        <span className="sr-only">Loading replay data...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Link
+          href="/replays"
+          className="inline-flex items-center gap-1 text-gray-400 hover:text-white mb-4 text-sm"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Replays
+        </Link>
+        <div className="card p-8 text-center">
+          <p className="text-white/70">{error}</p>
+        </div>
       </div>
     );
   }
@@ -315,15 +413,17 @@ export default function ReplayDetailPage() {
     );
   }
 
+  const activeTabIndex = tabs.findIndex(t => t.id === activeTab);
+
   return (
     <div className="p-6 lg:p-8">
       {/* Header */}
       <div className="mb-6">
         <Link
-          href="/dashboard/replays"
-          className="inline-flex items-center gap-1 text-gray-400 hover:text-white mb-4 text-sm"
+          href="/replays"
+          className="inline-flex items-center gap-1 text-gray-400 hover:text-white mb-4 text-sm focus:outline-none focus:text-orange-400 focus:underline"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Back to Replays
@@ -333,50 +433,73 @@ export default function ReplayDetailPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">{replay.filename}</h1>
             <div className="flex items-center gap-3 mt-2 text-sm text-gray-400">
-              <span>{replay.map_name}</span>
-              <span>•</span>
-              <span>{replay.playlist}</span>
-              <span>•</span>
+              <span>{replay.map_name || 'Unknown Map'}</span>
+              <span aria-hidden="true">•</span>
+              <span>{replay.playlist || 'Unknown Playlist'}</span>
+              <span aria-hidden="true">•</span>
               <span>{formatDuration(replay.duration_seconds)}</span>
             </div>
           </div>
           <div className={`px-4 py-2 rounded-lg font-semibold ${
-            replay.result === 'win'
+            replay.result === 'WIN'
               ? 'bg-green-500/20 text-green-400'
-              : 'bg-red-500/20 text-red-400'
+              : replay.result === 'LOSS'
+              ? 'bg-red-500/20 text-red-400'
+              : 'bg-gray-500/20 text-gray-400'
           }`}>
-            {replay.result === 'win' ? 'Victory' : 'Defeat'}
+            {replay.result === 'WIN' ? 'Victory' : replay.result === 'LOSS' ? 'Defeat' : 'Unknown'}
           </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-800 mb-6">
-        <div className="flex gap-1 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
-                activeTab === tab.id
-                  ? 'text-orange-400 border-b-2 border-orange-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="relative">
+          <div
+            className="flex gap-1 overflow-x-auto scrollbar-hide"
+            role="tablist"
+            aria-label="Replay analysis tabs"
+          >
+            {tabs.map((tab, index) => (
+              <button
+                key={tab.id}
+                id={`tab-${tab.id}`}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                aria-controls={`panel-${tab.id}`}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                onClick={() => setActiveTab(tab.id)}
+                onKeyDown={(e) => handleTabKeyDown(e, index)}
+                className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-inset ${
+                  activeTab === tab.id
+                    ? 'text-orange-400 border-b-2 border-orange-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* Scroll indicator for mobile */}
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-950 pointer-events-none sm:hidden" aria-hidden="true" />
         </div>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'overview' && <OverviewTab replay={replay} />}
-      {activeTab === 'mechanics' && <MechanicsTab replay={replay} />}
-      {activeTab === 'boost' && <BoostTab replay={replay} />}
-      {activeTab === 'positioning' && <PositioningTab replay={replay} />}
-      {activeTab === 'timeline' && <PlaceholderTab name="Timeline" />}
-      {activeTab === 'defense' && <PlaceholderTab name="Defense" />}
-      {activeTab === 'offense' && <PlaceholderTab name="Offense" />}
+      {/* Tab Panels */}
+      <div
+        id={`panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${activeTab}`}
+        tabIndex={0}
+      >
+        {activeTab === 'overview' && <OverviewTab replay={replay} />}
+        {activeTab === 'mechanics' && <MechanicsTab replay={replay} />}
+        {activeTab === 'boost' && <BoostTab replay={replay} />}
+        {activeTab === 'positioning' && <PositioningTab replay={replay} />}
+        {activeTab === 'timeline' && <PlaceholderTab name="Timeline" />}
+        {activeTab === 'defense' && <PlaceholderTab name="Defense" />}
+        {activeTab === 'offense' && <PlaceholderTab name="Offense" />}
+      </div>
     </div>
   );
 }

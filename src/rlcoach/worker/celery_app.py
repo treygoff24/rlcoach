@@ -44,4 +44,12 @@ celery_app.conf.update(
             "rate_limit": "100/h",  # Max 100 per hour per worker
         },
     },
+    # Celery Beat schedule (periodic tasks)
+    beat_schedule={
+        "process-scheduled-deletions-daily": {
+            "task": "rlcoach.worker.tasks.process_scheduled_deletions",
+            "schedule": 86400.0,  # Every 24 hours (in seconds)
+            "options": {"queue": "maintenance"},
+        },
+    },
 )

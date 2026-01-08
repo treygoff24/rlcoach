@@ -1,9 +1,9 @@
 """Celery tasks for background replay processing."""
 
-import hashlib
 import json
 import logging
 import os
+import re
 import resource
 import subprocess
 from datetime import datetime, timezone
@@ -18,9 +18,61 @@ logger = logging.getLogger(__name__)
 # Memory limit for parsing (512MB in bytes)
 MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
 
+# Error message length limit (for database storage)
+ERROR_MESSAGE_MAX_LENGTH = 500
+
+# Patterns to redact from error messages (prevent info disclosure)
+REDACT_PATTERNS = [
+    (re.compile(r"/Users/[^/\s]+"), "/home/user"),  # macOS home paths
+    (re.compile(r"/home/[^/\s]+"), "/home/user"),  # Linux home paths
+    (re.compile(r"C:\\Users\\[^\\]+"), "C:\\Users\\user"),  # Windows paths
+    (re.compile(r"/tmp/[a-zA-Z0-9_-]+"), "/tmp/[temp]"),  # Temp paths
+    (re.compile(r"password[=:\s]+\S+", re.I), "password=[REDACTED]"),  # Passwords
+    (re.compile(r"api[_-]?key[=:\s]+\S+", re.I), "api_key=[REDACTED]"),  # API keys
+    (re.compile(r"secret[=:\s]+\S+", re.I), "secret=[REDACTED]"),  # Secrets
+]
+
+
+def _sanitize_error_message(error: str) -> str:
+    """Sanitize error message to prevent information disclosure.
+
+    Removes/redacts:
+    - Absolute paths that may reveal system structure
+    - API keys and secrets
+    - User-identifiable paths
+    """
+    if not error:
+        return "Unknown error"
+
+    for pattern, replacement in REDACT_PATTERNS:
+        error = pattern.sub(replacement, error)
+
+    return error[:ERROR_MESSAGE_MAX_LENGTH]
+
+
 # Storage paths
 STORAGE_PATH = Path(os.getenv("STORAGE_PATH", "/app/storage"))
 TEMP_PATH = Path(os.getenv("TEMP_PATH", "/tmp/rlcoach"))
+
+# UUID validation pattern
+UUID_PATTERN = re.compile(
+    r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", re.IGNORECASE
+)
+
+
+def _is_valid_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID format."""
+    return bool(UUID_PATTERN.match(value))
+
+
+def _is_path_within_directory(file_path: Path, directory: Path) -> bool:
+    """Check if a file path is safely within a directory (no traversal)."""
+    try:
+        file_resolved = file_path.resolve()
+        dir_resolved = directory.resolve()
+        return str(file_resolved).startswith(str(dir_resolved) + os.sep)
+    except (OSError, ValueError):
+        return False
 
 
 def set_memory_limit():
@@ -63,6 +115,11 @@ def process_replay(self, upload_id: str) -> dict:
     Returns:
         dict with processing result
     """
+    # Validate upload_id is a valid UUID format
+    if not _is_valid_uuid(upload_id):
+        logger.error(f"Invalid upload_id format: {upload_id}")
+        return {"status": "failed", "error": "Invalid upload ID format"}
+
     logger.info(f"Processing replay {upload_id}")
 
     session = get_db_session()
@@ -75,19 +132,38 @@ def process_replay(self, upload_id: str) -> dict:
             logger.error(f"Upload record not found: {upload_id}")
             return {"status": "failed", "error": "Upload not found"}
 
+        # Validate user_id is a valid UUID to prevent path traversal
+        if not _is_valid_uuid(upload.user_id):
+            logger.error(
+                f"Invalid user_id format in upload {upload_id}: {upload.user_id}"
+            )
+            upload.status = "failed"
+            upload.error_message = "Invalid user ID format"
+            session.commit()
+            return {"status": "failed", "error": "Invalid user ID format"}
+
         # Update status to processing
         upload.status = "processing"
         session.commit()
 
-        # Validate file exists
-        replay_path = Path(upload.stored_path)
+        # Validate storage path is within expected directory
+        replay_path = Path(upload.storage_path)
+        upload_dir = Path(os.getenv("UPLOAD_DIR", "/tmp/rlcoach/uploads"))
+
+        if not _is_path_within_directory(replay_path, upload_dir):
+            logger.error(f"Storage path outside upload dir: {replay_path}")
+            upload.status = "failed"
+            upload.error_message = "Invalid storage path"
+            session.commit()
+            return {"status": "failed", "error": "Invalid storage path"}
+
         if not replay_path.exists():
             upload.status = "failed"
             upload.error_message = "File not found"
             session.commit()
             return {"status": "failed", "error": "File not found"}
 
-        # Create output directory
+        # Create output directory (user_id already validated as UUID)
         output_dir = STORAGE_PATH / "parsed" / upload.user_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -101,12 +177,39 @@ def process_replay(self, upload_id: str) -> dict:
                 with open(output_file) as f:
                     parsed_data = json.load(f)
 
-                # Extract replay_id from parsed data
-                replay_id = parsed_data.get("metadata", {}).get("replay_id")
+                # Extract replay_id from parsed data (at root level of report)
+                replay_id = parsed_data.get("replay_id")
                 if replay_id:
                     upload.replay_id = replay_id
 
+                    # Persist replay and player stats to database (SaaS mode)
+                    # Must happen BEFORE UserReplay creation due to FK constraint
+                    try:
+                        from rlcoach.db.writer import (
+                            ReplayExistsError,
+                            write_report_saas,
+                        )
+
+                        # Get file hash from the upload record
+                        file_hash = upload.file_hash or ""
+
+                        write_report_saas(
+                            report=parsed_data,
+                            file_hash=file_hash,
+                            json_report_path=str(output_file),
+                        )
+                        logger.info(f"Persisted replay {replay_id} to database")
+                    except ReplayExistsError:
+                        # Replay already exists - that's fine, just link to it
+                        logger.info(f"Replay {replay_id} already exists, linking user")
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to persist replay {replay_id}: {e}. "
+                            "UserReplay will still be created."
+                        )
+
                     # Create UserReplay association
+                    # (FK constraint requires Replay to exist first)
                     user_replay = UserReplay(
                         user_id=upload.user_id,
                         replay_id=replay_id,
@@ -120,7 +223,8 @@ def process_replay(self, upload_id: str) -> dict:
             logger.info(f"Successfully processed replay {upload_id}")
         else:
             upload.status = "failed"
-            upload.error_message = result.get("error", "Unknown error")[:500]
+            error_msg = result.get("error", "Unknown error")
+            upload.error_message = _sanitize_error_message(error_msg)
             session.commit()
             logger.error(f"Failed to process replay {upload_id}: {result.get('error')}")
 
@@ -128,6 +232,8 @@ def process_replay(self, upload_id: str) -> dict:
 
     except SoftTimeLimitExceeded:
         logger.warning(f"Soft time limit exceeded for replay {upload_id}")
+        # Rollback any pending changes before re-querying
+        session.rollback()
         upload = session.query(UploadedReplay).filter_by(id=upload_id).first()
         if upload:
             upload.status = "failed"
@@ -136,10 +242,12 @@ def process_replay(self, upload_id: str) -> dict:
         return {"status": "failed", "error": "Processing timeout"}
     except Exception as e:
         logger.exception(f"Error processing replay {upload_id}")
+        # Rollback any pending changes before re-querying
+        session.rollback()
         upload = session.query(UploadedReplay).filter_by(id=upload_id).first()
         if upload:
             upload.status = "failed"
-            upload.error_message = str(e)[:500]
+            upload.error_message = _sanitize_error_message(str(e))
             session.commit()
         raise
     finally:
@@ -186,10 +294,12 @@ def _run_parser_subprocess(
                 "output_path": str(output_file),
             }
         else:
+            stderr = result.stderr[:ERROR_MESSAGE_MAX_LENGTH] if result.stderr else ""
+            err = stderr or "Unknown error"
             return {
                 "status": "failed",
                 "upload_id": upload_id,
-                "error": result.stderr[:500] if result.stderr else "Unknown error",
+                "error": err,
             }
 
     except subprocess.TimeoutExpired:
@@ -263,7 +373,7 @@ def migrate_to_cold_storage(self, replay_id: str, file_path: str) -> dict:
                 session.query(UploadedReplay).filter_by(replay_id=replay_id).first()
             )
             if upload:
-                upload.stored_path = download_url
+                upload.storage_path = download_url
                 session.commit()
         finally:
             session.close()
@@ -377,9 +487,7 @@ def get_queue_length() -> int:
         from rlcoach.worker.celery_app import celery_app
 
         with celery_app.connection() as conn:
-            queue = conn.default_channel.queue_declare(
-                "celery", passive=True
-            )
+            queue = conn.default_channel.queue_declare("celery", passive=True)
             return queue.message_count
     except Exception:
         return 0
@@ -409,3 +517,100 @@ def can_accept_upload() -> tuple[bool, str | None]:
         return False, f"Processing queue full ({queue_len} pending). Try again later."
 
     return True, None
+
+
+@celery_app.task(bind=True)
+def process_scheduled_deletions(self) -> dict:
+    """
+    Process scheduled account deletions past their 30-day grace period.
+
+    This task should be run daily via Celery beat schedule.
+    Finds all users with deletion_requested_at > 30 days ago and
+    anonymizes their accounts.
+
+    Returns:
+        dict with count of processed deletions
+    """
+    from datetime import timedelta
+
+    from sqlalchemy import and_
+
+    from rlcoach.db.models import CoachMessage, CoachNote, CoachSession, User
+    from rlcoach.db.session import create_session
+
+    session = create_session()
+    deleted_count = 0
+
+    try:
+        # Find users with deletion requests older than 30 days
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+
+        users_to_delete = (
+            session.query(User)
+            .filter(
+                and_(
+                    User.deletion_requested_at.isnot(None),
+                    User.deletion_requested_at <= cutoff,
+                )
+            )
+            .all()
+        )
+
+        for db_user in users_to_delete:
+            try:
+                user_id = db_user.id
+                logger.info(f"Processing scheduled deletion for user {user_id}")
+
+                # Delete coach messages first (foreign key constraint)
+                coach_sessions = (
+                    session.query(CoachSession)
+                    .filter(CoachSession.user_id == user_id)
+                    .all()
+                )
+                session_ids = [s.id for s in coach_sessions]
+                if session_ids:
+                    session.query(CoachMessage).filter(
+                        CoachMessage.session_id.in_(session_ids)
+                    ).delete(synchronize_session=False)
+
+                # Delete coach sessions and notes
+                session.query(CoachSession).filter(
+                    CoachSession.user_id == user_id
+                ).delete()
+                session.query(CoachNote).filter(CoachNote.user_id == user_id).delete()
+
+                # Anonymize user data (GDPR-compliant)
+                db_user.email = None
+                db_user.display_name = f"Deleted User {user_id[:8]}"
+                db_user.image = None
+                db_user.email_verified = None
+                db_user.stripe_customer_id = None
+                db_user.stripe_subscription_id = None
+                db_user.deletion_requested_at = None
+                db_user.updated_at = datetime.now(timezone.utc)
+
+                session.commit()
+                deleted_count += 1
+                logger.info(f"Successfully deleted user {user_id}")
+
+            except Exception as e:
+                logger.exception(f"Error deleting user {db_user.id}: {e}")
+                session.rollback()
+                continue
+
+        return {
+            "status": "success",
+            "deleted_count": deleted_count,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.exception("Error in scheduled deletion task")
+        session.rollback()
+        return {
+            "status": "error",
+            "error": str(e),
+            "deleted_count": deleted_count,
+        }
+    finally:
+        session.close()

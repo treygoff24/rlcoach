@@ -4,13 +4,21 @@
 
 ---
 
+## Maximum Autonomy Warning
+
+This protocol uses `--dangerously-skip-permissions` (Claude) and `--yolo` (Codex) in command examples. These bypass safety prompts and allow tools to run without confirmation.
+
+Use only in trusted repos and isolated environments. Review diffs before committing, avoid running against production systems, and remove those flags if you want approval gates.
+
+---
+
 ## Quick Start
 
 ```
 Read AUTONOMOUS_BUILD_CODEX.md and the spec at [SPEC_PATH]. Build autonomously. Do not stop until complete.
 ```
 
-If no spec exists, read `SPEC_WRITING.md` first. If no implementation plan exists, read `IMPLEMENTATION_PLAN_WRITING.md` after the spec is approved.
+If no spec exists, draft a spec first (use brainstorming techniques to refine requirements). If no implementation plan exists, create a phased plan after the spec is approved.
 
 ---
 
@@ -35,6 +43,12 @@ claude -p --model opus --dangerously-skip-permissions --output-format text "[YOU
 ```
 
 **Be patient.** Claude may take 30 seconds to several minutes to respond, especially for complex reviews. Do not assume the call has failed just because it takes time. Wait for the complete response before proceeding.
+
+**Waiting discipline for Claude CLI calls:**
+- After launching a `claude` command, wait at least 60 seconds before checking for output.
+- Keep polling for up to 15 minutes before interrupting.
+- Only interrupt (Ctrl+C) after 15+ minutes with no output.
+- If you must interrupt, note it in `CONTEXT.md` and retry once with the same prompt.
 
 **Recursion guard:** Claude may call you back at most once per task. Neither agent may delegate the same task back to the other. If Claude's response includes a request for you to do something, do it directly—do not call Claude again for that sub-task.
 
@@ -126,6 +140,12 @@ Before writing any code:
 
 ---
 
+## Parallel Tickets (Optional)
+
+If the implementation plan marks tasks as `Parallel: yes` with `Blocked by:` satisfied and non-overlapping `Owned files:`, you can run `/ticket-builder` in isolated worktrees to parallelize execution. Always review diffs in each worktree before merging back.
+
+---
+
 ## The Implementation Loop
 
 For each phase:
@@ -138,7 +158,7 @@ IMPLEMENT → TYPECHECK → LINT → BUILD → TEST → REVIEW → FIX → SLOP 
 
 Re-read `CONTEXT.md` before starting. Write the code for this phase.
 
-Standards: verify imports exist, add default exports to pages, include error handling with user feedback, write tests for critical logic. For UI work, run `ACCESSIBILITY_CHECKLIST.md`.
+Standards: verify imports exist, add default exports to pages, include error handling with user feedback, write tests for critical logic. For UI work, run accessibility checks (keyboard nav, focus styles, ARIA labels, color contrast).
 
 ### Step 2: Quality Gates
 
@@ -153,11 +173,11 @@ npm run test         # All tests pass
 
 ### Step 3: Dual Code Review
 
-Self-review first, then call Claude:
+Self-review first, then call Claude with `/requesting-code-review` (forked `code-reviewer` agent):
 
 ```bash
 claude -p --model opus --dangerously-skip-permissions --output-format text \
-  "Use the code-reviewer subagent to review the current branch diff for Phase [N]: [Phase Name]. Review against: the spec at SPEC.md, the implementation plan, security best practices, accessibility, and edge cases. Output: Critical issues / Warnings / Suggestions / Verdict (approve or revise)."
+  "/requesting-code-review Review the current branch diff for Phase [N]: [Phase Name]. Review against: the spec at SPEC.md, the implementation plan, security best practices, accessibility, and edge cases. Output: Critical issues / Warnings / Suggestions / Verdict (approve or revise)."
 ```
 
 Fix all issues, re-run quality gates, repeat until approved with zero issues.
@@ -288,11 +308,9 @@ These files should be at repo root alongside this protocol:
 | File | Purpose |
 |------|---------|
 | `CONTEXT_TEMPLATE.md` | Template for context preservation |
-| `SPEC_WRITING.md` | Guide for creating specifications |
-| `IMPLEMENTATION_PLAN_WRITING.md` | Guide for creating phased build plans |
-| `SPEC_QUALITY_CHECKLIST.md` | Validation checklist for specs |
-| `ACCESSIBILITY_CHECKLIST.md` | A11y checks for UI components |
 | `LEARNINGS.md` | Project-specific learnings accumulator |
+
+**Note:** Spec writing and implementation planning are handled through collaborative refinement. Quality checklists for specs and accessibility are available as Claude Code skills when Claude is called for review.
 
 ---
 

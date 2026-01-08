@@ -35,7 +35,7 @@ const HTTP_ERROR_MESSAGES: Record<number, ErrorMapping> = {
     action: 'Refresh and try again',
   },
   413: {
-    message: 'The file is too large. Maximum size is 10MB.',
+    message: 'The file is too large. Maximum size is 50MB.',
     action: 'Choose a smaller file',
   },
   429: {
@@ -96,7 +96,7 @@ const API_ERROR_MESSAGES: Record<string, ErrorMapping> = {
 
   // Upload errors
   FILE_TOO_LARGE: {
-    message: 'File is too large. Maximum size is 10MB.',
+    message: 'File is too large. Maximum size is 50MB.',
     action: 'Choose a smaller file',
   },
   INVALID_FILE_TYPE: {

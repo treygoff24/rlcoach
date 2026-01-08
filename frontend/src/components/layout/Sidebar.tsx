@@ -11,7 +11,7 @@ const navItems = [
     href: '/',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
     ),
   },
@@ -20,7 +20,8 @@ const navItems = [
     href: '/replays',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
@@ -29,7 +30,7 @@ const navItems = [
     href: '/sessions',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
       </svg>
     ),
   },
@@ -38,7 +39,7 @@ const navItems = [
     href: '/trends',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
       </svg>
     ),
   },
@@ -47,7 +48,7 @@ const navItems = [
     href: '/compare',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     ),
   },
@@ -56,7 +57,7 @@ const navItems = [
     href: '/coach',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
       </svg>
     ),
     pro: true,
@@ -69,8 +70,8 @@ const bottomNavItems = [
     href: '/settings',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
   },
@@ -109,7 +110,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-void/80 backdrop-blur-sm z-40 lg:hidden animate-fade-in"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -119,38 +120,57 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside
         ref={sidebarRef}
         className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-gray-900 border-r border-gray-800
-          transform transition-transform duration-200 ease-in-out
+          fixed top-0 left-0 z-50 h-full w-72
+          glass-elevated
+          transform transition-all duration-300 ease-out
           lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
         aria-label="Main navigation"
       >
+        {/* Gradient border effect */}
+        <div className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-boost/20 via-fire/10 to-transparent" />
+
         {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-800">
-          <Link href="/" className="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-orange-500 rounded-lg">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center" aria-hidden="true">
-              <span className="text-white font-bold text-sm">RL</span>
+        <div className="flex items-center justify-between h-18 px-6">
+          <Link
+            href="/"
+            className="flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-boost rounded-xl p-1 -m-1"
+          >
+            {/* Logo mark with animated glow */}
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fire to-fire-600 flex items-center justify-center logo-shine shadow-glow-fire group-hover:shadow-glow-fire-lg transition-shadow duration-300">
+                <span className="text-white font-display text-xl tracking-wider">RL</span>
+              </div>
+              {/* Pulse ring on hover */}
+              <div className="absolute inset-0 rounded-xl border-2 border-fire/50 opacity-0 group-hover:opacity-100 group-hover:animate-pulse-ring transition-opacity" />
             </div>
-            <span className="text-xl font-bold text-white">rlcoach</span>
+            <div className="flex flex-col">
+              <span className="text-xl font-semibold text-white tracking-tight">rlcoach</span>
+              <span className="text-[10px] uppercase tracking-widest text-white/40 font-medium">Performance Analytics</span>
+            </div>
           </Link>
+
           {/* Mobile close button */}
           <button
             ref={closeButtonRef}
             onClick={onClose}
-            className="lg:hidden p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="lg:hidden p-2.5 text-white/60 hover:text-white rounded-xl hover:bg-white/5 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-boost"
             aria-label="Close navigation menu"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
+        {/* Divider with glow */}
+        <div className="mx-6 divider-glow" />
+
         {/* Navigation */}
-        <nav className="flex flex-col h-[calc(100%-4rem)] p-4" aria-label="Dashboard navigation">
+        <nav className="flex flex-col h-[calc(100%-4.5rem)] px-4 py-4" aria-label="Dashboard navigation">
           <div className="flex-1 space-y-1">
-            {navItems.map((item) => {
+            {navItems.map((item, index) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -159,29 +179,48 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   onClick={onClose}
                   aria-current={isActive ? 'page' : undefined}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg
-                    transition-colors duration-150
-                    focus:outline-none focus:ring-2 focus:ring-orange-500
+                    relative flex items-center gap-3 px-4 py-3 rounded-xl
+                    transition-all duration-200 group
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-boost
                     ${isActive
-                      ? 'bg-orange-500/10 text-orange-500'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                      ? 'bg-gradient-to-r from-fire/20 to-fire/5 text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
                     }
                   `}
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  {item.icon}
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-gradient-to-b from-fire to-fire-600 shadow-glow-fire" />
+                  )}
+
+                  {/* Icon with glow on active */}
+                  <span className={`transition-all duration-200 ${isActive ? 'text-fire drop-shadow-[0_0_8px_rgba(255,107,53,0.5)]' : 'group-hover:text-white'}`}>
+                    {item.icon}
+                  </span>
+
                   <span className="font-medium">{item.label}</span>
+
                   {item.pro && (
-                    <span className="ml-auto text-xs font-medium px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">
+                    <span className="ml-auto badge badge-fire text-[10px]">
                       PRO
                     </span>
+                  )}
+
+                  {/* Hover effect */}
+                  {!isActive && (
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-boost/0 to-boost/0 group-hover:from-boost/5 group-hover:to-transparent transition-all duration-300 pointer-events-none" />
                   )}
                 </Link>
               );
             })}
           </div>
 
-          {/* Bottom navigation */}
-          <div className="pt-4 border-t border-gray-800 space-y-1">
+          {/* Bottom section */}
+          <div className="pt-4 space-y-1">
+            {/* Divider */}
+            <div className="mx-2 mb-3 divider-glow" />
+
             {bottomNavItems.map((item) => {
               const isActive = pathname === item.href;
               return (
@@ -191,20 +230,31 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   onClick={onClose}
                   aria-current={isActive ? 'page' : undefined}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg
-                    transition-colors duration-150
-                    focus:outline-none focus:ring-2 focus:ring-orange-500
+                    relative flex items-center gap-3 px-4 py-3 rounded-xl
+                    transition-all duration-200 group
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-boost
                     ${isActive
-                      ? 'bg-orange-500/10 text-orange-500'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                      ? 'bg-gradient-to-r from-fire/20 to-fire/5 text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
                     }
                   `}
                 >
-                  {item.icon}
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-gradient-to-b from-fire to-fire-600 shadow-glow-fire" />
+                  )}
+                  <span className={`transition-all duration-200 ${isActive ? 'text-fire drop-shadow-[0_0_8px_rgba(255,107,53,0.5)]' : 'group-hover:text-white'}`}>
+                    {item.icon}
+                  </span>
                   <span className="font-medium">{item.label}</span>
                 </Link>
               );
             })}
+
+            {/* Version indicator */}
+            <div className="mt-4 px-4 py-3 flex items-center gap-2 text-white/50">
+              <div className="w-2 h-2 rounded-full bg-victory animate-pulse" />
+              <span className="text-xs font-medium">v0.1.0</span>
+            </div>
           </div>
         </nav>
       </aside>

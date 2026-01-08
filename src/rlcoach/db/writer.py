@@ -363,3 +363,212 @@ def write_report(
         update_daily_stats(play_date, playlist)
 
     return replay_id
+
+
+def write_report_saas(
+    report: dict[str, Any],
+    file_hash: str,
+    json_report_path: str,
+) -> str:
+    """Write a complete report to the database (SaaS mode, no config file).
+
+    Unlike write_report(), this function doesn't require identity configuration.
+    It stores all player stats without determining which player is "me" - that
+    association is handled through UserReplay and linked accounts.
+
+    Args:
+        report: Parsed JSON report from generate_report()
+        file_hash: SHA256 hash of the replay file
+        json_report_path: Path where the JSON report is stored
+
+    Returns:
+        The replay_id
+
+    Raises:
+        ReplayExistsError: If replay already exists
+    """
+    replay_id = report["replay_id"]
+    metadata = report.get("metadata", {})
+    teams = report.get("teams", {})
+    players = report.get("players", [])
+    per_player = report.get("analysis", {}).get("per_player", {})
+
+    session = create_session()
+    try:
+        # Check for duplicate replay_id
+        if session.get(Replay, replay_id):
+            raise ReplayExistsError(
+                f"Replay with replay_id '{replay_id}' already exists"
+            )
+
+        # Check for duplicate file_hash
+        existing_hash = session.query(Replay).filter_by(file_hash=file_hash).first()
+        if existing_hash:
+            raise ReplayExistsError(
+                f"Replay with file_hash '{file_hash}' already exists"
+            )
+
+        # Parse timestamp
+        played_at_str = metadata.get("started_at_utc", "")
+        if played_at_str:
+            played_at_str = played_at_str.replace("Z", "+00:00")
+            played_at_utc = datetime.fromisoformat(played_at_str)
+        else:
+            played_at_utc = datetime.now(timezone.utc)
+
+        # Use UTC date as play_date (no timezone config in SaaS)
+        play_date = played_at_utc.date()
+
+        # Get scores
+        blue_score = teams.get("blue", {}).get("score", 0)
+        orange_score = teams.get("orange", {}).get("score", 0)
+
+        # Create replay record (without my_player_id since no identity config)
+        replay = Replay(
+            replay_id=replay_id,
+            source_file=report.get("source_file", ""),
+            file_hash=file_hash,
+            played_at_utc=played_at_utc,
+            play_date=play_date,
+            map=metadata.get("map", "unknown"),
+            playlist=metadata.get("playlist", "UNKNOWN"),
+            team_size=metadata.get("team_size", 2),
+            duration_seconds=metadata.get("duration_seconds", 0),
+            overtime=metadata.get("overtime", False),
+            # SaaS mode: no single "me" player - leave these null
+            my_player_id=None,
+            my_team=None,
+            my_score=blue_score,  # Store blue score as default
+            opponent_score=orange_score,
+            result=None,  # Unknown without "me" designation
+            json_report_path=json_report_path,
+        )
+        session.add(replay)
+
+        # Step 2: Upsert players (simplified, no is_me tracking)
+        for p in players:
+            pid = p.get("player_id")
+            if not pid:
+                continue
+
+            display_name = p.get("display_name", "Unknown")
+            platform = pid.split(":")[0] if ":" in pid else None
+
+            existing = session.get(Player, pid)
+            if existing:
+                existing.display_name = display_name
+                existing.last_seen_utc = datetime.now(timezone.utc)
+            else:
+                player = Player(
+                    player_id=pid,
+                    display_name=display_name,
+                    platform=platform,
+                    is_me=False,  # SaaS: determined via account linking, not config
+                    first_seen_utc=datetime.now(timezone.utc),
+                    last_seen_utc=datetime.now(timezone.utc),
+                    games_with_me=0,
+                )
+                session.add(player)
+
+        # Step 3: Insert player stats (without is_me/is_teammate/is_opponent flags)
+        for p in players:
+            pid = p.get("player_id")
+            if not pid:
+                continue
+
+            team = p.get("team")
+            player_data = per_player.get(pid, {})
+
+            # Extract metrics from nested structure
+            fundamentals = player_data.get("fundamentals", {})
+            boost = player_data.get("boost", {})
+            movement = player_data.get("movement", {})
+            positioning = player_data.get("positioning", {})
+            challenges = player_data.get("challenges", {})
+            kickoffs = player_data.get("kickoffs", {})
+            mechanics = player_data.get("mechanics", {})
+            recovery = player_data.get("recovery", {})
+            defense = player_data.get("defense", {})
+            xg = player_data.get("xg", {})
+
+            stats = PlayerGameStats(
+                replay_id=replay_id,
+                player_id=pid,
+                team=team,
+                # SaaS: role flags set to False by default
+                # These will be updated when user links their game account
+                is_me=False,
+                is_teammate=False,
+                is_opponent=False,
+                # Fundamentals
+                goals=fundamentals.get("goals"),
+                assists=fundamentals.get("assists"),
+                saves=fundamentals.get("saves"),
+                shots=fundamentals.get("shots"),
+                shooting_pct=fundamentals.get("shooting_percentage"),
+                score=fundamentals.get("score"),
+                demos_inflicted=fundamentals.get("demos_inflicted"),
+                demos_taken=fundamentals.get("demos_taken"),
+                # Boost
+                bcpm=boost.get("bpm"),
+                avg_boost=boost.get("avg_boost"),
+                time_zero_boost_s=boost.get("time_zero_boost_s"),
+                time_full_boost_s=boost.get("time_full_boost_s"),
+                boost_collected=boost.get("boost_collected"),
+                boost_stolen=boost.get("boost_stolen"),
+                small_pads=boost.get("small_pads"),
+                big_pads=boost.get("big_pads"),
+                # Movement
+                avg_speed_kph=movement.get("avg_speed_kph"),
+                distance_km=movement.get("distance_km"),
+                max_speed_kph=movement.get("max_speed_kph"),
+                time_supersonic_s=movement.get("time_supersonic_s"),
+                time_slow_s=movement.get("time_slow_s"),
+                time_ground_s=movement.get("time_ground_s"),
+                time_low_air_s=movement.get("time_low_air_s"),
+                time_high_air_s=movement.get("time_high_air_s"),
+                # Positioning
+                behind_ball_pct=positioning.get("behind_ball_pct"),
+                time_offensive_third_s=positioning.get("time_offensive_third_s"),
+                time_middle_third_s=positioning.get("time_middle_third_s"),
+                time_defensive_third_s=positioning.get("time_defensive_third_s"),
+                avg_distance_to_ball_m=positioning.get("avg_distance_to_ball_m"),
+                avg_distance_to_teammate_m=positioning.get(
+                    "avg_distance_to_teammate_m"
+                ),
+                first_man_pct=positioning.get("first_man_pct"),
+                second_man_pct=positioning.get("second_man_pct"),
+                third_man_pct=positioning.get("third_man_pct"),
+                # Challenges
+                challenge_wins=challenges.get("wins"),
+                challenge_losses=challenges.get("losses"),
+                challenge_neutral=challenges.get("neutral"),
+                first_to_ball_pct=challenges.get("first_to_ball_pct"),
+                # Kickoffs
+                kickoffs_participated=kickoffs.get("count"),
+                kickoff_first_touches=kickoffs.get("first_possession"),
+                # Mechanics
+                wavedash_count=mechanics.get("wavedash_count"),
+                halfflip_count=mechanics.get("halfflip_count"),
+                speedflip_count=mechanics.get("speedflip_count"),
+                aerial_count=mechanics.get("aerial_count"),
+                flip_cancel_count=mechanics.get("flip_cancel_count"),
+                # Recovery
+                total_recoveries=recovery.get("total_recoveries"),
+                avg_recovery_momentum=recovery.get("average_momentum_retained"),
+                # Defense
+                time_last_defender_s=defense.get("time_as_last_defender"),
+                time_shadow_defense_s=defense.get("time_shadowing"),
+                # xG
+                total_xg=xg.get("total_xg"),
+            )
+            session.add(stats)
+
+        session.commit()
+        return replay_id
+
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

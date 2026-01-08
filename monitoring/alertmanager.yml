@@ -1,0 +1,84 @@
+# Alertmanager configuration for RLCoach
+# Configure notification receivers (email, Slack, PagerDuty, etc.)
+
+global:
+  # Default SMTP settings (configure with your email provider)
+  # smtp_smarthost: 'smtp.gmail.com:587'
+  # smtp_from: 'alerts@rlcoach.gg'
+  # smtp_auth_username: 'alerts@rlcoach.gg'
+  # smtp_auth_password: 'your-app-password'
+
+  resolve_timeout: 5m
+
+# Route tree
+route:
+  # Default receiver
+  receiver: 'default-receiver'
+
+  # Group alerts by alertname and job
+  group_by: ['alertname', 'job']
+
+  # Wait 30s before sending first notification for a new group
+  group_wait: 30s
+
+  # Wait 5m before sending another notification for the same group
+  group_interval: 5m
+
+  # Wait 4h before resending a notification
+  repeat_interval: 4h
+
+  # Child routes for specific alert routing
+  routes:
+    # Critical alerts go to on-call
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      repeat_interval: 1h
+
+    # Warning alerts use default timing
+    - match:
+        severity: warning
+      receiver: 'warning-receiver'
+
+    # Info alerts are batched longer
+    - match:
+        severity: info
+      receiver: 'info-receiver'
+      repeat_interval: 24h
+
+# Notification receivers
+receivers:
+  - name: 'default-receiver'
+    # Configure your preferred notification method
+    # Example: Slack webhook
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+    #     channel: '#rlcoach-alerts'
+    #     send_resolved: true
+
+  - name: 'critical-receiver'
+    # Critical alerts should go to PagerDuty or similar
+    # pagerduty_configs:
+    #   - service_key: 'your-pagerduty-key'
+    #     severity: critical
+
+  - name: 'warning-receiver'
+    # Warning alerts to Slack
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+    #     channel: '#rlcoach-alerts'
+    #     send_resolved: true
+
+  - name: 'info-receiver'
+    # Info alerts just logged (or to low-priority channel)
+    # webhook_configs:
+    #   - url: 'http://localhost:5001/webhook'
+
+# Inhibition rules prevent duplicate notifications
+inhibit_rules:
+  # If a critical alert is firing, suppress warnings for the same job
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'job']

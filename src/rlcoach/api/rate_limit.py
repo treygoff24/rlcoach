@@ -40,6 +40,7 @@ RATE_LIMITS = {
     "chat": {"requests": 30, "window_seconds": 60},  # 30 messages per minute
     "notes": {"requests": 20, "window_seconds": 60},  # 20 notes per minute
     "benchmarks": {"requests": 30, "window_seconds": 60},  # 30 benchmark queries/min
+    "gdpr": {"requests": 5, "window_seconds": 3600},  # 5 GDPR req/hour
     "default": {"requests": 100, "window_seconds": 60},  # 100 requests per minute
 }
 

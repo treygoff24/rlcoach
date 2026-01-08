@@ -1,0 +1,166 @@
+# Prometheus alerting rules for RLCoach
+groups:
+  - name: rlcoach-availability
+    rules:
+      - alert: BackendDown
+        expr: up{job="rlcoach-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RLCoach backend is down"
+          description: "The FastAPI backend has been unreachable for more than 1 minute."
+
+      - alert: WorkerDown
+        expr: up{job="rlcoach-workers"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery worker is down"
+          description: "No Celery workers have been responding for more than 5 minutes."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been unreachable for more than 1 minute."
+
+      - alert: PostgresDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL has been unreachable for more than 1 minute."
+
+  - name: rlcoach-performance
+    rules:
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="rlcoach-backend"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is above 2 seconds for the last 5 minutes."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="rlcoach-backend",status=~"5.."}[5m]) / rate(http_requests_total{job="rlcoach-backend"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "More than 5% of requests are failing with 5xx errors."
+
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{job="rlcoach-backend",status=~"5.."}[5m]) / rate(http_requests_total{job="rlcoach-backend"}[5m]) > 0.2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical error rate detected"
+          description: "More than 20% of requests are failing with 5xx errors."
+
+  - name: rlcoach-resources
+    rules:
+      - alert: HighCPU
+        expr: avg(rate(process_cpu_seconds_total{job="rlcoach-backend"}[5m])) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on backend"
+          description: "Backend CPU usage has been above 80% for 10 minutes."
+
+      - alert: HighMemory
+        expr: process_resident_memory_bytes{job="rlcoach-backend"} / (1024 * 1024 * 1024) > 6
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on backend"
+          description: "Backend is using more than 6GB of memory."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Less than 10% disk space remaining."
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical disk space"
+          description: "Less than 5% disk space remaining."
+
+  - name: rlcoach-queue
+    rules:
+      - alert: QueueBacklogHigh
+        expr: celery_queue_length > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Celery queue backlog"
+          description: "More than 100 tasks waiting in the Celery queue for 10+ minutes."
+
+      - alert: ReplayProcessingStuck
+        expr: increase(replays_processed_total[1h]) == 0 and celery_queue_length > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Replay processing appears stuck"
+          description: "No replays have been processed in the last hour despite pending tasks."
+
+  - name: rlcoach-business
+    rules:
+      - alert: NoUploadsRecently
+        expr: increase(replays_uploaded_total[6h]) == 0
+        for: 1m
+        labels:
+          severity: info
+        annotations:
+          summary: "No replay uploads in 6 hours"
+          description: "No replays have been uploaded in the last 6 hours. This may be normal during low-traffic periods."
+
+      - alert: HighTokenUsage
+        expr: sum(rate(coach_tokens_used_total[1h])) * 3600 > 500000
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "High AI token usage"
+          description: "Token usage is exceeding 500k tokens per hour."
+
+  - name: rlcoach-database
+    rules:
+      - alert: PostgresConnectionsHigh
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High PostgreSQL connections"
+          description: "More than 80 active database connections."
+
+      - alert: PostgresReplicationLag
+        expr: pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replication lag"
+          description: "Replication lag is more than 30 seconds."

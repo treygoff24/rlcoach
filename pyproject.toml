@@ -35,6 +35,7 @@ dependencies = [
     "b2sdk>=2.0.0",
     # Utilities
     "python-dotenv>=1.0.0",
+    "python-dateutil>=2.8.0",
 ]
 authors = [
     {name = "rlcoach contributors"},

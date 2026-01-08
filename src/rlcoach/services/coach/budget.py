@@ -18,6 +18,19 @@ MAX_OUTPUT_TOKENS = 8_000
 EXTENDED_THINKING_BUDGET = 32_000  # Not counted against user budget
 
 
+def get_token_budget_remaining(user: User) -> int:
+    """Calculate remaining token budget for a user.
+
+    Args:
+        user: User model instance
+
+    Returns:
+        Remaining tokens (0 if exhausted)
+    """
+    used = user.token_budget_used or 0
+    return max(0, MONTHLY_TOKEN_BUDGET - used)
+
+
 class BudgetStatus:
     """Budget status response."""
 
@@ -152,6 +165,7 @@ def _maybe_reset_budget(user: User, db: DBSession) -> bool:
         # First time - set reset date
         user.token_budget_reset_at = datetime.now(timezone.utc)
         user.token_budget_used = 0
+        db.commit()
         return True
 
     # Check if we've passed the reset date

@@ -8,6 +8,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { UploadModal } from '@/components/layout/UploadModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/Toast';
+import { TosRecorder } from '@/components/TosRecorder';
 
 export default function DashboardLayout({
   children,
@@ -19,8 +20,9 @@ export default function DashboardLayout({
 
   return (
     <SessionProvider>
+      <TosRecorder />
       <ToastProvider>
-        <div className="flex h-screen overflow-hidden bg-gray-950">
+        <div className="flex h-screen overflow-hidden noise">
           {/* Sidebar */}
           <Sidebar
             isOpen={sidebarOpen}
@@ -35,7 +37,7 @@ export default function DashboardLayout({
               onUploadClick={() => setUploadModalOpen(true)}
             />
 
-            {/* Page content */}
+            {/* Page content with scroll */}
             <main className="flex-1 overflow-y-auto">
               <ErrorBoundary>
                 {children}

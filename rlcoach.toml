@@ -1,0 +1,29 @@
+# RLCoach Configuration
+
+[identity]
+# Platform IDs are checked first, then display_names as fallback
+platform_ids = [
+    "epic:4b13adae45f5438fa523f76b12842090"
+]
+display_names = ["fastbutstupid", "Pinochetwasright", "deportallcommies"]
+excluded_names = []
+
+[paths]
+# Watch folder for incoming replays
+watch_folder = "/Users/treygoff/Code/rlcoach/replays"
+# Where to store processed data (SQLite database)
+data_dir = "~/.rlcoach/data"
+# Where to store JSON reports
+reports_dir = "~/.rlcoach/reports"
+
+[preferences]
+# Primary playlist for comparisons
+primary_playlist = "DOUBLES"
+# Target rank for benchmark comparisons
+target_rank = "GC1"
+# Timezone for day boundary calculation
+timezone = "America/Chicago"
+
+[teammates]
+[teammates.tagged]
+"my1andonlyacct" = "2s partner"

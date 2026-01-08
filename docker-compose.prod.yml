@@ -45,6 +45,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379
+      - SAAS_MODE=true
+      - ENVIRONMENT=production
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
@@ -75,6 +77,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379
+      - SAAS_MODE=true
+      - ENVIRONMENT=production
     volumes:
       - replay_storage:/app/storage
       - ./logs:/app/logs
@@ -99,6 +103,7 @@ services:
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXT_PUBLIC_API_URL=http://backend:8000
+      - BACKEND_URL=http://backend:8000
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - STEAM_API_KEY=${STEAM_API_KEY}
