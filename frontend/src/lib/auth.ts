@@ -2,8 +2,11 @@ import NextAuth from 'next-auth';
 import type { NextAuthConfig } from 'next-auth';
 import Discord from 'next-auth/providers/discord';
 import Google from 'next-auth/providers/google';
+import Credentials from 'next-auth/providers/credentials';
 import type { JWT } from 'next-auth/jwt';
 import * as jose from 'jose';
+
+const IS_DEV = process.env.NODE_ENV === 'development';
 
 // Note: NEXTAUTH_SECRET validation happens at runtime in callbacks
 // Build-time checks would fail since env vars aren't available during static analysis
@@ -96,8 +99,26 @@ const Steam = {
 // Backend URL for server-side calls during auth
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
+// Dev-only mock user for local testing
+const DevCredentials = Credentials({
+  id: 'dev-login',
+  name: 'Dev Login',
+  credentials: {},
+  async authorize() {
+    if (!IS_DEV) return null;
+    return {
+      id: 'dev-user-123',
+      name: 'Dev User',
+      email: 'dev@localhost',
+      subscriptionTier: 'pro' as const,
+    };
+  },
+});
+
 export const authConfig: NextAuthConfig = {
   providers: [
+    // Dev login - only works in development
+    ...(IS_DEV ? [DevCredentials] : []),
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
