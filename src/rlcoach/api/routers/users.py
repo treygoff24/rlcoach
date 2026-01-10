@@ -11,10 +11,10 @@ import hashlib
 import hmac
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session as DBSession
@@ -914,5 +914,271 @@ async def get_benchmark_comparison(
         rank_tier=rank_tier,
         rank_name=RANK_DISPLAY_NAMES.get(rank_tier, "Unknown"),
         comparisons=comparisons,
+        has_data=True,
+    )
+
+
+# Trends endpoint - for the trends page
+ALLOWED_TREND_METRICS = {
+    "bcpm",
+    "avg_boost",
+    "goals",
+    "assists",
+    "saves",
+    "shots",
+    "score",
+    "avg_speed_kph",
+    "time_supersonic_s",
+}
+
+
+class TrendDataPoint(BaseModel):
+    """Single data point for trends."""
+
+    date: str
+    value: float
+
+
+class TrendsResponse(BaseModel):
+    """Trends API response."""
+
+    metric: str
+    period: str
+    values: list[TrendDataPoint]
+    has_data: bool
+
+
+@router.get("/me/trends", response_model=TrendsResponse)
+async def get_user_trends(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+    metric: str = Query(default="goals", description="Metric to trend"),
+    period: str = Query(default="30d", description="Time period (7d, 30d, 90d, all)"),
+) -> TrendsResponse:
+    """Get trend data for a metric over time for the authenticated user."""
+    # Validate metric
+    if metric not in ALLOWED_TREND_METRICS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid metric. Allowed: {sorted(ALLOWED_TREND_METRICS)}",
+        )
+
+    # Parse period
+    allowed_periods = {"7d", "30d", "90d", "all"}
+    if period not in allowed_periods:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid period. Allowed: {sorted(allowed_periods)}",
+        )
+
+    if period == "all":
+        date_from = None
+    else:
+        days = int(period.rstrip("d"))
+        date_from = datetime.now(timezone.utc).date() - timedelta(days=days)
+
+    # Get user's replay IDs
+    user_replay_ids = (
+        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
+    )
+
+    # Query stats scoped to user's replays
+    query = (
+        db.query(Replay.play_date, PlayerGameStats)
+        .filter(Replay.replay_id.in_(user_replay_ids))
+        .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
+        .filter(PlayerGameStats.is_me == True)  # noqa: E712
+    )
+
+    if date_from:
+        query = query.filter(Replay.play_date >= date_from)
+
+    query = query.order_by(Replay.play_date)
+    results = query.all()
+
+    if not results:
+        return TrendsResponse(metric=metric, period=period, values=[], has_data=False)
+
+    # Extract values by date
+    values = []
+    for play_date, stats in results:
+        value = getattr(stats, metric, None)
+        if value is not None and play_date is not None:
+            values.append(
+                TrendDataPoint(date=play_date.isoformat(), value=round(float(value), 2))
+            )
+
+    return TrendsResponse(metric=metric, period=period, values=values, has_data=len(values) > 0)
+
+
+# Self-comparison endpoint - compare current period vs previous period
+class PeriodStats(BaseModel):
+    """Stats for a time period."""
+
+    period_label: str
+    game_count: int
+    win_rate: float | None
+    avg_goals: float | None
+    avg_assists: float | None
+    avg_saves: float | None
+    avg_shots: float | None
+    avg_bcpm: float | None
+
+
+class SelfComparisonMetric(BaseModel):
+    """Comparison of a single metric between periods."""
+
+    name: str
+    current: float | None
+    previous: float | None
+    change: float
+    change_pct: float
+
+
+class SelfComparisonResponse(BaseModel):
+    """Self-comparison API response."""
+
+    current_period: str
+    previous_period: str
+    current_games: int
+    previous_games: int
+    metrics: list[SelfComparisonMetric]
+    has_data: bool
+
+
+@router.get("/me/compare/self", response_model=SelfComparisonResponse)
+async def get_self_comparison(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+    period: str = Query(default="7d", description="Period to compare (7d, 30d)"),
+) -> SelfComparisonResponse:
+    """Compare user stats from current period vs previous period."""
+    # Parse period
+    if period == "7d":
+        days = 7
+        current_label = "This Week"
+        previous_label = "Last Week"
+    elif period == "30d":
+        days = 30
+        current_label = "This Month"
+        previous_label = "Last Month"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid period. Use '7d' or '30d'.",
+        )
+
+    now = datetime.now(timezone.utc).date()
+    current_start = now - timedelta(days=days)
+    previous_start = now - timedelta(days=days * 2)
+    previous_end = current_start - timedelta(days=1)
+
+    # Get user's replay IDs
+    user_replay_ids = (
+        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
+    )
+
+    def get_period_stats(start_date, end_date):
+        """Get aggregated stats for a date range."""
+        query = (
+            db.query(
+                func.count(PlayerGameStats.id).label("game_count"),
+                func.avg(PlayerGameStats.goals).label("avg_goals"),
+                func.avg(PlayerGameStats.assists).label("avg_assists"),
+                func.avg(PlayerGameStats.saves).label("avg_saves"),
+                func.avg(PlayerGameStats.shots).label("avg_shots"),
+                func.avg(PlayerGameStats.bcpm).label("avg_bcpm"),
+            )
+            .join(Replay, PlayerGameStats.replay_id == Replay.replay_id)
+            .filter(
+                PlayerGameStats.replay_id.in_(user_replay_ids),
+                PlayerGameStats.is_me == True,  # noqa: E712
+                Replay.play_date >= start_date,
+                Replay.play_date <= end_date,
+            )
+            .first()
+        )
+
+        if not query or query.game_count == 0:
+            return None, 0
+
+        # Calculate win rate
+        wins = (
+            db.query(func.count(Replay.replay_id))
+            .filter(
+                Replay.replay_id.in_(user_replay_ids),
+                Replay.play_date >= start_date,
+                Replay.play_date <= end_date,
+                Replay.result == "WIN",
+            )
+            .scalar()
+            or 0
+        )
+        win_rate = (wins / query.game_count * 100) if query.game_count > 0 else None
+
+        return {
+            "game_count": query.game_count,
+            "win_rate": win_rate,
+            "avg_goals": float(query.avg_goals) if query.avg_goals else None,
+            "avg_assists": float(query.avg_assists) if query.avg_assists else None,
+            "avg_saves": float(query.avg_saves) if query.avg_saves else None,
+            "avg_shots": float(query.avg_shots) if query.avg_shots else None,
+            "avg_bcpm": float(query.avg_bcpm) if query.avg_bcpm else None,
+        }, query.game_count
+
+    current_stats, current_games = get_period_stats(current_start, now)
+    previous_stats, previous_games = get_period_stats(previous_start, previous_end)
+
+    if not current_stats and not previous_stats:
+        return SelfComparisonResponse(
+            current_period=current_label,
+            previous_period=previous_label,
+            current_games=0,
+            previous_games=0,
+            metrics=[],
+            has_data=False,
+        )
+
+    # Build comparison metrics
+    metrics = []
+
+    def add_metric(name: str, key: str):
+        current_val = current_stats.get(key) if current_stats else None
+        previous_val = previous_stats.get(key) if previous_stats else None
+
+        if current_val is None and previous_val is None:
+            return
+
+        # Use 0.0 for missing values, but preserve None distinction for display
+        curr = current_val if current_val is not None else 0.0
+        prev = previous_val if previous_val is not None else 0.0
+
+        change = curr - prev
+        # Show None for change_pct when no previous data to compare against
+        change_pct = (change / prev * 100) if prev != 0 else None
+
+        metrics.append(
+            SelfComparisonMetric(
+                name=name,
+                current=round(curr, 2) if current_val is not None else None,
+                previous=round(prev, 2) if previous_val is not None else None,
+                change=round(change, 2) if current_val is not None or previous_val is not None else None,
+                change_pct=round(change_pct, 1) if change_pct is not None else None,
+            )
+        )
+
+    add_metric("Win Rate", "win_rate")
+    add_metric("Goals/Game", "avg_goals")
+    add_metric("Assists/Game", "avg_assists")
+    add_metric("Saves/Game", "avg_saves")
+    add_metric("Shots/Game", "avg_shots")
+    add_metric("Boost/Min", "avg_bcpm")
+
+    return SelfComparisonResponse(
+        current_period=current_label,
+        previous_period=previous_label,
+        current_games=current_games,
+        previous_games=previous_games,
+        metrics=metrics,
         has_data=True,
     )

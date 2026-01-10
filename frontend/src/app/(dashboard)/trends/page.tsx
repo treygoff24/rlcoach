@@ -83,7 +83,7 @@ export default function TrendsPage() {
 
       try {
         const res = await fetch(
-          `/api/v1/analysis/trends?metric=${selectedMetric}&period=${timeRange}`,
+          `/api/v1/users/me/trends?metric=${selectedMetric}&period=${timeRange}`,
           {
             headers: {
               Authorization: `Bearer ${session.accessToken}`,
