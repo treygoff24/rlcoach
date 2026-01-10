@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { formatMapName } from '@/lib/utils';
 
 type TabId = 'overview' | 'mechanics' | 'boost' | 'positioning' | 'timeline' | 'defense' | 'offense';
 
@@ -431,9 +432,19 @@ export default function ReplayDetailPage() {
 
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">{replay.filename}</h1>
+            <h1 className="text-2xl font-bold text-white">
+              {formatMapName(replay.map_name)} - {replay.played_at
+                ? new Date(replay.played_at).toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })
+                : 'Unknown Date'}
+            </h1>
             <div className="flex items-center gap-3 mt-2 text-sm text-gray-400">
-              <span>{replay.map_name || 'Unknown Map'}</span>
+              <span>{formatMapName(replay.map_name)}</span>
               <span aria-hidden="true">•</span>
               <span>{replay.playlist || 'Unknown Playlist'}</span>
               <span aria-hidden="true">•</span>

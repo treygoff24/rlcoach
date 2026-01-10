@@ -802,18 +802,17 @@ def list_play_sessions(
     Aggregates replays by date to show daily play sessions.
     Requires authentication.
     """
-    from sqlalchemy import Date, cast, func
+    from sqlalchemy import Integer, func, select
 
     from ...db import PlayerGameStats
 
     # Get replay IDs from user_replays (as subquery for efficiency)
-    user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
-    )
+    user_replay_ids = select(UserReplay.replay_id).where(UserReplay.user_id == user.id)
 
     # Use SQL GROUP BY to aggregate data efficiently at the database level
     # instead of loading all replays into memory
-    play_date = cast(Replay.played_at_utc, Date).label("play_date")
+    # Use func.date() for SQLite compatibility (returns string) instead of cast(Date)
+    play_date = func.date(Replay.played_at_utc).label("play_date")
 
     session_aggregates = (
         db.query(
@@ -822,17 +821,13 @@ def list_play_sessions(
             func.sum(
                 func.cast(
                     (Replay.result == "WIN"),
-                    db.bind.dialect.type_descriptor(db.bind.dialect.BIGINT)
-                    if hasattr(db.bind.dialect, "BIGINT")
-                    else db.bind.dialect.Integer,
+                    Integer,
                 )
             ).label("wins"),
             func.sum(
                 func.cast(
                     (Replay.result == "LOSS"),
-                    db.bind.dialect.type_descriptor(db.bind.dialect.BIGINT)
-                    if hasattr(db.bind.dialect, "BIGINT")
-                    else db.bind.dialect.Integer,
+                    Integer,
                 )
             ).label("losses"),
             func.sum(Replay.duration_seconds).label("total_duration"),
@@ -858,7 +853,7 @@ def list_play_sessions(
             db.query(Replay.replay_id)
             .filter(
                 Replay.replay_id.in_(user_replay_ids),
-                cast(Replay.played_at_utc, Date) == date_str,
+                func.date(Replay.played_at_utc) == date_str,
             )
             .subquery()
         )
@@ -886,10 +881,12 @@ def list_play_sessions(
         avg_goals = round(float(stats.avg_goals or 0), 1) if stats else 0.0
         avg_saves = round(float(stats.avg_saves or 0), 1) if stats else 0.0
 
+        # date_val is a string (YYYY-MM-DD) from func.date() in SQLite
+        date_str = date_val if isinstance(date_val, str) else date_val.isoformat()
         sessions.append(
             PlaySessionItem(
-                id=date_val.isoformat(),
-                date=date_val.isoformat(),
+                id=date_str,
+                date=date_str,
                 duration_minutes=int((duration or 0) / 60),
                 replay_count=count or 0,
                 wins=wins or 0,

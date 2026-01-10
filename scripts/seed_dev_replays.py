@@ -147,18 +147,29 @@ def main():
             game_info = report.get("game_info", {})
             teams = report.get("teams", {})
 
-            # Determine result
+            # Determine my team by finding a player with is_me=True
             my_team_key = None
+            for player_data in players_data:
+                if player_data.get("is_me"):
+                    # Player's team is like "ORANGE" or "BLUE" - convert to lowercase key
+                    player_team = player_data.get("team", "").lower()
+                    if player_team in teams:
+                        my_team_key = player_team
+                    break
+
+            # Determine result from team scores
             my_score = None
             opp_score = None
             result = None
 
-            for team_key, team_data in teams.items():
-                if team_data.get("is_my_team"):
-                    my_team_key = team_key
-                    my_score = team_data.get("score", 0)
-                else:
-                    opp_score = team_data.get("score", 0)
+            if my_team_key and teams:
+                my_team_data = teams.get(my_team_key, {})
+                my_score = my_team_data.get("score", 0)
+                # Get opponent score from the other team
+                for team_key, team_data in teams.items():
+                    if team_key != my_team_key:
+                        opp_score = team_data.get("score", 0)
+                        break
 
             if my_score is not None and opp_score is not None:
                 if my_score > opp_score:
@@ -197,6 +208,10 @@ def main():
             session.add(user_replay)
 
             # Create players and stats from report
+            # Stats are in analysis.per_player[player_id].fundamentals
+            analysis = report.get("analysis", {})
+            per_player_analysis = analysis.get("per_player", {})
+
             players_data = report.get("players", [])
             for player_data in players_data:
                 player_id = player_data.get("player_id") or player_data.get("unique_id") or player_data.get("name", f"unknown_{i}")
@@ -213,17 +228,19 @@ def main():
                     )
                     session.add(player)
 
-                # Create game stats
-                core_stats = player_data.get("core_stats", {})
+                # Get stats from analysis.per_player[player_id].fundamentals
+                player_analysis = per_player_analysis.get(player_id, {})
+                fundamentals = player_analysis.get("fundamentals", {})
+
                 stats = PlayerGameStats(
                     replay_id=replay.replay_id,
                     player_id=player_id,
                     team=str(player_data.get("team", 0)),
-                    score=core_stats.get("score", 0),
-                    goals=core_stats.get("goals", 0),
-                    assists=core_stats.get("assists", 0),
-                    saves=core_stats.get("saves", 0),
-                    shots=core_stats.get("shots", 0),
+                    score=fundamentals.get("score", 0),
+                    goals=fundamentals.get("goals", 0),
+                    assists=fundamentals.get("assists", 0),
+                    saves=fundamentals.get("saves", 0),
+                    shots=fundamentals.get("shots", 0),
                     is_me=player_data.get("is_me", False),
                 )
                 session.add(stats)

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { formatMapName } from '@/lib/utils';
 
 interface Replay {
   id: string;
@@ -159,12 +160,20 @@ function ReplayRow({ replay, index }: { replay: Replay; index: number }) {
             </svg>
           </div>
           <span className="font-medium text-white group-hover/link:text-fire transition-colors truncate max-w-[200px]">
-            {replay.filename}
+            {formatMapName(replay.map_name)}
+            {replay.played_at && (
+              <span className="text-white/40 font-normal text-sm ml-2">
+                {new Date(replay.played_at).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </span>
+            )}
           </span>
         </Link>
       </td>
       <td className="px-5 py-4 hidden sm:table-cell">
-        <span className="text-white/70">{replay.map_name || '—'}</span>
+        <span className="text-white/70">{formatMapName(replay.map_name)}</span>
       </td>
       <td className="px-5 py-4 hidden md:table-cell">
         {replay.playlist ? (
