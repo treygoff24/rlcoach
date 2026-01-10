@@ -191,42 +191,68 @@ async def upload_replay(
                 ),
             )
 
-    # Read file in chunks to check size early (prevent memory DoS)
-    # This approach rejects oversized files before fully loading them
-    chunks = []
+    # Read file in streaming mode to check size and compute hash
+    # without duplicating memory (write to temp file as we read)
+    import tempfile
+
     total_size = 0
     chunk_size = 64 * 1024  # 64KB chunks
+    hasher = hashlib.sha256()
 
-    while True:
-        chunk = await file.read(chunk_size)
-        if not chunk:
-            break
-        total_size += len(chunk)
-        if total_size > MAX_REPLAY_SIZE:
-            max_mb = MAX_REPLAY_SIZE // (1024 * 1024)
-            raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Maximum size: {max_mb}MB",
-            )
-        chunks.append(chunk)
+    # Create temp file for streaming
+    # Use run_in_executor for file blocking I/O in async endpoint
+    import asyncio
+    loop = asyncio.get_running_loop()
 
-    content = b"".join(chunks)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".replay") as temp_file:
+        temp_path = Path(temp_file.name)
+        try:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_REPLAY_SIZE:
+                    max_mb = MAX_REPLAY_SIZE // (1024 * 1024)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {max_mb}MB",
+                    )
+                # Write to file in thread pool to avoid blocking event loop
+                await loop.run_in_executor(None, temp_file.write, chunk)
+                hasher.update(chunk)
 
-    if len(content) < MIN_REPLAY_SIZE:
+            # Now read header for validation (only first 1000 bytes)
+            # Use thread pool for file operations
+            await loop.run_in_executor(None, temp_file.flush)
+
+            def read_header():
+                with open(temp_path, "rb") as f:
+                    return f.read(1000)
+
+            header_content = await loop.run_in_executor(None, read_header)
+        except Exception:
+            # Clean up temp file on error
+            await loop.run_in_executor(None, lambda: temp_path.unlink(missing_ok=True))
+            raise
+
+    if total_size < MIN_REPLAY_SIZE:
+        await loop.run_in_executor(None, lambda: temp_path.unlink(missing_ok=True))
         raise HTTPException(
             status_code=400, detail="File too small to be a valid replay"
         )
 
     # Validate replay file content (magic bytes check)
-    if not _validate_replay_content(content):
+    if not _validate_replay_content(header_content):
+        await loop.run_in_executor(None, lambda: temp_path.unlink(missing_ok=True))
         raise HTTPException(
             status_code=400,
             detail="Invalid replay file format. "
             "File does not appear to be a Rocket League replay.",
         )
 
-    # Compute SHA256
-    file_hash = hashlib.sha256(content).hexdigest()
+    # SHA256 already computed during streaming
+    file_hash = hasher.hexdigest()
 
     # Check for duplicate
     existing = (
@@ -238,6 +264,7 @@ async def upload_replay(
         .first()
     )
     if existing:
+        await loop.run_in_executor(None, lambda: temp_path.unlink(missing_ok=True))
         return ReplayUploadResponse(
             upload_id=existing.id,
             status=existing.status,
@@ -246,13 +273,26 @@ async def upload_replay(
             sha256=existing.file_hash,
         )
 
-    # Save file to upload directory
-    upload_dir = Path(os.getenv("UPLOAD_DIR", "/tmp/rlcoach/uploads"))
-    upload_dir.mkdir(parents=True, exist_ok=True)
+    # Save file to upload directory - SECURITY FIX: use secure temp dir
+    upload_dir = Path(os.getenv("UPLOAD_DIR", ""))
+    if not upload_dir or not upload_dir.is_absolute():
+        # Fallback to secure temp directory instead of /tmp
+        import tempfile
+
+        upload_dir = Path(tempfile.gettempdir()) / f"rlcoach-{os.getuid()}" / "uploads"
+
+    # Create directory if needed (blocking I/O)
+    def _create_upload_dir():
+        upload_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+    await loop.run_in_executor(None, _create_upload_dir)
 
     upload_id = str(uuid.uuid4())
     file_path = upload_dir / f"{upload_id}.replay"
-    file_path.write_bytes(content)
+    # Move temp file to final location instead of re-reading/writing
+    import shutil
+
+    await loop.run_in_executor(None, shutil.move, str(temp_path), str(file_path))
 
     # Create upload record
     upload = UploadedReplay(
@@ -260,7 +300,7 @@ async def upload_replay(
         user_id=user.id,
         filename=safe_filename,
         storage_path=str(file_path),
-        file_size_bytes=len(content),
+        file_size_bytes=total_size,
         file_hash=file_hash,
         status="pending",
     )
@@ -281,13 +321,13 @@ async def upload_replay(
         upload_id=upload_id,
         status=upload.status,
         filename=safe_filename,  # Return sanitized filename, not raw user input
-        size=len(content),
+        size=total_size,
         sha256=file_hash,
     )
 
 
 @router.get("/uploads", response_model=PaginatedReplayList)
-async def list_uploads(
+def list_uploads(
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
     status_filter: str | None = None,
@@ -352,7 +392,7 @@ async def list_uploads(
 
 
 @router.get("/uploads/{upload_id}", response_model=ReplayDetail)
-async def get_upload(
+def get_upload(
     upload_id: str,
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
@@ -401,7 +441,7 @@ async def get_upload(
 
 
 @router.delete("/uploads/{upload_id}")
-async def delete_upload(
+def delete_upload(
     upload_id: str,
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
@@ -447,7 +487,14 @@ async def delete_upload(
     # Only delete file after successful DB commit - with path validation
     if file_path_to_delete:
         file_path = Path(file_path_to_delete)
-        upload_dir = Path(os.getenv("UPLOAD_DIR", "/tmp/rlcoach/uploads"))
+        upload_dir = Path(os.getenv("UPLOAD_DIR", ""))
+        if not upload_dir or not upload_dir.is_absolute():
+            # Use same secure directory as upload
+            import tempfile
+
+            upload_dir = (
+                Path(tempfile.gettempdir()) / f"rlcoach-{os.getuid()}" / "uploads"
+            )
 
         # Security: Validate path is within upload directory
         if _is_path_within_directory(file_path, upload_dir):
@@ -463,7 +510,7 @@ async def delete_upload(
 
 
 @router.get("/library", response_model=PaginatedReplayList)
-async def list_library(
+def list_library(
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
@@ -491,12 +538,15 @@ async def list_library(
         .all()
     )
 
-    # Get upload info for each replay
+    # Get upload info for each replay - SECURITY FIX: filter by user_id
     items = []
     for replay in replays:
         upload = (
             db.query(UploadedReplay)
-            .filter(UploadedReplay.replay_id == replay.replay_id)
+            .filter(
+                UploadedReplay.replay_id == replay.replay_id,
+                UploadedReplay.user_id == user.id,
+            )
             .first()
         )
 
@@ -594,7 +644,7 @@ class ReplayFullDetail(BaseModel):
 
 
 @router.get("/{replay_id}/analysis", response_model=ReplayFullDetail)
-async def get_replay_analysis(
+def get_replay_analysis(
     replay_id: str,
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
@@ -622,9 +672,14 @@ async def get_replay_analysis(
     if not replay:
         raise HTTPException(status_code=404, detail="Replay not found")
 
-    # Get upload info for filename
+    # Get upload info for filename - SECURITY FIX: filter by user_id
     upload = (
-        db.query(UploadedReplay).filter(UploadedReplay.replay_id == replay_id).first()
+        db.query(UploadedReplay)
+        .filter(
+            UploadedReplay.replay_id == replay_id,
+            UploadedReplay.user_id == user.id,
+        )
+        .first()
     )
     filename = upload.filename if upload else f"{replay_id}.replay"
     upload_status = upload.status if upload else "processed"
@@ -737,7 +792,7 @@ class PlaySessionList(BaseModel):
 
 
 @router.get("/sessions", response_model=PlaySessionList)
-async def list_play_sessions(
+def list_play_sessions(
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
@@ -747,81 +802,101 @@ async def list_play_sessions(
     Aggregates replays by date to show daily play sessions.
     Requires authentication.
     """
-    from collections import defaultdict
-    from datetime import date as date_type
+    from sqlalchemy import Date, cast, func
 
     from ...db import PlayerGameStats
 
-    # Get replay IDs from user_replays
+    # Get replay IDs from user_replays (as subquery for efficiency)
     user_replay_ids = (
         db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
     )
 
-    # Query replays with their stats
-    replays = (
-        db.query(Replay)
-        .filter(Replay.replay_id.in_(user_replay_ids))
-        .order_by(Replay.played_at_utc.desc())
+    # Use SQL GROUP BY to aggregate data efficiently at the database level
+    # instead of loading all replays into memory
+    play_date = cast(Replay.played_at_utc, Date).label("play_date")
+
+    session_aggregates = (
+        db.query(
+            play_date,
+            func.count(Replay.replay_id).label("replay_count"),
+            func.sum(
+                func.cast(
+                    (Replay.result == "WIN"),
+                    db.bind.dialect.type_descriptor(db.bind.dialect.BIGINT)
+                    if hasattr(db.bind.dialect, "BIGINT")
+                    else db.bind.dialect.Integer,
+                )
+            ).label("wins"),
+            func.sum(
+                func.cast(
+                    (Replay.result == "LOSS"),
+                    db.bind.dialect.type_descriptor(db.bind.dialect.BIGINT)
+                    if hasattr(db.bind.dialect, "BIGINT")
+                    else db.bind.dialect.Integer,
+                )
+            ).label("losses"),
+            func.sum(Replay.duration_seconds).label("total_duration"),
+        )
+        .filter(
+            Replay.replay_id.in_(user_replay_ids),
+            Replay.played_at_utc.isnot(None),
+        )
+        .group_by(play_date)
+        .order_by(play_date.desc())
+        .limit(limit)
         .all()
     )
 
-    if not replays:
+    if not session_aggregates:
         return PlaySessionList(sessions=[], total=0)
 
-    # Get "my" player stats for each replay
-    replay_ids = [r.replay_id for r in replays]
-    my_stats = (
-        db.query(PlayerGameStats)
-        .filter(
-            PlayerGameStats.replay_id.in_(replay_ids),
-            PlayerGameStats.is_me == True,  # noqa: E712
+    # Get player stats aggregated by date for avg goals/saves
+    stats_by_date = {}
+    for date_str, _count, _wins, _losses, _duration in session_aggregates:
+        # Query stats for this date's replays
+        date_replays = (
+            db.query(Replay.replay_id)
+            .filter(
+                Replay.replay_id.in_(user_replay_ids),
+                cast(Replay.played_at_utc, Date) == date_str,
+            )
+            .subquery()
         )
-        .all()
-    )
-    stats_by_replay = {s.replay_id: s for s in my_stats}
 
-    # Group replays by date
-    by_date: dict[date_type, list] = defaultdict(list)
-    for replay in replays:
-        if replay.played_at_utc:
-            d = replay.played_at_utc.date()
-            by_date[d].append(replay)
+        stats_agg = (
+            db.query(
+                func.avg(PlayerGameStats.goals).label("avg_goals"),
+                func.avg(PlayerGameStats.saves).label("avg_saves"),
+            )
+            .filter(
+                PlayerGameStats.replay_id.in_(date_replays),
+                PlayerGameStats.is_me == True,  # noqa: E712
+            )
+            .first()
+        )
 
+        stats_by_date[date_str] = stats_agg
+
+    # Build response
     sessions = []
-    for d in sorted(by_date.keys(), reverse=True)[:limit]:
-        day_replays = by_date[d]
-        wins = sum(1 for r in day_replays if r.result == "WIN")
-        losses = sum(1 for r in day_replays if r.result == "LOSS")
-
-        # Calculate duration from replay durations
-        total_duration_s = sum(r.duration_seconds or 0 for r in day_replays)
-        duration_minutes = int(total_duration_s / 60)
-
-        # Calculate avg stats
-        total_goals = 0
-        total_saves = 0
-        stats_count = 0
-        for r in day_replays:
-            s = stats_by_replay.get(r.replay_id)
-            if s:
-                total_goals += s.goals or 0
-                total_saves += s.saves or 0
-                stats_count += 1
-
-        avg_goals = round(total_goals / stats_count, 1) if stats_count > 0 else 0.0
-        avg_saves = round(total_saves / stats_count, 1) if stats_count > 0 else 0.0
+    total_sessions = 0
+    for date_val, count, wins, losses, duration in session_aggregates:
+        total_sessions += 1
+        stats = stats_by_date.get(date_val)
+        avg_goals = round(float(stats.avg_goals or 0), 1) if stats else 0.0
+        avg_saves = round(float(stats.avg_saves or 0), 1) if stats else 0.0
 
         sessions.append(
             PlaySessionItem(
-                id=d.isoformat(),
-                date=d.isoformat(),
-                duration_minutes=duration_minutes,
-                replay_count=len(day_replays),
-                wins=wins,
-                losses=losses,
+                id=date_val.isoformat(),
+                date=date_val.isoformat(),
+                duration_minutes=int((duration or 0) / 60),
+                replay_count=count or 0,
+                wins=wins or 0,
+                losses=losses or 0,
                 avg_goals=avg_goals,
                 avg_saves=avg_saves,
             )
         )
 
-    return PlaySessionList(sessions=sessions, total=len(by_date))
+    return PlaySessionList(sessions=sessions, total=total_sessions)
