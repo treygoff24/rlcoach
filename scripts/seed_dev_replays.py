@@ -17,10 +17,18 @@ import hashlib
 from rlcoach.db.session import init_db_from_url, create_session
 from rlcoach.db.models import Base, Player, PlayerGameStats, Replay, User, UserReplay
 from rlcoach.report import generate_report
+from rlcoach.config import IdentityConfig
 
 # Dev user ID must match auth.ts DevCredentials
 DEV_USER_ID = "dev-user-123"
 REPLAYS_DIR = Path(__file__).parent.parent / "replays"
+
+# Identity config for marking "is_me" on players
+IDENTITY_CONFIG = IdentityConfig(
+    platform_ids=[],
+    display_names=["deportallcommies", "pinochetwasright", "fastbutstupid"],
+    excluded_names=["empressolive"],
+)
 
 
 def main():
@@ -90,8 +98,23 @@ def main():
             continue
 
         try:
-            # Generate full report
-            report = generate_report(replay_path, header_only=False, adapter_name="rust")
+            # Generate full report with identity config
+            report = generate_report(
+                replay_path, header_only=False, adapter_name="rust",
+                identity_config=IDENTITY_CONFIG
+            )
+
+            # Skip replays with excluded players (e.g., wife's account)
+            players_data = report.get("players", [])
+            excluded_player = any(
+                IDENTITY_CONFIG.excluded_names and
+                p.get("display_name", "").casefold().strip() in
+                {n.casefold().strip() for n in IDENTITY_CONFIG.excluded_names}
+                for p in players_data
+            )
+            if excluded_player:
+                skipped += 1
+                continue
 
             if "error" in report:
                 errors += 1
@@ -179,11 +202,12 @@ def main():
                 player_id = player_data.get("player_id") or player_data.get("unique_id") or player_data.get("name", f"unknown_{i}")
 
                 # Get or create player
+                display_name = player_data.get("display_name") or player_data.get("name", "Unknown")
                 player = session.query(Player).filter_by(player_id=player_id).first()
                 if not player:
                     player = Player(
                         player_id=player_id,
-                        display_name=player_data.get("name", "Unknown"),
+                        display_name=display_name,
                         platform=player_data.get("platform"),
                         is_me=player_data.get("is_me", False),
                     )
