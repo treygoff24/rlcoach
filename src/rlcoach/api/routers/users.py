@@ -201,11 +201,14 @@ async def bootstrap_user(
         )
 
     # Create new user
+    # For dev-login, use provider_account_id as user ID for consistent seeding
+    user_id = request.provider_account_id if request.provider == "dev-login" else None
     new_user = User(
+        id=user_id,  # None = auto-generate UUID, otherwise use provided ID
         email=request.email,
         display_name=sanitize_display_name(request.name) if request.name else None,
         image=request.image,
-        subscription_tier="free",
+        subscription_tier="pro" if request.provider == "dev-login" else "free",
         token_budget_used=0,
         token_budget_reset_at=datetime.now(timezone.utc),
     )
