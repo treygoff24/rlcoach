@@ -104,7 +104,7 @@ class BootstrapResponse(BaseModel):
     is_new_user: bool
 
 
-ALLOWED_PROVIDERS = {"discord", "google", "steam", "epic"}
+ALLOWED_PROVIDERS = {"discord", "google", "steam", "epic", "dev-login"}
 
 
 def _verify_bootstrap_signature(

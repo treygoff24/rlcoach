@@ -16,7 +16,7 @@ import { Suspense, useState } from 'react';
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = searchParams.get('callbackUrl') || '/replays';
   const error = searchParams.get('error');
   const [tosAccepted, setTosAccepted] = useState(false);
 

@@ -146,7 +146,10 @@ export const authConfig: NextAuthConfig = {
           // Compute HMAC signature for bootstrap request
           const crypto = await import('crypto');
           const bootstrapSecret = process.env.BOOTSTRAP_SECRET || '';
-          const payload = `${account.provider}:${account.providerAccountId}:${user.email || ''}`;
+          // For credentials providers (like dev-login), providerAccountId is undefined
+          // Use user.id as fallback for stable identification
+          const providerAccountId = account.providerAccountId || user.id;
+          const payload = `${account.provider}:${providerAccountId}:${user.email || ''}`;
           const signature = bootstrapSecret
             ? crypto.createHmac('sha256', bootstrapSecret).update(payload).digest('hex')
             : '';
@@ -160,7 +163,7 @@ export const authConfig: NextAuthConfig = {
             },
             body: JSON.stringify({
               provider: account.provider,
-              provider_account_id: account.providerAccountId,
+              provider_account_id: providerAccountId,
               email: user.email,
               name: user.name,
               image: user.image,
