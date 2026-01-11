@@ -228,20 +228,51 @@ def main():
                     )
                     session.add(player)
 
-                # Get stats from analysis.per_player[player_id].fundamentals
+                # Get stats from analysis.per_player[player_id]
                 player_analysis = per_player_analysis.get(player_id, {})
                 fundamentals = player_analysis.get("fundamentals", {})
+                boost = player_analysis.get("boost", {})
+                mechanics = player_analysis.get("mechanics", {})
+                positioning = player_analysis.get("positioning", {})
+                movement = player_analysis.get("movement", {})
 
                 stats = PlayerGameStats(
                     replay_id=replay.replay_id,
                     player_id=player_id,
                     team=str(player_data.get("team", 0)),
+                    is_me=player_data.get("is_me", False),
+                    # Fundamentals
                     score=fundamentals.get("score", 0),
                     goals=fundamentals.get("goals", 0),
                     assists=fundamentals.get("assists", 0),
                     saves=fundamentals.get("saves", 0),
                     shots=fundamentals.get("shots", 0),
-                    is_me=player_data.get("is_me", False),
+                    demos_inflicted=fundamentals.get("demos_inflicted", 0),
+                    demos_taken=fundamentals.get("demos_taken", 0),
+                    # Boost
+                    bcpm=boost.get("bcpm"),
+                    avg_boost=boost.get("avg_boost"),
+                    time_zero_boost_s=boost.get("time_zero_boost_s"),
+                    time_full_boost_s=boost.get("time_full_boost_s"),
+                    boost_collected=boost.get("boost_collected"),
+                    boost_stolen=boost.get("boost_stolen"),
+                    big_pads=boost.get("big_pads"),
+                    small_pads=boost.get("small_pads"),
+                    # Mechanics
+                    wavedash_count=mechanics.get("wavedash_count"),
+                    halfflip_count=mechanics.get("halfflip_count"),
+                    speedflip_count=mechanics.get("speedflip_count"),
+                    aerial_count=mechanics.get("aerial_count"),
+                    flip_cancel_count=mechanics.get("flip_cancel_count"),
+                    # Movement
+                    avg_speed_kph=movement.get("avg_speed_kph"),
+                    time_supersonic_s=movement.get("time_supersonic_s"),
+                    # Positioning
+                    time_offensive_third_s=positioning.get("time_offensive_third_s"),
+                    time_middle_third_s=positioning.get("time_middle_third_s"),
+                    time_defensive_third_s=positioning.get("time_defensive_third_s"),
+                    behind_ball_pct=positioning.get("behind_ball_pct"),
+                    avg_distance_to_ball_m=positioning.get("avg_distance_to_ball_m"),
                 )
                 session.add(stats)
 

@@ -938,7 +938,8 @@ ALLOWED_TREND_METRICS = {
 class TrendDataPoint(BaseModel):
     """Single data point for trends."""
 
-    date: str
+    date: str | None  # Can be null for session/replay axis
+    label: str  # Display label (date, session #, or replay)
     value: float
 
 
@@ -947,8 +948,13 @@ class TrendsResponse(BaseModel):
 
     metric: str
     period: str
+    axis: str  # "time", "session", or "replay"
     values: list[TrendDataPoint]
     has_data: bool
+
+
+# Allowed axis types for trends
+ALLOWED_AXIS_TYPES = {"time", "session", "replay"}
 
 
 @router.get("/me/trends", response_model=TrendsResponse)
@@ -956,7 +962,8 @@ async def get_user_trends(
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
     metric: str = Query(default="goals", description="Metric to trend"),
-    period: str = Query(default="30d", description="Time period (7d, 30d, 90d, all)"),
+    period: str = Query(default="30d", description="Time period"),
+    axis: str = Query(default="time", description="Axis grouping"),
 ) -> TrendsResponse:
     """Get trend data for a metric over time for the authenticated user."""
     # Validate metric
@@ -974,6 +981,13 @@ async def get_user_trends(
             detail=f"Invalid period. Allowed: {sorted(allowed_periods)}",
         )
 
+    # Validate axis
+    if axis not in ALLOWED_AXIS_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid axis. Allowed: {sorted(ALLOWED_AXIS_TYPES)}",
+        )
+
     if period == "all":
         date_from = None
     else:
@@ -987,7 +1001,7 @@ async def get_user_trends(
 
     # Query stats scoped to user's replays
     query = (
-        db.query(Replay.play_date, PlayerGameStats)
+        db.query(Replay, PlayerGameStats)
         .filter(Replay.replay_id.in_(user_replay_ids))
         .join(PlayerGameStats, Replay.replay_id == PlayerGameStats.replay_id)
         .filter(PlayerGameStats.is_me == True)  # noqa: E712
@@ -996,22 +1010,101 @@ async def get_user_trends(
     if date_from:
         query = query.filter(Replay.play_date >= date_from)
 
-    query = query.order_by(Replay.play_date)
+    query = query.order_by(Replay.played_at_utc)
     results = query.all()
 
     if not results:
-        return TrendsResponse(metric=metric, period=period, values=[], has_data=False)
+        return TrendsResponse(
+            metric=metric, period=period, axis=axis, values=[], has_data=False
+        )
 
-    # Extract values by date
     values = []
-    for play_date, stats in results:
-        value = getattr(stats, metric, None)
-        if value is not None and play_date is not None:
+
+    if axis == "replay":
+        # Each replay is a data point
+        for replay, stats in results:
+            value = getattr(stats, metric, None)
+            if value is not None:
+                date_str = replay.play_date.isoformat() if replay.play_date else None
+                time_label = ""
+                if replay.played_at_utc:
+                    time_label = replay.played_at_utc.strftime("%H:%M")
+                values.append(
+                    TrendDataPoint(
+                        date=date_str,
+                        label=time_label or f"Game {len(values) + 1}",
+                        value=round(float(value), 2),
+                    )
+                )
+
+    elif axis == "session":
+        # Group by session_id and average the metric
+        from collections import defaultdict
+        session_values: dict[str, list[tuple[float, str | None]]] = defaultdict(list)
+
+        for replay, stats in results:
+            value = getattr(stats, metric, None)
+            if value is not None:
+                if replay.session_id:
+                    session_key = replay.session_id
+                elif replay.play_date:
+                    session_key = replay.play_date.isoformat()
+                else:
+                    session_key = "unknown"
+                date_str = replay.play_date.isoformat() if replay.play_date else None
+                session_values[session_key].append((float(value), date_str))
+
+        # Sort sessions by their first replay date
+        session_order = []
+        for session_key, vals in session_values.items():
+            first_date = vals[0][1]
+            session_order.append((session_key, first_date, vals))
+        session_order.sort(key=lambda x: x[1] or "")
+
+        for i, (_session_key, first_date, vals) in enumerate(session_order):
+            avg_value = sum(v[0] for v in vals) / len(vals)
             values.append(
-                TrendDataPoint(date=play_date.isoformat(), value=round(float(value), 2))
+                TrendDataPoint(
+                    date=first_date,
+                    label=f"Session {i + 1}",
+                    value=round(avg_value, 2),
+                )
             )
 
-    return TrendsResponse(metric=metric, period=period, values=values, has_data=len(values) > 0)
+    else:  # axis == "time" (default)
+        # Group by date and average
+        from collections import defaultdict
+        date_values: dict[str, list[float]] = defaultdict(list)
+
+        for replay, stats in results:
+            value = getattr(stats, metric, None)
+            if value is not None and replay.play_date is not None:
+                date_str = replay.play_date.isoformat()
+                date_values[date_str].append(float(value))
+
+        # Sort by date
+        for date_str in sorted(date_values.keys()):
+            vals = date_values[date_str]
+            avg_value = sum(vals) / len(vals)
+            # Format date for display
+            from datetime import date as dt_date
+            d = dt_date.fromisoformat(date_str)
+            label = d.strftime("%b %d")
+            values.append(
+                TrendDataPoint(
+                    date=date_str,
+                    label=label,
+                    value=round(avg_value, 2),
+                )
+            )
+
+    return TrendsResponse(
+        metric=metric,
+        period=period,
+        axis=axis,
+        values=values,
+        has_data=len(values) > 0,
+    )
 
 
 # Self-comparison endpoint - compare current period vs previous period
@@ -1160,12 +1253,13 @@ async def get_self_comparison(
         # Show None for change_pct when no previous data to compare against
         change_pct = (change / prev * 100) if prev != 0 else None
 
+        has_values = current_val is not None or previous_val is not None
         metrics.append(
             SelfComparisonMetric(
                 name=name,
                 current=round(curr, 2) if current_val is not None else None,
                 previous=round(prev, 2) if previous_val is not None else None,
-                change=round(change, 2) if current_val is not None or previous_val is not None else None,
+                change=round(change, 2) if has_values else None,
                 change_pct=round(change_pct, 1) if change_pct is not None else None,
             )
         )

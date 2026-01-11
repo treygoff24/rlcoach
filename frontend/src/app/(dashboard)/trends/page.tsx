@@ -6,15 +6,18 @@ import { useSession } from 'next-auth/react';
 
 type MetricId = 'goals' | 'saves' | 'assists' | 'shots' | 'bcpm';
 type TimeRange = '7d' | '30d' | '90d' | 'all';
+type AxisType = 'time' | 'session' | 'replay';
 
 interface TrendDataPoint {
   date: string | null;
+  label: string;
   value: number;
 }
 
 interface TrendResponse {
   metric: string;
   period: string;
+  axis: string;
   values: TrendDataPoint[];
 }
 
@@ -33,6 +36,12 @@ const timeRanges: Array<{ id: TimeRange; label: string }> = [
   { id: 'all', label: 'All Time' },
 ];
 
+const axisTypes: Array<{ id: AxisType; label: string; description: string }> = [
+  { id: 'time', label: 'By Date', description: 'Average per day' },
+  { id: 'session', label: 'By Session', description: 'Average per play session' },
+  { id: 'replay', label: 'By Game', description: 'Each game individually' },
+];
+
 // Aggregate data points into buckets for display
 function aggregateData(
   dataPoints: TrendDataPoint[],
@@ -40,8 +49,9 @@ function aggregateData(
 ): Array<{ label: string; value: number }> {
   if (dataPoints.length === 0) return [];
   if (dataPoints.length <= maxBuckets) {
+    // Use the label from the API response
     return dataPoints.map((d) => ({
-      label: d.date ? new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+      label: d.label,
       value: d.value,
     }));
   }
@@ -53,9 +63,9 @@ function aggregateData(
   for (let i = 0; i < dataPoints.length; i += bucketSize) {
     const chunk = dataPoints.slice(i, i + bucketSize);
     const avgValue = chunk.reduce((sum, d) => sum + d.value, 0) / chunk.length;
-    const firstDate = chunk[0]?.date;
+    // Use the first label in the bucket
     buckets.push({
-      label: firstDate ? new Date(firstDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+      label: chunk[0]?.label || `${i + 1}`,
       value: avgValue,
     });
   }
@@ -67,6 +77,7 @@ export default function TrendsPage() {
   const { data: session } = useSession();
   const [selectedMetric, setSelectedMetric] = useState<MetricId>('goals');
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const [axisType, setAxisType] = useState<AxisType>('time');
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +94,7 @@ export default function TrendsPage() {
 
       try {
         const res = await fetch(
-          `/api/v1/users/me/trends?metric=${selectedMetric}&period=${timeRange}`,
+          `/api/v1/users/me/trends?metric=${selectedMetric}&period=${timeRange}&axis=${axisType}`,
           {
             headers: {
               Authorization: `Bearer ${session.accessToken}`,
@@ -110,7 +121,7 @@ export default function TrendsPage() {
     }
 
     fetchTrends();
-  }, [session?.accessToken, selectedMetric, timeRange]);
+  }, [session?.accessToken, selectedMetric, timeRange, axisType]);
 
   // Aggregate data into buckets for display (max 10 bars)
   const aggregatedData = aggregateData(trendData, 10);
@@ -161,39 +172,63 @@ export default function TrendsPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-8">
-        {/* Metric selector */}
-        <div className="flex flex-wrap gap-2">
-          {metrics.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setSelectedMetric(m.id)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                selectedMetric === m.id
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
+      <div className="flex flex-col gap-4 mb-8">
+        {/* Top row: Metrics and Time Range */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Metric selector */}
+          <div className="flex flex-wrap gap-2">
+            {metrics.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setSelectedMetric(m.id)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  selectedMetric === m.id
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:text-white'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Time range selector */}
+          <div className="flex gap-2 sm:ml-auto">
+            {timeRanges.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTimeRange(t.id)}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  timeRange === t.id
+                    ? 'bg-gray-700 text-white'
+                    : 'bg-gray-800/50 text-gray-400 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Time range selector */}
-        <div className="flex gap-2 sm:ml-auto">
-          {timeRanges.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTimeRange(t.id)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                timeRange === t.id
-                  ? 'bg-gray-700 text-white'
-                  : 'bg-gray-800/50 text-gray-400 hover:text-white'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        {/* Axis type toggle */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-400">Group by:</span>
+          <div className="flex gap-2">
+            {axisTypes.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setAxisType(a.id)}
+                title={a.description}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  axisType === a.id
+                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                    : 'bg-gray-800/50 text-gray-400 hover:text-white border border-transparent'
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -205,7 +240,7 @@ export default function TrendsPage() {
               {metrics.find((m) => m.id === selectedMetric)?.label}
             </h3>
             <p className="text-sm text-gray-400">
-              {selectedMetric === 'bcpm' ? 'Boost collected per minute' : 'Per game average'}
+              {axisTypes.find((a) => a.id === axisType)?.description}
             </p>
           </div>
           {data.length >= 2 && (
@@ -235,24 +270,36 @@ export default function TrendsPage() {
             No data available for this time period
           </div>
         ) : (
-          <div className="flex items-end gap-2 h-48">
-            {data.map((value, i) => {
-              const height = ((value - min) / range) * 100;
-              const isLast = i === data.length - 1;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                  <div
-                    className={`w-full rounded-t transition-all ${
-                      isLast ? 'bg-orange-500' : 'bg-gray-700'
-                    }`}
-                    style={{ height: `${Math.max(height, 10)}%` }}
-                  />
-                  <span className="text-xs text-gray-500">
-                    {value.toFixed(1)}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-end gap-2 h-48">
+              {aggregatedData.map((item, i) => {
+                const height = ((item.value - min) / range) * 100;
+                const isLast = i === aggregatedData.length - 1;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${item.label}: ${item.value.toFixed(2)}`}>
+                    <span className="text-xs text-gray-400 mb-1">
+                      {item.value.toFixed(1)}
+                    </span>
+                    <div
+                      className={`w-full rounded-t transition-all ${
+                        isLast ? 'bg-orange-500' : 'bg-gray-700'
+                      }`}
+                      style={{ height: `${Math.max(height, 10)}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            {/* X-axis labels */}
+            <div className="flex gap-2">
+              {aggregatedData.map((item, i) => (
+                <div key={i} className="flex-1 text-center">
+                  <span className="text-xs text-gray-500 truncate block">
+                    {item.label}
                   </span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
         )}
       </div>
