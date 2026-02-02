@@ -4,38 +4,24 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { useASPStream } from '@/components/coach/stream/useASPStream';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  thinking?: string;
-  timestamp: Date;
-  isFreePreview?: boolean;
-}
-
-interface APIMessage {
-  session_id: string;
-  message_id: string;
-  content: string;
-  thinking?: string;
-  tokens_used: number;
-  budget_remaining: number;
-  is_free_preview?: boolean;
-}
 
 export default function CoachPage() {
   const { data: session } = useSession();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { state, handleEvent } = useASPStream();
+  const messages = state.messages;
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showThinking, setShowThinking] = useState<string | null>(null);
+  const [showThinking, setShowThinking] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [budgetRemaining, setBudgetRemaining] = useState<number>(150000);
   const [error, setError] = useState<string | null>(null);
   const [freePreviewUsed, setFreePreviewUsed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const streamError = state.error;
+  const displayError = error || streamError;
 
   const user = session?.user as { subscriptionTier?: string } | undefined;
   const isPro = user?.subscriptionTier === 'pro';
@@ -46,70 +32,77 @@ export default function CoachPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, state.thinking, state.toolStatus]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    const userText = input.trim();
+    handleEvent({ type: 'user_message', text: userText });
     setInput('');
     setIsLoading(true);
     setError(null);
+    setShowThinking(false);
 
     try {
       const response = await fetch('/api/coach/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: userMessage.content,
+          message: userText,
           session_id: sessionId,
         }),
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        // Handle free preview exhausted
+        const err = await response.json().catch(() => ({}));
         if (response.status === 402) {
           setFreePreviewUsed(true);
-          setError(err.detail || 'Upgrade to Pro for unlimited coaching.');
+          setError(err.detail || err.error || 'Upgrade to Pro for unlimited coaching.');
           return;
         }
         throw new Error(err.detail || err.error || 'Failed to send message');
       }
 
-      const data: APIMessage = await response.json();
-
-      // Update session ID for conversation continuity
-      if (data.session_id) {
-        setSessionId(data.session_id);
+      if (!response.body) {
+        throw new Error('No stream available');
       }
 
-      // Update budget display
-      if (data.budget_remaining !== undefined) {
-        setBudgetRemaining(data.budget_remaining);
-      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      // Track if this was their free preview
-      if (data.is_free_preview) {
-        setFreePreviewUsed(true);
-      }
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      const assistantMessage: Message = {
-        id: data.message_id,
-        role: 'assistant',
-        content: data.content,
-        thinking: data.thinking,
-        timestamp: new Date(),
-        isFreePreview: data.is_free_preview,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.replace(/^data:\s*/, '');
+          if (!payload) continue;
+
+          const event = JSON.parse(payload);
+          if (event.type === 'ack') {
+            if (event.session_id) {
+              setSessionId(event.session_id);
+            }
+            if (event.budget_remaining !== undefined) {
+              setBudgetRemaining(event.budget_remaining);
+            }
+            if (event.is_free_preview) {
+              setFreePreviewUsed(true);
+            }
+            continue;
+          }
+
+          handleEvent(event);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -279,9 +272,9 @@ export default function CoachPage() {
           </div>
         )}
 
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <div
-            key={message.id}
+            key={`${message.role}-${index}`}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
@@ -291,30 +284,40 @@ export default function CoachPage() {
                   : 'bg-gray-800 text-gray-100 rounded-2xl rounded-tl-sm'
               } px-4 py-3`}
             >
-              {message.role === 'assistant' && message.thinking && (
-                <button
-                  onClick={() => setShowThinking(showThinking === message.id ? null : message.id)}
-                  aria-expanded={showThinking === message.id}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300 mb-2 focus:outline-none focus:text-orange-400"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                  {showThinking === message.id ? 'Hide thinking' : 'Show thinking'}
-                </button>
-              )}
-              {showThinking === message.id && message.thinking && (
-                <div className="text-xs text-gray-400 bg-gray-700/50 rounded p-2 mb-2 italic">
-                  {message.thinking}
-                </div>
-              )}
               <p className="whitespace-pre-wrap">{message.content}</p>
             </div>
           </div>
         ))}
 
+        {state.toolStatus && (
+          <div className="flex justify-start">
+            <div className="bg-gray-800 text-gray-300 rounded-2xl rounded-tl-sm px-4 py-2 text-xs">
+              {state.toolStatus}
+            </div>
+          </div>
+        )}
+
+        {state.thinking && (
+          <div className="flex justify-start">
+            <div className="bg-gray-900/50 border border-gray-700 rounded-xl px-4 py-3 max-w-[80%]">
+              <button
+                onClick={() => setShowThinking(!showThinking)}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300 mb-2"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                {showThinking ? 'Hide thinking' : 'Show thinking'}
+              </button>
+              {showThinking && (
+                <p className="text-xs text-gray-400 whitespace-pre-wrap">{state.thinking}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Free preview upgrade prompt - show after their free message */}
-        {!isPro && freePreviewUsed && messages.length > 0 && !isLoading && !error && (
+        {!isPro && freePreviewUsed && messages.length > 0 && !isLoading && !displayError && (
           <div className="flex justify-center py-4">
             <div className="bg-gradient-to-r from-orange-500/10 to-orange-600/10 border border-orange-500/30 rounded-xl p-6 max-w-md text-center">
               <h3 className="text-lg font-semibold text-white mb-2">
@@ -347,10 +350,10 @@ export default function CoachPage() {
           </div>
         )}
 
-        {error && (
+        {displayError && (
           <div className="flex justify-center" role="alert">
             <div className="bg-red-500/20 border border-red-500/50 rounded-lg px-4 py-3 flex items-center gap-3">
-              <span className="text-red-400 text-sm">{error}</span>
+              <span className="text-red-400 text-sm">{displayError}</span>
               <button
                 onClick={handleDismissError}
                 className="text-red-400 hover:text-red-300 text-sm underline focus:outline-none focus:ring-2 focus:ring-red-500 rounded"

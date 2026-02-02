@@ -1,5 +1,10 @@
 export type AspEvent =
-  | { type: "ack" }
+  | {
+      type: "ack";
+      session_id?: string;
+      budget_remaining?: number;
+      is_free_preview?: boolean;
+    }
   | { type: "thinking"; text: string }
   | { type: "text"; text: string }
   | { type: "tool"; tool_use_id: string; name: string; input: Record<string, unknown> }

@@ -67,6 +67,13 @@ export async function POST(request: Request) {
     ];
 
     try {
+      await sendEvent({
+        type: "ack",
+        session_id: preflight.session_id,
+        budget_remaining: preflight.budget_remaining,
+        is_free_preview: preflight.is_free_preview,
+      });
+
       let messages = [
         ...preflight.history,
         { role: "user", content: [{ type: "text", text: message }] },
