@@ -424,6 +424,26 @@ class CoachMessage(Base):
     __table_args__ = (Index("ix_coach_messages_session", "session_id"),)
 
 
+class CoachTokenReservation(Base):
+    """Token budget reservations for in-flight coach requests."""
+
+    __tablename__ = "coach_token_reservations"
+
+    id = Column(String, primary_key=True, default=_generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(
+        String, ForeignKey("coach_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    estimated_tokens = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utc_now, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_coach_token_reservations_user", "user_id"),
+        Index("ix_coach_token_reservations_expires", "expires_at"),
+    )
+
+
 class CoachNote(Base):
     """Persistent coaching notes."""
 
