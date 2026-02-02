@@ -441,7 +441,7 @@ class TestBoostAnalysis:
         assert result["small_pads"] == 1  # player2's small pad
         assert result["bpm"] == 112.0  # 112 in 1 minute
         assert result["bcpm"] == 2.0  # 2 pickups in 1 minute
-        # Note: Team avg_boost sums individual player avg_boosts (Ballchasing convention)
+        # Note: Team avg_boost sums individual player avg_boosts (internal convention)
         # player1 avg=50, player2 avg=30, team sum=80
         assert result["avg_boost"] == 80.0
 

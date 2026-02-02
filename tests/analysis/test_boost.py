@@ -1,4 +1,4 @@
-"""Targeted boost analysis tests for Ballchasing parity."""
+"""Targeted boost analysis tests for boost economy logic."""
 
 from __future__ import annotations
 

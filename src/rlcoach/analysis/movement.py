@@ -20,7 +20,7 @@ from ..field_constants import Vec3
 from ..parser.types import Frame, Header, PlayerFrame, Rotation
 from ..physics_constants import UU_S_TO_KPH, UU_TO_METERS
 
-# Movement analysis thresholds mirror Ballchasing definitions:
+# Movement analysis thresholds mirror common community definitions:
 # - slow speed: < 1400 uu/s
 # - boost speed: 1400–2200 uu/s
 # - supersonic: >= 2200 uu/s (flag aware with graceful hysteresis)

@@ -21,7 +21,7 @@ from ..events import PAD_NEUTRAL_TOLERANCE, BoostPickupEvent
 from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, Header
 
-# Boost analysis thresholds (aligned with Ballchasing parity)
+# Boost analysis thresholds (aligned with internal metric conventions)
 ZERO_BOOST_THRESHOLD = 3.0  # Consider < 3 as "zero boost"
 FULL_BOOST_THRESHOLD = 99.0  # Consider >= 99 as "full boost"
 OVERFILL_THRESHOLD = 80.0  # Overfill when collecting above this amount
@@ -549,7 +549,7 @@ def _analyze_team_boost(
     team_metrics["bcpm"] = round(
         (team_metrics["big_pads"] + team_metrics["small_pads"]) / minutes, 2
     )
-    # Team avg_boost is the SUM of player averages (matching ballchasing semantics)
+    # Team avg_boost is the SUM of player averages (internal convention)
     team_metrics["avg_boost"] = round(team_metrics["avg_boost"], 2)
 
     # Round accumulated values

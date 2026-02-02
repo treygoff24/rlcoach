@@ -481,6 +481,8 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut ball_angvel: (f32, f32, f32) = (0.0, 0.0, 0.0);
         let mut actor_to_player_index: HashMap<i32, usize> = HashMap::new();
         let mut next_by_team: HashMap<i64, Vec<usize>> = HashMap::new();
+        let mut fallback_actor_index: HashMap<i32, usize> = HashMap::new();
+        let mut next_fallback_index: usize = 0;
 
         // Prepare per-team header order indices
         let mut team_zero: Vec<usize> = Vec::new();
@@ -500,11 +502,18 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         // Helper: classify actors using object/class names
         fn classify_object_name(name: &str) -> ActorKind {
             let lname = name.to_ascii_lowercase();
-            let is_ball =
-                lname.contains("ball_ta") || lname.ends_with("ball") || lname.contains("ball_");
+            let is_ball = lname.contains("ball_ta")
+                || lname.contains("ball_default")
+                || lname.contains("archetypes.ball")
+                || lname.ends_with("ball")
+                || (lname.contains("ball_") && !lname.contains("ballcam"));
             let is_car = (lname.contains("archetypes.car.car_")
+                || lname.contains("car_default")
+                || lname.contains("car_ta")
+                || lname.contains("vehicle_ta")
                 || lname.contains("default__car_ta")
-                || lname.contains("default__carbody"))
+                || lname.contains("default__carbody")
+                || lname.contains("tagame.car_"))
                 && !lname.contains("carcomponent");
             ActorKind { is_ball, is_car }
         }
@@ -579,6 +588,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         // Primary physics carrier observed across builds
                         Attribute::RigidBody(rb) => {
                             let obj_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
+                            let lname = obj_name.to_ascii_lowercase();
                             let loc = rb.location;
                             let vel = rb.linear_velocity.unwrap_or(Vector3f {
                                 x: 0.0,
@@ -591,7 +601,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                 z: 0.0,
                             });
                             // Update ball or car state depending on classification and fallback
-                            let is_ball = Some(aid) == ball_actor || obj_name.contains("Ball_TA");
+                            let is_ball = Some(aid) == ball_actor
+                                || lname.contains("ball_ta")
+                                || lname.contains("ball_default")
+                                || lname.contains("archetypes.ball");
                             if is_ball {
                                 ball_actor = Some(aid);
                                 ball_pos = (loc.x, loc.y, loc.z);
@@ -652,19 +665,20 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         // Team + visual paint data (use team assignment if present)
                         Attribute::TeamPaint(tp) => {
                             let t = (tp.team as i64).clamp(0, 1);
-                            car_team.insert(aid, t);
+                            let target = component_owner.get(&aid).cloned().unwrap_or(aid);
+                            car_team.insert(target, t);
                             if actor_kind
-                                .get(&aid)
+                                .get(&target)
                                 .map(|kind| !kind.is_car)
                                 .unwrap_or(true)
                             {
                                 continue;
                             }
-                            if !actor_to_player_index.contains_key(&aid) {
+                            if !actor_to_player_index.contains_key(&target) {
                                 if let Some(v) = next_by_team.get_mut(&t) {
                                     if let Some(idx) = v.first().cloned() {
                                         v.remove(0);
-                                        actor_to_player_index.insert(aid, idx);
+                                        actor_to_player_index.insert(target, idx);
                                     }
                                 }
                             }
@@ -745,7 +759,23 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             if let Some(idx) = v.first().cloned() {
                                 v.remove(0);
                                 actor_to_player_index.insert(aid, idx);
+                            } else if header_players.is_empty() {
+                                let fallback = *fallback_actor_index
+                                    .entry(aid)
+                                    .or_insert_with(|| {
+                                        let idx = next_fallback_index;
+                                        next_fallback_index += 1;
+                                        idx
+                                    });
+                                actor_to_player_index.insert(aid, fallback);
                             }
+                        } else if header_players.is_empty() {
+                            let fallback = *fallback_actor_index.entry(aid).or_insert_with(|| {
+                                let idx = next_fallback_index;
+                                next_fallback_index += 1;
+                                idx
+                            });
+                            actor_to_player_index.insert(aid, fallback);
                         }
                     }
                     if let Some(idx) = actor_to_player_index.get(&aid).cloned() {

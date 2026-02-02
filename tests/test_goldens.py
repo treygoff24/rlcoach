@@ -187,7 +187,7 @@ def build_synthetic_report(
             # Some analyzers may emit 'boost_usage_grid'; normalize to schema-minimal
             if "boost_usage_grid" in hm and hm.get("boost_usage_grid") is not None:
                 hm["boost_usage_grid"] = None
-            # Ensure the key exists for fixture parity
+            # Ensure the key exists for fixture stability
             hm.setdefault("boost_usage_grid", None)
         # Normalize insights to empty for deterministic goldens
         if "insights" in pdata and isinstance(pdata["insights"], list):

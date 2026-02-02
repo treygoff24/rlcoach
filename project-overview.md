@@ -9,7 +9,7 @@ This document equips a senior engineer with the context needed to diagnose and f
 - **Pipeline:** `ingest → parser adapter → normalization → events → analyzers → report generation → optional UI`. The Python path is functional in header-only mode; per-frame metrics rely on the Rust adapter.
 - **Adapters:** A Python “null” adapter always works (header only). The Rust adapter (`pyo3` + `boxcars`) should unlock full telemetry but currently fails to emit populated player frames (critical bug).
 - **Outputs:** JSON constrained by `schemas/replay_report.schema.json` and a Markdown dossier rendered by `src/rlcoach/report_markdown.py`.
-- **Tooling:** CLI entrypoint (`python -m rlcoach.cli`), optional CLI viewer (`python -m rlcoach.ui`), parity scripts, and comprehensive pytest coverage including golden fixtures.
+- **Tooling:** CLI entrypoint (`python -m rlcoach.cli`), optional CLI viewer (`python -m rlcoach.ui`), utility scripts, and comprehensive pytest coverage including golden fixtures.
 
 ---
 
@@ -24,14 +24,14 @@ This document equips a senior engineer with the context needed to diagnose and f
 | `src/rlcoach/normalize.py` | Coordinate normalization, frame rate measurement, identity mapping, timeline builder. |
 | `parsers/rlreplay_rust/` | Rust crate compiled with `maturin` to expose replay parsing via `pyo3`. |
 | `schemas/` | JSON Schema for reports. |
-| `tests/` | pytest suite mirroring pipeline stages, parity harnesses, and golden fixtures. |
+| `tests/` | pytest suite mirroring pipeline stages and golden fixtures. |
 | `codex/Plans/` | Project roadmap (`rlcoach_implementation_plan.md` is canonical). |
 | `codex/docs/` | Deep dives (e.g., JSON↔Markdown mapping, network frame issue summary). |
 | `codex/tickets/` | Conventional commits / ticket trail for ongoing and future work. |
 | `assets/replays/` | Git LFS staging area for large replay fixtures (only pointers checked in). |
 | `Replay_files/` | Local scratch replays used for manual testing (not all tracked). |
 | `examples/` | Sample success/error JSON payloads. |
-| `scripts/` | Utility scripts such as boost parity diffing. |
+| `scripts/` | Utility scripts for debugging, data inspection, and maintenance. |
 
 ---
 
@@ -55,7 +55,7 @@ This document equips a senior engineer with the context needed to diagnose and f
 - Produces normalized `Frame` objects (`build_timeline`) with canonical ball/player structures; includes kickoff buffer logic for timeline completeness.
 
 ### 4. Event Detection (`src/rlcoach/events.py`)
-- Encodes heuristics for goals, demos, kickoffs, boost pickups, touches, and challenges. Constants (goal line thresholds, boost pad radii, supersonic flags, etc.) mirror community analyzers like Ballchasing for parity.
+- Encodes heuristics for goals, demos, kickoffs, boost pickups, touches, and challenges. Constants (goal line thresholds, boost pad radii, supersonic flags, etc.) align to common community conventions for consistency.
 - Maintains temporal and spatial context (e.g., `PadState`, `PadEnvelope`) to reconcile boost pad respawns and stolen pads, with optional debug logging via `RLCOACH_DEBUG_BOOST_EVENTS`.
 - Aggregates events into a chronological timeline for downstream reporting (`TimelineEvent` dataclass).
 
@@ -100,7 +100,6 @@ This document equips a senior engineer with the context needed to diagnose and f
   - `make test`, `make fmt`, `make lint`, `make clean`.
   - `make rust-dev` → install `maturin`, build the Rust adapter (prefers `maturin develop`), verifies import.
   - `make rust-build` → release wheel for distribution.
-- **Parity Script:** `scripts/diff_boost_parity.py` compares per-player boost metrics against Ballchasing exports (fixtures under `tests/fixtures/boost_parity/`).
 - **UI:** `python -m rlcoach.ui view out/replay.json --player "DisplayName"` for quick local inspection.
 
 ---
@@ -127,7 +126,7 @@ This document equips a senior engineer with the context needed to diagnose and f
 - **Pytest Suite (`tests/`):** Mirrors pipeline modules.
   - `test_ingest.py`, `test_parser_interface.py`, `test_normalize.py`, `test_events.py`.
   - Analyzer-specific tests (`test_analysis_*.py`) ensure per-metric correctness and header fallbacks.
-  - `tests/analysis/` contains Ballchasing parity harnesses and boost pickup fixture validations.
+  - `tests/analysis/` contains analyzer correctness tests and boost pickup fixture validations.
   - `test_report_end_to_end.py` exercises CLI + report validation on synthetic replays.
   - `test_report_markdown.py` and `tests/goldens/*.md` lock the Markdown output.
   - `test_schema_validation*.py` harden JSON Schema enforcement (success/error paths).
@@ -135,7 +134,6 @@ This document equips a senior engineer with the context needed to diagnose and f
   - `test_rust_adapter.py` ensures Python shim loads the compiled module and adheres to interface expectations (even though player frames are currently empty).
 - **Fixtures & Goldens:**
   - `tests/goldens/*.json|.md` capture canonical outputs for regression detection.
-  - `tests/fixtures/boost_parity/` houses Ballchasing reference metrics for diffing.
   - `examples/` provide ready-made success/error payloads for manual inspection.
 - **Coverage Expectations:** ≥80 % for analyzers and schema validators per repository guidelines.
 
@@ -145,7 +143,6 @@ This document equips a senior engineer with the context needed to diagnose and f
 - **Primary Plan:** `codex/Plans/rlcoach_implementation_plan.md` — architecture, feature roadmap, error handling expectations.
 - **Docs of Interest:**
   - `codex/docs/json-report-markdown-mapping.md` — ensures Markdown mirrors JSON content.
-  - `codex/docs/json-to-markdown-report-plan.md` — outlines composer roadmap.
   - `codex/docs/ui.md` — offline viewer usage notes.
   - `codex/docs/network-frames-integration-issue.md` — deep dive into the critical bug.
 - **Tickets (`codex/tickets/`):** Each major feature has a historical ticket (001–014). Recent 2025-09-09 tickets capture outstanding tasks (e.g., `...-rust-network-parse-stabilization.md`, `...-network-frames-actor-classification.md`, `...-real-replay-gated-e2e-test.md`). Cross-reference these for prior discussion and acceptance criteria.
@@ -207,7 +204,7 @@ This document equips a senior engineer with the context needed to diagnose and f
    - Add focused tests under `tests/parser/` or `tests/test_rust_adapter.py` once real player frames are produced (e.g., assert non-empty players for sample fixtures).
 5. **Regenerate Reports & Goldens:**
    - After fixes, update JSON/Markdown goldens with rust-backed data.
-   - Re-run parity script against Ballchasing exports to confirm metrics alignment.
+   - Re-run report generation on real replays to confirm metrics stability and catch regressions.
 6. **Document Learnings:**
    - Update `codex/docs/network-frames-integration-issue.md` with findings and adjust relevant tickets (`...-rust-network-parse-stabilization.md`, `...-network-frames-actor-classification.md`).
 
@@ -232,9 +229,9 @@ Outputs `out/testing_replay.json` + `out/testing_replay.md`.
 
 ## Additional Reference Points
 - **Field Geometry:** `src/rlcoach/field_constants.py` enumerates arena dimensions, goal depth, boost pad locations (used by event detection and heatmaps).
-- **Utility Helpers:** `src/rlcoach/utils/identity.py` resolves canonical player IDs; `src/rlcoach/utils/parity.py` contains parity helpers.
+- **Utility Helpers:** `src/rlcoach/utils/identity.py` resolves canonical player IDs.
 - **Versioning:** `src/rlcoach/version.py` exposes `get_schema_version()` used in reports.
-- **Local Replays:** `Replay_files/` contains various `.replay` assets (e.g., `0925.replay`, `testing_replay.replay`) plus Ballchasing exports for comparison (`ballchasing_output/`).
+- **Local Replays:** `Replay_files/` contains various `.replay` assets (e.g., `0925.replay`, `testing_replay.replay`) for manual testing.
 - **Markdown Style:** Follow Title Case headings, deterministic table layout (see goldens) when editing docs.
 
 ---
@@ -246,4 +243,3 @@ Outputs `out/testing_replay.json` + `out/testing_replay.md`.
 - Latest JSON/Markdown outputs in `out/` after running `report-md`.
 
 With this context, a senior engineer can dive straight into the Rust adapter, restore per-frame player data, and verify that analyzers produce meaningful metrics end-to-end.
-
