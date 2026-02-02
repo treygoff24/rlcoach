@@ -3,6 +3,7 @@
 **Spec:** `docs/plans/2026-01-04-ux-polish-spec.md`
 **Created:** 2026-01-04
 **Status:** In Progress
+**Last Updated:** 2026-02-02
 
 ---
 
@@ -10,13 +11,13 @@
 
 | Phase | Name | Status | Priority |
 |-------|------|--------|----------|
-| 1 | Critical Fixes | [ ] Not Started | P0 |
-| 2 | Error Handling | [ ] Not Started | P0 |
+| 1 | Critical Fixes | [~] In Progress | P0 |
+| 2 | Error Handling | [~] In Progress | P0 |
 | 3 | Onboarding & Landing | [ ] Not Started | P1 |
 | 4 | Streaming Coach | [ ] Not Started | P1 |
-| 5 | UI Component Library | [ ] Not Started | P1 |
-| 6 | Rank Benchmarks | [ ] Not Started | P2 |
-| 7 | Multi-Game Trending | [ ] Not Started | P2 |
+| 5 | UI Component Library | [~] In Progress | P1 |
+| 6 | Rank Benchmarks | [~] In Progress | P2 |
+| 7 | Multi-Game Trending | [~] In Progress | P2 |
 | 8 | Cause-Effect Insights | [ ] Not Started | P2 |
 
 ---
@@ -25,18 +26,18 @@
 
 ### 1.1 Remove Mock Data from Dashboard
 **Files:**
-- `frontend/src/app/dashboard/page.tsx`
+- `frontend/src/app/(dashboard)/page.tsx`
 
 **Tasks:**
-- [ ] Remove `mockStats` and `mockMechanics` objects
-- [ ] Add API call to fetch real stats: `GET /api/v1/dashboard/stats`
-- [ ] Add loading state while fetching
+- [x] Remove `mockStats` and `mockMechanics` objects
+- [x] Add API call to fetch real stats: `GET /api/v1/users/me/dashboard`
+- [x] Add loading state while fetching
 - [ ] Add empty state when no replays: "Upload your first replay to see stats"
-- [ ] Handle API errors gracefully
+- [x] Handle API errors gracefully
 
 **Backend (if needed):**
-- [ ] Create `GET /api/v1/users/me/dashboard` endpoint
-- [ ] Return: total replays, win rate, recent mechanics, recent stats
+- [x] Create `GET /api/v1/users/me/dashboard` endpoint
+- [x] Return: total replays, win rate, recent mechanics, recent stats
 
 ### 1.2 Upload Success Flow
 **Files:**
@@ -44,24 +45,24 @@
 - `frontend/src/components/UploadDropzone.tsx`
 
 **Tasks:**
-- [ ] Add success toast component (temporary inline, extract in Phase 5)
-- [ ] On upload complete: show "Analysis ready! View replay" toast
+- [x] Add success toast component (temporary inline, extract in Phase 5)
+- [x] On upload complete: show "Analysis ready! View replay" toast
 - [ ] Add "View Replay" button that navigates to `/dashboard/replays/[id]`
 - [ ] Track first upload in localStorage for celebration
 
 ### 1.3 Coach Preview for Free Users
 **Files:**
-- `frontend/src/app/dashboard/coach/page.tsx`
+- `frontend/src/app/(dashboard)/coach/page.tsx`
 - `src/rlcoach/api/routers/coach.py`
 - `src/rlcoach/db/models.py`
 
 **Tasks:**
-- [ ] Add `free_coach_message_used` boolean to User model
-- [ ] Create migration for new field
-- [ ] Modify coach chat endpoint: allow 1 message for free users
-- [ ] Frontend: check user's free message status
-- [ ] After free message: show upgrade prompt inline
-- [ ] Pro users: no change
+- [x] Add `free_coach_message_used` boolean to User model
+- [x] Create migration for new field
+- [x] Modify coach chat endpoint: allow 1 message for free users
+- [x] Frontend: check user's free message status
+- [x] After free message: show upgrade prompt inline
+- [x] Pro users: no change
 
 ### 1.4 Upload Progress & Retry
 **Files:**
@@ -69,9 +70,9 @@
 
 **Tasks:**
 - [ ] Show "Analyzing... typically 30 seconds" during processing
-- [ ] Implement exponential backoff: 2s → 5s → 10s → 30s
-- [ ] On timeout (5 min total): show "Still processing" with options
-- [ ] Add "Retry Upload" button for failed uploads
+- [x] Implement exponential backoff: 2s → 5s → 10s → 30s
+- [x] On timeout (5 min total): show "Still processing" with options
+- [x] Add "Retry Upload" button for failed uploads
 - [ ] Add "Check Status" button that re-polls
 
 **Verification:**
@@ -93,29 +94,29 @@ source .venv/bin/activate && PYTHONPATH=src pytest -q
 - `frontend/src/app/layout.tsx`
 
 **Tasks:**
-- [ ] Create ErrorBoundary component with friendly UI
-- [ ] Include "Try Again" button that reloads
-- [ ] Include "Go Home" button
-- [ ] Wrap app in ErrorBoundary at layout level
-- [ ] Log errors to console (dev) / future service (prod)
+- [x] Create ErrorBoundary component with friendly UI
+- [x] Include "Try Again" button that reloads
+- [x] Include "Go Home" button
+- [x] Wrap app in ErrorBoundary at layout level
+- [x] Log errors to console (dev) / future service (prod)
 
 ### 2.2 Coach Page Error States
 **Files:**
-- `frontend/src/app/dashboard/coach/page.tsx`
+- `frontend/src/app/(dashboard)/coach/page.tsx`
 
 **Tasks:**
-- [ ] Wrap coach content in error boundary
-- [ ] Handle 402 (budget exhausted) with helpful message
+- [x] Wrap coach content in error boundary
+- [x] Handle 402 (budget exhausted) with helpful message
 - [ ] Handle 503 (service unavailable) with retry option
-- [ ] Handle network errors with offline message
-- [ ] Show budget remaining prominently
+- [x] Handle network errors with offline message
+- [x] Show budget remaining prominently
 
 ### 2.3 Settings Page Feedback
 **Files:**
-- `frontend/src/app/dashboard/settings/page.tsx`
+- `frontend/src/app/(dashboard)/settings/page.tsx`
 
 **Tasks:**
-- [ ] Add loading state for "Manage Subscription" button
+- [x] Add loading state for "Manage Subscription" button
 - [ ] Show error toast if portal creation fails
 - [ ] Add success feedback before redirect
 
@@ -124,10 +125,10 @@ source .venv/bin/activate && PYTHONPATH=src pytest -q
 - `frontend/src/lib/errors.ts` (new)
 
 **Tasks:**
-- [ ] Create error code → friendly message map
-- [ ] Map OAuth errors to helpful messages
-- [ ] Map API errors to user-friendly text
-- [ ] Include "Contact support" for persistent errors
+- [x] Create error code → friendly message map
+- [x] Map OAuth errors to helpful messages
+- [x] Map API errors to user-friendly text
+- [x] Include "Contact support" for persistent errors
 
 **Verification:**
 ```bash
@@ -141,7 +142,7 @@ cd frontend && npm run build && npm run lint
 ### 3.1 First-Time User Tour
 **Files:**
 - `frontend/src/components/OnboardingTour.tsx` (new)
-- `frontend/src/app/dashboard/layout.tsx`
+- `frontend/src/app/(dashboard)/layout.tsx`
 
 **Tasks:**
 - [ ] Create OnboardingTour component with tooltip steps
@@ -168,8 +169,8 @@ cd frontend && npm run build && npm run lint
 ### 3.3 Skeleton Components
 **Files:**
 - `frontend/src/components/ui/Skeleton.tsx` (new)
-- `frontend/src/app/dashboard/page.tsx`
-- `frontend/src/app/dashboard/replays/page.tsx`
+- `frontend/src/app/(dashboard)/page.tsx`
+- `frontend/src/app/(dashboard)/replays/page.tsx`
 
 **Tasks:**
 - [ ] Create base Skeleton component with shimmer animation
@@ -204,7 +205,7 @@ cd frontend && npm run build && npm run lint
 
 ### 4.2 Frontend Streaming UI
 **Files:**
-- `frontend/src/app/dashboard/coach/page.tsx`
+- `frontend/src/app/(dashboard)/coach/page.tsx`
 - `frontend/src/lib/streaming.ts` (new)
 
 **Tasks:**
@@ -293,18 +294,19 @@ cd frontend && npm run build && npm run lint
 - `src/rlcoach/api/routers/benchmarks.py` (new)
 
 **Tasks:**
-- [ ] Define benchmark data structure
+- [x] Define benchmark data structure
 - [ ] Add estimates for all ranks (Bronze → SSL)
 - [ ] Metrics: goals, assists, saves, shooting%, bcpm, avg_boost, etc.
-- [ ] Create `GET /api/v1/benchmarks/{rank}/{mode}` endpoint
+- [x] Create `GET /api/v1/benchmarks/{rank}/{mode}` endpoint
+  - Status note: Benchmarks currently served via `GET /api/v1/users/me/benchmarks` with partial rank coverage (C2–SSL 2v2).
 
 ### 6.2 Dashboard Integration
 **Files:**
-- `frontend/src/app/dashboard/page.tsx`
+- `frontend/src/app/(dashboard)/page.tsx`
 
 **Tasks:**
-- [ ] Fetch user's estimated rank (or use self-reported)
-- [ ] Fetch benchmarks for that rank
+- [x] Fetch user's estimated rank (or use self-reported)
+- [x] Fetch benchmarks for that rank
 - [ ] Show comparison: "Your stat: X (Rank avg: Y)"
 - [ ] Visual indicators: ↑ above avg, ↓ below avg, = on par
 
@@ -331,19 +333,19 @@ source .venv/bin/activate && PYTHONPATH=src pytest -q
 - `src/rlcoach/api/routers/trends.py` (update)
 
 **Tasks:**
-- [ ] Ensure trend endpoint returns real data
-- [ ] Support time ranges: 7d, 30d, 90d, all
-- [ ] Support metrics: win_rate, goals, assists, bcpm, mechanics
-- [ ] Handle insufficient data gracefully
+- [x] Ensure trend endpoint returns real data
+- [x] Support time ranges: 7d, 30d, 90d, all
+- [x] Support metrics: win_rate, goals, assists, bcpm, mechanics
+- [x] Handle insufficient data gracefully
 
 ### 7.2 Frontend Visualization
 **Files:**
-- `frontend/src/app/dashboard/trends/page.tsx`
+- `frontend/src/app/(dashboard)/trends/page.tsx`
 
 **Tasks:**
-- [ ] Replace mock data with real API calls
-- [ ] Add time range selector
-- [ ] Add metric selector
+- [x] Replace mock data with real API calls
+- [x] Add time range selector
+- [x] Add metric selector
 - [ ] Show trend charts with Recharts
 - [ ] Add empty state for insufficient data
 
@@ -388,7 +390,7 @@ source .venv/bin/activate && PYTHONPATH=src pytest -q
 ### 8.3 Coach Session Recap
 **Files:**
 - `src/rlcoach/api/routers/coach.py`
-- `frontend/src/app/dashboard/coach/page.tsx`
+- `frontend/src/app/(dashboard)/coach/page.tsx`
 
 **Tasks:**
 - [ ] Add `POST /api/v1/coach/sessions/{id}/recap` endpoint

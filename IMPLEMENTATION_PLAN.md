@@ -1,8 +1,9 @@
 # Implementation Plan: rlcoach SaaS
 
-**Status:** Ready for implementation
+**Status:** In Progress
 **Spec:** docs/plans/2026-01-03-rlcoach-saas-design.md
 **Created:** 2026-01-03
+**Last Updated:** 2026-02-02
 
 ---
 
@@ -161,7 +162,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 
 ### Tasks
 
-- [ ] **2.1 Design PostgreSQL Schema**
+- [x] **2.1 Design PostgreSQL Schema**
   - Description: Adapt existing models for PostgreSQL, add SaaS-specific tables
   - Files to modify: `src/rlcoach/db/models.py`
   - Files to create: `migrations/versions/001_initial_schema.py`
@@ -262,8 +263,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
         (unique: user_id + replay_id)
     ```
   - Acceptance criteria: Schema documented, Alembic migration written
+  - Status note: Implemented in `src/rlcoach/db/models.py` with migrations in `migrations/versions/`.
 
-- [ ] **2.2 Set Up Alembic**
+- [x] **2.2 Set Up Alembic**
   - Description: Database migration framework
   - Files to create: `alembic.ini`, `migrations/env.py`, `migrations/script.py.mako`
   - Technical approach:
@@ -271,8 +273,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Auto-generate migrations from model changes
     - Include downgrade paths
   - Acceptance criteria: `alembic upgrade head` creates all tables
+  - Status note: `alembic.ini` + `migrations/` present; upgrades not yet verified in this audit.
 
-- [ ] **2.3 Update Database Session Management**
+- [~] **2.3 Update Database Session Management**
   - Description: PostgreSQL connection pooling and async support
   - Files to modify: `src/rlcoach/db/session.py`
   - Technical approach:
@@ -281,8 +284,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Connection pooling (min 5, max 20)
     - Health checks on connections
   - Acceptance criteria: Async queries work, pool handles concurrent requests
+  - Status note: Sync SQLAlchemy engine with pooling is implemented; async/asyncpg not done.
 
-- [ ] **2.4 Migrate Existing Data Models**
+- [~] **2.4 Migrate Existing Data Models**
   - Description: Update SQLite-specific code for PostgreSQL compatibility
   - Files to modify:
     - `src/rlcoach/db/models.py` (SQLite-specific indexes)
@@ -293,8 +297,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Update JSON column handling
     - Test all existing queries
   - Acceptance criteria: All 393 existing tests pass with PostgreSQL
+  - Status note: Models updated for Postgres usage, but no Postgres-backed test run verified here.
 
-- [ ] **2.5 User-Replay Association**
+- [~] **2.5 User-Replay Association**
   - Description: Link replays to users via OAuth platform IDs
   - Files to modify: `src/rlcoach/db/models.py`
   - Files to create: `src/rlcoach/services/replay_ownership.py`
@@ -304,8 +309,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Auto-match on upload: if replay contains platform ID matching user's OAuth -> user owns replay
     - Manual claim endpoint for alt accounts
   - Acceptance criteria: Uploaded replays auto-associate with uploader
+  - Status note: `UserReplay` join + uploader association exist; match_id-based dedup and ownership service are not implemented.
 
-- [ ] **2.6 Session Detection Logic**
+- [~] **2.6 Session Detection Logic**
   - Description: Group replays into play sessions
   - Files to create: `src/rlcoach/services/session_detection.py`
   - Technical approach:
@@ -313,6 +319,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Store session_id on each replay
     - Configurable gap threshold per user
   - Acceptance criteria: Replays grouped correctly, threshold is tunable
+  - Status note: Sessions are grouped by date in `replays` router; no dedicated service or per-replay session_id field.
 
 ### Phase Verification
 - [ ] PostgreSQL running in Docker container
@@ -338,7 +345,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 
 ### Tasks
 
-- [ ] **3.1 Initialize Next.js Frontend Project**
+- [x] **3.1 Initialize Next.js Frontend Project**
   - Description: Create Next.js 14+ app with App Router
   - Files to create: `frontend/` directory structure
   - Technical approach:
@@ -347,7 +354,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Set up ESLint + Prettier
   - Acceptance criteria: `npm run dev` starts dev server, TypeScript compiles
 
-- [ ] **3.2 Install and Configure NextAuth.js**
+- [x] **3.2 Install and Configure NextAuth.js**
   - Description: Authentication with multiple OAuth providers
   - Files to create:
     - `frontend/src/app/api/auth/[...nextauth]/route.ts`
@@ -357,8 +364,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - PostgreSQL adapter for session storage
     - JWT strategy for API calls
   - Acceptance criteria: `/api/auth/signin` page renders with all providers
+  - Status note: JWT strategy wired; Postgres adapter not configured.
 
-- [ ] **3.3 Configure Discord OAuth**
+- [x] **3.3 Configure Discord OAuth**
   - Description: Discord is primary auth for RL community
   - Files to modify: `frontend/src/lib/auth.ts`
   - Technical approach:
@@ -375,7 +383,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Extract Steam64 ID for player matching
   - Acceptance criteria: Steam login works, Steam ID stored
 
-- [ ] **3.5 Configure Google OAuth**
+- [x] **3.5 Configure Google OAuth**
   - Description: Fallback/convenience auth
   - Files to modify: `frontend/src/lib/auth.ts`
   - Technical approach:
@@ -403,7 +411,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Cannot link account already linked to another user
   - Acceptance criteria: User can link Discord + Steam to same account
 
-- [ ] **3.8 FastAPI JWT Middleware**
+- [x] **3.8 FastAPI JWT Middleware**
   - Description: Validate NextAuth JWTs in FastAPI
   - Files to create:
     - `src/rlcoach/api/middleware/auth.py`
@@ -415,7 +423,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Return 401 for invalid/expired, 403 for wrong tier
   - Acceptance criteria: Protected endpoints reject invalid tokens
 
-- [ ] **3.9 Subscription Tier Gating**
+- [x] **3.9 Subscription Tier Gating**
   - Description: Gate Pro features (AI coach) by subscription tier
   - Files to modify: `src/rlcoach/api/dependencies.py`
   - Technical approach:
@@ -437,6 +445,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - No endpoint should return data from another user
     - Test: user A cannot see user B's replays even with known IDs
   - Acceptance criteria: All endpoints return only current user's data, cross-user access impossible
+  - Status note: Many endpoints are scoped, but a full audit is still required.
 
 - [ ] **3.10 Session Management**
   - Description: Handle session lifecycle (refresh, logout)
@@ -448,7 +457,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Logout clears all sessions
   - Acceptance criteria: Sessions persist across browser close, refresh works
 
-- [ ] **3.11 Next.js API Proxy Routes**
+- [x] **3.11 Next.js API Proxy Routes**
   - Description: Proxy API calls from Next.js to FastAPI
   - Files to create:
     - `frontend/src/app/api/v1/[...path]/route.ts`
@@ -479,8 +488,8 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 ### Phase Verification
 - [ ] User can sign up with Discord, Steam, Google
 - [ ] User can link multiple accounts
-- [ ] JWT tokens validate correctly in FastAPI
-- [ ] Pro endpoints reject free users with 403
+- [x] JWT tokens validate correctly in FastAPI
+- [x] Pro endpoints reject free users with 403
 - [ ] Sessions persist and refresh correctly
 
 ### Risks/Decisions
@@ -500,9 +509,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 
 ### Tasks
 
-- [ ] **4.1 File Upload API Endpoint**
+- [x] **4.1 File Upload API Endpoint**
   - Description: Accept .replay file uploads with validation
-  - Files to create: `src/rlcoach/api/routers/upload.py`
+  - Files to modify: `src/rlcoach/api/routers/replays.py`
   - Technical approach:
     - POST `/api/v1/replays/upload`
     - Accept multipart/form-data
@@ -510,19 +519,21 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Rate limit: 100 uploads/hour/user, 50 files/batch
     - Store to temp directory with unique filename
   - Acceptance criteria: Valid uploads accepted, invalid rejected with clear errors
+  - Status note: Implemented in `src/rlcoach/api/routers/replays.py` with 50MB limit and rate limiting.
 
-- [ ] **4.2 Upload Progress Tracking**
+- [x] **4.2 Upload Progress Tracking**
   - Description: Track upload status per file
-  - Files to create:
-    - `src/rlcoach/services/upload_tracker.py`
-    - Table: UploadedReplay (see Phase 2)
+  - Files to modify:
+    - `src/rlcoach/api/routers/replays.py`
+    - `src/rlcoach/db/models.py` (UploadedReplay)
   - Technical approach:
     - Create UploadedReplay record on upload start
     - Status transitions: pending -> processing -> completed/failed
     - Return upload_id for status polling
   - Acceptance criteria: Client can poll upload status
+  - Status note: Implemented directly in `replays.py` with UploadedReplay rows; no standalone upload_tracker service.
 
-- [ ] **4.3 Background Worker Setup**
+- [x] **4.3 Background Worker Setup**
   - Description: Celery/RQ worker for async replay processing
   - Files to create:
     - `src/rlcoach/worker/__init__.py`
@@ -535,7 +546,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Concurrency: 4 workers (match CPU cores for parsing)
   - Acceptance criteria: Tasks enqueue and execute in worker container
 
-- [ ] **4.4 Replay Processing Task**
+- [x] **4.4 Replay Processing Task**
   - Description: Parse replay and store results
   - Files to modify: `src/rlcoach/worker/tasks.py`
   - Technical approach:
@@ -549,7 +560,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 
 - [ ] **4.4.1 Synchronous Preview Processing**
   - Description: Process first N replays synchronously for immediate preview
-  - Files to modify: `src/rlcoach/api/routers/upload.py`
+  - Files to modify: `src/rlcoach/api/routers/replays.py`
   - Technical approach:
     - First 3 replays in batch: process synchronously in request
     - Return preview stats immediately (result, score, key mechanics)
@@ -559,18 +570,19 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - If sync times out, fall back to async
   - Acceptance criteria: First 3 replays show stats immediately on upload complete
 
-- [ ] **4.5 Queue Backpressure**
+- [x] **4.5 Queue Backpressure**
   - Description: Protect system from overload
-  - Files to modify: `src/rlcoach/api/routers/upload.py`
+  - Files to modify: `src/rlcoach/api/routers/replays.py`
   - Technical approach:
     - Check queue length before accepting upload
     - Reject with 503 if queue > 1000 items
     - Return estimated wait time
   - Acceptance criteria: System gracefully rejects uploads when overloaded
+  - Status note: Backpressure implemented via `can_accept_upload()` (disk/worker checks), not queue length.
 
-- [ ] **4.6 Storage Deduplication**
+- [~] **4.6 Storage Deduplication**
   - Description: Don't store duplicate replays
-  - Files to modify: `src/rlcoach/services/upload_tracker.py`
+  - Files to modify: `src/rlcoach/api/routers/replays.py`
   - Technical approach:
     - **Primary dedup key:** match_id from replay header (same game = same replay)
     - **Fallback:** SHA256 hash for corrupted headers
@@ -579,8 +591,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - User still "owns" the replay reference
     - **Why match_id:** Same match uploaded by different players = one parse
   - Acceptance criteria: Duplicate uploads linked to existing replay instantly
+  - Status note: Implemented via SHA256 file_hash; match_id dedup not wired.
 
-- [ ] **4.7 Frontend Upload Component**
+- [x] **4.7 Frontend Upload Component**
   - Description: Drag-drop upload with progress UI
   - Files to create:
     - `frontend/src/components/UploadDropzone.tsx`
@@ -592,7 +605,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Handle errors gracefully
   - Acceptance criteria: Users can drop files, see progress, see results
 
-- [ ] **4.8 Real-time Progress Updates**
+- [x] **4.8 Real-time Progress Updates**
   - Description: WebSocket or polling for upload status
   - Files to create:
     - `src/rlcoach/api/routers/websocket.py` (or polling endpoint)
@@ -603,7 +616,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Start with polling (simpler), add WebSocket if needed
   - Acceptance criteria: UI updates as processing completes
 
-- [ ] **4.9 Disk Space Monitoring**
+- [x] **4.9 Disk Space Monitoring**
   - Description: Alert and reject when disk fills
   - Files to create: `src/rlcoach/services/disk_monitor.py`
   - Technical approach:
@@ -662,7 +675,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Consistent spacing system
   - Acceptance criteria: Design system documented, components render correctly
 
-- [ ] **5.2 Layout Shell**
+- [x] **5.2 Layout Shell**
   - Description: App layout with navigation
   - Files to create:
     - `frontend/src/app/layout.tsx`
@@ -675,7 +688,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Global upload dropzone overlay
   - Acceptance criteria: Navigation works, responsive on mobile
 
-- [ ] **5.3 Home Page (Hero View)**
+- [x] **5.3 Home Page (Hero View)**
   - Description: Mechanics breakdown with rank comparisons + topline stats
   - Files to create:
     - `frontend/src/app/(dashboard)/page.tsx`
@@ -690,8 +703,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - API endpoints needed:
     - GET `/api/v1/dashboard/home` - aggregated stats + mechanics + rank percentiles
   - Acceptance criteria: Hero view renders, looks beautiful, shows real data
+  - Status note: Implemented in `frontend/src/app/(dashboard)/page.tsx` with custom components.
 
-- [ ] **5.4 Replay List Page**
+- [x] **5.4 Replay List Page**
   - Description: All uploaded replays with sorting/filtering
   - Files to create:
     - `frontend/src/app/(dashboard)/replays/page.tsx`
@@ -707,7 +721,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - GET `/api/v1/replays?page=&filters=` - paginated replay list
   - Acceptance criteria: Replays display, filters work, performant with 1000+ replays
 
-- [ ] **5.5 Replay Detail Page - Overview Tab**
+- [x] **5.5 Replay Detail Page - Overview Tab**
   - Description: Single game deep dive, overview tab
   - Files to create:
     - `frontend/src/app/(dashboard)/replays/[id]/page.tsx`
@@ -722,7 +736,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - GET `/api/v1/replays/{id}` - full replay data with all tabs
   - Acceptance criteria: Overview displays complete game context
 
-- [ ] **5.6 Replay Detail - Mechanics Tab**
+- [x] **5.6 Replay Detail - Mechanics Tab**
   - Description: Mechanics detection breakdown
   - Files to create:
     - `frontend/src/components/replay/MechanicsTab.tsx`
@@ -734,7 +748,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Comparison to user's average
   - Acceptance criteria: All 12+ mechanics display with counts and timestamps
 
-- [ ] **5.7 Replay Detail - Boost Tab**
+- [x] **5.7 Replay Detail - Boost Tab**
   - Description: Boost economy visualization
   - Files to create:
     - `frontend/src/components/replay/BoostTab.tsx`
@@ -747,7 +761,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Starves (pads stolen from opponents)
   - Acceptance criteria: Boost data visualized clearly with charts
 
-- [ ] **5.8 Replay Detail - Positioning Tab**
+- [x] **5.8 Replay Detail - Positioning Tab**
   - Description: Heatmaps and rotation analysis
   - Files to create:
     - `frontend/src/components/replay/PositioningTab.tsx`
@@ -761,6 +775,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: Heatmap renders, shows meaningful patterns
 
 - [ ] **5.9 Replay Detail - Timeline Tab**
+  - Status note: Timeline tab exists as a placeholder; no interactive timeline yet.
   - Description: Interactive event timeline
   - Files to create:
     - `frontend/src/components/replay/TimelineTab.tsx`
@@ -774,6 +789,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: Timeline interactive, events clickable
 
 - [ ] **5.10 Replay Detail - Defense Tab**
+  - Status note: Defense tab exists as a placeholder; metrics not wired.
   - Description: Defensive performance metrics
   - Files to create:
     - `frontend/src/components/replay/DefenseTab.tsx`
@@ -786,6 +802,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: Defense metrics displayed clearly
 
 - [ ] **5.11 Replay Detail - Offense Tab**
+  - Status note: Offense tab exists as a placeholder; xG visualization not wired.
   - Description: Offensive performance metrics
   - Files to create:
     - `frontend/src/components/replay/OffenseTab.tsx`
@@ -798,7 +815,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Goal conversion vs xG
   - Acceptance criteria: Offensive metrics with xG visualization
 
-- [ ] **5.12 Session History Page**
+- [x] **5.12 Session History Page**
   - Description: Replays grouped by play session
   - Files to create:
     - `frontend/src/app/(dashboard)/sessions/page.tsx`
@@ -812,7 +829,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - GET `/api/v1/sessions?page=` - paginated sessions with nested replays
   - Acceptance criteria: Sessions group correctly, expandable UI works
 
-- [ ] **5.13 Trends Page**
+- [x] **5.13 Trends Page**
   - Description: Stats over time with flexible axis
   - Files to create:
     - `frontend/src/app/(dashboard)/trends/page.tsx`
@@ -828,7 +845,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - GET `/api/v1/trends?metrics=&axis=&range=` - trend data
   - Acceptance criteria: Charts render, axis toggle works, date range filters
 
-- [ ] **5.14 Comparison Page**
+- [x] **5.14 Comparison Page**
   - Description: Rank comparison and self comparison
   - Files to create:
     - `frontend/src/app/(dashboard)/compare/page.tsx`
@@ -846,6 +863,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: Both comparison modes work, visualizations clear
 
 - [ ] **5.14.1 Rank Benchmark Data Pipeline**
+  - Status note: Benchmarks are served from static JSON; no weekly aggregation pipeline.
   - Description: Generate and refresh rank benchmark data
   - Files to create:
     - `src/rlcoach/services/benchmarks.py`
@@ -860,7 +878,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - **Bias disclosure:** Self-selection bias noted in UI
   - Acceptance criteria: Benchmarks only show with sufficient sample, refresh weekly
 
-- [ ] **5.15 Settings Page**
+- [x] **5.15 Settings Page**
   - Description: Profile, linked accounts, preferences
   - Files to create:
     - `frontend/src/app/(dashboard)/settings/page.tsx`
@@ -875,7 +893,8 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Account deletion (soft delete with 30-day grace)
   - Acceptance criteria: All settings functional, account linking works
 
-- [ ] **5.16 Dashboard API Endpoints**
+- [x] **5.16 Dashboard API Endpoints**
+  - Status note: Implemented primarily in `src/rlcoach/api/routers/users.py` and `replays.py`.
   - Description: Backend APIs for dashboard data
   - Files to create/modify:
     - `src/rlcoach/api/routers/dashboard.py` (enhance existing)
@@ -925,7 +944,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Get API keys and webhook secret
   - Acceptance criteria: Stripe configured, test payments work
 
-- [ ] **6.2 Checkout Session Creation**
+- [x] **6.2 Checkout Session Creation**
   - Description: API to create Stripe Checkout session
   - Files to create: `src/rlcoach/api/routers/billing.py`
   - Technical approach:
@@ -935,7 +954,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Success/cancel URLs back to app
   - Acceptance criteria: Checkout session created, redirects work
 
-- [ ] **6.3 Webhook Handler**
+- [x] **6.3 Webhook Handler**
   - Description: Handle Stripe webhook events
   - Files to modify: `src/rlcoach/api/routers/billing.py`
   - Technical approach:
@@ -949,7 +968,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Idempotent handling (use subscription_id)
   - Acceptance criteria: Webhooks process correctly, database updates
 
-- [ ] **6.4 Billing Portal Link**
+- [x] **6.4 Billing Portal Link**
   - Description: Link to Stripe self-service portal
   - Files to modify: `src/rlcoach/api/routers/billing.py`
   - Technical approach:
@@ -958,7 +977,8 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - User can cancel, update payment, view invoices
   - Acceptance criteria: Portal link works, user can self-manage
 
-- [ ] **6.5 Subscription Status in JWT**
+- [x] **6.5 Subscription Status in JWT**
+  - Status note: Tier is injected into JWT from bootstrap; live Stripe tier changes require session refresh.
   - Description: Include tier in JWT for API gating
   - Files to modify: `frontend/src/lib/auth.ts`
   - Technical approach:
@@ -967,7 +987,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - On webhook, database updates immediately
   - Acceptance criteria: JWT includes tier, refresh updates tier
 
-- [ ] **6.6 Upgrade UI**
+- [x] **6.6 Upgrade UI**
   - Description: Frontend upgrade prompts and flow
   - Files to create:
     - `frontend/src/components/UpgradePrompt.tsx`
@@ -979,7 +999,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Return to app with confirmation
   - Acceptance criteria: Upgrade flow smooth, conversion-optimized
 
-- [ ] **6.7 Subscription Status UI**
+- [x] **6.7 Subscription Status UI**
   - Description: Show subscription status in settings
   - Files to modify: `frontend/src/app/(dashboard)/settings/page.tsx`
   - Technical approach:
@@ -1024,7 +1044,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 
 ### Tasks
 
-- [ ] **7.1 Chat API Infrastructure**
+- [~] **7.1 Chat API Infrastructure**
   - Description: Backend for AI coach conversations
   - Files to create:
     - `src/rlcoach/api/routers/coach.py`
@@ -1036,8 +1056,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Store messages in CoachMessage table
     - Track token usage per message
   - Acceptance criteria: Messages send and receive, responses stream
+  - Status note: Non-streaming chat implemented; streaming not yet built.
 
-- [ ] **7.2 Token Budget Enforcement**
+- [x] **7.2 Token Budget Enforcement**
   - Description: Enforce monthly token limits
   - Files to create: `src/rlcoach/services/coach/budget.py`
   - Technical approach:
@@ -1050,7 +1071,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Reset budget on monthly anniversary
   - Acceptance criteria: Limits enforced, warnings shown, reset works
 
-- [ ] **7.3 System Prompt**
+- [x] **7.3 System Prompt**
   - Description: Craft the coaching personality and instructions
   - Files to create: `src/rlcoach/services/coach/prompts.py`
   - Technical approach:
@@ -1061,7 +1082,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - ~2K tokens budget for system prompt
   - Acceptance criteria: Coach responses are helpful and on-brand
 
-- [ ] **7.4 Data Tools Implementation**
+- [x] **7.4 Data Tools Implementation**
   - Description: Tools for coach to access player data
   - Files to create: `src/rlcoach/services/coach/tools.py`
   - Technical approach:
@@ -1074,7 +1095,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Summarize results if > 4K tokens
   - Acceptance criteria: Tools work, responses use real data
 
-- [ ] **7.5 Session Notes (Coach)**
+- [x] **7.5 Session Notes (Coach)**
   - Description: Coach saves observations about player
   - Files to create: `src/rlcoach/services/coach/notes.py`
   - Technical approach:
@@ -1085,7 +1106,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Coach decides when to save (not every message)
   - Acceptance criteria: Notes saved, persist, appear in future sessions
 
-- [ ] **7.6 Session Notes (User)**
+- [x] **7.6 Session Notes (User)**
   - Description: Users can view, add, delete notes
   - Files to create:
     - `src/rlcoach/api/routers/notes.py`
@@ -1098,7 +1119,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - UI shows all notes, allows management
   - Acceptance criteria: Users can manage their notes
 
-- [ ] **7.7 Chat UI**
+- [~] **7.7 Chat UI**
   - Description: Frontend chat interface
   - Files to create:
     - `frontend/src/app/(dashboard)/coach/page.tsx`
@@ -1113,6 +1134,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Token budget indicator
     - Upgrade prompt for free users
   - Acceptance criteria: Chat UI polished, streaming works
+  - Status note: UI exists; streaming not implemented.
 
 - [ ] **7.8 Structured Review Sessions**
   - Description: Guided coaching workflows
@@ -1138,7 +1160,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Warning colors at 80%, 100%
   - Acceptance criteria: Usage displays correctly, updates after messages
 
-- [ ] **7.10 Rate Limiting**
+- [x] **7.10 Rate Limiting**
   - Description: Prevent abuse beyond token budget
   - Files to modify: `src/rlcoach/services/coach/session.py`
   - Technical approach:
@@ -1250,7 +1272,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Readable text sizes
   - Acceptance criteria: All pages usable on mobile
 
-- [ ] **8.7 Legal Pages**
+- [x] **8.7 Legal Pages**
   - Description: Terms of Service, Privacy Policy
   - Files to create:
     - `frontend/src/app/terms/page.tsx`
@@ -1262,7 +1284,8 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Cookie consent
   - Acceptance criteria: Legal pages published, consent flows work
 
-- [ ] **8.7.1 ToS Acceptance on Signup**
+- [x] **8.7.1 ToS Acceptance on Signup**
+  - Status note: Implemented via `frontend/src/app/login/page.tsx` + `TosRecorder`.
   - Description: Require Terms acceptance before account creation
   - Files to modify:
     - `frontend/src/components/SignupFlow.tsx`

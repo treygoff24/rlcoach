@@ -3,6 +3,8 @@
 **Status:** In Progress
 **Created:** 2026-01-08
 **Source:** Codex code review findings
+**Last Updated:** 2026-02-02
+**Status Detail:** Phase 6 in progress; verification and quality gates pending.
 
 ---
 
@@ -47,7 +49,7 @@ This plan addresses critical blockers preventing the SaaS product from functioni
 ### Phase 1 Verification
 ```bash
 # Start with DATABASE_URL
-DATABASE_URL=postgresql://user:pass@localhost:5432/rlcoach python -c "from rlcoach.api.app import app; print('OK')"
+source .venv/bin/activate && DATABASE_URL=postgresql://user:pass@localhost:5432/rlcoach PYTHONPATH=src python -c "from rlcoach.api.app import app; print('OK')"
 ```
 
 ---
@@ -206,21 +208,27 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/users/me/ben
 
 ### Tasks
 
-- [ ] **6.1 Process test replays**
+- [x] **6.1 Process test replays**
   - Run: Process 10 replays from /replays directory
   - Verification: All complete without errors
+  - Status note (2026-02-02): processed 10 replays via CLI with `--ignore-exclusion` (excluded account in dataset).
 
 - [ ] **6.2 Verify dashboard data**
-  - Check: Dashboard home shows real stats
-  - Check: Replays list shows uploaded replays
-  - Check: Replay detail shows mechanics/boost/positioning
+  - Check: `/dashboard` home shows real stats
+  - Check: `/replays` list shows uploaded replays
+  - Check: `/replays/{id}` shows mechanics/boost/positioning
+  - Status note (2026-02-02): Not yet validated in browser
 
 - [ ] **6.3 Run quality gates**
-  - Run: pytest, ruff check, black --check
+  - Run: `source .venv/bin/activate && PYTHONPATH=src pytest -q`, `ruff check src/`, `black --check src/`
   - Verification: All pass
+  - Status note (2026-02-01):
+    - `pytest -q`: **415 passed in 13.75s**
+    - `ruff check src/`: **failed** (53 errors, mostly `E501` line length + `B904` in `src/rlcoach/api/auth.py`)
+    - `black --check src/`: **failed** (would reformat `src/rlcoach/api/routers/replays.py`, `src/rlcoach/api/routers/users.py`)
 
 - [ ] **6.4 Call Codex for final review**
-  - Run: codex exec with final review prompt
+  - Run: `codex exec -p "Review SAAS fixes for correctness, regressions, and missing tests. Reply with Ship it / Needs work and explain."`
   - Verification: "Ship it" verdict
 
 ---

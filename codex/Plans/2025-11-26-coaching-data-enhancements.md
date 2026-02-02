@@ -6,7 +6,7 @@
 
 ---
 
-## IMPLEMENTATION STATUS (Updated 2025-11-26)
+## IMPLEMENTATION STATUS (Updated 2026-02-02)
 
 ### COMPLETED
 
@@ -60,8 +60,8 @@
 - `analyze_ball_prediction()` returns per-player read quality stats
 
 ### TEST STATUS
-- 241 tests passing
-- 1 pre-existing failure in `test_boost_parity_fixture.py` (unrelated to these changes - missing fixture)
+- Tests exist in `tests/test_analysis_new_modules.py` and updated goldens.
+- 2026-02-01: `source .venv/bin/activate && PYTHONPATH=src pytest -q` → **415 passed in 13.75s**
 
 ### NOT YET DONE / REMAINING WORK
 
@@ -69,17 +69,11 @@
    - Boxcars 0.10.7 doesn't expose these attributes directly
    - Would require updating boxcars or different approach
 
-2. **Integration into report.py** - NOT DONE
-   - New analysis modules created but not yet wired into main report generation
-   - Need to call: `analyze_mechanics()`, `analyze_recoveries()`, `analyze_shots_xg()`, `analyze_defense()`, `analyze_ball_prediction()`
-   - Add results to `analysis_out` dict in `generate_report()`
+### COMPLETED SINCE ORIGINAL PLAN (2026-02-02)
 
-3. **Schema Updates** - NOT DONE
-   - Need to add new fields to `schemas/report.json`
-
-4. **Additional Tests** - NOT DONE
-   - Unit tests for new analysis modules
-   - Golden file updates for full integration
+- Integration wired via `src/rlcoach/analysis/__init__.py` (aggregator) and `src/rlcoach/report.py`.
+- Schema updated in `schemas/replay_report.schema.json` to include mechanics, recovery, xg, defense, ball prediction.
+- Tests added in `tests/test_analysis_new_modules.py`, plus golden updates for header-only and synthetic fixtures.
 
 ### FILES MODIFIED/CREATED
 
@@ -89,9 +83,13 @@
 - `src/rlcoach/normalize.py` - `_parse_rotation()` helper
 - `src/rlcoach/events.py` - TouchContext enum and touch classification
 - `src/rlcoach/report.py` - Touch serialization
+- `src/rlcoach/analysis/__init__.py` - Aggregator wiring + caching for new analyzers
+- `schemas/replay_report.schema.json` - New analysis fields
 - `tests/test_goldens.py` - Enum handling in `_normalize()`
 - `tests/goldens/synthetic_small.json` - New touch fields
 - `tests/goldens/synthetic_small.md` - New touch fields
+- `tests/goldens/header_only.json` - New analysis fields
+- `tests/goldens/header_only.md` - New analysis fields
 
 **Created:**
 - `src/rlcoach/analysis/mechanics.py` - Jump/flip/aerial detection
@@ -99,8 +97,11 @@
 - `src/rlcoach/analysis/xg.py` - Expected goals model
 - `src/rlcoach/analysis/defense.py` - Defensive positioning
 - `src/rlcoach/analysis/ball_prediction.py` - Ball read analysis
+- `tests/test_analysis_new_modules.py` - Unit coverage for new analyzers
 
 ---
+
+**Note:** Detailed design sections below reflect the original 2025-11-26 proposal. Current implementation uses `src/rlcoach/analysis/ball_prediction.py` and `schemas/replay_report.schema.json`; legacy `ball_read`/`report.json` names are superseded.
 
 ## Executive Summary
 
