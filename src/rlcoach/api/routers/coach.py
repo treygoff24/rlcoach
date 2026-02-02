@@ -8,6 +8,7 @@ Uses Claude Opus 4.5 with extended thinking for deep analysis.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import uuid
@@ -23,6 +24,8 @@ from ...services.coach.budget import (
     estimate_request_tokens,
     get_token_budget_remaining,
 )
+from ...services.coach.prompts import get_tool_descriptions
+from ...services.coach.tools import execute_tool
 from ..auth import AuthenticatedUser, ProUser
 from ..rate_limit import check_rate_limit, rate_limit_response
 from ..security import sanitize_note_content, sanitize_string
@@ -78,6 +81,35 @@ class NoteResponse(BaseModel):
     source: str
     category: str | None
     created_at: str
+
+
+class ToolExecuteRequest(BaseModel):
+    """Tool execution request."""
+
+    tool_name: str
+    tool_input: dict
+
+
+@router.get("/tools/schema")
+async def get_coach_tool_schema(user: AuthenticatedUser) -> dict:
+    """Return available coach tools schema."""
+    return {"tools": get_tool_descriptions()}
+
+
+@router.post("/tools/execute")
+async def execute_coach_tool(
+    request: ToolExecuteRequest,
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> dict:
+    """Execute a coach tool and return results."""
+    result_json = await execute_tool(
+        tool_name=request.tool_name,
+        tool_input=request.tool_input,
+        user_id=user.id,
+        db=db,
+    )
+    return {"tool_name": request.tool_name, "result": json.loads(result_json)}
 
 
 @router.post("/chat", response_model=MessageResponse)
