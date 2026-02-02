@@ -264,6 +264,7 @@ async def send_message(
         session_id=session.id,
         role="user",
         content=safe_message,
+        content_json=json.dumps([{"type": "text", "text": safe_message}]),
     )
     db.add(user_msg)
 
@@ -287,6 +288,7 @@ async def send_message(
         session_id=session.id,
         role="assistant",
         content=safe_response,
+        content_json=json.dumps([{"type": "text", "text": safe_response}]),
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         thinking_tokens=thinking_tokens,
@@ -401,11 +403,22 @@ async def get_session_messages(
     # as that would double-escape entities and corrupt formatting.
     # Frontend uses React which escapes HTML by default when rendering text.
     # Legacy pre-sanitization messages are handled by React's auto-escaping.
+    def _content_blocks(message: CoachMessage) -> list[dict]:
+        if message.content_json:
+            try:
+                parsed = json.loads(message.content_json)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                logger.warning("Invalid content_json for coach message %s", message.id)
+        return [{"type": "text", "text": message.content or ""}]
+
     return [
         {
             "id": msg.id,
             "role": msg.role,
             "content": msg.content or "",
+            "content_blocks": _content_blocks(msg),
             "created_at": msg.created_at.isoformat(),
         }
         for msg in messages

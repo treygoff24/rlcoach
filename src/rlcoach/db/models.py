@@ -413,6 +413,7 @@ class CoachMessage(Base):
     )
     role = Column(String, nullable=False)  # "user" | "assistant"
     content = Column(Text, nullable=False)
+    content_json = Column(Text, nullable=True)
     input_tokens = Column(Integer, nullable=True)
     output_tokens = Column(Integer, nullable=True)
     thinking_tokens = Column(Integer, nullable=True)
