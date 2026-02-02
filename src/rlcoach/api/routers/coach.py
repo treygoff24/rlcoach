@@ -10,21 +10,25 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from ...db import CoachMessage, CoachNote, CoachSession, User, get_session
 from ...services.coach.budget import (
+    abort_reservation,
     estimate_request_tokens,
+    finalize_reservation,
     get_token_budget_remaining,
+    release_expired_reservations,
+    reserve_tokens,
 )
-from ...services.coach.prompts import get_tool_descriptions
+from ...services.coach.prompts import build_system_prompt, get_tool_descriptions
 from ...services.coach.tools import execute_tool
 from ..auth import AuthenticatedUser, ProUser
 from ..rate_limit import check_rate_limit, rate_limit_response
@@ -38,24 +42,51 @@ ALLOWED_NOTE_CATEGORIES = {"strength", "weakness", "goal", "observation", None}
 router = APIRouter(prefix="/api/v1/coach", tags=["coach"])
 
 
-class MessageRequest(BaseModel):
-    """Chat message request."""
+class ChatPreflightRequest(BaseModel):
+    """Chat preflight request."""
 
     message: str
     session_id: str | None = None
     replay_id: str | None = None
 
 
-class MessageResponse(BaseModel):
-    """Chat message response."""
+class ChatPreflightResponse(BaseModel):
+    """Chat preflight response payload."""
 
     session_id: str
-    message_id: str
-    content: str
-    thinking: str | None = None
-    tokens_used: int
     budget_remaining: int
-    is_free_preview: bool = False  # True if this was the user's free preview message
+    is_free_preview: bool
+    history: list[dict]
+    system_message: str
+    estimated_tokens: int
+    reservation_id: str
+
+
+class ChatRecordMessage(BaseModel):
+    """Chat message payload for recording."""
+
+    role: str
+    content_blocks: list[dict]
+    content_text: str | None = None
+
+
+class ChatRecordRequest(BaseModel):
+    """Record coach chat messages after streaming finishes."""
+
+    session_id: str
+    reservation_id: str
+    messages: list[ChatRecordMessage]
+    tokens_used: int
+    estimated_tokens: int
+    is_free_preview: bool
+
+
+class ChatAbortRequest(BaseModel):
+    """Abort request to release token reservation."""
+
+    session_id: str
+    reservation_id: str
+    partial_messages: list[ChatRecordMessage] | None = None
 
 
 class SessionListItem(BaseModel):
@@ -112,51 +143,31 @@ async def execute_coach_tool(
     return {"tool_name": request.tool_name, "result": json.loads(result_json)}
 
 
-@router.post("/chat", response_model=MessageResponse)
-async def send_message(
-    request: MessageRequest,
+@router.post("/chat/preflight", response_model=ChatPreflightResponse)
+async def chat_preflight(
+    request: ChatPreflightRequest,
     user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
-) -> MessageResponse:
-    """Send a message to the AI coach.
-
-    Creates a new session if session_id is not provided.
-    Pro users have full access. Free tier users get 1 complimentary message.
-    """
-    from sqlalchemy import select
-
-    # Rate limit check (30 messages per minute per user)
+) -> ChatPreflightResponse:
+    """Preflight chat request, reserve tokens, and return context."""
     rate_result = check_rate_limit(user.id, "chat")
     if not rate_result.allowed:
         raise rate_limit_response(rate_result)
 
-    # Validate message length (prevent abuse)
     if len(request.message) > 10000:
         raise HTTPException(
             status_code=400, detail="Message too long. Maximum 10,000 characters."
         )
 
-    # Sanitize message content for storage (XSS prevention)
-    safe_message = sanitize_string(
-        request.message,
-        max_length=10000,
-        allow_newlines=True,
-        strip_html=True,
-        preserve_formatting=True,
-    )
-
-    # Use SELECT FOR UPDATE to prevent race conditions on budget
     stmt = select(User).where(User.id == user.id).with_for_update()
     db_user = db.execute(stmt).scalar_one_or_none()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Check subscription tier and free preview eligibility
     is_pro = db_user.subscription_tier == "pro"
     is_free_preview = False
 
     if not is_pro:
-        # Free tier user - check if they've used their free preview
         if db_user.free_coach_message_used:
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -165,28 +176,51 @@ async def send_message(
                     "Upgrade to Pro for unlimited coaching at $10/month."
                 ),
             )
-        # This will be their free preview message
         is_free_preview = True
 
-    # Get conversation history count for estimation
-    history_count = 0
     if request.session_id:
-        history_count = (
-            db.query(CoachMessage)
-            .filter(CoachMessage.session_id == request.session_id)
-            .count()
+        session = (
+            db.query(CoachSession)
+            .filter(
+                CoachSession.id == request.session_id,
+                CoachSession.user_id == user.id,
+            )
+            .first()
         )
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+    else:
+        session = CoachSession(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+        )
+        db.add(session)
+        db.flush()
 
-    # Estimate tokens for this request
+    release_expired_reservations(db_user, db)
+
+    previous_messages = (
+        db.query(CoachMessage)
+        .filter(CoachMessage.session_id == session.id)
+        .order_by(CoachMessage.created_at)
+        .all()
+    )
+
+    history = [
+        {
+            "role": msg.role,
+            "content": _parse_content_blocks(msg.content_json, msg.content or ""),
+        }
+        for msg in previous_messages
+    ]
+
     estimated_tokens = estimate_request_tokens(
         message_length=len(request.message),
-        history_messages=history_count,
+        history_messages=len(previous_messages),
         include_tools=True,
     )
 
     budget_remaining = get_token_budget_remaining(db_user)
-
-    # Check if we have enough budget for estimated usage
     if budget_remaining <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -202,140 +236,151 @@ async def send_message(
             ),
         )
 
-    # PRE-RESERVE tokens to prevent race condition
-    # This ensures concurrent requests can't all pass the budget check
-    db_user.token_budget_used = (db_user.token_budget_used or 0) + estimated_tokens
-    db.flush()  # Reserve immediately but don't commit yet
-
-    # Get or create session
-    if request.session_id:
-        session = (
-            db.query(CoachSession)
-            .filter(
-                CoachSession.id == request.session_id,
-                CoachSession.user_id == user.id,
-            )
-            .first()
-        )
-        if not session:
-            # Rollback the reservation
-            db.rollback()
-            raise HTTPException(status_code=404, detail="Session not found")
-    else:
-        session = CoachSession(
-            id=str(uuid.uuid4()),
-            user_id=user.id,
-        )
-        db.add(session)
-        db.flush()
-
-    # Build conversation context
-    previous_messages = (
-        db.query(CoachMessage)
-        .filter(CoachMessage.session_id == session.id)
-        .order_by(CoachMessage.created_at)
-        .all()
-    )
-
-    # Get AI response
-    # Send raw user message to Claude for best coaching responses
-    # (safe_message is only used for storage/return)
-    try:
-        response_content, thinking, tokens_used = await _get_coach_response(
-            user_message=request.message,  # Raw message to Claude
-            history=previous_messages,
-            replay_id=request.replay_id,
-            user_notes=_get_user_notes(db, user.id),
-            user_id=user.id,
-            db=db,
-        )
-    except Exception as e:
-        # Rollback reservation on failure
-        db.rollback()
-        logger.exception(f"AI service error for user {user.id}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI service temporarily unavailable. Please try again.",
-        ) from e
-
-    # Store user message (sanitized)
-    user_msg = CoachMessage(
-        id=str(uuid.uuid4()),
+    reservation_id = reserve_tokens(
+        user=db_user,
         session_id=session.id,
-        role="user",
-        content=safe_message,
-        content_json=json.dumps([{"type": "text", "text": safe_message}]),
+        estimated_tokens=estimated_tokens,
+        db=db,
     )
-    db.add(user_msg)
+    db.refresh(db_user)
 
-    # Store assistant message
-    input_tokens = tokens_used.get("input", 0)
-    output_tokens = tokens_used.get("output", 0)
-    thinking_tokens = tokens_used.get("thinking", 0)
-
-    # Sanitize AI response for storage (defense in depth against XSS)
-    # Claude won't output malicious HTML, but sanitize to protect against edge cases
-    safe_response = sanitize_string(
-        response_content,
-        max_length=50000,
-        allow_newlines=True,
-        strip_html=True,
-        preserve_formatting=True,  # Keep code block formatting
+    system_message = build_system_prompt(
+        user_notes=_get_user_notes(db, user.id),
+        player_name=db_user.display_name,
     )
 
-    assistant_msg = CoachMessage(
-        id=str(uuid.uuid4()),
+    return ChatPreflightResponse(
         session_id=session.id,
-        role="assistant",
-        content=safe_response,
-        content_json=json.dumps([{"type": "text", "text": safe_response}]),
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        thinking_tokens=thinking_tokens,
-    )
-    db.add(assistant_msg)
-
-    # Adjust token budget: replace estimated with actual
-    actual_tokens = input_tokens + output_tokens
-    # We already added estimated_tokens, so adjust the difference
-    token_adjustment = actual_tokens - estimated_tokens
-    db_user.token_budget_used = (db_user.token_budget_used or 0) + token_adjustment
-    db_user.updated_at = datetime.now(timezone.utc)
-
-    # Mark free preview as used for free tier users
-    if is_free_preview:
-        db_user.free_coach_message_used = True
-
-    # Update session token counts
-    session.total_input_tokens = (session.total_input_tokens or 0) + input_tokens
-    session.total_output_tokens = (session.total_output_tokens or 0) + output_tokens
-    session.total_thinking_tokens = (
-        session.total_thinking_tokens or 0
-    ) + thinking_tokens
-    session.message_count = (session.message_count or 0) + 2  # user + assistant
-
-    db.commit()
-
-    # Sanitize thinking content if present (defense in depth)
-    safe_thinking = None
-    if thinking:
-        safe_thinking = sanitize_string(
-            thinking,
-            max_length=100000,
-            allow_newlines=True,
-            strip_html=True,
-            preserve_formatting=True,  # Keep formatting in thinking
-        )
-
-    return MessageResponse(
-        session_id=session.id,
-        message_id=assistant_msg.id,
-        content=safe_response,  # Return sanitized content
-        thinking=safe_thinking,  # Return sanitized thinking
-        tokens_used=actual_tokens,
         budget_remaining=get_token_budget_remaining(db_user),
         is_free_preview=is_free_preview,
+        history=history,
+        system_message=system_message,
+        estimated_tokens=estimated_tokens,
+        reservation_id=reservation_id,
     )
+
+
+@router.post("/chat/record")
+async def chat_record(
+    request: ChatRecordRequest,
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> dict:
+    """Record chat messages and finalize reservation."""
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    session = (
+        db.query(CoachSession)
+        .filter(
+            CoachSession.id == request.session_id,
+            CoachSession.user_id == user.id,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    for message in request.messages:
+        content_blocks = message.content_blocks or []
+        content_text = message.content_text or _extract_text_from_blocks(content_blocks)
+
+        max_length = 10000 if message.role == "user" else 50000
+        safe_text = sanitize_string(
+            content_text,
+            max_length=max_length,
+            allow_newlines=True,
+            strip_html=True,
+            preserve_formatting=True,
+        )
+
+        db.add(
+            CoachMessage(
+                id=str(uuid.uuid4()),
+                session_id=session.id,
+                role=message.role,
+                content=safe_text,
+                content_json=json.dumps(content_blocks),
+            )
+        )
+
+    session.message_count = (session.message_count or 0) + len(request.messages)
+    session.total_output_tokens = (
+        session.total_output_tokens or 0
+    ) + request.tokens_used
+
+    if request.is_free_preview:
+        db_user.free_coach_message_used = True
+
+    finalize_reservation(
+        user=db_user,
+        reservation_id=request.reservation_id,
+        tokens_used=request.tokens_used,
+        db=db,
+    )
+
+    return {"recorded": True}
+
+
+@router.post("/chat/abort")
+async def chat_abort(
+    request: ChatAbortRequest,
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> dict:
+    """Abort a chat and release reserved tokens."""
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    session = (
+        db.query(CoachSession)
+        .filter(
+            CoachSession.id == request.session_id,
+            CoachSession.user_id == user.id,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if request.partial_messages:
+        for message in request.partial_messages:
+            content_blocks = message.content_blocks or []
+            content_text = message.content_text or _extract_text_from_blocks(
+                content_blocks
+            )
+
+            safe_text = sanitize_string(
+                content_text,
+                max_length=50000,
+                allow_newlines=True,
+                strip_html=True,
+                preserve_formatting=True,
+            )
+
+            db.add(
+                CoachMessage(
+                    id=str(uuid.uuid4()),
+                    session_id=session.id,
+                    role=message.role,
+                    content=safe_text,
+                    content_json=json.dumps(content_blocks),
+                )
+            )
+
+        session.message_count = (session.message_count or 0) + len(
+            request.partial_messages
+        )
+
+    abort_reservation(
+        user=db_user,
+        reservation_id=request.reservation_id,
+        db=db,
+    )
+
+    return {"aborted": True}
 
 
 @router.get("/sessions", response_model=list[SessionListItem])
@@ -403,22 +448,12 @@ async def get_session_messages(
     # as that would double-escape entities and corrupt formatting.
     # Frontend uses React which escapes HTML by default when rendering text.
     # Legacy pre-sanitization messages are handled by React's auto-escaping.
-    def _content_blocks(message: CoachMessage) -> list[dict]:
-        if message.content_json:
-            try:
-                parsed = json.loads(message.content_json)
-                if isinstance(parsed, list):
-                    return parsed
-            except json.JSONDecodeError:
-                logger.warning("Invalid content_json for coach message %s", message.id)
-        return [{"type": "text", "text": message.content or ""}]
-
     return [
         {
             "id": msg.id,
             "role": msg.role,
             "content": msg.content or "",
-            "content_blocks": _content_blocks(msg),
+            "content_blocks": _parse_content_blocks(msg.content_json, msg.content or ""),
             "created_at": msg.created_at.isoformat(),
         }
         for msg in messages
@@ -685,6 +720,30 @@ async def delete_note(
 # --- Internal helpers ---
 
 
+def _parse_content_blocks(
+    content_json: str | None,
+    fallback_text: str,
+) -> list[dict]:
+    if content_json:
+        try:
+            parsed = json.loads(content_json)
+            if isinstance(parsed, list):
+                return parsed
+        except json.JSONDecodeError:
+            logger.warning("Invalid content_json payload for coach message")
+    return [{"type": "text", "text": fallback_text}]
+
+
+def _extract_text_from_blocks(blocks: list[dict]) -> str:
+    parts: list[str] = []
+    for block in blocks:
+        if isinstance(block, dict) and block.get("type") == "text":
+            text = block.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "".join(parts)
+
+
 def _get_user_notes(db: DBSession, user_id: str) -> list[str]:
     """Get all user notes for context."""
     notes = (
@@ -696,125 +755,3 @@ def _get_user_notes(db: DBSession, user_id: str) -> list[str]:
     )
     return [note.content for note in notes]
 
-
-async def _get_coach_response(
-    user_message: str,
-    history: list[CoachMessage],
-    replay_id: str | None,
-    user_notes: list[str],
-    user_id: str | None = None,
-    db: DBSession | None = None,
-) -> tuple[str, str | None, dict[str, int]]:
-    """Get response from Claude Opus 4.5.
-
-    Uses extended thinking for deep analysis and tool use for data access.
-
-    Returns:
-        Tuple of (response_content, thinking_content, token_counts)
-    """
-    import anthropic
-
-    from ...services.coach.prompts import build_system_prompt, get_tool_descriptions
-    from ...services.coach.tools import execute_tool
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not configured")
-
-    client = anthropic.Anthropic(api_key=api_key)
-
-    # Build system prompt with context
-    system = build_system_prompt(user_notes=user_notes)
-
-    # Build messages from history
-    messages = []
-    for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
-    messages.append({"role": "user", "content": user_message})
-
-    # Get tool definitions
-    tools = get_tool_descriptions()
-
-    # Initial call with extended thinking and tools
-    response = client.messages.create(
-        model="claude-opus-4-5-20250514",
-        max_tokens=8192,
-        thinking={
-            "type": "enabled",
-            "budget_tokens": 4096,
-        },
-        system=system,
-        messages=messages,
-        tools=tools,
-    )
-
-    # Track total tokens
-    total_input = response.usage.input_tokens
-    total_output = response.usage.output_tokens
-
-    # Handle tool use loop (max 5 iterations)
-    max_iterations = 5
-    iteration = 0
-
-    while response.stop_reason == "tool_use" and iteration < max_iterations:
-        iteration += 1
-
-        # Extract tool calls
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                # Execute the tool
-                if user_id and db:
-                    result = await execute_tool(
-                        tool_name=block.name,
-                        tool_input=block.input,
-                        user_id=user_id,
-                        db=db,
-                    )
-                else:
-                    result = '{"error": "Tool execution not available"}'
-
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    }
-                )
-
-        # Continue conversation with tool results
-        messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": tool_results})
-
-        response = client.messages.create(
-            model="claude-opus-4-5-20250514",
-            max_tokens=8192,
-            thinking={
-                "type": "enabled",
-                "budget_tokens": 2048,  # Smaller budget for follow-ups
-            },
-            system=system,
-            messages=messages,
-            tools=tools,
-        )
-
-        total_input += response.usage.input_tokens
-        total_output += response.usage.output_tokens
-
-    # Extract final response and thinking
-    response_text = ""
-    thinking_text = None
-
-    for block in response.content:
-        if block.type == "thinking":
-            thinking_text = block.thinking
-        elif block.type == "text":
-            response_text = block.text
-
-    token_counts = {
-        "input": total_input,
-        "output": total_output,
-        "thinking": 0,  # Thinking tokens not counted in usage separately
-    }
-
-    return response_text, thinking_text, token_counts

@@ -29,8 +29,6 @@ dependencies = [
     # Payments & Auth
     "stripe>=8.0.0",
     "PyJWT>=2.8.0",
-    # AI Coach
-    "anthropic>=0.40.0",
     # Storage & Backups
     "b2sdk>=2.0.0",
     # Utilities
