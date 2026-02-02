@@ -227,18 +227,59 @@ Get full replay library with metadata.
 
 ### Coach (Pro Only)
 
-#### POST /coach/chat
+#### GET /coach/tools/schema
 
-Send a message to the AI coach.
+Return available coach tool definitions.
 
-**Auth Required:** Yes (Pro tier)
+**Auth Required:** Yes
+
+**Response:**
+```json
+{
+  "tools": [
+    {
+      "name": "get_rank_benchmarks",
+      "description": "...",
+      "input_schema": { "type": "object", "properties": {} }
+    }
+  ]
+}
+```
+
+#### POST /coach/tools/execute
+
+Execute a coach tool.
+
+**Auth Required:** Yes
 
 **Request Body:**
 ```json
 {
-  "replay_id": "replay_abc123",
+  "tool_name": "get_rank_benchmarks",
+  "tool_input": { "rank": "GC1" }
+}
+```
+
+**Response:**
+```json
+{
+  "tool_name": "get_rank_benchmarks",
+  "result": { "benchmarks": [] }
+}
+```
+
+#### POST /coach/chat/preflight
+
+Reserve budget and return context for a streaming chat turn.
+
+**Auth Required:** Yes
+
+**Request Body:**
+```json
+{
+  "message": "What should I improve from this game?",
   "session_id": "session_xyz",
-  "message": "What should I improve from this game?"
+  "replay_id": "replay_abc123"
 }
 ```
 
@@ -246,13 +287,66 @@ Send a message to the AI coach.
 ```json
 {
   "session_id": "session_xyz",
-  "message": {
-    "role": "assistant",
-    "content": "Based on your replay, I noticed...",
-    "tokens_used": 1500
-  }
+  "budget_remaining": 145000,
+  "is_free_preview": false,
+  "history": [{ "role": "user", "content": [{ "type": "text", "text": "..." }] }],
+  "system_message": "You are an expert Rocket League coach...",
+  "estimated_tokens": 1200,
+  "reservation_id": "reservation_123"
 }
 ```
+
+#### POST /coach/chat/record
+
+Record streamed messages and finalize the token reservation.
+
+**Auth Required:** Yes
+
+**Request Body:**
+```json
+{
+  "session_id": "session_xyz",
+  "reservation_id": "reservation_123",
+  "messages": [
+    { "role": "user", "content_blocks": [{ "type": "text", "text": "..." }] },
+    { "role": "assistant", "content_blocks": [{ "type": "text", "text": "..." }] }
+  ],
+  "tokens_used": 1500,
+  "estimated_tokens": 1200,
+  "is_free_preview": false
+}
+```
+
+**Response:**
+```json
+{ "recorded": true }
+```
+
+#### POST /coach/chat/abort
+
+Abort a chat turn and release the reservation (optionally storing partial messages).
+
+**Auth Required:** Yes
+
+**Request Body:**
+```json
+{
+  "session_id": "session_xyz",
+  "reservation_id": "reservation_123",
+  "partial_messages": [
+    { "role": "user", "content_blocks": [{ "type": "text", "text": "..." }] }
+  ]
+}
+```
+
+**Response:**
+```json
+{ "aborted": true }
+```
+
+**Note:** Streaming is orchestrated by the Next.js server route. Ensure
+`ANTHROPIC_API_KEY`, `COACH_MODEL_ID`, and `COACH_MAX_STEPS` are set in the
+frontend server runtime environment (Vercel/Docker), not just in `.env.local`.
 
 #### GET /coach/sessions
 
