@@ -1,6 +1,7 @@
 # src/rlcoach/services/coach/budget.py
 """Token budget management for AI Coach."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from dateutil.relativedelta import relativedelta
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from ...db.models import CoachTokenReservation, User
 
+logger = logging.getLogger(__name__)
 # Monthly token budgets
 MONTHLY_TOKEN_BUDGET = 150_000  # 150K tokens per month for Pro users
 WARNING_THRESHOLD = 0.80  # Warn at 80% usage
@@ -79,8 +81,6 @@ def get_budget_status(user: User) -> BudgetStatus:
 
     # Calculate reset date (next month anniversary)
     reset_at = user.token_budget_reset_at
-    if reset_at is not None and reset_at.tzinfo is None:
-        reset_at = reset_at.replace(tzinfo=timezone.utc)
     if reset_at is not None and reset_at.tzinfo is None:
         reset_at = reset_at.replace(tzinfo=timezone.utc)
     if reset_at is None:
@@ -168,12 +168,14 @@ def reserve_tokens(
     session_id: str,
     estimated_tokens: int,
     db: DBSession,
+    *,
+    commit: bool = True,
 ) -> str:
     """Reserve tokens for an in-flight coach request.
 
     Returns the reservation ID.
     """
-    _maybe_reset_budget(user, db)
+    _maybe_reset_budget(user, db, commit=commit)
 
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESERVATION_TTL_MINUTES)
     reservation = CoachTokenReservation(
@@ -186,14 +188,22 @@ def reserve_tokens(
     user.updated_at = datetime.now(timezone.utc)
 
     db.add(reservation)
-    db.commit()
-    db.refresh(reservation)
+    if commit:
+        db.commit()
+        db.refresh(reservation)
+    else:
+        db.flush()
     return reservation.id
 
 
-def release_expired_reservations(user: User, db: DBSession) -> int:
+def release_expired_reservations(
+    user: User,
+    db: DBSession,
+    *,
+    commit: bool = True,
+) -> int:
     """Release any expired reservations and restore budget."""
-    _maybe_reset_budget(user, db)
+    _maybe_reset_budget(user, db, commit=commit)
     now = datetime.now(timezone.utc)
     reservations = (
         db.query(CoachTokenReservation)
@@ -214,7 +224,10 @@ def release_expired_reservations(user: User, db: DBSession) -> int:
     for reservation in reservations:
         db.delete(reservation)
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return len(reservations)
 
 
@@ -237,6 +250,13 @@ def finalize_reservation(
         return
 
     delta = tokens_used - reservation.estimated_tokens
+    if abs(delta) > 500:
+        logger.info(
+            "Token estimation delta: %s (estimated=%s, actual=%s)",
+            delta,
+            reservation.estimated_tokens,
+            tokens_used,
+        )
     user.token_budget_used = max(0, (user.token_budget_used or 0) + delta)
     user.updated_at = datetime.now(timezone.utc)
 
@@ -266,7 +286,7 @@ def abort_reservation(user: User, reservation_id: str, db: DBSession) -> None:
     db.commit()
 
 
-def _maybe_reset_budget(user: User, db: DBSession) -> bool:
+def _maybe_reset_budget(user: User, db: DBSession, *, commit: bool = True) -> bool:
     """Reset budget if we're in a new billing period.
 
     Args:
@@ -282,7 +302,10 @@ def _maybe_reset_budget(user: User, db: DBSession) -> bool:
         # First time - set reset date
         user.token_budget_reset_at = datetime.now(timezone.utc)
         user.token_budget_used = 0
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         return True
 
     # Check if we've passed the reset date
@@ -295,7 +318,10 @@ def _maybe_reset_budget(user: User, db: DBSession) -> bool:
         # Reset budget
         user.token_budget_used = 0
         user.token_budget_reset_at = now
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         return True
 
     return False
@@ -305,6 +331,7 @@ def estimate_request_tokens(
     message_length: int,
     history_messages: int = 0,
     include_tools: bool = True,
+    tool_result_count: int = 0,
 ) -> int:
     """Estimate tokens for a request.
 
@@ -328,4 +355,6 @@ def estimate_request_tokens(
     # Output estimate: ~500 tokens average response
     output_estimate = 500
 
-    return message_tokens + history_tokens + overhead + output_estimate
+    tool_result_tokens = tool_result_count * 200 if include_tools else 0
+
+    return message_tokens + history_tokens + overhead + output_estimate + tool_result_tokens

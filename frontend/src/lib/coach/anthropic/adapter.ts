@@ -16,17 +16,22 @@ export function mapSdkEvent(event: MessageStreamEvent): AspEvent[] {
     event.type === "content_block_start" &&
     event.content_block?.type === "tool_use"
   ) {
+    const input = event.content_block.input;
+    const safeInput =
+      typeof input === "object" && input !== null
+        ? (input as Record<string, unknown>)
+        : {};
     return [
       {
         type: "tool",
         tool_use_id: event.content_block.id,
         name: event.content_block.name,
-        input: event.content_block.input,
+        input: safeInput,
       },
     ];
   }
-  if (event.type === "message_stop") {
-    return [{ type: "message_stop", stop_reason: event.stop_reason }];
+  if (event.type === "message_delta" && event.delta?.stop_reason) {
+    return [{ type: "message_stop", stop_reason: event.delta.stop_reason }];
   }
   return [];
 }

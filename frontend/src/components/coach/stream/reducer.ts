@@ -1,31 +1,37 @@
 import type { AspEvent } from "@/lib/coach/asp";
 
-type Message = { role: "assistant" | "user"; content: string };
+export type Message = { role: "assistant" | "user"; content: string };
 
 export type StreamAction = AspEvent | { type: "user_message"; text: string };
 
-type State = {
+export type StreamState = {
   messages: Message[];
   thinking: string;
   toolStatus: string | null;
   error: string | null;
 };
 
-const initialState: State = {
+export const initialState: StreamState = {
   messages: [],
   thinking: "",
   toolStatus: null,
   error: null,
 };
 
-export function reducer(state: State = initialState, event: StreamAction): State {
+export function reducer(
+  state: StreamState = initialState,
+  event: StreamAction,
+): StreamState {
   if (event.type === "user_message") {
     return {
       ...state,
       thinking: "",
       toolStatus: null,
       error: null,
-      messages: [...state.messages, { role: "user", content: event.text }],
+      messages: [
+        ...state.messages,
+        { role: "user" as const, content: event.text },
+      ],
     };
   }
   if (event.type === "text") {
@@ -34,9 +40,9 @@ export function reducer(state: State = initialState, event: StreamAction): State
       last && last.role === "assistant"
         ? [
             ...state.messages.slice(0, -1),
-            { role: "assistant", content: last.content + event.text },
+            { role: "assistant" as const, content: last.content + event.text },
           ]
-        : [...state.messages, { role: "assistant", content: event.text }];
+        : [...state.messages, { role: "assistant" as const, content: event.text }];
     return { ...state, messages };
   }
   if (event.type === "thinking") {

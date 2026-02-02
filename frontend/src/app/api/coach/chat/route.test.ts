@@ -25,7 +25,16 @@ const streamMock = {
   async *[Symbol.asyncIterator]() {
     yield { type: "message_stop", stop_reason: "end_turn" };
   },
-  finalMessage: async () => ({ content: [{ type: "text", text: "hi" }] }),
+  finalMessage: async () => ({
+    content: [{ type: "text", text: "hi" }],
+    stop_reason: "end_turn",
+    usage: {
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    },
+  }),
 };
 
 const mockStream = jest.fn(() => streamMock);
@@ -33,7 +42,7 @@ const mockStream = jest.fn(() => streamMock);
 jest.mock("@/lib/coach/anthropic/client", () => ({
   anthropicClient: {
     messages: {
-      stream: (...args: unknown[]) => mockStream(...args),
+      stream: (..._args: unknown[]) => mockStream(),
     },
   },
 }));
@@ -92,6 +101,7 @@ import { POST } from "./route";
 
 describe("coach chat route", () => {
   it("returns a streaming response", async () => {
+    process.env.COACH_MODEL_ID = "claude-test";
     const request = {
       json: async () => ({ message: "hi" }),
       headers: {

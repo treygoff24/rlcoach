@@ -79,6 +79,7 @@ class ChatRecordRequest(BaseModel):
     tokens_used: int
     estimated_tokens: int
     is_free_preview: bool
+    thinking_tokens: int = 0
 
 
 class ChatAbortRequest(BaseModel):
@@ -197,27 +198,32 @@ async def chat_preflight(
         db.add(session)
         db.flush()
 
-    release_expired_reservations(db_user, db)
+    release_expired_reservations(db_user, db, commit=False)
 
+    max_history_messages = 20
     previous_messages = (
         db.query(CoachMessage)
         .filter(CoachMessage.session_id == session.id)
-        .order_by(CoachMessage.created_at)
+        .order_by(CoachMessage.created_at.desc())
+        .limit(max_history_messages)
         .all()
     )
+    previous_messages = list(reversed(previous_messages))
 
-    history = [
-        {
-            "role": msg.role,
-            "content": _parse_content_blocks(msg.content_json, msg.content or ""),
-        }
-        for msg in previous_messages
-    ]
+    history = []
+    tool_result_count = 0
+    for msg in previous_messages:
+        content_blocks = _parse_content_blocks(msg.content_json, msg.content or "")
+        tool_result_count += sum(
+            1 for block in content_blocks if block.get("type") == "tool_result"
+        )
+        history.append({"role": msg.role, "content": content_blocks})
 
     estimated_tokens = estimate_request_tokens(
         message_length=len(request.message),
         history_messages=len(previous_messages),
         include_tools=True,
+        tool_result_count=tool_result_count,
     )
 
     budget_remaining = get_token_budget_remaining(db_user)
@@ -241,7 +247,9 @@ async def chat_preflight(
         session_id=session.id,
         estimated_tokens=estimated_tokens,
         db=db,
+        commit=False,
     )
+    db.commit()
     db.refresh(db_user)
 
     system_message = build_system_prompt(
@@ -284,7 +292,22 @@ async def chat_record(
 
     for message in request.messages:
         content_blocks = message.content_blocks or []
-        content_text = message.content_text or _extract_text_from_blocks(content_blocks)
+        safe_blocks = []
+        for block in content_blocks:
+            if block.get("type") == "tool_result":
+                content = block.get("content")
+                if isinstance(content, str):
+                    safe_content = sanitize_string(
+                        content,
+                        max_length=50000,
+                        allow_newlines=True,
+                        strip_html=True,
+                        preserve_formatting=True,
+                    )
+                    block = {**block, "content": safe_content}
+            safe_blocks.append(block)
+
+        content_text = message.content_text or _extract_text_from_blocks(safe_blocks)
 
         max_length = 10000 if message.role == "user" else 50000
         safe_text = sanitize_string(
@@ -301,7 +324,7 @@ async def chat_record(
                 session_id=session.id,
                 role=message.role,
                 content=safe_text,
-                content_json=json.dumps(content_blocks),
+                content_json=json.dumps(safe_blocks),
             )
         )
 
@@ -309,6 +332,9 @@ async def chat_record(
     session.total_output_tokens = (
         session.total_output_tokens or 0
     ) + request.tokens_used
+    session.total_thinking_tokens = (
+        session.total_thinking_tokens or 0
+    ) + (request.thinking_tokens or 0)
 
     if request.is_free_preview:
         db_user.free_coach_message_used = True
@@ -754,4 +780,3 @@ def _get_user_notes(db: DBSession, user_id: str) -> list[str]:
         .all()
     )
     return [note.content for note in notes]
-

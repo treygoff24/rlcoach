@@ -58,6 +58,7 @@ export async function chatRecord(
       content_text?: string;
     }>;
     tokens_used: number;
+    thinking_tokens?: number;
     estimated_tokens: number;
     is_free_preview: boolean;
   },

@@ -18,6 +18,7 @@ export default function CoachPage() {
   const [budgetRemaining, setBudgetRemaining] = useState<number>(150000);
   const [error, setError] = useState<string | null>(null);
   const [freePreviewUsed, setFreePreviewUsed] = useState(false);
+  const [isFreePreview, setIsFreePreview] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streamError = state.error;
@@ -96,6 +97,7 @@ export default function CoachPage() {
             }
             if (event.is_free_preview) {
               setFreePreviewUsed(true);
+              setIsFreePreview(true);
             }
             continue;
           }
@@ -244,6 +246,12 @@ export default function CoachPage() {
           )}
         </div>
       </div>
+
+      {!isPro && isFreePreview && (
+        <div className="px-6 py-3 border-b border-orange-500/30 bg-orange-500/10 text-sm text-orange-300">
+          This is your free preview message. Upgrade to Pro for unlimited coaching.
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6" role="log" aria-label="Chat messages" aria-live="polite">
