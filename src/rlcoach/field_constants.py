@@ -135,7 +135,8 @@ class FieldConstants:
 
         Args:
             pos: Position vector
-            defending_team: 0 for blue (defends negative Y), 1 for orange (defends positive Y)
+            defending_team: 0 for blue (defends negative Y), 1 for orange
+                (defends positive Y)
 
         Returns:
             Distance to the goal line being defended

@@ -31,10 +31,14 @@ def summarize_report(data: dict[str, Any], focus_player: str | None = None) -> s
     lines.append("Replay Summary")
     lines.append("-")
     lines.append(
-        f"Playlist: {meta.get('playlist', 'UNKNOWN')} | Map: {meta.get('map', 'UNKNOWN')} | Team Size: {meta.get('team_size', '?')}"
+        f"Playlist: {meta.get('playlist', 'UNKNOWN')} | "
+        f"Map: {meta.get('map', 'UNKNOWN')} | "
+        f"Team Size: {meta.get('team_size', '?')}"
     )
     lines.append(
-        f"Duration: {meta.get('duration_seconds', '?')}s | Frames: {meta.get('total_frames', '?')} @ {meta.get('recorded_frame_hz', '?')} Hz"
+        f"Duration: {meta.get('duration_seconds', '?')}s | "
+        f"Frames: {meta.get('total_frames', '?')} @ "
+        f"{meta.get('recorded_frame_hz', '?')} Hz"
     )
 
     # Teams
@@ -44,10 +48,12 @@ def summarize_report(data: dict[str, Any], focus_player: str | None = None) -> s
     lines.append("Teams")
     lines.append("-")
     lines.append(
-        f"BLUE: {blue.get('score', '?')} — Players: {', '.join(blue.get('players', []))}"
+        f"BLUE: {blue.get('score', '?')} — Players: "
+        f"{', '.join(blue.get('players', []))}"
     )
     lines.append(
-        f"ORANGE: {orange.get('score', '?')} — Players: {', '.join(orange.get('players', []))}"
+        f"ORANGE: {orange.get('score', '?')} — Players: "
+        f"{', '.join(orange.get('players', []))}"
     )
 
     # Players
@@ -71,7 +77,10 @@ def summarize_report(data: dict[str, Any], focus_player: str | None = None) -> s
         boost = t.get("boost", {})
         move = t.get("movement", {})
         lines.append(
-            f"{team_key.upper()}: goals {fund.get('goals','?')}, shots {fund.get('shots','?')}, saves {fund.get('saves','?')} | avg_speed_kph {move.get('avg_speed_kph','?')} | avg_boost {boost.get('avg_boost','?')}"
+            f"{team_key.upper()}: goals {fund.get('goals','?')}, "
+            f"shots {fund.get('shots','?')}, saves {fund.get('saves','?')} | "
+            f"avg_speed_kph {move.get('avg_speed_kph','?')} | "
+            f"avg_boost {boost.get('avg_boost','?')}"
         )
 
     # Optional per-player section

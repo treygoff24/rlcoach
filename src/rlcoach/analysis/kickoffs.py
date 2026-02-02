@@ -99,8 +99,8 @@ def _analyze_kickoffs_for_player(
         if ko.outcome == "NEUTRAL":
             neutral += 1
 
-        # First possession: attribute if outcome matches player's team; unavailable -> skip
-        # Without team link in event, we cannot resolve — leave 0 by default
+        # First possession: attribute if outcome matches player's team.
+        # If unavailable, skip (leave 0 by default).
 
         # Time to first touch
         tft = pdata.get("time_to_first_touch")

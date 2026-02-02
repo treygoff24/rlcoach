@@ -179,10 +179,12 @@ def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
                 z=float(rot_data.get("z", 0.0)),
             )
 
-    # For non-dict objects, check for x/y/z FIRST (legacy format), before pitch/yaw/roll
-    # This is important because Mock objects have implicit attributes
+    # For non-dict objects, check for x/y/z FIRST (legacy format), before
+    # pitch/yaw/roll. This is important because Mock objects have implicit
+    # attributes.
     if hasattr(rot_data, "x") and hasattr(rot_data, "y") and hasattr(rot_data, "z"):
-        # Try to get x/y/z as numbers - this distinguishes real attributes from Mock implicit ones
+        # Try to get x/y/z as numbers - this distinguishes real attributes from
+        # Mock implicit ones.
         try:
             x_val = rot_data.x
             y_val = rot_data.y
@@ -422,8 +424,8 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     elif isinstance(player_data, dict) and "velocity" in player_data:
                         velocity = to_field_coords(player_data["velocity"])
 
-                    # Extract rotation - handle both new format (pitch/yaw/roll + quaternion)
-                    # and legacy format (x/y/z)
+                    # Extract rotation - handle both new format (pitch/yaw/roll
+                    # + quaternion) and legacy format (x/y/z).
                     if hasattr(player_data, "rotation"):
                         rotation = _parse_rotation(player_data.rotation)
                     elif isinstance(player_data, dict) and "rotation" in player_data:

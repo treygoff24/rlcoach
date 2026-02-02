@@ -144,8 +144,8 @@ def generate_report(
         # Ingest for file metadata and validation
         ingest_info = ingest_replay(replay_path)
 
-        # Parse header via adapter. Prefer rust adapter when available for richer header data,
-        # but fall back to null adapter if anything goes wrong.
+        # Parse header via adapter. Prefer rust adapter when available for richer
+        # header data, but fall back to null adapter if anything goes wrong.
         try:
             adapter = get_adapter(adapter_name)
             header = adapter.parse_header(replay_path)
@@ -159,7 +159,8 @@ def generate_report(
             raw_frames = adapter.parse_network(replay_path)
 
         # Normalize timeline
-        # Normalize timeline; accept either a list of frames or a NetworkFrames wrapper
+        # Normalize timeline; accept either a list of frames or a NetworkFrames
+        # wrapper.
         frames_input = []
         if raw_frames is None:
             frames_input = []
@@ -259,7 +260,9 @@ def generate_report(
             ]
         # Incorporate analysis warnings if present
         if isinstance(analysis_out, dict) and analysis_out.get("warnings"):
-            quality["warnings"] = list(quality["warnings"]) + list(analysis_out["warnings"])  # type: ignore[index]
+            quality["warnings"] = list(quality["warnings"]) + list(
+                analysis_out["warnings"]
+            )  # type: ignore[index]
 
         # Teams block
         # Construct minimal players array based on header
@@ -333,7 +336,10 @@ def generate_report(
         # Events block (serialize dataclasses to dicts)
         goal_dicts: list[dict[str, Any]] = []
         for g in goals:
-            data = {k: _serialize_value(getattr(g, k)) for k in g.__dataclass_fields__.keys()}  # type: ignore[attr-defined]
+            data = {
+                k: _serialize_value(getattr(g, k))
+                for k in g.__dataclass_fields__.keys()
+            }  # type: ignore[attr-defined]
             if data.get("scorer") is None:
                 data["scorer"] = "UNKNOWN"
             goal_dicts.append(data)
@@ -341,12 +347,26 @@ def generate_report(
         events_block = {
             "timeline": [_timeline_event_to_dict(ev) for ev in timeline],
             "goals": goal_dicts,
-            "demos": [{k: _serialize_value(getattr(d, k)) for k in d.__dataclass_fields__.keys()} for d in demos],  # type: ignore[attr-defined]
+            "demos": [
+                {
+                    k: _serialize_value(getattr(d, k))
+                    for k in d.__dataclass_fields__.keys()
+                }
+                for d in demos
+            ],  # type: ignore[attr-defined]
             "kickoffs": [
-                {k: _serialize_value(getattr(kf, k)) for k in kf.__dataclass_fields__.keys()} for kf in kickoffs  # type: ignore[attr-defined]
+                {
+                    k: _serialize_value(getattr(kf, k))
+                    for k in kf.__dataclass_fields__.keys()
+                }
+                for kf in kickoffs
             ],
             "boost_pickups": [
-                {k: _serialize_value(getattr(bp, k)) for k in bp.__dataclass_fields__.keys()} for bp in pickups  # type: ignore[attr-defined]
+                {
+                    k: _serialize_value(getattr(bp, k))
+                    for k in bp.__dataclass_fields__.keys()
+                }
+                for bp in pickups
             ],
             "touches": [
                 {
@@ -368,7 +388,11 @@ def generate_report(
                 for t in touches
             ],
             "challenges": [
-                {k: _serialize_value(getattr(ch, k)) for k in ch.__dataclass_fields__.keys()} for ch in challenges  # type: ignore[attr-defined]
+                {
+                    k: _serialize_value(getattr(ch, k))
+                    for k in ch.__dataclass_fields__.keys()
+                }
+                for ch in challenges
             ],
         }
 

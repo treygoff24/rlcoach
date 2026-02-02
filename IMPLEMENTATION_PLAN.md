@@ -325,8 +325,8 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 - [ ] PostgreSQL running in Docker container
 - [ ] Alembic migrations apply cleanly
 - [ ] All existing tests pass against PostgreSQL
-- [ ] User table properly linked to replays
-- [ ] Session detection groups replays correctly
+- [~] User table properly linked to replays
+- [~] Session detection groups replays correctly
 
 ### Risks/Decisions
 - **Decision:** UUID vs serial IDs - use UUIDs for all new tables (no enumeration attacks)
@@ -354,7 +354,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - Set up ESLint + Prettier
   - Acceptance criteria: `npm run dev` starts dev server, TypeScript compiles
 
-- [x] **3.2 Install and Configure NextAuth.js**
+- [~] **3.2 Install and Configure NextAuth.js**
   - Description: Authentication with multiple OAuth providers
   - Files to create:
     - `frontend/src/app/api/auth/[...nextauth]/route.ts`
@@ -432,7 +432,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - 403 response with upgrade prompt for free users
   - Acceptance criteria: Free users get 403 on AI coach endpoints
 
-- [ ] **3.9.1 Tenant Scoping (Critical Security)**
+- [~] **3.9.1 Tenant Scoping (Critical Security)**
   - Description: Ensure all queries are scoped to current user
   - Files to create: `src/rlcoach/api/middleware/tenant.py`
   - Files to modify: All API routers
@@ -486,7 +486,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: NextAuth adapter works with our PostgreSQL schema
 
 ### Phase Verification
-- [ ] User can sign up with Discord, Steam, Google
+- [~] User can sign up with Discord, Steam, Google
 - [ ] User can link multiple accounts
 - [x] JWT tokens validate correctly in FastAPI
 - [x] Pro endpoints reject free users with 403
@@ -637,13 +637,13 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: Old replays accessible from B2
 
 ### Phase Verification
-- [ ] Upload accepts valid .replay files
-- [ ] Invalid files rejected with clear error message
-- [ ] Background worker processes queue
-- [ ] Duplicate uploads deduplicated
-- [ ] Progress UI shows real-time status
-- [ ] Disk monitoring alerts work
-- [ ] Rate limits enforced
+- [x] Upload accepts valid .replay files
+- [x] Invalid files rejected with clear error message
+- [x] Background worker processes queue
+- [~] Duplicate uploads deduplicated
+- [~] Progress UI shows real-time status
+- [~] Disk monitoring alerts work
+- [x] Rate limits enforced
 
 ### Risks/Decisions
 - **Decision:** Polling vs WebSocket - start with polling, simpler to implement and debug
@@ -829,7 +829,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
     - GET `/api/v1/sessions?page=` - paginated sessions with nested replays
   - Acceptance criteria: Sessions group correctly, expandable UI works
 
-- [x] **5.13 Trends Page**
+- [~] **5.13 Trends Page**
   - Description: Stats over time with flexible axis
   - Files to create:
     - `frontend/src/app/(dashboard)/trends/page.tsx`
@@ -844,6 +844,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - API endpoints needed:
     - GET `/api/v1/trends?metrics=&axis=&range=` - trend data
   - Acceptance criteria: Charts render, axis toggle works, date range filters
+  - Status note: API wired; visualization depth still below UX plan.
 
 - [x] **5.14 Comparison Page**
   - Description: Rank comparison and self comparison
@@ -908,9 +909,9 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: All dashboard pages have data, <500ms response times
 
 ### Phase Verification
-- [ ] All 7 pages render correctly
-- [ ] Data flows from backend to frontend
-- [ ] Visualizations are beautiful and informative
+- [x] All 7 pages render correctly
+- [x] Data flows from backend to frontend
+- [~] Visualizations are beautiful and informative
 - [ ] Pages are responsive (mobile-friendly)
 - [ ] Performance: initial load <2s, interactions <200ms
 - [ ] Screenshots are shareable quality
@@ -1020,11 +1021,11 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: Grace period works, access revokes after 3 days
 
 ### Phase Verification
-- [ ] Checkout flow completes successfully
-- [ ] Webhooks update database correctly
-- [ ] Billing portal accessible
-- [ ] JWT includes correct tier
-- [ ] Free users cannot access Pro features
+- [~] Checkout flow completes successfully
+- [~] Webhooks update database correctly
+- [~] Billing portal accessible
+- [x] JWT includes correct tier
+- [x] Free users cannot access Pro features
 - [ ] Grace period works for failed payments
 
 ### Risks/Decisions
@@ -1181,12 +1182,12 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
   - Acceptance criteria: Long conversations don't fail, context managed well
 
 ### Phase Verification
-- [ ] Chat works end-to-end
-- [ ] Responses are helpful and use real player data
-- [ ] Token budget enforced correctly
-- [ ] Notes persist and influence coaching
-- [ ] Rate limits prevent abuse
-- [ ] Free users see upgrade prompt, cannot chat
+- [~] Chat works end-to-end
+- [~] Responses are helpful and use real player data
+- [x] Token budget enforced correctly
+- [x] Notes persist and influence coaching
+- [x] Rate limits prevent abuse
+- [x] Free users see upgrade prompt, cannot chat
 - [ ] Extended thinking visible in UI
 
 ### Risks/Decisions
@@ -1415,7 +1416,7 @@ Transform the existing rlcoach Python CLI tool into a SaaS product with:
 - [ ] Security audit clean
 - [ ] Mobile responsive
 - [ ] Monitoring live
-- [ ] Legal pages published
+- [x] Legal pages published
 - [ ] Landing page ready
 - [ ] Pre-launch checklist complete
 

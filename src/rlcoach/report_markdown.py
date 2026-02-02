@@ -709,7 +709,8 @@ class _MarkdownComposer:
         b_approach = blue.get("approach_types", {}) or {}
         o_approach = orange.get("approach_types", {}) or {}
         labels = sorted({*b_approach.keys(), *o_approach.keys()})
-        # Use total_approaches as denominator (total per-player entries), not kickoff count
+        # Use total_approaches as denominator (total per-player entries), not
+        # kickoff count.
         b_total = blue.get("total_approaches", sum(b_approach.values()) or 1)
         o_total = orange.get("total_approaches", sum(o_approach.values()) or 1)
         rows = []
@@ -1136,7 +1137,9 @@ class _MarkdownComposer:
             x_center = xmin + (col_idx + 0.5) * x_step if x_bins else 0.0
             y_center = ymin + (row_idx + 0.5) * y_step if y_bins else 0.0
             top_cells.append(
-                f"#{position + 1} (row {row_idx}, col {col_idx}, x {self._fmt_num(x_center)}, y {self._fmt_num(y_center)}): {self._fmt_num(val)}"
+                f"#{position + 1} (row {row_idx}, col {col_idx}, "
+                f"x {self._fmt_num(x_center)}, y {self._fmt_num(y_center)}): "
+                f"{self._fmt_num(val)}"
             )
         rows = [
             ("Total", self._fmt_num(total)),

@@ -106,9 +106,11 @@ def process_replay_file(
             )
 
         # Check if "me" should be excluded
-        # Logic: excluded_names are user's accounts they don't want analyzed
-        # If find_me succeeds -> that's "me", can't be excluded (validation prevents overlap)
-        # If find_me fails -> check if any player matches excluded_names (that would be "me")
+        # Logic: excluded_names are user's accounts they don't want analyzed.
+        # If find_me succeeds -> that's "me", can't be excluded (validation
+        # prevents overlap).
+        # If find_me fails -> check if any player matches excluded_names (that
+        # would be "me").
         resolver = PlayerIdentityResolver(config.identity)
         players = report.get("players", [])
         me = resolver.find_me(players)

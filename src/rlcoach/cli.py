@@ -147,7 +147,9 @@ def handle_ingest_watch(args) -> int:
 
     print()
     print(
-        f"Processed: {stats['success']} new, {stats['duplicate']} duplicate, {stats['error']} errors"
+        "Processed: "
+        f"{stats['success']} new, {stats['duplicate']} duplicate, "
+        f"{stats['error']} errors"
     )
     return 0
 
@@ -333,17 +335,20 @@ def handle_benchmarks_command(args) -> int:
 
             if not benchmarks:
                 print(
-                    "No benchmarks found. Use 'rlcoach benchmarks import <file>' to add some."
+                    "No benchmarks found. Use 'rlcoach benchmarks import <file>' "
+                    "to add some."
                 )
                 return 0
 
             print(
-                f"{'Metric':<20} {'Playlist':<10} {'Rank':<6} {'Median':>10} {'Source':<20}"
+                f"{'Metric':<20} {'Playlist':<10} {'Rank':<6} "
+                f"{'Median':>10} {'Source':<20}"
             )
             print("-" * 70)
             for b in benchmarks:
                 print(
-                    f"{b.metric:<20} {b.playlist:<10} {b.rank_tier:<6} {b.median_value:>10.1f} {b.source:<20}"
+                    f"{b.metric:<20} {b.playlist:<10} {b.rank_tier:<6} "
+                    f"{b.median_value:>10.1f} {b.source:<20}"
                 )
             print(f"\nTotal: {len(benchmarks)} benchmarks")
             return 0

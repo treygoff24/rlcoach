@@ -297,7 +297,7 @@ cd frontend && npm run build && npm run lint
 - [x] Define benchmark data structure
 - [ ] Add estimates for all ranks (Bronze → SSL)
 - [ ] Metrics: goals, assists, saves, shooting%, bcpm, avg_boost, etc.
-- [x] Create `GET /api/v1/benchmarks/{rank}/{mode}` endpoint
+- [~] Create `GET /api/v1/benchmarks/{rank}/{mode}` endpoint
   - Status note: Benchmarks currently served via `GET /api/v1/users/me/benchmarks` with partial rank coverage (C2–SSL 2v2).
 
 ### 6.2 Dashboard Integration

@@ -28,7 +28,8 @@ REPLAY_MAGIC_SEQUENCES = [
     b"\x00\x00\x00\x00\x08\x00\x00\x00TAGame",  # Header format variant
 ]
 
-# CRC configuration derived from Rocket League's replay format / Unreal Engine implementation
+# CRC configuration derived from Rocket League's replay format / Unreal Engine
+# implementation
 _CRC_POLY = 0x04C11DB7
 _CRC_XOR_IN = 0x10340DFE
 _CRC_XOR_OUT = 0xFFFFFFFF

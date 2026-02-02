@@ -33,8 +33,10 @@ class RecoveryEvent:
     peak_height: float  # Maximum height reached during airborne phase
     speed_at_landing: float  # Speed when touching down
     speed_after_recovery: float  # Speed after regaining control
-    momentum_retained: float  # Ratio of post-recovery to pre-landing speed (can exceed 1.0 with boost/wavedash)
-    was_wavedash: bool = False  # True if recovery included a wavedash
+    # Ratio of post-recovery to pre-landing speed (can exceed 1.0 with boost/wavedash)
+    momentum_retained: float
+    # True if recovery included a wavedash
+    was_wavedash: bool = False
 
 
 @dataclass
@@ -61,11 +63,15 @@ class PlayerRecoveryState:
 # Detection thresholds
 GROUND_HEIGHT_THRESHOLD = 30.0  # Car is on ground if z < this
 AIRBORNE_MIN_HEIGHT = 50.0  # Minimum height to count as meaningful airborne
-STABLE_VELOCITY_THRESHOLD = 200.0  # Velocity change threshold for "stable" (was 100, too strict for fast players)
-STABLE_FRAMES_REQUIRED = 2  # Frames of stable movement = control regained (was 3, reduced for faster detection)
+# Velocity change threshold for "stable" (was 100, too strict for fast players)
+STABLE_VELOCITY_THRESHOLD = 200.0
+# Frames of stable movement = control regained (was 3, reduced for faster detection)
+STABLE_FRAMES_REQUIRED = 2
 WAVEDASH_WINDOW = 0.3  # Seconds after landing to detect wavedash
 WAVEDASH_SPEED_BOOST = 1.15  # Speed increase ratio indicating wavedash
-MIN_AIRBORNE_TIME = 0.15  # Minimum airborne time to count as meaningful (was 0.2, reduced to catch more recoveries)
+# Minimum airborne time to count as meaningful (was 0.2, reduced to catch more
+# recoveries)
+MIN_AIRBORNE_TIME = 0.15
 
 
 def _calculate_speed(velocity: Vec3) -> float:
@@ -97,7 +103,8 @@ def _assess_recovery_quality(
     Returns:
         RecoveryQuality classification
     """
-    # Failed recovery: landed with significant downward velocity and upside down potential
+    # Failed recovery: landed with significant downward velocity and upside down
+    # potential.
     if landing_velocity.z < -800.0:
         return RecoveryQuality.FAILED
 
@@ -190,8 +197,8 @@ def detect_recoveries_for_player(
             state.recovery_complete = False
             state.wavedash_detected = False
             state.stable_frames = 0
-            # If we were tracking a landing but player jumped again before recovery completed,
-            # abandon the previous recovery tracking
+            # If we were tracking a landing but player jumped again before recovery
+            # completed, abandon the previous recovery tracking.
             if state.landed_time is not None:
                 state.landed_time = None
                 state.landing_position = None

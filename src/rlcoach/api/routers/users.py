@@ -1040,6 +1040,7 @@ async def get_user_trends(
     elif axis == "session":
         # Group by session_id and average the metric
         from collections import defaultdict
+
         session_values: dict[str, list[tuple[float, str | None]]] = defaultdict(list)
 
         for replay, stats in results:
@@ -1074,6 +1075,7 @@ async def get_user_trends(
     else:  # axis == "time" (default)
         # Group by date and average
         from collections import defaultdict
+
         date_values: dict[str, list[float]] = defaultdict(list)
 
         for replay, stats in results:
@@ -1088,6 +1090,7 @@ async def get_user_trends(
             avg_value = sum(vals) / len(vals)
             # Format date for display
             from datetime import date as dt_date
+
             d = dt_date.fromisoformat(date_str)
             label = d.strftime("%b %d")
             values.append(

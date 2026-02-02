@@ -67,7 +67,8 @@ class RLCoachConfig:
         # Must have at least one identity method
         if not self.identity.platform_ids and not self.identity.display_names:
             raise ConfigError(
-                "Configuration requires at least one platform_id or display_name in [identity]"
+                "Configuration requires at least one platform_id or display_name "
+                "in [identity]"
             )
 
         # Validate platform ID format
@@ -75,7 +76,8 @@ class RLCoachConfig:
             if not PLATFORM_ID_PATTERN.match(pid):
                 raise ConfigError(
                     f"Invalid platform_id format '{pid}'. "
-                    f"Must be 'platform:id' where platform is one of: {', '.join(sorted(VALID_PLATFORMS))}"
+                    "Must be 'platform:id' where platform is one of: "
+                    f"{', '.join(sorted(VALID_PLATFORMS))}"
                 )
 
         # Validate target rank

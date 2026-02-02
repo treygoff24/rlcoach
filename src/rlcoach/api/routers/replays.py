@@ -202,6 +202,7 @@ async def upload_replay(
     # Create temp file for streaming
     # Use run_in_executor for file blocking I/O in async endpoint
     import asyncio
+
     loop = asyncio.get_running_loop()
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".replay") as temp_file:
