@@ -28,7 +28,7 @@ test.describe('Upload Flow', () => {
       await page.goto('/');
 
       // Should mention uploading replays
-      await expect(page.getByText(/upload/i)).toBeVisible();
+      await expect(page.getByRole('heading', { name: /upload your replay/i })).toBeVisible();
     });
   });
 });

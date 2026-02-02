@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 const protectedRoutes = [
   '/dashboard',
   '/replays',
+  '/sessions',
   '/coach',
   '/settings',
   '/profile',

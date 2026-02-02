@@ -19,15 +19,22 @@ test.describe('AI Coach', () => {
       await page.goto('/upgrade');
 
       // Should show upgrade page content
-      await expect(page.getByText(/pro/i)).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: /unlock ai coach/i })
+      ).toBeVisible();
       await expect(page.getByText(/\$10/i)).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: /upgrade to pro/i })
+      ).toBeVisible();
     });
 
     test('upgrade page lists Pro features', async ({ page }) => {
       await page.goto('/upgrade');
 
       // Should list AI coach features
-      await expect(page.getByText(/ai coach/i)).toBeVisible();
+      await expect(
+        page.getByText(/ai coach with claude opus 4\.5/i)
+      ).toBeVisible();
     });
 
     test('landing page pricing links to upgrade', async ({ page }) => {
@@ -66,7 +73,7 @@ test.describe('Coach API', () => {
       data: { message: 'test', replay_id: 'test' },
     });
 
-    // Should get 401 or 403 without auth
-    expect([401, 403, 404]).toContain(response.status());
+    // Without backend, proxy can return 503; otherwise auth should fail.
+    expect([401, 403, 404, 503]).toContain(response.status());
   });
 });

@@ -34,6 +34,7 @@ function LoginForm() {
       <div className="max-w-md w-full space-y-8 p-8">
         {/* Logo */}
         <div className="text-center">
+          <h2 className="sr-only">Sign In</h2>
           <h1 className="text-4xl font-bold text-white mb-2">
             RL<span className="text-orange-500">Coach</span>
           </h1>

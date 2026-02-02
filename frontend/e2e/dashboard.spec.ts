@@ -15,10 +15,14 @@ test.describe('Dashboard Navigation', () => {
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
       // Features section
-      await expect(page.getByText(/features/i)).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: /everything you need to improve/i })
+      ).toBeVisible();
 
       // Pricing section
-      await expect(page.getByText(/pricing/i)).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: /simple, transparent pricing/i })
+      ).toBeVisible();
     });
 
     test('navigation links work on landing page', async ({ page }) => {
@@ -42,14 +46,13 @@ test.describe('Dashboard Navigation', () => {
       await page.goto('/');
 
       // Scroll to footer
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const footer = page.locator('footer');
+      await footer.scrollIntoViewIfNeeded();
 
       // Terms link
-      const termsLink = page.getByRole('link', { name: /terms/i });
-      if (await termsLink.isVisible()) {
-        await termsLink.click();
-        await expect(page).toHaveURL(/\/terms/);
-      }
+      const termsLink = footer.getByRole('link', { name: /terms of service/i });
+      await expect(termsLink).toBeVisible();
+      await expect(termsLink).toHaveAttribute('href', '/terms');
     });
   });
 
