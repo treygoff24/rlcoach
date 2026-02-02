@@ -1,0 +1,18 @@
+   1 {
+   2   "active": false,
+   3   "session_token": "7b839a6b9523e22d",
+   4   "project_path": "/Users/treygoff/Code/rlcoach",
+   5   "goal": "100% spec compliance for rlcoach dashboard: Fix all MUST FIX items (replay detail data, upload toast, error boundary, trends axis toggle, toast system, component library) and SHOULD FIX items (upload retry, settings spinner, error messages)",
+   6   "started_at": "2026-01-11T23:28:03Z",
+   7   "completed_at": "2026-01-11T23:55:00Z",
+   8   "iteration": 1,
+   9   "max_iterations": 100,
+  10   "paused": false,
+  11   "verification_pending": false,
+  12   "expected_verification_code": null,
+  13   "verification_attempts": 0,
+  14   "last_verified_iteration": 0,
+  15   "stuck_count": 0,
+  16   "last_goal_hash": "",
+  17   "last_progress_hash": ""
+  18 }
