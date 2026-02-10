@@ -334,6 +334,47 @@ class TestMechanicsAnalysis:
         assert explicit_false["jump_count"] == 0
         assert fallback["jump_count"] == 1
 
+    def test_authoritative_double_jump_emits_synthetic_jump_when_missing(self):
+        """Double-jump flag without jump flag still emits a causal jump event."""
+        frames = [
+            create_test_frame(
+                0.0,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 17.0),
+                        velocity=Vec3(0.0, 0.0, 0.0),
+                        is_on_ground=True,
+                        is_jumping=False,
+                        is_double_jumping=False,
+                        is_dodging=False,
+                    )
+                ],
+            ),
+            create_test_frame(
+                0.1,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 80.0),
+                        velocity=Vec3(0.0, 0.0, 25.0),
+                        is_on_ground=False,
+                        is_jumping=False,
+                        is_double_jumping=True,
+                        is_dodging=False,
+                    )
+                ],
+            ),
+        ]
+
+        result = analyze_mechanics(frames)
+        stats = result["per_player"]["player1"]
+
+        assert stats["jump_count"] == 1
+        assert stats["double_jump_count"] == 1
+
 
 class TestRecoveryAnalysis:
     """Test recovery detection analysis."""

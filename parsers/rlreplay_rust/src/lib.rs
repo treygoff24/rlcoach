@@ -480,7 +480,14 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
             is_ball: bool,
             is_car: bool,
         }
+        #[derive(Clone, Copy, Default)]
+        struct ComponentKind {
+            is_jump: bool,
+            is_dodge: bool,
+            is_double_jump: bool,
+        }
         let mut actor_kind: HashMap<i32, ActorKind> = HashMap::new();
+        let mut component_kind: HashMap<i32, ComponentKind> = HashMap::new();
         let mut car_team: HashMap<i32, i64> = HashMap::new();
         let mut car_boost: HashMap<i32, i64> = HashMap::new(); // 0-100
         let mut car_pos: HashMap<i32, (f32, f32, f32)> = HashMap::new();
@@ -514,8 +521,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let frames_out = PyList::empty(py);
 
         // Helper: classify actors using object/class names
-        fn classify_object_name(name: &str) -> ActorKind {
-            let lname = name.to_ascii_lowercase();
+        fn classify_object_name_lower(lname: &str) -> ActorKind {
             let is_ball = lname.contains("ball_ta")
                 || lname.contains("ball_default")
                 || lname.contains("archetypes.ball")
@@ -530,6 +536,17 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 || lname.contains("tagame.car_"))
                 && !lname.contains("carcomponent");
             ActorKind { is_ball, is_car }
+        }
+
+        fn classify_component_name_lower(lname: &str) -> Option<ComponentKind> {
+            if !lname.contains("carcomponent") {
+                return None;
+            }
+            Some(ComponentKind {
+                is_jump: lname.contains("carcomponent_jump"),
+                is_dodge: lname.contains("carcomponent_dodge"),
+                is_double_jump: lname.contains("carcomponent_doublejump"),
+            })
         }
 
         if let Some(net) = replay.network_frames {
@@ -557,6 +574,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     }
                     actor_object_name.remove(&aid);
                     actor_kind.remove(&aid);
+                    component_kind.remove(&aid);
                     car_team.remove(&aid);
                     car_boost.remove(&aid);
                     car_pos.remove(&aid);
@@ -576,9 +594,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 {
                     let oid: usize = object_id.into();
                     let obj_name = objects.get(oid).cloned().unwrap_or_default();
+                    let obj_name_lower = obj_name.to_ascii_lowercase();
                     let aid: i32 = actor_id.into();
                     actor_object_name.insert(aid, obj_name.clone());
-                    let kind = classify_object_name(&obj_name);
+                    let kind = classify_object_name_lower(&obj_name_lower);
                     if kind.is_ball {
                         ball_actor = Some(aid);
                         ball_pos = (0.0, 0.0, 93.15);
@@ -588,27 +607,28 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     if kind.is_ball || kind.is_car {
                         actor_kind.insert(aid, kind);
                     }
+                    if let Some(component) = classify_component_name_lower(&obj_name_lower) {
+                        component_kind.insert(aid, component);
+                    }
                     pad_registry.track_new_actor(aid, &obj_name);
                 }
 
                 // Process updates
                 for upd in nf.updated_actors {
                     let aid: i32 = upd.actor_id.into();
-                    let actor_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
-                    let actor_name_lower = actor_name.to_ascii_lowercase();
                     match upd.attribute {
                         Attribute::ActiveActor(active) => {
-                            if actor_name_lower.contains("carcomponent") {
+                            if let Some(component) = component_kind.get(&aid) {
                                 let owner_id: i32 = active.actor.into();
                                 component_owner.insert(aid, owner_id);
                                 if active.active {
-                                    if actor_name_lower.contains("carcomponent_jump") {
+                                    if component.is_jump {
                                         frame_jumping_actors.insert(owner_id);
                                     }
-                                    if actor_name_lower.contains("carcomponent_dodge") {
+                                    if component.is_dodge {
                                         frame_dodging_actors.insert(owner_id);
                                     }
-                                    if actor_name_lower.contains("carcomponent_doublejump") {
+                                    if component.is_double_jump {
                                         frame_double_jumping_actors.insert(owner_id);
                                     }
                                 }
@@ -616,8 +636,6 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         }
                         // Primary physics carrier observed across builds
                         Attribute::RigidBody(rb) => {
-                            let obj_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
-                            let lname = obj_name.to_ascii_lowercase();
                             let loc = rb.location;
                             let vel = rb.linear_velocity.unwrap_or(Vector3f {
                                 x: 0.0,
@@ -631,9 +649,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             });
                             // Update ball or car state depending on classification and fallback
                             let is_ball = Some(aid) == ball_actor
-                                || lname.contains("ball_ta")
-                                || lname.contains("ball_default")
-                                || lname.contains("archetypes.ball");
+                                || actor_kind.get(&aid).map(|kind| kind.is_ball).unwrap_or(false);
                             if is_ball {
                                 ball_actor = Some(aid);
                                 ball_pos = (loc.x, loc.y, loc.z);
@@ -651,17 +667,17 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         }
                         // Some builds carry these separately
                         Attribute::Location(loc) => {
-                            if actor_name_lower.contains("carcomponent_jump") {
+                            if let Some(component) = component_kind.get(&aid) {
                                 let target = component_owner.get(&aid).cloned().unwrap_or(aid);
-                                frame_jumping_actors.insert(target);
-                            }
-                            if actor_name_lower.contains("carcomponent_dodge") {
-                                let target = component_owner.get(&aid).cloned().unwrap_or(aid);
-                                frame_dodging_actors.insert(target);
-                            }
-                            if actor_name_lower.contains("carcomponent_doublejump") {
-                                let target = component_owner.get(&aid).cloned().unwrap_or(aid);
-                                frame_double_jumping_actors.insert(target);
+                                if component.is_jump {
+                                    frame_jumping_actors.insert(target);
+                                }
+                                if component.is_dodge {
+                                    frame_dodging_actors.insert(target);
+                                }
+                                if component.is_double_jump {
+                                    frame_double_jumping_actors.insert(target);
+                                }
                             }
                             if Some(aid) == ball_actor {
                                 ball_pos = (loc.x, loc.y, loc.z);
