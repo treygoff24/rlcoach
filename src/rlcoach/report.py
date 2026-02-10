@@ -140,9 +140,7 @@ def _serialize_network_diagnostics(
     if isinstance(raw_frames, NFType) and raw_frames.diagnostics is not None:
         diagnostics = raw_frames.diagnostics
         status = (
-            diagnostics.status
-            if diagnostics.status in valid_statuses
-            else "degraded"
+            diagnostics.status if diagnostics.status in valid_statuses else "degraded"
         )
         emitted = (
             diagnostics.frames_emitted
