@@ -1,0 +1,48 @@
+name: Apply Branch Protection
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/branch-protection/**"
+      - ".github/workflows/apply-branch-protection.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Apply protection for main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate admin token is configured
+        env:
+          ADMIN_GITHUB_TOKEN: ${{ secrets.ADMIN_GITHUB_TOKEN }}
+        run: |
+          if [ -z "${ADMIN_GITHUB_TOKEN}" ]; then
+            echo "Missing ADMIN_GITHUB_TOKEN secret. Cannot apply branch protection."
+            exit 1
+          fi
+
+      - name: Apply branch protection rules
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/branches/main/protection" \
+            --input .github/branch-protection/main.json
+
+      - name: Confirm applied rules
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_GITHUB_TOKEN }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/branches/main/protection" \
+            --jq '{required_status_checks, enforce_admins, required_pull_request_reviews, required_linear_history, required_conversation_resolution}'

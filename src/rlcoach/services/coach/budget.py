@@ -357,4 +357,10 @@ def estimate_request_tokens(
 
     tool_result_tokens = tool_result_count * 200 if include_tools else 0
 
-    return message_tokens + history_tokens + overhead + output_estimate + tool_result_tokens
+    return (
+        message_tokens
+        + history_tokens
+        + overhead
+        + output_estimate
+        + tool_result_tokens
+    )

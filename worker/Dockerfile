@@ -16,6 +16,7 @@ WORKDIR /app
 
 # Copy dependency files
 COPY pyproject.toml ./
+COPY README.md ./
 COPY src/rlcoach/__init__.py src/rlcoach/
 COPY src/rlcoach/version.py src/rlcoach/
 
