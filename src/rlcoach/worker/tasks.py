@@ -25,7 +25,7 @@ ERROR_MESSAGE_MAX_LENGTH = 500
 REDACT_PATTERNS = [
     (re.compile(r"/Users/[^/\s]+"), "/home/user"),  # macOS home paths
     (re.compile(r"/home/[^/\s]+"), "/home/user"),  # Linux home paths
-    (re.compile(r"C:\\Users\\[^\\]+"), "C:\\Users\\user"),  # Windows paths
+    (re.compile(r"C:\\Users\\[^\\]+"), r"C:\\Users\\user"),  # Windows paths
     (re.compile(r"/tmp/[a-zA-Z0-9_-]+"), "/tmp/[temp]"),  # Temp paths
     (re.compile(r"password[=:\s]+\S+", re.I), "password=[REDACTED]"),  # Passwords
     (re.compile(r"api[_-]?key[=:\s]+\S+", re.I), "api_key=[REDACTED]"),  # API keys

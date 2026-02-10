@@ -1,4 +1,4 @@
-.PHONY: test fmt lint clean help install-dev rust-dev rust-build
+.PHONY: test test-cov fmt lint clean help install-dev rust-dev rust-build
 
 # Virtual environment activation helper
 # If .venv exists, run commands within it
@@ -9,6 +9,7 @@ VENV_BIN := $(if $(wildcard .venv/bin/python),$(CURDIR)/.venv/bin/,)
 help:
 	@echo "Available targets:"
 	@echo "  test       - Run pytest with quiet flag"
+	@echo "  test-cov   - Run pytest with coverage report and category checks"
 	@echo "  fmt        - Format code with black"
 	@echo "  lint       - Lint code with ruff"
 	@echo "  clean      - Remove build artifacts and caches"
@@ -24,6 +25,11 @@ install-dev:
 # Run tests
 test:
 	PYTHONPATH=src $(VENV_BIN)pytest -q
+
+# Run tests with coverage (overall + per-category threshold gate)
+test-cov:
+	PYTHONPATH=src $(VENV_BIN)pytest -q --cov=src/rlcoach --cov-report=term-missing --cov-report=json:coverage.json --cov-report=xml:coverage.xml
+	$(VENV_BIN)python scripts/check_coverage_categories.py --json coverage.json --threshold 50
 
 # Format code
 fmt:
