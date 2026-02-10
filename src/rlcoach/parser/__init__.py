@@ -19,6 +19,8 @@ Example usage:
 
 from __future__ import annotations
 
+from typing import Any
+
 from .errors import (
     AdapterNotFoundError,
     HeaderParseError,
@@ -28,7 +30,7 @@ from .errors import (
 from .interface import ParserAdapter
 from .null_adapter import NullAdapter
 from .rust_adapter import RustAdapter
-from .types import Header, NetworkFrames, PlayerInfo
+from .types import Header, NetworkDiagnostics, NetworkFrames, PlayerInfo
 
 # Registry of available parser adapters
 _ADAPTER_REGISTRY: dict[str, type[ParserAdapter]] = {
@@ -40,11 +42,12 @@ _ADAPTER_REGISTRY: dict[str, type[ParserAdapter]] = {
 _DEFAULT_ADAPTER = "null"
 
 
-def get_adapter(name: str = _DEFAULT_ADAPTER) -> ParserAdapter:
+def get_adapter(name: str = _DEFAULT_ADAPTER, **adapter_kwargs: Any) -> ParserAdapter:
     """Get a parser adapter by name.
 
     Args:
         name: Name of the adapter to retrieve. Defaults to "null".
+        **adapter_kwargs: Optional adapter-specific constructor arguments.
 
     Returns:
         Instance of the requested parser adapter
@@ -61,7 +64,7 @@ def get_adapter(name: str = _DEFAULT_ADAPTER) -> ParserAdapter:
         raise AdapterNotFoundError(name, available)
 
     adapter_class = _ADAPTER_REGISTRY[name]
-    return adapter_class()
+    return adapter_class(**adapter_kwargs)
 
 
 def list_adapters() -> list[str]:
@@ -110,6 +113,7 @@ def register_adapter(name: str, adapter_class: type[ParserAdapter]) -> None:
 __all__ = [
     # Core types
     "Header",
+    "NetworkDiagnostics",
     "NetworkFrames",
     "PlayerInfo",
     # Interface

@@ -2038,3 +2038,28 @@ class TestSchemaValidation:
             or "const" in error_msg.lower()
             or "side_wall_x" in error_msg
         )
+
+    @pytest.mark.parametrize(
+        "diagnostics",
+        [
+            {
+                "status": "degraded",
+                "error_code": "boxcars_network_error",
+                "error_detail": "unknown attributes for object",
+                "frames_emitted": 0,
+            },
+            {
+                "status": "unavailable",
+                "error_code": "network_data_unavailable",
+                "error_detail": "network parser did not emit frames",
+                "frames_emitted": None,
+            },
+        ],
+    )
+    def test_quality_parser_supports_network_diagnostics(
+        self, success_report, diagnostics
+    ):
+        """Test parser quality accepts explicit network diagnostics object."""
+        report = json.loads(json.dumps(success_report))
+        report["quality"]["parser"]["network_diagnostics"] = diagnostics
+        validate_report(report)

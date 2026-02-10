@@ -57,7 +57,18 @@
             "version": { "type": "string" },
             "parsed_header": { "type": "boolean" },
             "parsed_network_data": { "type": "boolean" },
-            "crc_checked": { "type": "boolean" }
+            "crc_checked": { "type": "boolean" },
+            "network_diagnostics": {
+              "type": "object",
+              "required": ["status", "error_code", "error_detail", "frames_emitted"],
+              "properties": {
+                "status": { "type": "string", "enum": ["ok", "degraded", "unavailable"] },
+                "error_code": { "type": ["string", "null"] },
+                "error_detail": { "type": ["string", "null"] },
+                "frames_emitted": { "type": ["integer", "null"], "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         },

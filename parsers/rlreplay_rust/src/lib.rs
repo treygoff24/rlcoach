@@ -417,6 +417,20 @@ fn quat_to_euler(q: (f32, f32, f32, f32)) -> (f64, f64, f64) {
     (roll, pitch, yaw)
 }
 
+fn map_network_error_code(message: &str) -> &'static str {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("failed to open replay file")
+        || lower.contains("failed to read replay file")
+        || lower.contains("no such file")
+    {
+        "replay_io_error"
+    } else if lower.contains("unknown attributes for object") {
+        "boxcars_unknown_attribute_network_error"
+    } else {
+        "boxcars_network_error"
+    }
+}
+
 #[pyfunction]
 fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
     Python::with_gil(|py| {
@@ -521,6 +535,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         if let Some(net) = replay.network_frames {
             for nf in net.frames {
                 let mut frame_pad_events: Vec<PadEvent> = Vec::new();
+                let mut frame_jumping_actors: HashSet<i32> = HashSet::new();
+                let mut frame_dodging_actors: HashSet<i32> = HashSet::new();
+                let mut frame_double_jumping_actors: HashSet<i32> = HashSet::new();
                 // Prune actors that were deleted before processing updates to avoid stale telemetry
                 for deleted in nf.deleted_actors {
                     let aid: i32 = deleted.into();
@@ -577,12 +594,24 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 // Process updates
                 for upd in nf.updated_actors {
                     let aid: i32 = upd.actor_id.into();
+                    let actor_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
+                    let actor_name_lower = actor_name.to_ascii_lowercase();
                     match upd.attribute {
                         Attribute::ActiveActor(active) => {
-                            let obj_name = actor_object_name.get(&aid).cloned().unwrap_or_default();
-                            if obj_name.to_ascii_lowercase().contains("carcomponent") {
+                            if actor_name_lower.contains("carcomponent") {
                                 let owner_id: i32 = active.actor.into();
                                 component_owner.insert(aid, owner_id);
+                                if active.active {
+                                    if actor_name_lower.contains("carcomponent_jump") {
+                                        frame_jumping_actors.insert(owner_id);
+                                    }
+                                    if actor_name_lower.contains("carcomponent_dodge") {
+                                        frame_dodging_actors.insert(owner_id);
+                                    }
+                                    if actor_name_lower.contains("carcomponent_doublejump") {
+                                        frame_double_jumping_actors.insert(owner_id);
+                                    }
+                                }
                             }
                         }
                         // Primary physics carrier observed across builds
@@ -622,6 +651,18 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         }
                         // Some builds carry these separately
                         Attribute::Location(loc) => {
+                            if actor_name_lower.contains("carcomponent_jump") {
+                                let target = component_owner.get(&aid).cloned().unwrap_or(aid);
+                                frame_jumping_actors.insert(target);
+                            }
+                            if actor_name_lower.contains("carcomponent_dodge") {
+                                let target = component_owner.get(&aid).cloned().unwrap_or(aid);
+                                frame_dodging_actors.insert(target);
+                            }
+                            if actor_name_lower.contains("carcomponent_doublejump") {
+                                let target = component_owner.get(&aid).cloned().unwrap_or(aid);
+                                frame_double_jumping_actors.insert(target);
+                            }
                             if Some(aid) == ball_actor {
                                 ball_pos = (loc.x, loc.y, loc.z);
                             } else {
@@ -746,7 +787,23 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     .collect();
 
                 let mut players_map: BTreeMap<usize, PyObject> = BTreeMap::new();
+                let owned_actor_ids: HashSet<i32> = component_owner.values().copied().collect();
+                let mut frame_classification_source = "object_name";
                 for aid in actors {
+                    let mut actor_classification_source = "fallback_unclassified";
+                    if actor_kind.contains_key(&aid) {
+                        actor_classification_source = "object_name";
+                    } else if owned_actor_ids.contains(&aid) {
+                        actor_classification_source = "component_owner_chain";
+                    }
+                    if actor_classification_source == "fallback_unclassified" {
+                        frame_classification_source = "fallback_unclassified";
+                    } else if actor_classification_source == "component_owner_chain"
+                        && frame_classification_source == "object_name"
+                    {
+                        frame_classification_source = "component_owner_chain";
+                    }
+
                     let (x, y, z) = car_pos.get(&aid).cloned().unwrap_or((0.0, 0.0, 17.0));
                     // Determine team: prefer decoded team_paint else infer by y position sign
                     let mut team = *car_team.get(&aid).unwrap_or(&-1);
@@ -831,6 +888,21 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         p.set_item("is_supersonic", speed > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
+                        if frame_jumping_actors.contains(&aid) {
+                            p.set_item("is_jumping", true)?;
+                        } else {
+                            p.set_item("is_jumping", py.None())?;
+                        }
+                        if frame_dodging_actors.contains(&aid) {
+                            p.set_item("is_dodging", true)?;
+                        } else {
+                            p.set_item("is_dodging", py.None())?;
+                        }
+                        if frame_double_jumping_actors.contains(&aid) {
+                            p.set_item("is_double_jumping", true)?;
+                        } else {
+                            p.set_item("is_double_jumping", py.None())?;
+                        }
 
                         players_map.insert(idx, p.into_py(py));
                     }
@@ -840,6 +912,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     players.append(pobj.as_ref(py))?;
                 }
                 f.set_item("players", players)?;
+                let parser_meta = PyDict::new(py);
+                parser_meta.set_item("classification_source", frame_classification_source)?;
+                f.set_item("_parser_meta", parser_meta)?;
 
                 let pad_list = PyList::empty(py);
                 for event in frame_pad_events {
@@ -883,6 +958,95 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         }
 
         Ok(frames_out.into())
+    })
+}
+
+#[pyfunction]
+fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
+    Python::with_gil(|py| {
+        let result = PyDict::new(py);
+        let diagnostics = PyDict::new(py);
+        diagnostics.set_item("attempted_backends", vec!["boxcars"])?;
+
+        match iter_frames(path) {
+            Ok(frames_any) => {
+                let frames_len = frames_any.as_ref(py).len().unwrap_or(0);
+                diagnostics.set_item("status", "ok")?;
+                diagnostics.set_item("error_code", py.None())?;
+                diagnostics.set_item("error_detail", py.None())?;
+                diagnostics.set_item("frames_emitted", frames_len as i64)?;
+                result.set_item("frames", frames_any)?;
+                result.set_item("diagnostics", diagnostics)?;
+                Ok(result.to_object(py))
+            }
+            Err(primary_err) => {
+                let primary_message = primary_err.to_string();
+                let error_code = map_network_error_code(&primary_message);
+                let mut detail = primary_message.clone();
+                let fallback_frames = PyList::empty(py);
+                let mut fallback_frames_emitted: usize = 0;
+
+                match read_file_bytes(path) {
+                    Ok(data) => match ParserBuilder::new(&data).ignore_network_data_on_error().parse()
+                    {
+                        Ok(replay) => {
+                            if let Some(net) = replay.network_frames {
+                                for nf in net.frames {
+                                    let f = PyDict::new(py);
+                                    f.set_item("timestamp", nf.time as f64)?;
+
+                                    let ball = PyDict::new(py);
+                                    let bpos = PyDict::new(py);
+                                    bpos.set_item("x", 0.0f64)?;
+                                    bpos.set_item("y", 0.0f64)?;
+                                    bpos.set_item("z", 93.15f64)?;
+                                    let bvel = PyDict::new(py);
+                                    bvel.set_item("x", 0.0f64)?;
+                                    bvel.set_item("y", 0.0f64)?;
+                                    bvel.set_item("z", 0.0f64)?;
+                                    let bang = PyDict::new(py);
+                                    bang.set_item("x", 0.0f64)?;
+                                    bang.set_item("y", 0.0f64)?;
+                                    bang.set_item("z", 0.0f64)?;
+                                    ball.set_item("position", bpos)?;
+                                    ball.set_item("velocity", bvel)?;
+                                    ball.set_item("angular_velocity", bang)?;
+                                    f.set_item("ball", ball)?;
+                                    f.set_item("players", PyList::empty(py))?;
+                                    f.set_item("boost_pad_events", PyList::empty(py))?;
+
+                                    let parser_meta = PyDict::new(py);
+                                    parser_meta.set_item(
+                                        "classification_source",
+                                        "fallback_unclassified",
+                                    )?;
+                                    f.set_item("_parser_meta", parser_meta)?;
+                                    fallback_frames.append(f)?;
+                                }
+                            }
+                            fallback_frames_emitted = fallback_frames.len();
+                        }
+                        Err(fallback_err) => {
+                            detail = format!(
+                                "{}; fallback_ignore_network_data_on_error: {}",
+                                detail, fallback_err
+                            );
+                        }
+                    },
+                    Err(read_err) => {
+                        detail = format!("{}; fallback_read_error: {}", detail, read_err);
+                    }
+                }
+
+                diagnostics.set_item("status", "degraded")?;
+                diagnostics.set_item("error_code", error_code)?;
+                diagnostics.set_item("error_detail", detail)?;
+                diagnostics.set_item("frames_emitted", fallback_frames_emitted as i64)?;
+                result.set_item("frames", fallback_frames)?;
+                result.set_item("diagnostics", diagnostics)?;
+                Ok(result.to_object(py))
+            }
+        }
     })
 }
 
@@ -1230,6 +1394,7 @@ fn net_frame_count(path: &str) -> PyResult<usize> {
 fn rlreplay_rust(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_header, m)?)?;
     m.add_function(wrap_pyfunction!(iter_frames, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_network_with_diagnostics, m)?)?;
     m.add_function(wrap_pyfunction!(header_property_keys, m)?)?;
     m.add_function(wrap_pyfunction!(header_property, m)?)?;
     m.add_function(wrap_pyfunction!(net_frame_count, m)?)?;

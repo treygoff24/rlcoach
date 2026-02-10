@@ -47,9 +47,10 @@ class ParserAdapter(ABC):
         This method attempts to extract detailed frame-by-frame data including
         ball and player positions, boost pickups, and other game events.
 
-        Note: This method may return None if network frame parsing is not
-        supported by the adapter or if the replay format is incompatible.
-        Callers should handle None gracefully and fall back to header-only data.
+        Note: This method should only return None when network frame parsing is
+        unavailable for the adapter itself (for example, missing runtime support).
+        Adapters that support network parsing should return a NetworkFrames object
+        and expose degraded parse diagnostics on that object when parsing fails.
 
         Args:
             path: Path to the replay file
@@ -63,6 +64,15 @@ class ParserAdapter(ABC):
             ReplayIOError: If there's an I/O error reading the file
         """
         pass
+
+    @property
+    def backend_chain(self) -> list[str]:
+        """Ordered parser backend identifiers used by this adapter.
+
+        Adapters with a single backend can return one item. Adapters without
+        backend chaining support can return an empty list.
+        """
+        return []
 
     @property
     @abstractmethod

@@ -1,5 +1,7 @@
 """Tests for the normalization layer."""
 
+from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from rlcoach.field_constants import FIELD, Vec3
@@ -349,6 +351,74 @@ class TestTimelineBuilding:
         assert player_frame.velocity == Vec3(500.0, 0.0, 0.0)
         assert player_frame.boost_amount == 75
         assert player_frame.is_supersonic is True
+
+    def test_normalize_preserves_component_state_flags_when_supported(
+        self, monkeypatch
+    ):
+        """Optional authoritative component flags are passed through unchanged."""
+        import rlcoach.normalize as normalize_module
+
+        @dataclass(frozen=True)
+        class PlayerFrameWithFlags:
+            player_id: str
+            team: int
+            position: Vec3
+            velocity: Vec3
+            rotation: object
+            boost_amount: int
+            is_supersonic: bool = False
+            is_on_ground: bool = True
+            is_demolished: bool = False
+            is_jumping: bool | None = None
+            is_dodging: bool | None = None
+            is_double_jumping: bool | None = None
+
+        monkeypatch.setattr(normalize_module, "PlayerFrame", PlayerFrameWithFlags)
+
+        object_player = SimpleNamespace(
+            player_id="object_player",
+            team=1,
+            position=SimpleNamespace(x=50, y=100, z=17),
+            velocity=SimpleNamespace(x=0, y=10, z=0),
+            rotation={"pitch": 0.0, "yaw": 0.0, "roll": 0.0},
+            boost_amount=44,
+            is_jumping=False,
+            is_dodging=True,
+            is_double_jumping=None,
+        )
+        frame_dict = {
+            "timestamp": 1.5,
+            "ball": {
+                "position": {"x": 0, "y": 0, "z": 93.15},
+                "velocity": {"x": 0, "y": 0, "z": 0},
+                "angular_velocity": {"x": 0, "y": 0, "z": 0},
+            },
+            "players": [
+                {
+                    "player_id": "dict_player",
+                    "team": 0,
+                    "position": {"x": -50, "y": -100, "z": 17},
+                    "velocity": {"x": 0, "y": -10, "z": 0},
+                    "rotation": {"pitch": 0.0, "yaw": 0.0, "roll": 0.0},
+                    "boost_amount": 55,
+                    "is_jumping": True,
+                    "is_dodging": False,
+                    "is_double_jumping": True,
+                },
+                object_player,
+            ],
+        }
+
+        timeline = build_timeline(Header(), [frame_dict])
+        players = {p.player_id: p for p in timeline[0].players}
+
+        assert players["dict_player"].is_jumping is True
+        assert players["dict_player"].is_dodging is False
+        assert players["dict_player"].is_double_jumping is True
+
+        assert players["object_player"].is_jumping is False
+        assert players["object_player"].is_dodging is True
+        assert players["object_player"].is_double_jumping is None
 
     def test_malformed_frame_skipped(self):
         """Malformed frames are skipped gracefully."""

@@ -239,6 +239,57 @@ def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
     return Rotation(0.0, 0.0, 0.0)
 
 
+def _extract_optional_bool_flag(source: Any, field: str) -> tuple[bool, bool | None]:
+    """Extract optional bool flags from dict/object inputs.
+
+    Returns:
+        (present, value) where value is bool | None.
+        If present=False, the field was unavailable.
+    """
+    raw_value: Any
+    if isinstance(source, dict):
+        if field not in source:
+            return (False, None)
+        raw_value = source[field]
+    else:
+        if not hasattr(source, field):
+            return (False, None)
+        raw_value = getattr(source, field)
+
+    if raw_value is None:
+        return (True, None)
+    if isinstance(raw_value, bool):
+        return (True, raw_value)
+    if isinstance(raw_value, (int, float)):
+        return (True, bool(raw_value))
+    if isinstance(raw_value, str):
+        normalized = raw_value.strip().lower()
+        if normalized in {"true", "1"}:
+            return (True, True)
+        if normalized in {"false", "0"}:
+            return (True, False)
+        return (False, None)
+
+    # Treat non-primitive placeholders (e.g. unittest.Mock missing attrs) as absent.
+    return (False, None)
+
+
+def _apply_component_state_flags(player_frame: PlayerFrame, source: Any) -> PlayerFrame:
+    """Copy optional authoritative component flags when PlayerFrame supports them."""
+    dataclass_fields = getattr(player_frame, "__dataclass_fields__", {})
+    updates: dict[str, bool | None] = {}
+
+    for field_name in ("is_jumping", "is_dodging", "is_double_jumping"):
+        present, value = _extract_optional_bool_flag(source, field_name)
+        if present and field_name in dataclass_fields:
+            updates[field_name] = value
+
+    if not updates:
+        return player_frame
+
+    return replace(player_frame, **updates)
+
+
 def normalize_players(
     header: Header | None, frames: list[Any]
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
@@ -516,6 +567,9 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         is_supersonic=is_supersonic,
                         is_on_ground=is_on_ground,
                         is_demolished=is_demolished,
+                    )
+                    player_frame = _apply_component_state_flags(
+                        player_frame, player_data
                     )
 
                     # Keep the latest state seen in this frame for each unique player ID

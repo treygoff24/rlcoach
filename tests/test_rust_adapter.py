@@ -58,3 +58,48 @@ def test_velocity_and_boost_telemetry_present():
 
     assert moving_detected, "no player velocity updates detected"
     assert boost_change_detected, "no boost telemetry change detected"
+
+
+def test_frame_contains_parser_frame_meta_when_available():
+    frames = _load_frames(limit=5)
+    meta = frames[0].get("_parser_meta")
+    assert isinstance(meta, dict)
+    assert "classification_source" in meta
+
+
+def test_parse_network_returns_diagnostics_on_degradation(monkeypatch):
+    class FakeRustDegraded:
+        @staticmethod
+        def parse_network_with_diagnostics(_path: str):
+            return {
+                "frames": [],
+                "diagnostics": {
+                    "status": "degraded",
+                    "error_code": "boxcars_network_error",
+                    "error_detail": "unknown attributes for object",
+                    "frames_emitted": 0,
+                },
+            }
+
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._rust", FakeRustDegraded())
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._RUST_AVAILABLE", True)
+
+    adapter = RustAdapter()
+    result = adapter.parse_network(Path("testing_replay.replay"))
+
+    assert result is not None
+    assert hasattr(result, "diagnostics")
+    diagnostics = result.diagnostics
+    assert diagnostics is not None
+    assert "network_error" in (diagnostics.error_code or "")
+
+
+def test_players_expose_optional_component_state_flags():
+    frames = _load_frames(limit=3)
+    first_players = frames[0].get("players", [])
+    assert first_players, "no players detected in first frame"
+
+    sample = first_players[0]
+    assert "is_jumping" in sample
+    assert "is_dodging" in sample
+    assert "is_double_jumping" in sample
