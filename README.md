@@ -8,7 +8,7 @@ rlcoach is designed to provide detailed analysis of Rocket League replays withou
 
 ## Project Status
 
-- End-to-end CLI pipeline (ingest -> normalize -> events -> analyzers -> JSON/Markdown) is implemented with 261 tests.
+- End-to-end CLI pipeline (ingest -> normalize -> events -> analyzers -> JSON/Markdown) is implemented with 434 tests.
 - Parser adapters are pluggable:
   - `null` adapter (header-only fallback; always available)
   - optional `rust` adapter (pyo3 + boxcars) for richer header parsing and network frames
