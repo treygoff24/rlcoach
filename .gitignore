@@ -198,7 +198,7 @@ Replay_files/**/*.md
 node_modules/
 
 # Local data (not committed)
-data/
+/data/
 /replays/
 
 # SaaS Infrastructure
