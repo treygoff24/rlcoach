@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -332,9 +331,9 @@ async def chat_record(
     session.total_output_tokens = (
         session.total_output_tokens or 0
     ) + request.tokens_used
-    session.total_thinking_tokens = (
-        session.total_thinking_tokens or 0
-    ) + (request.thinking_tokens or 0)
+    session.total_thinking_tokens = (session.total_thinking_tokens or 0) + (
+        request.thinking_tokens or 0
+    )
 
     if request.is_free_preview:
         db_user.free_coach_message_used = True
@@ -479,7 +478,9 @@ async def get_session_messages(
             "id": msg.id,
             "role": msg.role,
             "content": msg.content or "",
-            "content_blocks": _parse_content_blocks(msg.content_json, msg.content or ""),
+            "content_blocks": _parse_content_blocks(
+                msg.content_json, msg.content or ""
+            ),
             "created_at": msg.created_at.isoformat(),
         }
         for msg in messages
