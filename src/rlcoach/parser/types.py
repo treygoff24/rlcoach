@@ -116,6 +116,28 @@ class Highlight:
 
 
 @dataclass(frozen=True)
+class NetworkDiagnostics:
+    """Diagnostics emitted by network parsing.
+
+    status values:
+    - "ok": network parsing succeeded
+    - "degraded": network parsing partially succeeded
+    - "unavailable": network parsing did not produce usable frames
+    """
+
+    status: str
+    error_code: str | None = None
+    error_detail: str | None = None
+    frames_emitted: int | None = None
+    attempted_backends: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Validate diagnostics data."""
+        if self.frames_emitted is not None and self.frames_emitted < 0:
+            raise ValueError("frames_emitted cannot be negative")
+
+
+@dataclass(frozen=True)
 class NetworkFrames:
     """Network frame data extracted from replay files.
 
@@ -127,6 +149,7 @@ class NetworkFrames:
     frame_count: int = 0
     sample_rate: float = 30.0  # Expected FPS
     frames: list = field(default_factory=list)  # Will be list[Frame] when implemented
+    diagnostics: NetworkDiagnostics | None = None
 
     def __post_init__(self):
         """Validate network frame data."""
@@ -152,6 +175,11 @@ class PlayerFrame:
     is_supersonic: bool = False
     is_on_ground: bool = True
     is_demolished: bool = False
+    # Authoritative component-state flags from parser, when available.
+    # None means unavailable, bool means parser explicitly emitted state.
+    is_jumping: bool | None = None
+    is_dodging: bool | None = None
+    is_double_jumping: bool | None = None
 
 
 @dataclass(frozen=True)

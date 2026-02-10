@@ -1,5 +1,7 @@
 """Tests for new analysis modules: mechanics, recovery, xg, defense, ball_prediction."""
 
+from types import SimpleNamespace
+
 from rlcoach.analysis.ball_prediction import analyze_ball_prediction
 from rlcoach.analysis.defense import analyze_defense
 from rlcoach.analysis.mechanics import analyze_mechanics
@@ -14,6 +16,8 @@ from rlcoach.parser.types import (
     PlayerInfo,
     Rotation,
 )
+
+_MISSING = object()
 
 
 def create_test_frame(
@@ -59,6 +63,46 @@ def create_test_player(
         is_on_ground=is_on_ground,
         is_demolished=is_demolished,
     )
+
+
+def create_authoritative_test_player(
+    player_id: str,
+    team: int,
+    position: Vec3 = Vec3(0.0, 0.0, 17.0),
+    velocity: Vec3 = Vec3(0.0, 0.0, 0.0),
+    rotation: Rotation | Vec3 = None,
+    boost_amount: int = 33,
+    is_supersonic: bool = False,
+    is_on_ground: bool = True,
+    is_demolished: bool = False,
+    is_jumping: bool | None | object = _MISSING,
+    is_dodging: bool | None | object = _MISSING,
+    is_double_jumping: bool | None | object = _MISSING,
+):
+    """Helper to create player-like objects with optional authoritative flags."""
+    if rotation is None:
+        rotation = Rotation(0.0, 0.0, 0.0)
+
+    player = SimpleNamespace(
+        player_id=player_id,
+        team=team,
+        position=position,
+        velocity=velocity,
+        rotation=rotation,
+        boost_amount=boost_amount,
+        is_supersonic=is_supersonic,
+        is_on_ground=is_on_ground,
+        is_demolished=is_demolished,
+    )
+
+    if is_jumping is not _MISSING:
+        player.is_jumping = is_jumping
+    if is_dodging is not _MISSING:
+        player.is_dodging = is_dodging
+    if is_double_jumping is not _MISSING:
+        player.is_double_jumping = is_double_jumping
+
+    return player
 
 
 class TestMechanicsAnalysis:
@@ -132,6 +176,150 @@ class TestMechanicsAnalysis:
         # All counts should be non-negative integers
         assert isinstance(player_stats["total_mechanics"], int)
         assert player_stats["total_mechanics"] >= 0
+
+    def test_authoritative_component_flags_drive_mechanics_detection(self):
+        """Authoritative jump/double-jump/dodge flags should emit mechanics."""
+        frames = [
+            create_test_frame(
+                0.0,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 17.0),
+                        velocity=Vec3(0.0, 0.0, 0.0),
+                        is_on_ground=True,
+                        is_jumping=False,
+                        is_double_jumping=False,
+                        is_dodging=False,
+                    )
+                ],
+            ),
+            create_test_frame(
+                0.1,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 50.0),
+                        velocity=Vec3(0.0, 0.0, 100.0),
+                        is_on_ground=False,
+                        is_jumping=True,
+                        is_double_jumping=False,
+                        is_dodging=False,
+                    )
+                ],
+            ),
+            create_test_frame(
+                0.2,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 85.0),
+                        velocity=Vec3(0.0, 0.0, 100.0),
+                        is_on_ground=False,
+                        is_jumping=False,
+                        is_double_jumping=True,
+                        is_dodging=False,
+                    )
+                ],
+            ),
+            create_test_frame(
+                0.3,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 120.0),
+                        velocity=Vec3(0.0, 0.0, 100.0),
+                        is_on_ground=False,
+                        is_jumping=False,
+                        is_double_jumping=False,
+                        is_dodging=True,
+                    )
+                ],
+            ),
+        ]
+
+        result = analyze_mechanics(frames)
+        player_stats = result["per_player"]["player1"]
+
+        assert player_stats["jump_count"] == 1
+        assert player_stats["double_jump_count"] == 1
+        assert player_stats["flip_count"] == 1
+
+    def test_authoritative_false_suppresses_derivative_but_missing_falls_back(self):
+        """Explicit authoritative False blocks inference; missing flags still infer."""
+        frames = [
+            create_test_frame(
+                0.0,
+                [
+                    create_authoritative_test_player(
+                        "authoritative_false",
+                        0,
+                        position=Vec3(-100.0, 0.0, 17.0),
+                        velocity=Vec3(0.0, 0.0, 0.0),
+                        is_on_ground=True,
+                        is_jumping=False,
+                    ),
+                    create_authoritative_test_player(
+                        "fallback_missing",
+                        0,
+                        position=Vec3(100.0, 0.0, 17.0),
+                        velocity=Vec3(0.0, 0.0, 0.0),
+                        is_on_ground=True,
+                    ),
+                ],
+            ),
+            create_test_frame(
+                0.1,
+                [
+                    create_authoritative_test_player(
+                        "authoritative_false",
+                        0,
+                        position=Vec3(-100.0, 0.0, 50.0),
+                        velocity=Vec3(0.0, 0.0, 0.0),
+                        is_on_ground=False,
+                        is_jumping=False,
+                    ),
+                    create_authoritative_test_player(
+                        "fallback_missing",
+                        0,
+                        position=Vec3(100.0, 0.0, 50.0),
+                        velocity=Vec3(0.0, 0.0, 0.0),
+                        is_on_ground=False,
+                    ),
+                ],
+            ),
+            create_test_frame(
+                0.2,
+                [
+                    create_authoritative_test_player(
+                        "authoritative_false",
+                        0,
+                        position=Vec3(-100.0, 0.0, 100.0),
+                        velocity=Vec3(0.0, 0.0, 400.0),
+                        is_on_ground=False,
+                        is_jumping=False,
+                    ),
+                    create_authoritative_test_player(
+                        "fallback_missing",
+                        0,
+                        position=Vec3(100.0, 0.0, 100.0),
+                        velocity=Vec3(0.0, 0.0, 400.0),
+                        is_on_ground=False,
+                    ),
+                ],
+            ),
+        ]
+
+        result = analyze_mechanics(frames)
+        explicit_false = result["per_player"]["authoritative_false"]
+        fallback = result["per_player"]["fallback_missing"]
+
+        assert explicit_false["jump_count"] == 0
+        assert fallback["jump_count"] == 1
 
 
 class TestRecoveryAnalysis:

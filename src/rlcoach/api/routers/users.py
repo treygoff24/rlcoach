@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session as DBSession
 
-from ...data.benchmarks import (
+from ...rank_benchmarks import (
     RANK_DISPLAY_NAMES,
     compare_to_benchmark,
     get_benchmark_for_rank,

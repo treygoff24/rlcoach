@@ -4,6 +4,9 @@ These tests assert that jsonschema exposes informative validator metadata
 for common failure modes. They complement, not replace, existing tests.
 """
 
+import json
+from pathlib import Path
+
 import jsonschema
 import pytest
 
@@ -203,5 +206,30 @@ def test_nested_vec3_missing_component_reports_required():
         cause = _get_cause(e)
         assert cause is not None
         assert cause.validator in {"required", "type"}
+    else:
+        pytest.fail("Expected ValidationError was not raised")
+
+
+def test_network_diagnostics_rejects_additional_properties():
+    examples_dir = Path(__file__).parent.parent / "examples"
+    with open(examples_dir / "replay_report.success.json", encoding="utf-8") as f:
+        report = json.load(f)
+
+    report["quality"]["parser"]["network_diagnostics"] = {
+        "status": "degraded",
+        "error_code": "boxcars_network_error",
+        "error_detail": "unknown attributes for object",
+        "frames_emitted": 0,
+        "unexpected_field": "should_fail",
+    }
+
+    try:
+        validate_report(report)
+    except jsonschema.ValidationError as e:
+        cause = _get_cause(e)
+        assert cause is not None
+        assert cause.validator == "additionalProperties"
+        path = list(getattr(cause, "path", []))
+        assert path and path[-1] == "network_diagnostics"
     else:
         pytest.fail("Expected ValidationError was not raised")

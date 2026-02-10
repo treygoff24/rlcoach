@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from rlcoach.cli import main as cli_main
+from rlcoach.parser.types import Header, NetworkDiagnostics, NetworkFrames, PlayerInfo
 from rlcoach.report import generate_report
 from rlcoach.schema import validate_report, validate_report_file
 
@@ -18,6 +19,36 @@ def _make_dummy_replay(path: Path) -> None:
     # Ensure > 10KB as per MIN_REPLAY_SIZE
     payload = magic + b"\x00" * (11_000 - len(magic))
     path.write_bytes(payload)
+
+
+class _FakeNetworkAdapter:
+    def __init__(self, network_frames):
+        self._network_frames = network_frames
+
+    @property
+    def name(self) -> str:
+        return "rust"
+
+    @property
+    def supports_network_parsing(self) -> bool:
+        return True
+
+    def parse_header(self, path: Path) -> Header:
+        return Header(
+            playlist_id="13",
+            map_name="DFH_Stadium",
+            team_size=1,
+            team0_score=1,
+            team1_score=0,
+            match_guid="fake-guid",
+            players=[
+                PlayerInfo(name="Blue", team=0),
+                PlayerInfo(name="Orange", team=1),
+            ],
+        )
+
+    def parse_network(self, path: Path):
+        return self._network_frames
 
 
 def test_cli_analyze_header_only_success(tmp_path: Path, monkeypatch):
@@ -62,6 +93,77 @@ def test_generate_report_error_contract(tmp_path: Path):
     assert isinstance(report.get("details"), str)
     # Error report must validate as well
     validate_report(report)
+
+
+def test_report_includes_network_diagnostics_when_degraded(
+    tmp_path: Path, monkeypatch
+):
+    replay = tmp_path / "sample.replay"
+    _make_dummy_replay(replay)
+    monkeypatch.setattr(
+        "rlcoach.report.ingest_replay",
+        lambda _path: {
+            "sha256": "abc123",
+            "crc_check": {"message": "not yet implemented", "passed": False},
+        },
+    )
+    degraded = NetworkFrames(
+        frame_count=0,
+        sample_rate=30.0,
+        frames=[],
+        diagnostics=NetworkDiagnostics(
+            status="degraded",
+            error_code="boxcars_network_error",
+            error_detail="unknown attributes for object",
+            frames_emitted=0,
+        ),
+    )
+    monkeypatch.setattr(
+        "rlcoach.report.get_adapter", lambda _name: _FakeNetworkAdapter(degraded)
+    )
+
+    report = generate_report(replay, header_only=False, adapter_name="rust")
+    diagnostics = report["quality"]["parser"]["network_diagnostics"]
+
+    assert diagnostics["status"] == "degraded"
+    assert diagnostics["error_code"] == "boxcars_network_error"
+    assert diagnostics["frames_emitted"] == 0
+    assert set(diagnostics.keys()) == {
+        "status",
+        "error_code",
+        "error_detail",
+        "frames_emitted",
+    }
+
+
+def test_report_includes_network_diagnostics_when_unavailable(
+    tmp_path: Path, monkeypatch
+):
+    replay = tmp_path / "sample.replay"
+    _make_dummy_replay(replay)
+    monkeypatch.setattr(
+        "rlcoach.report.ingest_replay",
+        lambda _path: {
+            "sha256": "abc123",
+            "crc_check": {"message": "not yet implemented", "passed": False},
+        },
+    )
+    monkeypatch.setattr(
+        "rlcoach.report.get_adapter", lambda _name: _FakeNetworkAdapter(None)
+    )
+
+    report = generate_report(replay, header_only=False, adapter_name="rust")
+    diagnostics = report["quality"]["parser"]["network_diagnostics"]
+
+    assert diagnostics["status"] == "unavailable"
+    assert diagnostics["error_code"] == "network_data_unavailable"
+    assert diagnostics["frames_emitted"] == 0
+    assert set(diagnostics.keys()) == {
+        "status",
+        "error_code",
+        "error_detail",
+        "frames_emitted",
+    }
 
 
 @pytest.mark.skipif(not SAMPLE_REPLAY.exists(), reason="Sample replay not found")

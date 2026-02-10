@@ -1,6 +1,6 @@
 # RLCoach Master Status (Single Source of Truth)
 
-**Last updated:** 2026-02-02
+**Last updated:** 2026-02-10
 **Purpose:** Provide a durable, detailed snapshot of current state, plan status, gaps, and blockers for all future sessions.
 
 ---
@@ -13,6 +13,17 @@
 - **Plan docs are stale:** `IMPLEMENTATION_PLAN.md` and `UX_IMPLEMENTATION_PLAN.md` checklists do not reflect actual code state. `SAAS_FIXES_PLAN.md` is closest to current reality but Phase 6 remains unchecked.
 - **Ballchasing parity is no longer a target:** parity tests, scripts, fixtures, and helpers have been removed to avoid enforcing external alignment.
 - **Parity artifacts archived:** legacy parity plans/sprints moved to `codex/archive/ballchasing-parity/`.
+- **Parser reliability gate (2026-02-10):** corpus harness on 202 local replays reported `header_success_rate=1.0`, `network_success_rate=0.9950495`, and `degraded_count=1` (`boxcars_network_error` on one tournament replay). This meets the global `>=99.5%` target.
+- **Backend decision gate (2026-02-10):** current outcome is **No-Go for non-boxcars backend implementation**. Criteria were: Go only if network success `<99.5%` or any ranked-standard class `>1%` degraded. Current ranked-standard bucket (`inferred_3`) is `0/65` degraded.
+
+### 1.1 Parser Reliability Snapshot (2026-02-10)
+
+- Diagnostics-first behavior is active: `parse_network()` returns explicit `NetworkDiagnostics` (`ok|degraded|unavailable`) instead of silent loss.
+- Corpus metadata coverage from harness:
+  - playlist buckets: inferred_2=108, inferred_3=65, tournament=20, inferred_4=6, private=2, inferred_1=1
+  - match type buckets: 2v2=116, 3v3=78, 4v4=6, 1v1=2
+  - engine build buckets: 251202.62834.504897=196, 250811.43331.492665=5, 250909.54128.495700=1
+- Open reliability issue is isolated to one tournament replay (`replays/A181B28546BBD8AC71E63793B65BABAE.replay`), not ranked-standard.
 
 ---
 

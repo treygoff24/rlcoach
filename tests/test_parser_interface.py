@@ -19,6 +19,7 @@ from rlcoach.parser import (
 )
 from rlcoach.parser.interface import ParserAdapter as BaseParserAdapter
 from rlcoach.parser.null_adapter import NullAdapter
+from rlcoach.parser.types import NetworkDiagnostics
 
 
 class TestTypes:
@@ -370,6 +371,65 @@ class TestIntegrationWithTestReplay:
             adapter = get_adapter(adapter_name)
             header = adapter.parse_header(replay_path)
             assert isinstance(header, Header)
+
+
+def test_rust_adapter_backend_chain_default_boxcars():
+    adapter = get_adapter("rust")
+    assert getattr(adapter, "backend_chain", ["boxcars"])[0] == "boxcars"
+
+
+def test_network_diagnostics_contract_is_documented_and_typed():
+    assert "diagnostics" in getattr(NetworkFrames, "__dataclass_fields__", {})
+    assert "attempted_backends" in getattr(
+        NetworkDiagnostics, "__dataclass_fields__", {}
+    )
+
+
+def test_rust_adapter_backend_chain_from_env(monkeypatch):
+    from rlcoach.parser.rust_adapter import RustAdapter
+
+    monkeypatch.setenv("RLCOACH_PARSER_BACKEND_CHAIN", "boxcars,rrrocket")
+    adapter = RustAdapter()
+    assert adapter.backend_chain == ["boxcars", "rrrocket"]
+
+
+def test_parse_network_returns_none_only_when_adapter_unavailable(monkeypatch):
+    from rlcoach.parser.rust_adapter import RustAdapter
+
+    class FakeRust:
+        @staticmethod
+        def parse_network_with_diagnostics(_path: str):
+            return {
+                "frames": [],
+                "diagnostics": {
+                    "status": "degraded",
+                    "error_code": "boxcars_network_error",
+                },
+            }
+
+    adapter = RustAdapter()
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._rust", FakeRust())
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._RUST_AVAILABLE", True)
+    assert adapter.parse_network(Path("testing_replay.replay")) is not None
+
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._rust", None)
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._RUST_AVAILABLE", False)
+    assert adapter.parse_network(Path("testing_replay.replay")) is None
+
+
+def test_rust_adapter_can_report_attempted_backends_in_diagnostics():
+    adapter = get_adapter("rust")
+    if not adapter.supports_network_parsing:
+        pytest.skip("Rust adapter unavailable in this environment")
+
+    nf = adapter.parse_network(Path("testing_replay.replay"))
+    assert nf is not None
+    assert hasattr(nf, "diagnostics")
+    diagnostics = nf.diagnostics
+    assert diagnostics is not None
+    attempted = diagnostics.attempted_backends
+    assert isinstance(attempted, list)
+    assert attempted
 
 
 if __name__ == "__main__":
