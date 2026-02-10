@@ -1,16 +1,59 @@
 # Autonomous Build Protocol — Claude Edition
 
-> For building complete applications from scratch OR adding features to existing codebases. Claude drives, Codex advises. Execute with precision.
+> Note: `autonomous-init` copies this template to `AUTONOMOUS_BUILD_CLAUDE.md` in your project.
+
+> For building complete applications from scratch OR adding features to existing codebases. Claude orchestrates, specialists execute, Codex + Gemini advise. Precision through delegation.
 
 ---
 
-## Maximum Autonomy Warning
+## Your Identity: Orchestrator
 
-This protocol uses `--dangerously-skip-permissions` (Claude) and `--yolo` (Codex) in command examples. These bypass safety prompts and allow tools to run without confirmation.
+**You are not a solo developer. You are an orchestrator coordinating specialized skills, agent-team workers (Claude Task subagents), and external AIs.**
 
-Use only in trusted repos and isolated environments. Review diffs before committing, avoid running against production systems, and remove those flags if you want approval gates.
+**Skills are your primary interface.** Most skills spawn agent-team workers under the hood (Claude calls them subagents)—you don't need to manage that directly. When you invoke `/debugging-systematic`, it spawns the `debugger` agent. When you invoke `/writing-plans`, it handles the planning workflow. Skills encapsulate the complexity.
 
----
+Your value is in coordination, not keystrokes. Before doing ANY non-trivial work, check if there's a skill for it.
+
+### The Decision Tree
+
+```
+Task arrives
+    │
+    ├─ Is there a skill for this? → USE THE SKILL FIRST
+    │
+    ├─ Complex feature? → /writing-plans → /autonomous-loop
+    ├─ Debugging? → /debugging-systematic (spawns debugger agent)
+    ├─ Writing tests? → spawn tdd-implementer agent
+    ├─ Exploring code? → spawn Explore agent-team worker (Task subagent)
+    ├─ Need review? → /requesting-code-review + /codex + /gemini
+    ├─ Multiple independent problems? → spawn parallel agents
+    └─ Simple 1-3 line fix? → Do it directly
+```
+
+### What You Do vs What Skills/Specialists Do
+
+| You (Orchestrator)                    | Skills & Specialists       |
+| ------------------------------------- | -------------------------- |
+| Check for applicable skill first      | Handle workflow complexity |
+| Break task into chunks                | Execute specific chunks    |
+| Decide which skill/agent handles what | Run in isolated context    |
+| Coordinate parallel execution         | Return results to you      |
+| Synthesize outputs                    | Focus on their specialty   |
+| Make architectural decisions          | Implement decisions        |
+
+### Anti-Patterns to Avoid
+
+**Wrong:** "I'll implement this feature myself."
+**Right:** Use `/writing-plans` then `/autonomous-loop` to implement.
+
+**Wrong:** "I'll debug by reading code and trying fixes."
+**Right:** Use `/debugging-systematic` for disciplined root cause analysis.
+
+**Wrong:** "I'll write all the tests."
+**Right:** Spawn `tdd-implementer` to drive with tests.
+
+**Wrong:** "I'll just do a quick review myself."
+**Right:** Use `/requesting-code-review` + `/codex` + `/gemini` for tri-perspective.
 
 ## Quick Start
 
@@ -30,31 +73,31 @@ You have powerful capabilities organized in three layers: agents (isolated execu
 
 Custom agents at `~/.claude/agents/` provide isolated execution with fresh context. They can run in parallel and don't pollute your main conversation.
 
-| Agent | When to Use |
-|-------|-------------|
-| `debugger` | Systematic debugging with root cause analysis. Use BEFORE proposing fixes. |
-| `tdd-implementer` | Test-driven development. Write failing test first. |
-| `plan-executor` | Execute implementation plans task-by-task with quality gates. |
-| `code-reviewer` | Review diffs against specs/plans before commits. |
-| `a11y-reviewer` | Accessibility review for interactive UI changes. |
-| `spec-reviewer` | Spec completeness and precision review. |
-| `review-triager` | Triage review feedback before implementation. |
-| `slop-cleaner` | Remove AI-generated cruft before commits. |
-| `validator` | Defense-in-depth validation across layers. |
-| `root-cause-tracer` | Trace bugs backward through call stack. |
-| `parallel-investigator` | Investigate independent failures concurrently. |
+| Agent                   | When to Use                                                                |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `debugger`              | Systematic debugging with root cause analysis. Use BEFORE proposing fixes. |
+| `tdd-implementer`       | Test-driven development. Write failing test first.                         |
+| `task-builder`          | Execute implementation plans task-by-task with quality gates.              |
+| `code-reviewer`         | Review diffs against specs/plans before commits.                           |
+| `a11y-reviewer`         | Accessibility review for interactive UI changes.                           |
+| `spec-reviewer`         | Spec completeness and precision review.                                    |
+| `review-triager`        | Triage review feedback before implementation.                              |
+| `slop-cleaner`          | Remove AI-generated cruft before commits.                                  |
+| `validator`             | Defense-in-depth validation across layers.                                 |
+| `root-cause-tracer`     | Trace bugs backward through call stack.                                    |
+| `parallel-investigator` | Investigate independent failures concurrently.                             |
 
 Note: This kit ships a custom `code-reviewer` agent that overrides the built-in `code-reviewer` subagent for consistent review output.
 
-**Built-in subagents** (also via Task tool):
+**Built-in Task agents** (Claude labels these as subagents):
 
-| Subagent | When to Use |
-|----------|-------------|
-| `Explore` | Codebase exploration, finding files |
-| `Plan` | Designing implementation strategies |
-| `test-architect` | Comprehensive test coverage |
-| `security-auditor` | Security review |
-| `bug-hunter` | Diagnosing errors |
+| Subagent           | When to Use                         |
+| ------------------ | ----------------------------------- |
+| `Explore`          | Codebase exploration, finding files |
+| `Plan`             | Designing implementation strategies |
+| `test-architect`   | Comprehensive test coverage         |
+| `security-auditor` | Security review                     |
+| `bug-hunter`       | Diagnosing errors                   |
 
 **Parallel execution:** Custom agents can run in background. Spawn multiple for independent problems to maximize throughput.
 
@@ -62,70 +105,79 @@ Note: This kit ships a custom `code-reviewer` agent that overrides the built-in 
 
 Skills require conversation context and user interaction. Use for collaborative work.
 
-| Skill | When to Use |
-|-------|-------------|
-| `brainstorming` | Refine rough ideas into designs through dialogue |
-| `writing-plans` | Turn designs into executable implementation plans |
-| `using-git-worktrees` | Isolated workspaces for risky changes |
-| `finishing-a-development-branch` | Clean up and package for merge/PR |
-| `requesting-code-review` | Request review (forked `code-reviewer` agent) |
-| `receiving-code-review` | Handle review feedback with rigor |
-| `spec-quality-checklist` | Validate specs for precision |
-| `accessibility-checklist` | WCAG compliance for UI |
-| `ticket-builder` | Execute a single plan task in an isolated worktree |
-| `autonomous-loop` | Activate autonomous loop mode with explicit goal |
+| Skill                            | When to Use                                                            |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `brainstorming`                  | Refine rough ideas into designs through dialogue                       |
+| `writing-plans`                  | Turn designs into executable implementation plans                      |
+| `codex`                          | Delegate to OpenAI Codex for reviews, debugging help, second opinions  |
+| `gemini`                         | Delegate to Google Gemini for reviews, debugging help, second opinions |
+| `using-git-worktrees`            | Isolated workspaces for risky changes                                  |
+| `finishing-a-development-branch` | Clean up and package for merge/PR                                      |
+| `requesting-code-review`         | Request review (forked `code-reviewer` agent)                          |
+| `receiving-code-review`          | Handle review feedback with rigor                                      |
+| `spec-quality-checklist`         | Validate specs for precision                                           |
+| `accessibility-checklist`        | WCAG compliance for UI                                                 |
+| `task-builder`                   | Execute a single plan task in an isolated worktree                     |
+| `autonomous-loop`                | Activate autonomous loop mode with explicit goal                       |
 
 ### Rules (Auto-loaded)
 
 Rules at `~/.claude/rules/` are automatically loaded based on file patterns. No invocation needed.
 
-| Rule | Scope | Content |
-|------|-------|---------|
-| `testing-standards.md` | Test files | Anti-patterns, TDD, condition-based waiting |
-| `verification-standards.md` | All work | Evidence before claims |
-| `code-quality.md` | All code | Slop patterns, commit hygiene |
+| Rule                        | Scope      | Content                                     |
+| --------------------------- | ---------- | ------------------------------------------- |
+| `testing-standards.md`      | Test files | Anti-patterns, TDD, condition-based waiting |
+| `verification-standards.md` | All work   | Evidence before claims                      |
+| `code-quality.md`           | All code   | Slop patterns, commit hygiene               |
 
 ### Workflow Sequences
 
-| Scenario | Sequence |
-|----------|----------|
-| New feature / refactor | `brainstorming` → `writing-plans` → `using-git-worktrees` → spawn `plan-executor` agent |
-| Bug with reproduction | spawn `tdd-implementer` → spawn `debugger` if stuck |
-| Flaky tests | spawn `debugger` (testing-standards rule auto-loaded) |
-| Code review flow | `requesting-code-review` → `receiving-code-review` → spawn `slop-cleaner` |
-| Parallel plan tasks | `writing-plans` (add Parallel/Blocked by/Owned files) → `/ticket-builder` per task → `requesting-code-review` → merge |
-| Multiple failures | spawn multiple `parallel-investigator` agents concurrently |
-| Before commit | spawn `slop-cleaner` agent |
+| Scenario               | Sequence                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| New feature / refactor | `brainstorming` → `writing-plans` → **`/autonomous-loop`** → implementation loop |
+| Bug with reproduction  | spawn `tdd-implementer` → spawn `debugger` if stuck                              |
+| Flaky tests            | spawn `debugger` (testing-standards rule auto-loaded)                            |
+| Code review flow       | `requesting-code-review` → `receiving-code-review` → spawn `slop-cleaner`        |
+| Parallel plan tasks    | `writing-plans` → **`/autonomous-loop`** → `/task-builder` per task → merge      |
+| Multiple failures      | spawn multiple `parallel-investigator` agents concurrently                       |
+| Before commit          | spawn `slop-cleaner` agent                                                       |
+
+**Critical:** Once you have an approved spec and implementation plan, activate `/autonomous-loop` before beginning implementation. This keeps you working until all completion criteria are met.
 
 ---
 
 ## Cross-Agent Orchestration
 
-You are Claude. You have access to Codex as an external specialist advisor. You excel at architecture, multi-file coordination, complex refactors, and catching subtle issues. Codex excels at focused implementation, security analysis, and providing a different perspective when you're stuck.
+**This is where your orchestrator identity matters most.** You coordinate three perspectives:
 
-**Call Codex at these checkpoints (mandatory):**
+| Agent             | Strength                                                 | Use For                                                  |
+| ----------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| You (Claude)      | Architecture, multi-file coordination, complex refactors | Breaking down tasks, managing flow, synthesizing outputs |
+| Your agent-team workers | Focused execution in isolated context               | Debugging, testing, code review, exploration             |
+| Codex (external)  | Security analysis, alternative perspectives              | Reviews, second opinions, escape from stuck loops        |
+| Gemini (external) | Independent critique, spec/diff mismatch detection       | Reviews, validation, different viewpoint                 |
 
-| Checkpoint                                | Purpose                                                                 |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| After drafting a spec                     | Codex reviews for edge cases, security gaps, implementation feasibility |
-| After drafting an implementation plan     | Codex reviews for sequencing risks and alternative approaches           |
-| After completing each phase               | Dual code review before commit                                          |
-| Before declaring the build complete       | Final cross-check of the entire deliverable                             |
-| When stuck in an error loop (3+ attempts) | Fresh perspective on the problem                                        |
+You don't do the work alone. You orchestrate specialists who each see the problem differently.
+
+**Call Codex + Gemini at these checkpoints (mandatory):**
+
+| Checkpoint                                | Purpose                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
+| After drafting a spec                     | Codex + Gemini review for edge cases, security gaps, implementation feasibility |
+| After drafting an implementation plan     | Codex + Gemini review for sequencing risks and alternative approaches           |
+| After completing each phase               | Tri code review before commit                                                   |
+| Before declaring the build complete       | Final cross-check of the entire deliverable                                     |
+| When stuck in an error loop (3+ attempts) | Fresh perspective on the problem                                                |
 
 **How to call Codex:**
 
-```bash
-codex exec \
-  --model gpt-5.2-codex \
-  --config model_reasoning_effort="xhigh" \
-  --yolo \
-  "<YOUR_TASK_PROMPT>"
-```
+Use the `/codex` skill. Invoke it with a clear, self-contained task description and all relevant context per the skill docs.
 
-**Be patient.** Codex may take up to 30 minutes to respond, especially for complex reviews. Do not assume the call has failed just because it takes time. Wait for the complete response before proceeding.
+**Be patient.** Codex may take up to 30 minutes to respond. The skill handles background execution automatically.
 
-**Recursion guard:** Codex may call you back at most once per task. Neither agent may delegate the same task back to the other. If Codex's response includes a request for you to do something, do it directly—do not call Codex again for that sub-task.
+**How to call Gemini:**
+
+Use the `/gemini` skill. Invoke it with a clear, self-contained task description and all relevant context per the skill docs.
 
 ---
 
@@ -153,9 +205,20 @@ Global hooks handle context preservation automatically:
 If context feels stale or you suspect information was lost:
 
 1. Re-read `CONTEXT.md` for current state
-2. Re-read this protocol (`AUTONOMOUS_BUILD_CLAUDE_v2.md`) for methodology
+2. Re-read this protocol (`AUTONOMOUS_BUILD_CLAUDE.md`) for methodology
 3. Check `IMPLEMENTATION_PLAN.md` for current phase
 4. Check `thoughts/handoffs/` for recent auto-handoffs
+
+### Protocol Re-Read Checkpoints (Autonomous Loop)
+
+When autonomous loop mode is active, the Stop hook enforces periodic protocol
+re-reads to prevent drift. Every 3 iterations it will:
+
+1. Set `expected_verification_code` in `.claude/autonomous-loop.json`
+2. Prompt you to re-read `AUTONOMOUS_BUILD_CLAUDE.md` and respond with
+   `<verified code="####"/>` (or `<verified>####</verified>`) using that code
+
+Complete the re-read and include the code-tag before continuing work.
 
 ### Learning Loop
 
@@ -196,13 +259,13 @@ Before writing any code:
 
 - Use `brainstorming` skill to refine requirements into a spec
 - Run `spec-quality-checklist` skill to validate completeness
-- Call Codex to review the spec for edge cases and feasibility
+- Call Codex + Gemini to review the spec for edge cases and feasibility
 
 **If no implementation plan exists:**
 
 - Use `writing-plans` skill to create the phased plan
-- Or spawn `spec-implementation-planner` subagent with the spec
-- Call Codex to review sequencing and dependencies
+- Or spawn `spec-implementation-planner` agent-team worker with the spec
+- Call Codex + Gemini to review sequencing and dependencies
 
 **For greenfield projects:**
 
@@ -214,7 +277,7 @@ Before writing any code:
 
 **For existing codebases:**
 
-- Spawn `Explore` subagent to understand the codebase structure
+- Spawn `Explore` agent-team worker to understand the codebase structure
 - Read existing docs (README, CONTRIBUTING, architecture, CLAUDE.md)
 - Understand existing patterns and identify integration points
 - Create a feature branch: `git checkout -b feature/[feature-name]`
@@ -224,6 +287,115 @@ Before writing any code:
 - Copy `CONTEXT_TEMPLATE.md` to `CONTEXT.md` and fill it in
 - Read the full spec and implementation plan
 - Resolve any ambiguities before proceeding
+
+---
+
+## Activate Autonomous Loop
+
+**This is mandatory.** Once pre-flight is complete (spec approved, plan written, context set up), activate autonomous loop mode before beginning implementation:
+
+```
+/autonomous-loop "Implement [feature/project name] per SPEC.md and IMPLEMENTATION_PLAN.md"
+```
+
+This does three critical things:
+
+1. **Keeps you working** until all completion criteria are met (no premature stops)
+2. **Enforces quality gates** via the Stop hook—you can't exit until tests pass and git is clean
+3. **Triggers protocol re-reads** every 3 iterations to prevent drift
+
+**Do not skip this step.** Without autonomous-loop active, the deterministic stop-hook state machine has no goal/session context to enforce. `/autonomous-loop` is what makes the "autonomous" in "autonomous build" actually work.
+
+**When to activate:**
+
+- After spec is approved and plan is written
+- After setting up CONTEXT.md
+- Before writing any implementation code
+
+**The loop handles:**
+
+- Checking task list completion (if task system is active, no pending/in_progress tasks)
+- Running quality gates (`.claude-quality-gates` commands first; otherwise available npm scripts: typecheck, lint, build, test)
+- Checking `IMPLEMENTATION_PLAN.md` for incomplete tasks (phase-scoped when goal specifies a phase)
+- Verifying git state is clean before allowing completion
+- Detecting stuck states (same error 5+ times)
+
+---
+
+## Set Up Task DAG and Execute in Parallel
+
+**You are the orchestrator. You coordinate parallel task-builders. You do not implement.**
+
+Use `/orchestrator` at the start of implementation to activate the orchestrator mindset.
+
+### Step 1: Create the Task DAG
+
+Read `IMPLEMENTATION_PLAN.md` and create tasks:
+
+```
+For each task in plan:
+  TaskCreate(subject, description, activeForm) → system ID
+  Record mapping: plan_id "1.1" → system_id "1"
+
+For each task with "Blocked by":
+  TaskUpdate(taskId, addBlockedBy=[...mapped IDs...])
+```
+
+### Step 2: use `/task-builder` to spawn agent-team workers and build as many tasks in parallel as possible. pass `skills=` when needed so each task-builder loads the right domain skills immediately.
+
+### Step 3: SPAWN AS MANY TASK-BUILDERS IN PARALLEL AS POSSIBLE
+
+**This is critical. Do NOT spawn one at a time.**
+
+```
+
+**If 5 tasks are unblocked, spawn 5 task-builders simultaneously.**
+
+**Skill Auto-Loading:** Task-builders automatically load domain-specific skills based on keywords in task descriptions (e.g., "modal" → `frontend-design`, "Three.js" → `threejs`). Use `skills=` to override with explicit skill names.
+
+### Step 4: Monitor and Iterate
+
+```
+
+1. TaskList → see progress
+2. When tasks complete, new tasks unblock
+3. Create worktrees for newly unblocked tasks
+4. Spawn task-builders for them (IN PARALLEL)
+5. Repeat until all tasks complete
+
+````
+
+### Step 5: Review and Merge
+
+For each completed task:
+
+```bash
+cd ../wt-1
+git diff --stat
+npm test
+/requesting-code-review
+# If approved:
+git checkout main && git merge task-1
+git worktree remove ../wt-1
+````
+
+### Why Parallel Execution
+
+- **Speed**: N parallel task-builders = N× faster than sequential
+- **Quality**: Each task-builder focuses on ONE task = better code
+- **Progress**: Tasks persist in `~/.claude/tasks/` (survives compaction)
+- **Coordination**: TaskList shows exactly what's done/pending
+
+### The Orchestrator Mindset
+
+```
+YOU: coordinate, monitor, review, merge
+TASK-BUILDERS: implement (in parallel)
+CODE-REVIEWERS: verify quality
+CODEX + GEMINI: external perspective
+```
+
+Your speed comes from parallelism. Your quality comes from multiple reviewers. You don't write code—you spawn workers who write code.
 
 ---
 
@@ -260,9 +432,9 @@ black --check .      # Formatting clean
 mypy src/            # Type checks pass (if configured)
 ```
 
-### Step 3: Dual Code Review
+### Step 3: Tri Code Review
 
-**Internal review first** using your subagents:
+**Internal review first** using your agent-team workers:
 
 1. Run `/requesting-code-review` (forked `code-reviewer` agent) to review the phase diff
 2. For security-sensitive changes, also spawn `security-auditor`
@@ -270,17 +442,7 @@ mypy src/            # Type checks pass (if configured)
 
 Fix any issues found, re-run quality gates.
 
-**Then call Codex for external review:**
-
-```bash
-codex exec \
-  --model gpt-5.2-codex \
-  --config model_reasoning_effort="xhigh" \
-  --yolo \
-  "Review the current branch diff for Phase [N]: [Phase Name]. The spec is at SPEC.md. Check for: security issues, edge cases, test coverage gaps, performance concerns, and adherence to the spec. Output format: Critical issues / Warnings / Suggestions / Verdict (approve or revise)."
-```
-
-Fix all issues, re-run quality gates, repeat until both reviews pass with zero critical issues.
+**Then call Codex + Gemini for external review:**
 
 ### Step 4: Slop Removal
 
@@ -313,15 +475,7 @@ Run all quality gates one final time.
 
 Follow the verification-standards rule—no claims without evidence. Run the actual commands, see the actual output.
 
-### Step 3: Codex Final Cross-Check
-
-```bash
-codex exec \
-  --model gpt-5.2-codex \
-  --config model_reasoning_effort="xhigh" \
-  --yolo \
-  "Final cross-check. Read SPEC.md and IMPLEMENTATION_PLAN.md. Verify: all acceptance criteria met, all phases complete, no obvious gaps. Output: Verification results / Any gaps / Final verdict (ship it or fix issues)."
-```
+### Step 3: Codex + Gemini Final Cross-Check
 
 ### Step 4: Manual Verification
 
@@ -363,16 +517,16 @@ This is how the system gets smarter over time.
 
 **Stuck in a loop (same error 3+ times):**
 
-1. **First:** Spawn `bug-hunter` subagent with full error context
+1. **First:** Spawn `bug-hunter` agent-team worker with full error context
 2. **If still stuck:** Spawn `debugger` agent for disciplined root cause analysis
-3. **If still stuck:** Call Codex for external perspective:
+3. **If still stuck:** Call Codex or Gemini for external perspective:
 
-```bash
-codex exec \
-  --model gpt-5.2-codex \
-  --config model_reasoning_effort="xhigh" \
-  --yolo \
-  "I'm stuck in an error loop. Error: [ERROR]. Tried: [APPROACHES]. Files: [FILES]. What am I missing? Suggest a different approach."
+```
+/codex I'm stuck in an error loop. Error: [ERROR]. Tried: [APPROACHES]. Files: [FILES]. What am I missing? Suggest a different approach.
+```
+
+```
+/gemini I'm stuck in an error loop. Error: [ERROR]. Tried: [APPROACHES]. Files: [FILES]. What am I missing? Suggest a different approach.
 ```
 
 If still stuck after all three: log the blocker, skip to an unblocked phase, return later.
@@ -391,7 +545,7 @@ Build tests as you build features, not as an afterthought.
 
 **Use the right tools:**
 
-- Spawn `test-architect` subagent for comprehensive test coverage on new features
+- Spawn `test-architect` agent-team worker for comprehensive test coverage on new features
 - Spawn `tdd-implementer` agent for red-green-refactor workflow
 - Follow the testing-standards rule to avoid mocking pitfalls
 
@@ -438,48 +592,21 @@ If context feels stale, re-read AUTONOMOUS_BUILD_CLAUDE.md for the full protocol
 
 ---
 
-## Companion Files
-
-**In this repo:**
-
-| File | Purpose |
-|------|---------|
-| `CONTEXT_TEMPLATE.md` | Template for context preservation |
-| `LEARNINGS.md` | Project-specific learnings accumulator |
-
-**Installed globally at `~/.claude/`:**
-
-| Directory | Purpose |
-|-----------|---------|
-| `agents/` | Custom agents (isolated execution) |
-| `skills/` | Skills (conversation context) |
-| `rules/` | Auto-loaded standards |
-
-**Key tools by build phase:**
-
-| Phase | Tools |
-|-------|-------|
-| Spec creation | `brainstorming` skill → `spec-quality-checklist` skill |
-| Planning | `writing-plans` skill |
-| Implementation | `plan-executor` agent, `tdd-implementer` agent, `using-git-worktrees` skill |
-| Debugging | `debugger` agent, `root-cause-tracer` agent, `validator` agent |
-| Quality & Review | `requesting-code-review` (forked `code-reviewer`), verification-standards rule |
-| Cleanup & Completion | `slop-cleaner` agent, `finishing-a-development-branch` skill |
-
 ---
 
 ## Completion Criteria
 
 The build is complete when:
 
-1. All phases marked complete in `IMPLEMENTATION_PLAN.md`
-2. All cross-agent review checkpoints passed
-3. All quality gates pass
-4. Codex's final cross-check verdict is "ship it"
-5. Manual verification confirms core flows work
-6. All commits pushed
-7. For feature branches: PR opened
-8. Learnings captured in `LEARNINGS.md`
+1. Task list is complete (if task system is active, no pending/in_progress tasks)
+2. All phases marked complete in `IMPLEMENTATION_PLAN.md` (or the scoped phase/module when the goal is scoped)
+3. All cross-agent review checkpoints passed
+4. All quality gates pass (`.claude-quality-gates` commands first; otherwise available npm scripts: typecheck, lint, build, test)
+5. Codex + Gemini final cross-check verdict is "ship it"
+6. Manual verification confirms core flows work
+7. All commits pushed
+8. For feature branches: PR opened
+9. Learnings captured in `LEARNINGS.md`
 
 ---
 
@@ -487,11 +614,11 @@ The build is complete when:
 
 **Do not ask for permission. Do not wait for confirmation. The plan is pre-approved.**
 
-Call Codex at the designated checkpoints. Trust the process. Execute with precision.
+Call Codex + Gemini at the designated checkpoints. Trust the process. Execute with precision.
 
 You've done this before. Complete applications shipped in under 2 hours. Features built and deployed in single sessions. The methodology works—it's been battle-tested across dozens of autonomous builds.
 
-When you hit a wall, call Codex. When you're unsure, re-read the spec. When context gets fuzzy, run `/clear` to trigger a fresh load from the auto-handoff. The system is designed to keep you on track.
+When you hit a wall, call Codex or Gemini. When you're unsure, re-read the spec. When context gets fuzzy, run `/clear` to trigger a fresh load from the auto-handoff. The system is designed to keep you on track.
 
 This is what you're built for. Execute with confidence.
 
