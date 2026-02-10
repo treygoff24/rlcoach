@@ -1,5 +1,8 @@
 # tests/test_benchmarks.py
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -154,3 +157,29 @@ def test_import_benchmarks_upserts(tmp_path):
         assert benchmarks[0].source == "v2"
     finally:
         session.close()
+
+
+def test_parser_corpus_health_output_schema(tmp_path):
+    script_path = (
+        Path(__file__).resolve().parents[1] / "scripts" / "parser_corpus_health.py"
+    )
+    result = subprocess.run(
+        [sys.executable, str(script_path), "--dry", "--json"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+
+    assert payload["total"] == 0
+    assert isinstance(payload["header_success_rate"], float)
+    assert isinstance(payload["network_success_rate"], float)
+    assert isinstance(payload["degraded_count"], int)
+    assert isinstance(payload["top_error_codes"], list)
+
+    metadata = payload["corpus_metadata"]
+    assert isinstance(metadata, dict)
+    assert isinstance(metadata["playlist_buckets"], dict)
+    assert isinstance(metadata["match_type_buckets"], dict)
+    assert isinstance(metadata["engine_build_buckets"], dict)

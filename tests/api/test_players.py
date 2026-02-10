@@ -163,7 +163,7 @@ class TestPlayersListEndpoint:
         data = response.json()
 
         for player in data["items"]:
-            assert player["is_tagged_teammate"] == True
+            assert player["is_tagged_teammate"]
 
     def test_players_filter_by_min_games(self, client):
         """Should filter by minimum games."""
@@ -180,7 +180,7 @@ class TestPlayersListEndpoint:
         data = response.json()
 
         for player in data["items"]:
-            assert player["is_me"] == False
+            assert not player["is_me"]
 
 
 class TestPlayerDetailEndpoint:
@@ -220,7 +220,7 @@ class TestPlayerTagEndpoint:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["is_tagged_teammate"] == True
+        assert data["is_tagged_teammate"]
         assert data["teammate_notes"] == "Great passes"
 
     def test_untag_player(self, client):
@@ -229,7 +229,7 @@ class TestPlayerTagEndpoint:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["is_tagged_teammate"] == False
+        assert not data["is_tagged_teammate"]
 
     def test_tag_nonexistent_player(self, client):
         """Should return 404 for nonexistent player."""

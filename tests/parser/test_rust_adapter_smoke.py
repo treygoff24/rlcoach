@@ -39,3 +39,31 @@ def test_rust_header_and_frames_smoke():
     assert "position" in first["ball"] and "velocity" in first["ball"]
     assert "angular_velocity" in first["ball"]
     assert "players" in first and isinstance(first["players"], list)
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+def test_rust_network_parse_returns_diagnostics_shape():
+    import rlreplay_rust  # type: ignore
+
+    result = rlreplay_rust.parse_network_with_diagnostics("testing_replay.replay")
+
+    assert isinstance(result, dict)
+    assert "frames" in result
+    assert "diagnostics" in result
+    diagnostics = result["diagnostics"]
+    assert isinstance(diagnostics, dict)
+    assert "status" in diagnostics
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+def test_ltm_replay_reports_parse_reason_not_silent_none():
+    from rlcoach.parser import get_adapter
+
+    path = Path("replays/A181B28546BBD8AC71E63793B65BABAE.replay")
+    adapter = get_adapter("rust")
+    nf = adapter.parse_network(path)
+
+    assert nf is not None
+    assert hasattr(nf, "diagnostics")
+    diagnostics = nf.diagnostics
+    assert diagnostics is not None

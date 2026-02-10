@@ -128,7 +128,8 @@ class TestChallengesAnalysis:
         touches = [
             TouchEvent(t=0.2, player_id="A", location=Vec3(0.0, 0.0, 17.0)),
             TouchEvent(t=0.4, player_id="A", location=Vec3(0.0, 10.0, 17.0)),
-            # Opponent touch happens later than the contest window, so no contest should register
+            # Opponent touch happens later than the contest window,
+            # so no contest should register.
             TouchEvent(t=2.0, player_id="B", location=Vec3(0.0, 90.0, 17.0)),
         ]
 

@@ -167,7 +167,8 @@ class TestBasicFormatCheck:
 
     def test_format_check_binary_but_no_magic(self):
         """Test format check with binary data but no magic sequence."""
-        # Create binary data without replay magic (avoid ASCII range that looks like text)
+        # Create binary data without replay magic.
+        # Avoid ASCII range that looks like text.
         data = bytes([i + 128 for i in range(128)] * 20)  # Non-ASCII binary data
         valid, message = basic_format_check(data)
         assert valid is False

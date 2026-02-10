@@ -37,7 +37,6 @@ class TestGDPRIDPrefixing:
         """Verify prefix format matches what db/writer.py stores."""
         # db/writer.py stores player IDs as "platform:id" (e.g., steam:76561...)
         # GDPR queries must use the same format to match
-        from rlcoach.api.routers.gdpr import RemovalRequest
 
         # Steam ID case
         steam_id = "76561198012345678"

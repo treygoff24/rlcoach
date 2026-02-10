@@ -92,6 +92,9 @@ class PlayerMechanicsState:
     prev_rotation_pitch: float = 0.0
     prev_rotation_yaw: float = 0.0
     prev_rotation_roll: float = 0.0
+    prev_authoritative_is_jumping: bool | None = None
+    prev_authoritative_is_dodging: bool | None = None
+    prev_authoritative_is_double_jumping: bool | None = None
 
     # Flip tracking
     flip_start_time: float | None = None
@@ -323,6 +326,19 @@ def _get_flip_direction(
         return "diagonal"
 
 
+def _get_optional_authoritative_flag(
+    player: PlayerFrame, flag_name: str
+) -> bool | None:
+    """Read optional authoritative parser flags from player snapshots.
+
+    `None` means unavailable for this frame.
+    """
+    raw_value = getattr(player, flag_name, None)
+    if raw_value is None:
+        return None
+    return bool(raw_value)
+
+
 def _normalize_angle(angle: float) -> float:
     """Normalize angle to [-pi, pi] range."""
     # Use modulo for efficiency - handles any magnitude angle
@@ -477,6 +493,15 @@ def detect_mechanics_for_player(
         rot = player.rotation
 
         pitch, yaw, roll = _get_rotation_values(rot)
+        authoritative_is_jumping = _get_optional_authoritative_flag(
+            player, "is_jumping"
+        )
+        authoritative_is_dodging = _get_optional_authoritative_flag(
+            player, "is_dodging"
+        )
+        authoritative_is_double_jumping = _get_optional_authoritative_flag(
+            player, "is_double_jumping"
+        )
 
         # Calculate derivatives if we have previous frame
         if prev_player is not None and prev_frame is not None:
@@ -491,6 +516,139 @@ def detect_mechanics_for_player(
             # Detect ground state
             was_airborne = state.is_airborne
             is_on_ground = pos.z < GROUND_HEIGHT_THRESHOLD or player.is_on_ground
+            infer_jump = authoritative_is_jumping is None
+            infer_dodge = authoritative_is_dodging is None
+            infer_double_jump = authoritative_is_double_jumping is None
+
+            # Prefer authoritative parser component-state flags when present.
+            if not is_on_ground:
+                if (
+                    authoritative_is_jumping is True
+                    and state.prev_authoritative_is_jumping is not True
+                    and not state.has_jumped
+                ):
+                    state.has_jumped = True
+                    state.first_jump_time = timestamp
+                    state.boost_at_first_jump = player.boost_amount
+                    state.boost_used_since_jump = 0
+                    events.append(
+                        MechanicEvent(
+                            timestamp=timestamp,
+                            player_id=player_id,
+                            mechanic_type=MechanicType.JUMP,
+                            position=pos,
+                            velocity=vel,
+                            height=pos.z,
+                        )
+                    )
+
+                if (
+                    authoritative_is_double_jumping is True
+                    and state.prev_authoritative_is_double_jumping is not True
+                    and not state.has_double_jumped
+                    and not state.has_flipped
+                ):
+                    if not state.has_jumped:
+                        state.has_jumped = True
+                        if infer_jump:
+                            state.first_jump_time = timestamp
+                            state.boost_at_first_jump = player.boost_amount
+                            state.boost_used_since_jump = 0
+                            events.append(
+                                MechanicEvent(
+                                    timestamp=timestamp,
+                                    player_id=player_id,
+                                    mechanic_type=MechanicType.JUMP,
+                                    position=pos,
+                                    velocity=vel,
+                                    height=pos.z,
+                                )
+                            )
+                    state.has_double_jumped = True
+                    state.second_jump_time = timestamp
+                    events.append(
+                        MechanicEvent(
+                            timestamp=timestamp,
+                            player_id=player_id,
+                            mechanic_type=MechanicType.DOUBLE_JUMP,
+                            position=pos,
+                            velocity=vel,
+                            height=pos.z,
+                        )
+                    )
+
+                if (
+                    authoritative_is_dodging is True
+                    and state.prev_authoritative_is_dodging is not True
+                    and not state.has_flipped
+                ):
+                    if not state.has_jumped:
+                        state.has_jumped = True
+                        if infer_jump:
+                            state.first_jump_time = timestamp
+                            state.boost_at_first_jump = player.boost_amount
+                            state.boost_used_since_jump = 0
+                            events.append(
+                                MechanicEvent(
+                                    timestamp=timestamp,
+                                    player_id=player_id,
+                                    mechanic_type=MechanicType.JUMP,
+                                    position=pos,
+                                    velocity=vel,
+                                    height=pos.z,
+                                )
+                            )
+                    state.has_flipped = True
+                    state.second_jump_time = timestamp
+                    state.flip_start_time = timestamp
+                    state.flip_cancel_detected = False
+                    state.flip_cancel_confirmed = False
+                    if state.has_ceiling_flip:
+                        state.flip_after_ceiling = True
+                    state.flip_cancel_start_time = None
+                    state.pitch_at_flip_start = pitch
+                    state.roll_at_flip_start = roll
+                    state.vel_at_flip_start = vel
+                    state.boost_used_since_flip = 0
+                    state.flip_pitch_intent = (
+                        1 if pitch_rate > 0 else -1 if pitch_rate < 0 else 0
+                    )
+                    if frame.ball is not None:
+                        state.ball_speed_at_flip_start = _magnitude(frame.ball.velocity)
+                        state.ball_z_velocity_at_flip_start = frame.ball.velocity.z
+                    if state.is_air_rolling and state.air_roll_start_time:
+                        duration = timestamp - state.air_roll_start_time
+                        if duration >= AIR_ROLL_MIN_DURATION:
+                            events.append(
+                                MechanicEvent(
+                                    timestamp=state.air_roll_start_time,
+                                    player_id=player_id,
+                                    mechanic_type=MechanicType.AIR_ROLL,
+                                    position=pos,
+                                    velocity=vel,
+                                    height=pos.z,
+                                    duration=duration,
+                                )
+                            )
+                        state.is_air_rolling = False
+                        state.air_roll_start_time = None
+                    flip_dir = _get_flip_direction(
+                        vel, (pitch_rate, yaw_rate, roll_rate), yaw
+                    )
+                    state.flip_direction = flip_dir
+                    state.initial_yaw = yaw
+
+                    events.append(
+                        MechanicEvent(
+                            timestamp=timestamp,
+                            player_id=player_id,
+                            mechanic_type=MechanicType.FLIP,
+                            position=pos,
+                            velocity=vel,
+                            direction=flip_dir,
+                            height=pos.z,
+                        )
+                    )
 
             if is_on_ground and was_airborne:
                 # Just landed
@@ -618,7 +776,7 @@ def detect_mechanics_for_player(
                         pitch_rate * pitch_rate + roll_rate * roll_rate
                     )
 
-                    if total_rot_rate > FLIP_ANGULAR_THRESHOLD:
+                    if total_rot_rate > FLIP_ANGULAR_THRESHOLD and infer_dodge:
                         # This is a flip/dodge - but a flip requires a jump first!
                         # In RL, you jump then flip, so we count the jump too
                         if not state.has_flipped:
@@ -626,20 +784,21 @@ def detect_mechanics_for_player(
                             # (flips consume the second jump)
                             if not state.has_jumped:
                                 state.has_jumped = True
-                                # Track for fast aerial detection
-                                state.first_jump_time = timestamp
-                                state.boost_at_first_jump = player.boost_amount
-                                state.boost_used_since_jump = 0
-                                events.append(
-                                    MechanicEvent(
-                                        timestamp=timestamp,
-                                        player_id=player_id,
-                                        mechanic_type=MechanicType.JUMP,
-                                        position=pos,
-                                        velocity=vel,
-                                        height=pos.z,
+                                if infer_jump:
+                                    # Track for fast aerial detection
+                                    state.first_jump_time = timestamp
+                                    state.boost_at_first_jump = player.boost_amount
+                                    state.boost_used_since_jump = 0
+                                    events.append(
+                                        MechanicEvent(
+                                            timestamp=timestamp,
+                                            player_id=player_id,
+                                            mechanic_type=MechanicType.JUMP,
+                                            position=pos,
+                                            velocity=vel,
+                                            height=pos.z,
+                                        )
                                     )
-                                )
 
                             state.has_flipped = True
                             state.second_jump_time = timestamp  # For fast aerial
@@ -705,7 +864,7 @@ def detect_mechanics_for_player(
                             )
                     else:
                         # Pure vertical jump (jump or double jump)
-                        if not state.has_jumped:
+                        if not state.has_jumped and infer_jump:
                             state.has_jumped = True
                             # Track for fast aerial detection
                             state.first_jump_time = timestamp
@@ -721,7 +880,11 @@ def detect_mechanics_for_player(
                                     height=pos.z,
                                 )
                             )
-                        elif not state.has_double_jumped and not state.has_flipped:
+                        elif (
+                            not state.has_double_jumped
+                            and not state.has_flipped
+                            and infer_double_jump
+                        ):
                             state.has_double_jumped = True
                             state.second_jump_time = timestamp  # For fast aerial
                             events.append(
@@ -1700,6 +1863,10 @@ def detect_mechanics_for_player(
             state.prev_ball_speed = ball_speed
             state.prev_ball_z_velocity = frame.ball.velocity.z
             state.prev_ball_velocity = frame.ball.velocity
+
+        state.prev_authoritative_is_jumping = authoritative_is_jumping
+        state.prev_authoritative_is_dodging = authoritative_is_dodging
+        state.prev_authoritative_is_double_jumping = authoritative_is_double_jumping
 
         # Store angular rates for flip cancel/discrimination
         if prev_player is not None and prev_frame is not None:

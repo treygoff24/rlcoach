@@ -19,11 +19,6 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session as DBSession
 
-from ...data.benchmarks import (
-    RANK_DISPLAY_NAMES,
-    compare_to_benchmark,
-    get_benchmark_for_rank,
-)
 from ...db import User, get_session
 from ...db.models import (
     CoachMessage,
@@ -33,6 +28,11 @@ from ...db.models import (
     PlayerGameStats,
     Replay,
     UserReplay,
+)
+from ...rank_benchmarks import (
+    RANK_DISPLAY_NAMES,
+    compare_to_benchmark,
+    get_benchmark_for_rank,
 )
 from ...services.coach.budget import get_token_budget_remaining
 from ..auth import AuthenticatedUser

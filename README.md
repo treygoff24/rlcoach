@@ -8,10 +8,12 @@ rlcoach is designed to provide detailed analysis of Rocket League replays withou
 
 ## Project Status
 
-- End-to-end CLI pipeline (ingest -> normalize -> events -> analyzers -> JSON/Markdown) is implemented with 261 tests.
+- End-to-end CLI pipeline (ingest -> normalize -> events -> analyzers -> JSON/Markdown) is implemented with 434 tests.
 - Parser adapters are pluggable:
   - `null` adapter (header-only fallback; always available)
   - optional `rust` adapter (pyo3 + boxcars) for richer header parsing and network frames
+- Rust parser behavior is diagnostics-first: degraded/unavailable network parses emit explicit machine-readable diagnostics instead of silent fallback.
+- Corpus reliability gate (2026-02-10): on 202 local replays, header success was 100%, network success was 99.50%, with 1 degraded replay (`boxcars_network_error`).
 - 14 analysis modules covering fundamentals, boost, movement, positioning, mechanics, defense, xG, and more.
 - Markdown dossier generator mirrors the JSON schema and ships with golden fixtures.
 - Offline CLI viewer renders summaries from previously generated JSON reports.
@@ -97,6 +99,9 @@ make rust-dev
 
 # Clean build artifacts
 make clean
+
+# Parser corpus health gate (JSON summary)
+source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.py --roots replays,Replay_files --json
 ```
 
 ### Project Structure

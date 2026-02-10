@@ -9,13 +9,22 @@ ingest validator, with explicit quality warnings.
 
 from __future__ import annotations
 
+import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from ..ingest import ingest_replay
 from .errors import HeaderParseError
 from .interface import ParserAdapter
-from .types import GoalHeader, Header, Highlight, NetworkFrames, PlayerInfo
+from .types import (
+    GoalHeader,
+    Header,
+    Highlight,
+    NetworkDiagnostics,
+    NetworkFrames,
+    PlayerInfo,
+)
 
 try:  # best-effort import of Rust core
     import rlreplay_rust as _rust
@@ -26,8 +35,33 @@ except Exception:  # pragma: no cover - environment may not have the module
     _RUST_AVAILABLE = False
 
 
+def _parse_backend_chain_env() -> list[str] | None:
+    raw_chain = os.getenv("RLCOACH_PARSER_BACKEND_CHAIN")
+    if raw_chain is None:
+        return None
+    parsed = [item.strip().lower() for item in raw_chain.split(",") if item.strip()]
+    return parsed or None
+
+
+def _normalize_backend_chain(backend_chain: list[str] | None) -> list[str]:
+    if not backend_chain:
+        return ["boxcars"]
+    normalized: list[str] = []
+    for item in backend_chain:
+        candidate = item.strip().lower()
+        if candidate and candidate not in normalized:
+            normalized.append(candidate)
+    return normalized or ["boxcars"]
+
+
 class RustAdapter(ParserAdapter):
     """Rust-backed adapter with graceful fallback."""
+
+    def __init__(self, backend_chain: list[str] | None = None):
+        configured_chain = backend_chain
+        if configured_chain is None:
+            configured_chain = _parse_backend_chain_env()
+        self._backend_chain = _normalize_backend_chain(configured_chain)
 
     @property
     def name(self) -> str:
@@ -37,6 +71,10 @@ class RustAdapter(ParserAdapter):
     def supports_network_parsing(self) -> bool:
         # Only claim support if the Rust core is importable
         return bool(_RUST_AVAILABLE)
+
+    @property
+    def backend_chain(self) -> list[str]:
+        return list(self._backend_chain)
 
     def _header_from_rust_dict(self, d: dict[str, Any]) -> Header:
         # Convert rust dict to Header dataclass
@@ -274,45 +312,190 @@ class RustAdapter(ParserAdapter):
     def parse_network(self, path: Path) -> NetworkFrames | None:
         if not _RUST_AVAILABLE or _rust is None:
             return None
-        try:
-            frames = _rust.iter_frames(str(path))  # Expect list of dict frames
-            if not isinstance(frames, list):
-                # Convert iterator/generator to list if needed
-                try:
-                    frames = list(frames)
-                except Exception:
-                    frames = []
-            # Deduplicate per-frame player entries keyed by player_id to guard
-            # against duplicate car component actors leaking through the bridge.
-            for frame in frames:
-                players = frame.get("players") if isinstance(frame, dict) else None
-                if not isinstance(players, list):
-                    continue
-                unique_by_key: dict[str, Any] = {}
-                order: list[str] = []
-                anonymous_index = 0
-                for player in players:
-                    key: str
-                    if isinstance(player, dict) and isinstance(
-                        player.get("player_id"), str
-                    ):
-                        key = player["player_id"]  # keep stable key per player id
-                    else:
-                        key = f"__anon_{anonymous_index}"
-                        anonymous_index += 1
-                    if key not in unique_by_key:
-                        order.append(key)
-                    unique_by_key[key] = player
-                frame["players"] = [unique_by_key[k] for k in order]
-            # Measure sample rate from timestamps if available
-            try:
-                from ..normalize import measure_frame_rate
+        attempted_backends: list[str] = []
+        degraded_result: NetworkFrames | None = None
+        degraded_diagnostics: NetworkDiagnostics | None = None
 
-                hz = float(measure_frame_rate(frames))
-            except Exception:
-                hz = 30.0
-            return NetworkFrames(frame_count=len(frames), sample_rate=hz, frames=frames)
+        for backend in self.backend_chain:
+            attempted_backends.append(backend)
+            if backend != "boxcars":
+                degraded_diagnostics = NetworkDiagnostics(
+                    status="unavailable",
+                    error_code=f"{backend}_backend_unavailable",
+                    error_detail=f"Backend '{backend}' is not implemented",
+                    frames_emitted=0,
+                    attempted_backends=list(attempted_backends),
+                )
+                continue
+
+            parsed, frames = self._parse_boxcars_network(path)
+            self._dedupe_frame_players(frames)
+            diagnostics = self._build_diagnostics(
+                parsed.get("diagnostics"), attempted_backends
+            )
+            if diagnostics.frames_emitted is None:
+                diagnostics = replace(diagnostics, frames_emitted=len(frames))
+
+            network = self._build_network_frames(frames)
+            object.__setattr__(network, "diagnostics", diagnostics)
+
+            if diagnostics.status == "ok":
+                return network
+
+            degraded_result = network
+            degraded_diagnostics = diagnostics
+
+        if degraded_result is not None:
+            return degraded_result
+
+        diagnostics = degraded_diagnostics or NetworkDiagnostics(
+            status="unavailable",
+            error_code="no_backend_attempted",
+            error_detail="No parser backend could be executed",
+            frames_emitted=0,
+            attempted_backends=list(attempted_backends),
+        )
+        fallback_network = NetworkFrames(frame_count=0, sample_rate=30.0, frames=[])
+        object.__setattr__(fallback_network, "diagnostics", diagnostics)
+        return fallback_network
+
+    @staticmethod
+    def _coerce_frames(payload: Any) -> list[dict[str, Any]]:
+        if isinstance(payload, list):
+            return [frame for frame in payload if isinstance(frame, dict)]
+        try:
+            frames = list(payload)
         except Exception:
-            # Degrade gracefully to header-only when network parsing fails
-            # (e.g., malformed or synthetic test file)
-            return None
+            return []
+        return [frame for frame in frames if isinstance(frame, dict)]
+
+    def _parse_boxcars_network(
+        self, path: Path
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        if _rust is None:
+            return (
+                {
+                    "diagnostics": {
+                        "status": "unavailable",
+                        "error_code": "rust_core_unavailable",
+                        "error_detail": "Rust core module is unavailable",
+                        "frames_emitted": 0,
+                    }
+                },
+                [],
+            )
+
+        try:
+            if hasattr(_rust, "parse_network_with_diagnostics"):
+                parsed = _rust.parse_network_with_diagnostics(str(path))
+                if not isinstance(parsed, dict):
+                    parsed = {
+                        "frames": [],
+                        "diagnostics": {
+                            "status": "degraded",
+                            "error_code": "boxcars_network_error",
+                            "error_detail": "Rust parser returned non-dict payload",
+                            "frames_emitted": 0,
+                        },
+                    }
+            else:
+                frames_payload = _rust.iter_frames(str(path))
+                parsed = {
+                    "frames": frames_payload,
+                    "diagnostics": {
+                        "status": "ok",
+                        "error_code": None,
+                        "error_detail": None,
+                    },
+                }
+        except Exception as exc:
+            parsed = {
+                "frames": [],
+                "diagnostics": {
+                    "status": "degraded",
+                    "error_code": "boxcars_network_error",
+                    "error_detail": str(exc),
+                    "frames_emitted": 0,
+                },
+            }
+
+        frames = self._coerce_frames(parsed.get("frames"))
+        return parsed, frames
+
+    @staticmethod
+    def _build_diagnostics(
+        raw_diagnostics: Any, attempted_backends: list[str]
+    ) -> NetworkDiagnostics:
+        if not isinstance(raw_diagnostics, dict):
+            raw_diagnostics = {}
+
+        status = raw_diagnostics.get("status")
+        if not isinstance(status, str):
+            status = "degraded"
+
+        error_code = raw_diagnostics.get("error_code")
+        if error_code is not None and not isinstance(error_code, str):
+            error_code = str(error_code)
+
+        error_detail = raw_diagnostics.get("error_detail")
+        if error_detail is not None and not isinstance(error_detail, str):
+            error_detail = str(error_detail)
+
+        frames_emitted = raw_diagnostics.get("frames_emitted")
+        if isinstance(frames_emitted, bool):
+            frames_emitted = int(frames_emitted)
+        elif not isinstance(frames_emitted, int):
+            frames_emitted = None
+
+        attempted = list(attempted_backends)
+        if isinstance(raw_diagnostics.get("attempted_backends"), list):
+            for backend in raw_diagnostics["attempted_backends"]:
+                if isinstance(backend, str):
+                    candidate = backend.strip().lower()
+                    if candidate and candidate not in attempted:
+                        attempted.append(candidate)
+
+        return NetworkDiagnostics(
+            status=status,
+            error_code=error_code,
+            error_detail=error_detail,
+            frames_emitted=frames_emitted,
+            attempted_backends=attempted,
+        )
+
+    @staticmethod
+    def _dedupe_frame_players(frames: list[dict[str, Any]]) -> None:
+        # Deduplicate per-frame player entries keyed by player_id to guard
+        # against duplicate car component actors leaking through the bridge.
+        for frame in frames:
+            players = frame.get("players")
+            if not isinstance(players, list):
+                continue
+
+            unique_by_key: dict[str, Any] = {}
+            order: list[str] = []
+            anonymous_index = 0
+            for player in players:
+                key: str
+                if isinstance(player, dict) and isinstance(
+                    player.get("player_id"), str
+                ):
+                    key = player["player_id"]  # keep stable key per player id
+                else:
+                    key = f"__anon_{anonymous_index}"
+                    anonymous_index += 1
+                if key not in unique_by_key:
+                    order.append(key)
+                unique_by_key[key] = player
+            frame["players"] = [unique_by_key[k] for k in order]
+
+    @staticmethod
+    def _build_network_frames(frames: list[dict[str, Any]]) -> NetworkFrames:
+        # Measure sample rate from timestamps if available.
+        try:
+            from ..normalize import measure_frame_rate
+
+            hz = float(measure_frame_rate(frames))
+        except Exception:
+            hz = 30.0
+        return NetworkFrames(frame_count=len(frames), sample_rate=hz, frames=frames)

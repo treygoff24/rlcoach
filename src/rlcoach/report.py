@@ -128,6 +128,48 @@ def _timeline_event_to_dict(ev: Any) -> dict[str, Any]:
     return entry
 
 
+def _serialize_network_diagnostics(
+    raw_frames: Any,
+    *,
+    frames_emitted: int,
+    supports_network_parsing: bool,
+    network_data_available: bool,
+) -> dict[str, Any]:
+    valid_statuses = {"ok", "degraded", "unavailable"}
+
+    if isinstance(raw_frames, NFType) and raw_frames.diagnostics is not None:
+        diagnostics = raw_frames.diagnostics
+        status = (
+            diagnostics.status if diagnostics.status in valid_statuses else "degraded"
+        )
+        emitted = (
+            diagnostics.frames_emitted
+            if diagnostics.frames_emitted is not None
+            else frames_emitted
+        )
+        return {
+            "status": status,
+            "error_code": diagnostics.error_code,
+            "error_detail": diagnostics.error_detail,
+            "frames_emitted": emitted,
+        }
+
+    if not supports_network_parsing or not network_data_available:
+        return {
+            "status": "unavailable",
+            "error_code": "network_data_unavailable",
+            "error_detail": "network parser did not emit frames",
+            "frames_emitted": frames_emitted,
+        }
+
+    return {
+        "status": "ok",
+        "error_code": None,
+        "error_detail": None,
+        "frames_emitted": frames_emitted,
+    }
+
+
 def generate_report(
     replay_path: Path,
     header_only: bool = False,
@@ -171,6 +213,12 @@ def generate_report(
 
         normalized_frames = build_normalized_frames(header, frames_input)
         network_data_available = bool(frames_input)
+        network_diagnostics = _serialize_network_diagnostics(
+            raw_frames,
+            frames_emitted=len(frames_input),
+            supports_network_parsing=adapter.supports_network_parsing,
+            network_data_available=network_data_available,
+        )
 
         # Events detection (can be empty in header-only)
         touches = detect_touches(normalized_frames)
@@ -243,6 +291,7 @@ def generate_report(
                 "parsed_header": True,
                 "parsed_network_data": network_data_available,
                 "crc_checked": crc_checked_flag,
+                "network_diagnostics": network_diagnostics,
             },
             "warnings": (
                 header.quality_warnings if hasattr(header, "quality_warnings") else []
