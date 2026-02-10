@@ -18,7 +18,9 @@ def make_frame(
     )
 
 
-def make_player(pid: str, team: int, pos: Vec3 = Vec3(0.0, 0.0, 17.0)) -> PlayerFrame:
+def make_player(pid: str, team: int, pos: Vec3 | None = None) -> PlayerFrame:
+    if pos is None:
+        pos = Vec3(0.0, 0.0, 17.0)
     return PlayerFrame(
         player_id=pid,
         team=team,

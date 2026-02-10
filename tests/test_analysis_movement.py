@@ -30,15 +30,22 @@ def create_test_frame(timestamp: float, players: list[PlayerFrame]) -> Frame:
 def create_test_player(
     player_id: str,
     team: int,
-    position: Vec3 = Vec3(0.0, 0.0, 17.0),
-    velocity: Vec3 = Vec3(0.0, 0.0, 0.0),
-    rotation: Vec3 = Vec3(0.0, 0.0, 0.0),
+    position: Vec3 | None = None,
+    velocity: Vec3 | None = None,
+    rotation: Vec3 | None = None,
     boost_amount: int = 33,
     is_supersonic: bool = False,
     is_on_ground: bool = True,
     is_demolished: bool = False,
 ) -> PlayerFrame:
     """Helper to create test player frames."""
+    if position is None:
+        position = Vec3(0.0, 0.0, 17.0)
+    if velocity is None:
+        velocity = Vec3(0.0, 0.0, 0.0)
+    if rotation is None:
+        rotation = Vec3(0.0, 0.0, 0.0)
+
     return PlayerFrame(
         player_id=player_id,
         team=team,
@@ -255,7 +262,7 @@ class TestMovementAnalysis:
         assert result["aerial_time_s"] > 0.5
 
     def test_frame_duration_fallback_for_duplicate_timestamps(self):
-        """Ensure duration fallback keeps analysis progressing when timestamps repeat."""
+        """Ensure duration fallback works when timestamps repeat."""
         frames = [
             create_test_frame(0.0, [create_test_player("player1", 0)]),
             create_test_frame(0.0, [create_test_player("player1", 0)]),

@@ -35,14 +35,50 @@ RANK_DISPLAY_NAMES: dict[int, str] = {
 
 
 _RANK_BENCHMARKS: dict[int, RankBenchmark] = {
-    1: RankBenchmark(1, "Bronze I", 0.25, 0.15, 0.65, 1.8, 14.0, 220.0, 5.0, 0.2, 0.1),
-    4: RankBenchmark(4, "Silver I", 0.40, 0.20, 0.80, 2.1, 16.0, 260.0, 7.0, 0.3, 0.2),
-    7: RankBenchmark(7, "Gold I", 0.55, 0.28, 0.95, 2.4, 19.0, 300.0, 10.0, 0.5, 0.3),
-    10: RankBenchmark(10, "Platinum I", 0.72, 0.35, 1.10, 2.8, 22.0, 340.0, 13.0, 0.7, 0.4),
-    13: RankBenchmark(13, "Diamond I", 0.90, 0.45, 1.25, 3.1, 24.0, 375.0, 16.0, 0.9, 0.5),
-    16: RankBenchmark(16, "Champion I", 1.05, 0.55, 1.35, 3.5, 27.0, 410.0, 19.0, 1.1, 0.7),
-    19: RankBenchmark(19, "Grand Champion I", 1.20, 0.62, 1.45, 3.9, 30.0, 445.0, 22.0, 1.3, 0.9),
-    22: RankBenchmark(22, "Supersonic Legend", 1.35, 0.70, 1.60, 4.2, 32.0, 480.0, 25.0, 1.6, 1.1),
+    1: RankBenchmark(
+        1, "Bronze I", 0.25, 0.15, 0.65, 1.8, 14.0, 220.0, 5.0, 0.2, 0.1
+    ),
+    4: RankBenchmark(
+        4, "Silver I", 0.40, 0.20, 0.80, 2.1, 16.0, 260.0, 7.0, 0.3, 0.2
+    ),
+    7: RankBenchmark(
+        7, "Gold I", 0.55, 0.28, 0.95, 2.4, 19.0, 300.0, 10.0, 0.5, 0.3
+    ),
+    10: RankBenchmark(
+        10, "Platinum I", 0.72, 0.35, 1.10, 2.8, 22.0, 340.0, 13.0, 0.7, 0.4
+    ),
+    13: RankBenchmark(
+        13, "Diamond I", 0.90, 0.45, 1.25, 3.1, 24.0, 375.0, 16.0, 0.9, 0.5
+    ),
+    16: RankBenchmark(
+        16, "Champion I", 1.05, 0.55, 1.35, 3.5, 27.0, 410.0, 19.0, 1.1, 0.7
+    ),
+    19: RankBenchmark(
+        19,
+        "Grand Champion I",
+        1.20,
+        0.62,
+        1.45,
+        3.9,
+        30.0,
+        445.0,
+        22.0,
+        1.3,
+        0.9,
+    ),
+    22: RankBenchmark(
+        22,
+        "Supersonic Legend",
+        1.35,
+        0.70,
+        1.60,
+        4.2,
+        32.0,
+        480.0,
+        25.0,
+        1.6,
+        1.1,
+    ),
 }
 
 
@@ -82,4 +118,3 @@ def compare_to_benchmark(
         "percentage": round(percentage, 2),
         "comparison": comparison,
     }
-

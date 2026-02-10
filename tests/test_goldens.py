@@ -136,7 +136,7 @@ def build_synthetic_report(
         for it in items:
             d = {
                 k: _normalize(getattr(it, k))
-                for k in getattr(it, "__dataclass_fields__").keys()
+                for k in it.__dataclass_fields__.keys()
             }
             out.append(d)
         return out
@@ -281,7 +281,7 @@ def test_golden_header_only(tmp_path: Path):
     actual = sanitize_for_golden(report)
 
     golden_path = Path(__file__).parent / "goldens" / "header_only.json"
-    with open(golden_path, "r", encoding="utf-8") as f:
+    with open(golden_path, encoding="utf-8") as f:
         expected = json.load(f)
 
     assert actual == expected
@@ -385,7 +385,7 @@ def test_golden_synthetic_small(tmp_path: Path):
     actual = sanitize_for_golden(report)
 
     golden_path = Path(__file__).parent / "goldens" / "synthetic_small.json"
-    with open(golden_path, "r", encoding="utf-8") as f:
+    with open(golden_path, encoding="utf-8") as f:
         expected = json.load(f)
 
     assert actual == expected

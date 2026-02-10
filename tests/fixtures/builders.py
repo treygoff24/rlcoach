@@ -6,8 +6,6 @@ across all test files, reducing duplication and ensuring consistency.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from rlcoach.field_constants import Vec3
 from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 from rlcoach.physics_constants import SUPERSONIC_SPEED_SQUARED
@@ -16,9 +14,9 @@ from rlcoach.physics_constants import SUPERSONIC_SPEED_SQUARED
 def create_test_player(
     player_id: str,
     team: int,
-    position: Optional[Vec3] = None,
-    velocity: Optional[Vec3] = None,
-    rotation: Optional[Vec3] = None,
+    position: Vec3 | None = None,
+    velocity: Vec3 | None = None,
+    rotation: Vec3 | None = None,
     boost: float = 50.0,
     is_on_ground: bool = True,
     is_demolished: bool = False,
@@ -63,9 +61,9 @@ def create_test_player(
 
 
 def create_test_ball(
-    position: Optional[Vec3] = None,
-    velocity: Optional[Vec3] = None,
-    angular_velocity: Optional[Vec3] = None,
+    position: Vec3 | None = None,
+    velocity: Vec3 | None = None,
+    angular_velocity: Vec3 | None = None,
 ) -> BallFrame:
     """Create a test BallFrame with sensible defaults.
 
@@ -94,7 +92,7 @@ def create_test_ball(
 def create_test_frame(
     timestamp: float,
     players: list[PlayerFrame],
-    ball: Optional[BallFrame] = None,
+    ball: BallFrame | None = None,
 ) -> Frame:
     """Create a test Frame with player and ball data.
 
@@ -119,7 +117,7 @@ def create_test_frame(
 def create_simple_replay_frames(
     duration_seconds: float = 60.0,
     frame_rate: float = 30.0,
-    players: Optional[list[tuple[str, int]]] = None,
+    players: list[tuple[str, int]] | None = None,
 ) -> list[Frame]:
     """Create a sequence of simple test frames for a replay.
 

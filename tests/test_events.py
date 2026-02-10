@@ -516,7 +516,7 @@ class TestBoostPickupDetection:
         assert pickup.pad_id == 11
 
     def test_small_pad_preferred_over_big_for_small_gain(self):
-        """Ensure nearby small pad is chosen instead of distant big pad for small boosts."""
+        """Ensure nearby small pad is chosen over distant big pad for small gains."""
         pad_small = FIELD.BOOST_PADS[27]  # (3584, 2484)
         pos = Vec3(
             pad_small.position.x, pad_small.position.y - 134.0, 17.0

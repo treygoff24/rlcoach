@@ -58,7 +58,7 @@ def test_compute_play_date_with_system_timezone():
     # None means use system timezone
     play_date = compute_play_date(utc_time, None)
 
-    # Just verify it returns a date (can't assert specific value without knowing system tz)
+    # Verify it returns a date (value depends on machine timezone).
     assert play_date is not None
 
 

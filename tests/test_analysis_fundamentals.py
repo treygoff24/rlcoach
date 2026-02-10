@@ -470,6 +470,7 @@ class TestFundamentalsAnalysis:
         assert result["demos_taken"] == 1
         assert result["shooting_percentage"] == 100.0  # 2 goals / 2 shots
 
-        # Score calculation: 2*100 (goals) + 2*20 (shots) + 1*75 (save) + 1*25 (demo inflicted)
+        # Score calculation:
+        # 2*100 (goals) + 2*20 (shots) + 1*75 (save) + 1*25 (demo inflicted)
         expected_score = 200 + 40 + 75 + 25
         assert result["score"] == expected_score

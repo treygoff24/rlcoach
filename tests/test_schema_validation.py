@@ -49,7 +49,7 @@ class TestSchemaValidation:
         validate_report_file(str(file_path))
 
     def test_missing_required_fields_success_report(self):
-        """Test validation fails when required fields are missing from success report."""
+        """Test validation fails when required success-report fields are missing."""
         invalid_report = {
             "replay_id": "test123",
             "schema_version": "1.0.0",

@@ -29,15 +29,22 @@ def create_test_frame(
 def create_test_player(
     player_id: str,
     team: int,
-    position: Vec3 = Vec3(0.0, 0.0, 17.0),
-    velocity: Vec3 = Vec3(0.0, 0.0, 0.0),
-    rotation: Vec3 = Vec3(0.0, 0.0, 0.0),
+    position: Vec3 | None = None,
+    velocity: Vec3 | None = None,
+    rotation: Vec3 | None = None,
     boost_amount: int = 33,
     is_supersonic: bool = False,
     is_on_ground: bool = True,
     is_demolished: bool = False,
 ) -> PlayerFrame:
     """Helper to create test player frames."""
+    if position is None:
+        position = Vec3(0.0, 0.0, 17.0)
+    if velocity is None:
+        velocity = Vec3(0.0, 0.0, 0.0)
+    if rotation is None:
+        rotation = Vec3(0.0, 0.0, 0.0)
+
     return PlayerFrame(
         player_id=player_id,
         team=team,
@@ -123,7 +130,8 @@ class TestPositioningAnalysis:
         """Test field thirds classification for blue team."""
         ball_pos = Vec3(0.0, 0.0, 93.15)
 
-        # Field thirds: defensive < -1706.67, neutral -1706.67 to 1706.67, offensive > 1706.67
+        # Field thirds:
+        # defensive < -1706.67, neutral -1706.67 to 1706.67, offensive > 1706.67
         players = [
             # Blue defensive third
             create_test_player("player1", 0, position=Vec3(0.0, -3000.0, 17.0)),
@@ -460,7 +468,8 @@ class TestPositioningAnalysis:
         """Test rotation compliance detects last man overcommits."""
         ball_pos = Vec3(0.0, 1000.0, 93.15)  # Ball in offensive position
 
-        # Blue team scenario - player1 is furthest back (last man) but goes forward with low boost
+        # Blue team scenario:
+        # player1 is furthest back (last man) but goes forward with low boost.
         players_frame1 = [
             create_test_player(
                 "player1", 0, position=Vec3(0.0, -2000.0, 17.0), boost_amount=10
@@ -471,7 +480,7 @@ class TestPositioningAnalysis:
             ),  # Most forward
         ]
 
-        # Player1 moves to offensive half with low boost but remains last man (overcommit)
+        # Player1 moves to offensive half with low boost but remains last man.
         players_frame2 = [
             create_test_player(
                 "player1", 0, position=Vec3(0.0, 100.0, 17.0), boost_amount=5
