@@ -160,7 +160,9 @@ def test_import_benchmarks_upserts(tmp_path):
 
 
 def test_parser_corpus_health_output_schema(tmp_path):
-    script_path = Path(__file__).resolve().parents[1] / "scripts" / "parser_corpus_health.py"
+    script_path = (
+        Path(__file__).resolve().parents[1] / "scripts" / "parser_corpus_health.py"
+    )
     result = subprocess.run(
         [sys.executable, str(script_path), "--dry", "--json"],
         capture_output=True,

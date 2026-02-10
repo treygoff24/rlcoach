@@ -23,10 +23,15 @@ _MISSING = object()
 def create_test_frame(
     timestamp: float,
     players: list[PlayerFrame],
-    ball_pos: Vec3 = Vec3(0.0, 0.0, 93.15),
-    ball_vel: Vec3 = Vec3(0.0, 0.0, 0.0),
+    ball_pos: Vec3 | None = None,
+    ball_vel: Vec3 | None = None,
 ) -> Frame:
     """Helper to create test frames."""
+    if ball_pos is None:
+        ball_pos = Vec3(0.0, 0.0, 93.15)
+    if ball_vel is None:
+        ball_vel = Vec3(0.0, 0.0, 0.0)
+
     return Frame(
         timestamp=timestamp,
         ball=BallFrame(
@@ -41,8 +46,8 @@ def create_test_frame(
 def create_test_player(
     player_id: str,
     team: int,
-    position: Vec3 = Vec3(0.0, 0.0, 17.0),
-    velocity: Vec3 = Vec3(0.0, 0.0, 0.0),
+    position: Vec3 | None = None,
+    velocity: Vec3 | None = None,
     rotation: Rotation | Vec3 = None,
     boost_amount: int = 33,
     is_supersonic: bool = False,
@@ -50,6 +55,10 @@ def create_test_player(
     is_demolished: bool = False,
 ) -> PlayerFrame:
     """Helper to create test player frames."""
+    if position is None:
+        position = Vec3(0.0, 0.0, 17.0)
+    if velocity is None:
+        velocity = Vec3(0.0, 0.0, 0.0)
     if rotation is None:
         rotation = Rotation(0.0, 0.0, 0.0)
     return PlayerFrame(
@@ -68,8 +77,8 @@ def create_test_player(
 def create_authoritative_test_player(
     player_id: str,
     team: int,
-    position: Vec3 = Vec3(0.0, 0.0, 17.0),
-    velocity: Vec3 = Vec3(0.0, 0.0, 0.0),
+    position: Vec3 | None = None,
+    velocity: Vec3 | None = None,
     rotation: Rotation | Vec3 = None,
     boost_amount: int = 33,
     is_supersonic: bool = False,
@@ -80,6 +89,10 @@ def create_authoritative_test_player(
     is_double_jumping: bool | None | object = _MISSING,
 ):
     """Helper to create player-like objects with optional authoritative flags."""
+    if position is None:
+        position = Vec3(0.0, 0.0, 17.0)
+    if velocity is None:
+        velocity = Vec3(0.0, 0.0, 0.0)
     if rotation is None:
         rotation = Rotation(0.0, 0.0, 0.0)
 
