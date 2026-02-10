@@ -93,7 +93,6 @@ jobs:
 
       - name: Run tests
         env:
-          DATABASE_URL: postgresql://rlcoach:test_password@localhost:5432/rlcoach_test
           REDIS_URL: redis://localhost:6379
           PYTHONPATH: src
         run: |
