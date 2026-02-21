@@ -960,6 +960,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     pad_dict.set_item("is_big", event.is_big)?;
                     pad_dict.set_item("pad_side", event.pad_side)?;
                     pad_dict.set_item("arena", event.arena)?;
+                    pad_dict.set_item("arena_supported", event.arena_supported)?;
                     pad_dict.set_item("status", event.status.as_str())?;
                     pad_dict.set_item("object_name", event.object_name.clone())?;
                     pad_dict.set_item("raw_state", event.raw_state)?;
