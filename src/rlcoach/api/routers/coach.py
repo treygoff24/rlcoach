@@ -10,8 +10,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 from typing import Annotated
+
+try:
+    import anthropic
+except ImportError:
+    anthropic = None  # type: ignore[assignment]
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -527,6 +533,137 @@ class SessionRecapResponse(BaseModel):
     summary: str
 
 
+def _keyword_recap_fallback(
+    messages: list[CoachMessage],
+) -> tuple[list[str], list[str], list[str], str]:
+    """Extract recap insights using keyword matching.
+
+    Returns (strengths, weaknesses, action_items, summary).
+    Used as a fallback when the AI recap is unavailable.
+    """
+    strengths: list[str] = []
+    weaknesses: list[str] = []
+    action_items: list[str] = []
+
+    strength_kws = ["strength", "good at", "well done", "excellent", "impressive"]
+    weakness_kws = ["weakness", "improve", "work on", "focus on", "lacking"]
+    action_kws = ["practice", "try", "recommend", "should", "drill"]
+
+    for msg in messages:
+        if msg.role != "assistant" or not msg.content:
+            continue
+
+        content = msg.content.lower()
+
+        if any(kw in content for kw in strength_kws):
+            for sentence in msg.content.split("."):
+                if any(kw in sentence.lower() for kw in strength_kws[:4]):
+                    cleaned = sentence.strip()
+                    if cleaned and len(cleaned) > 10:
+                        strengths.append(cleaned[:200])
+                        break
+
+        if any(kw in content for kw in weakness_kws):
+            for sentence in msg.content.split("."):
+                if any(kw in sentence.lower() for kw in weakness_kws[:4]):
+                    cleaned = sentence.strip()
+                    if cleaned and len(cleaned) > 10:
+                        weaknesses.append(cleaned[:200])
+                        break
+
+        if any(kw in content for kw in action_kws):
+            for sentence in msg.content.split("."):
+                if any(kw in sentence.lower() for kw in action_kws[:4]):
+                    cleaned = sentence.strip()
+                    if cleaned and len(cleaned) > 10:
+                        action_items.append(cleaned[:200])
+                        break
+
+    strengths = list(dict.fromkeys(strengths))[:5]
+    weaknesses = list(dict.fromkeys(weaknesses))[:5]
+    action_items = list(dict.fromkeys(action_items))[:5]
+
+    summary = f"Coaching session with {len(messages)} messages. "
+    if strengths:
+        summary += f"Identified {len(strengths)} strength(s). "
+    if weaknesses:
+        summary += f"Found {len(weaknesses)} area(s) to improve. "
+    if action_items:
+        summary += f"Suggested {len(action_items)} action item(s)."
+
+    return strengths, weaknesses, action_items, summary.strip()
+
+
+def _generate_ai_recap(
+    messages: list[CoachMessage],
+) -> tuple[list[str], list[str], list[str], str]:
+    """Generate a structured recap using the Anthropic API.
+
+    Builds a conversation transcript and asks Claude to extract structured
+    insights as JSON. Falls back to _keyword_recap_fallback() if the API
+    key is missing or the call fails.
+
+    Returns (strengths, weaknesses, action_items, summary).
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key or anthropic is None:
+        logger.debug("ANTHROPIC_API_KEY not set; using keyword fallback for recap")
+        return _keyword_recap_fallback(messages)
+
+    try:
+        conversation_lines: list[str] = []
+        for msg in messages:
+            if msg.content:
+                role_label = "Coach" if msg.role == "assistant" else "Player"
+                conversation_lines.append(f"{role_label}: {msg.content}")
+        conversation_text = "\n".join(conversation_lines)
+
+        prompt = (
+            "You are analysing a Rocket League coaching session transcript. "
+            "Extract structured insights and return ONLY valid JSON with exactly "
+            "these keys: strengths (list of strings), weaknesses (list of strings), "
+            "action_items (list of strings), summary (string). "
+            "Keep each list to at most 5 items. Be concise.\n\n"
+            f"Transcript:\n{conversation_text}"
+        )
+
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        raw = response.content[0].text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.rsplit("```", 1)[0].strip()
+
+        data = json.loads(raw)
+
+        def _to_str_list(value: object, limit: int = 5) -> list[str]:
+            if not isinstance(value, list):
+                return []
+            return [str(item) for item in value if item][:limit]
+
+        strengths = _to_str_list(data.get("strengths"))
+        weaknesses = _to_str_list(data.get("weaknesses"))
+        action_items = _to_str_list(data.get("action_items"))
+        summary = str(data.get("summary", "")).strip()
+
+        if not summary:
+            summary = f"Coaching session with {len(messages)} messages."
+
+        return strengths, weaknesses, action_items, summary
+
+    except Exception:
+        logger.exception("AI recap generation failed; using keyword fallback")
+        return _keyword_recap_fallback(messages)
+
+
 @router.get("/sessions/{session_id}/recap", response_model=SessionRecapResponse)
 async def get_session_recap(
     session_id: str,
@@ -538,7 +675,6 @@ async def get_session_recap(
     Requires at least 3 messages in the session.
     Available to both free and pro users for sessions they participated in.
     """
-    # Get session
     session = (
         db.query(CoachSession)
         .filter(
@@ -550,7 +686,6 @@ async def get_session_recap(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Get messages
     messages = (
         db.query(CoachMessage)
         .filter(CoachMessage.session_id == session_id)
@@ -564,63 +699,7 @@ async def get_session_recap(
             detail="Session needs at least 3 messages to generate a recap",
         )
 
-    # Extract insights from assistant messages
-    strengths = []
-    weaknesses = []
-    action_items = []
-
-    # Keyword sets for extraction
-    strength_kws = ["strength", "good at", "well done", "excellent", "impressive"]
-    weakness_kws = ["weakness", "improve", "work on", "focus on", "lacking"]
-    action_kws = ["practice", "try", "recommend", "should", "drill"]
-
-    for msg in messages:
-        if msg.role != "assistant" or not msg.content:
-            continue
-
-        content = msg.content.lower()
-
-        # Simple keyword extraction for strengths
-        if any(kw in content for kw in strength_kws):
-            # Extract a summary sentence
-            for sentence in msg.content.split("."):
-                if any(kw in sentence.lower() for kw in strength_kws[:4]):
-                    cleaned = sentence.strip()
-                    if cleaned and len(cleaned) > 10:
-                        strengths.append(cleaned[:200])
-                        break
-
-        # Simple keyword extraction for weaknesses
-        if any(kw in content for kw in weakness_kws):
-            for sentence in msg.content.split("."):
-                if any(kw in sentence.lower() for kw in weakness_kws[:4]):
-                    cleaned = sentence.strip()
-                    if cleaned and len(cleaned) > 10:
-                        weaknesses.append(cleaned[:200])
-                        break
-
-        # Simple keyword extraction for action items
-        if any(kw in content for kw in action_kws):
-            for sentence in msg.content.split("."):
-                if any(kw in sentence.lower() for kw in action_kws[:4]):
-                    cleaned = sentence.strip()
-                    if cleaned and len(cleaned) > 10:
-                        action_items.append(cleaned[:200])
-                        break
-
-    # Deduplicate
-    strengths = list(dict.fromkeys(strengths))[:5]
-    weaknesses = list(dict.fromkeys(weaknesses))[:5]
-    action_items = list(dict.fromkeys(action_items))[:5]
-
-    # Generate summary
-    summary = f"Coaching session with {len(messages)} messages. "
-    if strengths:
-        summary += f"Identified {len(strengths)} strength(s). "
-    if weaknesses:
-        summary += f"Found {len(weaknesses)} area(s) to improve. "
-    if action_items:
-        summary += f"Suggested {len(action_items)} action item(s)."
+    strengths, weaknesses, action_items, summary = _generate_ai_recap(messages)
 
     return SessionRecapResponse(
         session_id=session_id,
@@ -628,7 +707,7 @@ async def get_session_recap(
         strengths=strengths,
         weaknesses=weaknesses,
         action_items=action_items,
-        summary=summary.strip(),
+        summary=summary,
     )
 
 

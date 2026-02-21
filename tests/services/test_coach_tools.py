@@ -139,6 +139,21 @@ async def test_get_game_details_paths(seeded_db):
 
 
 @pytest.mark.asyncio
+async def test_get_rank_benchmarks_uses_rank_benchmarks_module(seeded_db):
+    """Benchmarks must come from rank_benchmarks module, not hardcoded dicts."""
+    from rlcoach.rank_benchmarks import get_benchmark_for_rank
+
+    result = await _get_rank_benchmarks(
+        {"rank": "Champion I", "mode": "standard"}, "user-1", seeded_db
+    )
+    benchmark = get_benchmark_for_rank(16)  # Champion I = tier 16
+    assert result["benchmarks"]["boost_per_minute"] == benchmark.boost_per_minute
+    assert result["benchmarks"]["goals_per_game"] == benchmark.goals_per_game
+    assert "note" not in result or "estimated" not in result.get("note", "").lower()
+    assert result.get("source") == "community aggregate data"
+
+
+@pytest.mark.asyncio
 async def test_rank_benchmarks_and_save_note(seeded_db):
     bench = await _get_rank_benchmarks(
         {"rank": "Champion II", "mode": "doubles"}, "user-1", seeded_db

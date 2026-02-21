@@ -300,11 +300,107 @@ function PositioningTab({ replay }: { replay: ReplayData }) {
   );
 }
 
-function PlaceholderTab({ name }: { name: string }) {
+function TimelineTab({ replay }: { replay: ReplayData }) {
   return (
-    <div className="flex items-center justify-center py-16">
-      <div className="text-center">
-        <p className="text-gray-400">{name} visualization coming soon</p>
+    <div className="space-y-4">
+      <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
+        <h3 className="font-medium text-white mb-4">Match Summary</h3>
+        <div className="text-gray-400 text-sm space-y-1">
+          <p>Final Score: {replay.my_score ?? 0} - {replay.opponent_score ?? 0}</p>
+          <p>Duration: {formatDuration(replay.duration_seconds)}</p>
+          {replay.overtime && <p className="text-orange-400">Went to Overtime</p>}
+        </div>
+      </div>
+      <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
+        <h3 className="font-medium text-white mb-4">Player Contributions</h3>
+        <div className="space-y-3">
+          {replay.players.map((p) => (
+            <div key={p.player_id} className="flex items-center justify-between">
+              <span className={p.is_me ? 'text-orange-400 font-medium' : 'text-gray-300'}>
+                {p.display_name}
+                {p.is_me && <span className="ml-2 text-xs text-orange-500">(you)</span>}
+              </span>
+              <span className="text-gray-400 text-sm">
+                {p.goals}G / {p.assists}A / {p.saves}S / {p.shots} shots
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DefenseTab({ replay }: { replay: ReplayData }) {
+  const myPlayer = replay.players.find((p) => p.is_me);
+  if (!myPlayer) {
+    return <div className="text-gray-400 p-4">No player data available</div>;
+  }
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Saves</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.saves}</p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Defensive Third</p>
+          <p className="text-3xl font-bold text-white">
+            {myPlayer.time_defensive_third_pct != null ? `${myPlayer.time_defensive_third_pct.toFixed(0)}%` : '-'}
+          </p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Behind Ball</p>
+          <p className="text-3xl font-bold text-white">
+            {myPlayer.behind_ball_pct != null ? `${myPlayer.behind_ball_pct.toFixed(0)}%` : '-'}
+          </p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Demos Taken</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.demos_taken}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OffenseTab({ replay }: { replay: ReplayData }) {
+  const myPlayer = replay.players.find((p) => p.is_me);
+  if (!myPlayer) {
+    return <div className="text-gray-400 p-4">No player data available</div>;
+  }
+  const shootingPct = myPlayer.shots > 0
+    ? Math.round((myPlayer.goals / myPlayer.shots) * 100)
+    : 0;
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Goals</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.goals}</p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Shots</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.shots}</p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Shooting %</p>
+          <p className="text-3xl font-bold text-white">{shootingPct}%</p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Assists</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.assists}</p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Offensive Third</p>
+          <p className="text-3xl font-bold text-white">
+            {myPlayer.time_offensive_third_pct != null ? `${myPlayer.time_offensive_third_pct.toFixed(0)}%` : '-'}
+          </p>
+        </div>
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Demos Given</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.demos_inflicted}</p>
+        </div>
       </div>
     </div>
   );
@@ -507,9 +603,9 @@ export default function ReplayDetailPage() {
         {activeTab === 'mechanics' && <MechanicsTab replay={replay} />}
         {activeTab === 'boost' && <BoostTab replay={replay} />}
         {activeTab === 'positioning' && <PositioningTab replay={replay} />}
-        {activeTab === 'timeline' && <PlaceholderTab name="Timeline" />}
-        {activeTab === 'defense' && <PlaceholderTab name="Defense" />}
-        {activeTab === 'offense' && <PlaceholderTab name="Offense" />}
+        {activeTab === 'timeline' && <TimelineTab replay={replay} />}
+        {activeTab === 'defense' && <DefenseTab replay={replay} />}
+        {activeTab === 'offense' && <OffenseTab replay={replay} />}
       </div>
     </div>
   );
