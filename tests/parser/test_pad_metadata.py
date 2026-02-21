@@ -170,3 +170,53 @@ class TestPadSideByPosition:
                 assert abs(pad["y"]) <= 2000, (
                     f"Mid pad {pad['id']} has |y|={abs(pad['y'])} > 2000"
                 )
+
+
+class TestUnknownArenaHandling:
+    """Verify that unknown or unsupported arenas do not silently resolve to Soccar data.
+
+    The arena_map acts as a gating mechanism: known Soccar variants map to
+    '_default_soccar', explicitly unsupported arenas (Hoops, Dropshot) map to
+    null, and completely unknown names are absent from the map.  Callers must
+    detect the missing/null case rather than receive Soccar pads unexpectedly.
+    """
+
+    def test_unknown_arena_absent_from_arena_map(self, pad_tables: dict) -> None:
+        """A completely unknown arena name must not appear in arena_map at all."""
+        arena_map = pad_tables.get("arena_map", {})
+        unknown_name = "TOTALLY_UNKNOWN_ARENA_XYZ_P"
+        assert unknown_name not in arena_map, (
+            f"Unknown arena '{unknown_name}' should be absent from arena_map, "
+            "not silently mapped to Soccar data."
+        )
+
+    def test_unknown_arena_get_returns_none(self, pad_tables: dict) -> None:
+        """dict.get() on an unknown arena name returns None — callers cannot
+        silently treat the result as Soccar data without an explicit check."""
+        arena_map = pad_tables.get("arena_map", {})
+        result = arena_map.get("UNKNOWN_ARENA_NO_ENTRY")
+        assert result is None, (
+            "Expected None for an unknown arena; got a pad-table key instead."
+        )
+
+    def test_unsupported_arena_maps_to_null(self, pad_tables: dict) -> None:
+        """Explicitly unsupported arenas (e.g. Hoops, Dropshot) must map to null,
+        not to '_default_soccar', so consumers know pad data is unavailable."""
+        arena_map = pad_tables.get("arena_map", {})
+        unsupported = ["HoopsStadium_P", "Dropshot_P", "ShatterShot_P"]
+        for arena in unsupported:
+            assert arena in arena_map, (
+                f"Unsupported arena '{arena}' is missing from arena_map entirely."
+            )
+            assert arena_map[arena] is None, (
+                f"Unsupported arena '{arena}' should map to null, "
+                f"not '{arena_map[arena]}'."
+            )
+
+    def test_unknown_arena_has_no_pad_table_entry(self, pad_tables: dict) -> None:
+        """An unknown arena name must not have a pad-table entry in 'arenas'."""
+        arenas = pad_tables.get("arenas", {})
+        unknown_key = "totally_unknown_arena_xyz"
+        assert unknown_key not in arenas, (
+            f"Unknown arena table key '{unknown_key}' unexpectedly found in 'arenas'."
+        )

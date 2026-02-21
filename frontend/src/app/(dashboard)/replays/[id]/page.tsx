@@ -321,7 +321,7 @@ function TimelineTab({ replay }: { replay: ReplayData }) {
                 {p.is_me && <span className="ml-2 text-xs text-orange-500">(you)</span>}
               </span>
               <span className="text-gray-400 text-sm">
-                {p.goals}G / {p.assists}A / {p.saves}S / {p.shots} shots
+                {p.goals ?? 0}G / {p.assists ?? 0}A / {p.saves ?? 0}S / {p.shots ?? 0} shots
               </span>
             </div>
           ))}
@@ -341,7 +341,7 @@ function DefenseTab({ replay }: { replay: ReplayData }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Saves</p>
-          <p className="text-3xl font-bold text-white">{myPlayer.saves}</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.saves ?? 0}</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Defensive Third</p>
@@ -357,7 +357,7 @@ function DefenseTab({ replay }: { replay: ReplayData }) {
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Demos Taken</p>
-          <p className="text-3xl font-bold text-white">{myPlayer.demos_taken}</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.demos_taken ?? 0}</p>
         </div>
       </div>
     </div>
@@ -369,27 +369,29 @@ function OffenseTab({ replay }: { replay: ReplayData }) {
   if (!myPlayer) {
     return <div className="text-gray-400 p-4">No player data available</div>;
   }
-  const shootingPct = myPlayer.shots > 0
-    ? Math.round((myPlayer.goals / myPlayer.shots) * 100)
-    : 0;
+  const goals = myPlayer.goals ?? 0;
+  const shots = myPlayer.shots ?? 0;
+  const shootingPct = shots > 0 ? Math.round((goals / shots) * 100) : null;
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Goals</p>
-          <p className="text-3xl font-bold text-white">{myPlayer.goals}</p>
+          <p className="text-3xl font-bold text-white">{goals}</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Shots</p>
-          <p className="text-3xl font-bold text-white">{myPlayer.shots}</p>
+          <p className="text-3xl font-bold text-white">{shots}</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Shooting %</p>
-          <p className="text-3xl font-bold text-white">{shootingPct}%</p>
+          <p className="text-3xl font-bold text-white">
+            {shootingPct != null ? `${shootingPct}%` : '-'}
+          </p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Assists</p>
-          <p className="text-3xl font-bold text-white">{myPlayer.assists}</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.assists ?? 0}</p>
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Offensive Third</p>
@@ -399,7 +401,7 @@ function OffenseTab({ replay }: { replay: ReplayData }) {
         </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
           <p className="text-sm text-gray-400">Demos Given</p>
-          <p className="text-3xl font-bold text-white">{myPlayer.demos_inflicted}</p>
+          <p className="text-3xl font-bold text-white">{myPlayer.demos_inflicted ?? 0}</p>
         </div>
       </div>
     </div>

@@ -25,6 +25,10 @@ pub struct PadEvent {
     pub pad_side: &'static str,
     /// Canonical arena slug (e.g. "soccar") or "unknown".
     pub arena: &'static str,
+    /// True when the arena was recognised and pad metadata comes from a verified
+    /// canonical table. False when the arena slug is "unknown" — callers should
+    /// treat pad_id / pad_side / is_big as unreliable in that case.
+    pub arena_supported: bool,
     pub object_name: String,
     pub position: (f32, f32, f32),
     pub timestamp: f32,
@@ -189,19 +193,10 @@ impl PadRegistry {
                                 instance.snap_distance = Some(snap.snap_error_uu);
                             }
                         }
-                    } else {
-                        // Unsupported arena: fall back to global nearest-pad heuristic.
-                        if let Some(def) = nearest_pad_global(px, py, pz) {
-                            self.name_to_def.insert(instance.object_name.clone(), def);
-                            instance.pad_def = Some(def);
-                            if instance.position.is_none() {
-                                instance.position = Some((def.x, def.y, def.z));
-                                instance.snap_distance = Some(0.0);
-                            } else {
-                                instance.snap_distance = Some(distance_global(px, py, pz, &def));
-                            }
-                        }
                     }
+                    // Unsupported arenas: do NOT assign a pad_def. Leaving pad_def as None
+                    // prevents flush_actor from emitting events with fabricated Soccar
+                    // metadata for non-standard maps (Hoops, Dropshot, etc.).
                 }
             }
         }
@@ -238,6 +233,7 @@ impl PadRegistry {
                     is_big: pad_def.is_big,
                     pad_side: pad_def.side,
                     arena: self.arena_slug,
+                    arena_supported: self.arena_slug != "unknown",
                     object_name: instance.object_name.clone(),
                     position,
                     timestamp: pending.timestamp,
@@ -290,19 +286,3 @@ impl PadRegistry {
     }
 }
 
-/// Fallback: nearest-pad heuristic using SOCCAR_PADS when arena is unsupported.
-fn distance_global(x: f32, y: f32, z: f32, def: &ArenaPadDef) -> f32 {
-    let dx = x - def.x;
-    let dy = y - def.y;
-    let dz = z - def.z;
-    (dx * dx + dy * dy + dz * dz).sqrt()
-}
-
-fn nearest_pad_global(x: f32, y: f32, z: f32) -> Option<ArenaPadDef> {
-    use crate::arena_tables::SOCCAR_PADS;
-    SOCCAR_PADS.iter().copied().min_by(|a, b| {
-        let da = distance_global(x, y, z, a);
-        let db = distance_global(x, y, z, b);
-        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-    })
-}

@@ -644,15 +644,34 @@ def _generate_ai_recap(
 
         data = json.loads(raw)
 
-        def _to_str_list(value: object, limit: int = 5) -> list[str]:
+        if not isinstance(data, dict):
+            raise ValueError("AI recap response is not a JSON object")
+
+        def _to_str_list(
+            value: object,
+            limit: int = 5,
+            max_len: int = 500,
+        ) -> list[str]:
             if not isinstance(value, list):
-                return []
-            return [str(item) for item in value if item][:limit]
+                msg = f"Expected list, got {type(value).__name__}"
+                raise ValueError(msg)
+            result = []
+            for item in value:
+                if not isinstance(item, str):
+                    msg = f"Not a string: {type(item).__name__}"
+                    raise ValueError(msg)
+                result.append(item[:max_len])
+            return result[:limit]
 
         strengths = _to_str_list(data.get("strengths"))
         weaknesses = _to_str_list(data.get("weaknesses"))
         action_items = _to_str_list(data.get("action_items"))
-        summary = str(data.get("summary", "")).strip()
+
+        raw_summary = data.get("summary")
+        if not isinstance(raw_summary, str):
+            msg = f"summary is not a string: {type(raw_summary).__name__}"
+            raise ValueError(msg)
+        summary = raw_summary.strip()[:1000]
 
         if not summary:
             summary = f"Coaching session with {len(messages)} messages."
