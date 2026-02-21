@@ -51,6 +51,8 @@ services:
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
+      - BOOTSTRAP_SECRET=${BOOTSTRAP_SECRET}
     volumes:
       - replay_storage:/app/storage
       - ./logs:/app/logs
@@ -110,6 +112,7 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - BOOTSTRAP_SECRET=${BOOTSTRAP_SECRET}
     depends_on:
       - backend
     healthcheck:

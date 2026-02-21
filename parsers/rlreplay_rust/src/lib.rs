@@ -1,3 +1,4 @@
+mod arena_tables;
 mod pads;
 
 use pyo3::exceptions::{PyIOError, PyValueError};
@@ -441,6 +442,15 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
             .parse()
             .map_err(|e| PyValueError::new_err(format!("Failed to parse network frames: {e}")))?;
 
+        // Extract map name for arena-aware pad snapping
+        let map_name: String = replay
+            .properties
+            .iter()
+            .find(|(k, _)| k == "MapName")
+            .and_then(|(_, v)| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+
         // Header-derived players with teams for mapping
         let mut header_players: Vec<(String, i64)> = Vec::new();
         for (k, v) in &replay.properties {
@@ -495,7 +505,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut car_rot: HashMap<i32, (f32, f32, f32, f32)> = HashMap::new(); // quaternion (x,y,z,w)
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut component_owner: HashMap<i32, i32> = HashMap::new();
-        let mut pad_registry = PadRegistry::new();
+        let mut pad_registry = PadRegistry::new_with_arena(&map_name);
         let mut ball_actor: Option<i32> = None;
         let mut ball_pos: (f32, f32, f32) = (0.0, 0.0, 93.15);
         let mut ball_vel: (f32, f32, f32) = (0.0, 0.0, 0.0);
@@ -533,7 +543,11 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 || lname.contains("vehicle_ta")
                 || lname.contains("default__car_ta")
                 || lname.contains("default__carbody")
-                || lname.contains("tagame.car_"))
+                || lname.contains("tagame.car_")
+                // Additional patterns for modern replay builds
+                || lname.contains("pawntype_ta")
+                || lname.contains("rbactor_ta")
+                || lname.contains("body_ta"))
                 && !lname.contains("carcomponent");
             ActorKind { is_ball, is_car }
         }
@@ -724,12 +738,19 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             let t = (tp.team as i64).clamp(0, 1);
                             let target = component_owner.get(&aid).cloned().unwrap_or(aid);
                             car_team.insert(target, t);
+                            // Skip only if we positively know this actor is NOT a car.
+                            // Unclassified actors that receive TeamPaint are treated as cars
+                            // (TeamPaint is a car-exclusive attribute in Rocket League).
                             if actor_kind
                                 .get(&target)
                                 .map(|kind| !kind.is_car)
-                                .unwrap_or(true)
+                                .unwrap_or(false)
                             {
                                 continue;
+                            }
+                            // Register as car if not yet classified (TeamPaint implies car)
+                            if !actor_kind.contains_key(&target) {
+                                actor_kind.insert(target, ActorKind { is_ball: false, is_car: true });
                             }
                             if !actor_to_player_index.contains_key(&target) {
                                 if let Some(v) = next_by_team.get_mut(&t) {
@@ -937,6 +958,8 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     let pad_dict = PyDict::new(py);
                     pad_dict.set_item("pad_id", event.pad_id as i64)?;
                     pad_dict.set_item("is_big", event.is_big)?;
+                    pad_dict.set_item("pad_side", event.pad_side)?;
+                    pad_dict.set_item("arena", event.arena)?;
                     pad_dict.set_item("status", event.status.as_str())?;
                     pad_dict.set_item("object_name", event.object_name.clone())?;
                     pad_dict.set_item("raw_state", event.raw_state)?;
@@ -961,8 +984,11 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             pad_dict.set_item("player_team", *team)?;
                         }
                     }
-                    if let Some(distance) = event.snap_distance {
-                        pad_dict.set_item("snap_distance", distance as f64)?;
+                    if let Some(dist) = event.snap_distance {
+                        pad_dict.set_item("snap_distance", dist as f64)?;
+                    }
+                    if let Some(err) = event.snap_error_uu {
+                        pad_dict.set_item("snap_error_uu", err as f64)?;
                     }
 
                     pad_list.append(pad_dict)?;

@@ -1,14 +1,6 @@
+use crate::arena_tables::{lookup_arena_slug, pad_table_for_slug, snap_to_pad, ArenaPadDef};
 use std::collections::{HashMap, VecDeque};
 use std::env;
-
-#[derive(Clone, Copy, Debug)]
-pub struct BoostPadDef {
-    pub id: usize,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub is_big: bool,
-}
 
 #[derive(Clone, Copy, Debug)]
 pub enum PadEventStatus {
@@ -29,6 +21,10 @@ impl PadEventStatus {
 pub struct PadEvent {
     pub pad_id: usize,
     pub is_big: bool,
+    /// "blue" | "orange" | "mid"
+    pub pad_side: &'static str,
+    /// Canonical arena slug (e.g. "soccar") or "unknown".
+    pub arena: &'static str,
     pub object_name: String,
     pub position: (f32, f32, f32),
     pub timestamp: f32,
@@ -36,7 +32,10 @@ pub struct PadEvent {
     pub instigator_actor_id: Option<i32>,
     pub resolved_actor_id: Option<i32>,
     pub status: PadEventStatus,
+    /// Snap distance from observed position to canonical pad centre (uu).
     pub snap_distance: Option<f32>,
+    /// Alias for snap_distance, exposed as snap_error_uu in Python payload.
+    pub snap_error_uu: Option<f32>,
 }
 
 #[derive(Clone, Debug)]
@@ -50,7 +49,7 @@ struct PendingEvent {
 #[derive(Clone, Debug)]
 struct PadInstance {
     object_name: String,
-    pad_def: Option<BoostPadDef>,
+    pad_def: Option<ArenaPadDef>,
     position: Option<(f32, f32, f32)>,
     last_state: Option<u8>,
     last_time: f32,
@@ -59,7 +58,7 @@ struct PadInstance {
 }
 
 impl PadInstance {
-    fn new(object_name: &str, pad_def: Option<BoostPadDef>) -> Self {
+    fn new(object_name: &str, pad_def: Option<ArenaPadDef>) -> Self {
         PadInstance {
             object_name: object_name.to_string(),
             pad_def,
@@ -74,12 +73,21 @@ impl PadInstance {
 
 pub struct PadRegistry {
     instances: HashMap<i32, PadInstance>,
-    name_to_def: HashMap<String, BoostPadDef>,
+    name_to_def: HashMap<String, ArenaPadDef>,
+    /// Active arena slug — resolved from header map name.
+    arena_slug: &'static str,
+    /// Pad table for the active arena (None for unsupported arenas).
+    pad_table: Option<&'static [ArenaPadDef]>,
     debug_enabled: bool,
 }
 
 impl PadRegistry {
     pub fn new() -> Self {
+        Self::new_with_arena("unknown")
+    }
+
+    /// Construct a PadRegistry pre-loaded with the correct pad table for `map_name`.
+    pub fn new_with_arena(map_name: &str) -> Self {
         let raw_debug = env::var("RLCOACH_DEBUG_BOOST_EVENTS").ok();
         let debug_enabled = raw_debug
             .as_deref()
@@ -89,9 +97,14 @@ impl PadRegistry {
             })
             .unwrap_or(false);
 
+        let arena_slug = lookup_arena_slug(map_name).unwrap_or("unknown");
+        let pad_table = pad_table_for_slug(arena_slug);
+
         PadRegistry {
             instances: HashMap::new(),
             name_to_def: HashMap::new(),
+            arena_slug,
+            pad_table,
             debug_enabled,
         }
     }
@@ -114,12 +127,7 @@ impl PadRegistry {
             instance.position = Some(position);
         }
         self.assign_pad_def(actor_id, Some(position));
-        if let Some(instance) = self.instances.get_mut(&actor_id) {
-            if instance.pad_def.is_some() && instance.snap_distance.is_none() {
-                let def = instance.pad_def.unwrap();
-                instance.snap_distance = Some(distance(position, def));
-            }
-        }
+        // snap_distance is set inside assign_pad_def; no extra calculation needed here.
         self.flush_actor(actor_id)
     }
 
@@ -164,19 +172,34 @@ impl PadRegistry {
     }
 
     fn assign_pad_def(&mut self, actor_id: i32, fallback: Option<(f32, f32, f32)>) {
+        let pad_table = self.pad_table;
         if let Some(instance) = self.instances.get_mut(&actor_id) {
             if instance.pad_def.is_none() {
                 let position_hint = instance.position.as_ref().copied().or(fallback);
-                if let Some(position) = position_hint {
-                    if let Some(def) = nearest_pad_def(position) {
-                        self.name_to_def.insert(instance.object_name.clone(), def);
-                        instance.pad_def = Some(def);
-                        if instance.position.is_none() {
-                            instance.position = Some((def.x, def.y, def.z));
-                            instance.snap_distance = Some(0.0);
-                        } else if instance.snap_distance.is_none() {
-                            let recorded = instance.position.unwrap();
-                            instance.snap_distance = Some(distance(recorded, def));
+                if let Some((px, py, pz)) = position_hint {
+                    if let Some(table) = pad_table {
+                        if let Some(snap) = snap_to_pad(table, px, py, pz) {
+                            let def = snap.pad_def;
+                            self.name_to_def.insert(instance.object_name.clone(), def);
+                            instance.pad_def = Some(def);
+                            if instance.position.is_none() {
+                                instance.position = Some((def.x, def.y, def.z));
+                                instance.snap_distance = Some(0.0);
+                            } else {
+                                instance.snap_distance = Some(snap.snap_error_uu);
+                            }
+                        }
+                    } else {
+                        // Unsupported arena: fall back to global nearest-pad heuristic.
+                        if let Some(def) = nearest_pad_global(px, py, pz) {
+                            self.name_to_def.insert(instance.object_name.clone(), def);
+                            instance.pad_def = Some(def);
+                            if instance.position.is_none() {
+                                instance.position = Some((def.x, def.y, def.z));
+                                instance.snap_distance = Some(0.0);
+                            } else {
+                                instance.snap_distance = Some(distance_global(px, py, pz, &def));
+                            }
                         }
                     }
                 }
@@ -213,6 +236,8 @@ impl PadRegistry {
                 ready.push(PadEvent {
                     pad_id: pad_def.id,
                     is_big: pad_def.is_big,
+                    pad_side: pad_def.side,
+                    arena: self.arena_slug,
                     object_name: instance.object_name.clone(),
                     position,
                     timestamp: pending.timestamp,
@@ -221,6 +246,7 @@ impl PadRegistry {
                     resolved_actor_id: pending.resolved_actor_id,
                     status,
                     snap_distance: instance.snap_distance,
+                    snap_error_uu: instance.snap_distance,
                 });
                 instance.last_state = Some(pending.raw_state);
                 instance.last_time = pending.timestamp;
@@ -264,258 +290,19 @@ impl PadRegistry {
     }
 }
 
-fn distance(position: (f32, f32, f32), def: BoostPadDef) -> f32 {
-    let dx = position.0 - def.x;
-    let dy = position.1 - def.y;
-    let dz = position.2 - def.z;
+/// Fallback: nearest-pad heuristic using SOCCAR_PADS when arena is unsupported.
+fn distance_global(x: f32, y: f32, z: f32, def: &ArenaPadDef) -> f32 {
+    let dx = x - def.x;
+    let dy = y - def.y;
+    let dz = z - def.z;
     (dx * dx + dy * dy + dz * dz).sqrt()
 }
 
-fn nearest_pad_def(position: (f32, f32, f32)) -> Option<BoostPadDef> {
-    BOOST_PAD_DEFS.iter().copied().min_by(|a, b| {
-        let da = distance(position, *a);
-        let db = distance(position, *b);
+fn nearest_pad_global(x: f32, y: f32, z: f32) -> Option<ArenaPadDef> {
+    use crate::arena_tables::SOCCAR_PADS;
+    SOCCAR_PADS.iter().copied().min_by(|a, b| {
+        let da = distance_global(x, y, z, a);
+        let db = distance_global(x, y, z, b);
         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
     })
 }
-
-static BOOST_PAD_DEFS: [BoostPadDef; 34] = [
-    BoostPadDef {
-        id: 0,
-        x: -3584.0,
-        y: -4096.0,
-        z: 73.0,
-        is_big: true,
-    },
-    BoostPadDef {
-        id: 1,
-        x: 3584.0,
-        y: -4096.0,
-        z: 73.0,
-        is_big: true,
-    },
-    BoostPadDef {
-        id: 2,
-        x: -3584.0,
-        y: 4096.0,
-        z: 73.0,
-        is_big: true,
-    },
-    BoostPadDef {
-        id: 3,
-        x: 3584.0,
-        y: 4096.0,
-        z: 73.0,
-        is_big: true,
-    },
-    BoostPadDef {
-        id: 4,
-        x: 0.0,
-        y: -4608.0,
-        z: 73.0,
-        is_big: true,
-    },
-    BoostPadDef {
-        id: 5,
-        x: 0.0,
-        y: 4608.0,
-        z: 73.0,
-        is_big: true,
-    },
-    BoostPadDef {
-        id: 6,
-        x: 0.0,
-        y: -4240.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 7,
-        x: -1792.0,
-        y: -4184.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 8,
-        x: 1792.0,
-        y: -4184.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 9,
-        x: -940.0,
-        y: -3308.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 10,
-        x: 940.0,
-        y: -3308.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 11,
-        x: 0.0,
-        y: -2816.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 12,
-        x: -3584.0,
-        y: -2484.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 13,
-        x: 3584.0,
-        y: -2484.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 14,
-        x: -1788.0,
-        y: -2300.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 15,
-        x: 1788.0,
-        y: -2300.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 16,
-        x: -2048.0,
-        y: -1036.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 17,
-        x: 0.0,
-        y: -1024.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 18,
-        x: 2048.0,
-        y: -1036.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 19,
-        x: -1024.0,
-        y: 0.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 20,
-        x: 1024.0,
-        y: 0.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 21,
-        x: -2048.0,
-        y: 1036.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 22,
-        x: 0.0,
-        y: 1024.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 23,
-        x: 2048.0,
-        y: 1036.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 24,
-        x: -1788.0,
-        y: 2300.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 25,
-        x: 1788.0,
-        y: 2300.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 26,
-        x: -3584.0,
-        y: 2484.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 27,
-        x: 3584.0,
-        y: 2484.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 28,
-        x: 0.0,
-        y: 2816.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 29,
-        x: -940.0,
-        y: 3310.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 30,
-        x: 940.0,
-        y: 3308.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 31,
-        x: -1792.0,
-        y: 4184.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 32,
-        x: 1792.0,
-        y: 4184.0,
-        z: 70.0,
-        is_big: false,
-    },
-    BoostPadDef {
-        id: 33,
-        x: 0.0,
-        y: 4240.0,
-        z: 70.0,
-        is_big: false,
-    },
-];

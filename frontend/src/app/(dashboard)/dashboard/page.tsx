@@ -165,7 +165,6 @@ export default function DashboardHome() {
 					<div className="text-4xl font-display text-white">
 						{safeStats.avg_goals?.toFixed(1) || "0.0"}
 					</div>
-					<div className="mt-2 text-xs text-boost">+12% vs last week</div>
 				</HoloCard>
 				<HoloCard className="p-4" delay={3.5}>
 					<div className="text-white/40 text-xs font-mono mb-2 uppercase">
@@ -174,7 +173,6 @@ export default function DashboardHome() {
 					<div className="text-4xl font-display text-white">
 						{safeStats.avg_assists?.toFixed(1) || "0.0"}
 					</div>
-					<div className="mt-2 text-xs text-white/40">stable</div>
 				</HoloCard>
 				<HoloCard className="p-4" delay={4}>
 					<div className="text-white/40 text-xs font-mono mb-2 uppercase">
@@ -183,7 +181,6 @@ export default function DashboardHome() {
 					<div className="text-4xl font-display text-white">
 						{safeStats.avg_saves?.toFixed(1) || "0.0"}
 					</div>
-					<div className="mt-2 text-xs text-fire">-5% vs last week</div>
 				</HoloCard>
 				<HoloCard className="p-4" delay={4.5}>
 					<div className="text-white/40 text-xs font-mono mb-2 uppercase">

@@ -244,89 +244,46 @@ async def _get_rank_benchmarks(
     user_id: str,
     db: DBSession,
 ) -> dict:
-    """Get benchmark stats for a rank.
+    """Get benchmark stats for a rank from the rank_benchmarks module."""
+    from ...rank_benchmarks import (
+        RANK_DISPLAY_NAMES,
+        get_benchmark_for_rank,
+    )
 
-    Note: In a real implementation, these would come from aggregated
-    data across all users. For now, we return estimated benchmarks.
-    """
-    rank = params.get("rank", "Diamond II")
+    rank = params.get("rank", "Diamond I")
     mode = params.get("mode", "standard")
 
-    # Estimated benchmarks by rank (would be real data in production)
-    benchmarks = {
-        "Bronze": {
-            "goals": 0.3,
-            "assists": 0.1,
-            "saves": 0.2,
-            "shots": 0.8,
-            "win_rate": 50,
-        },
-        "Silver": {
-            "goals": 0.5,
-            "assists": 0.2,
-            "saves": 0.4,
-            "shots": 1.2,
-            "win_rate": 50,
-        },
-        "Gold": {
-            "goals": 0.7,
-            "assists": 0.3,
-            "saves": 0.6,
-            "shots": 1.5,
-            "win_rate": 50,
-        },
-        "Platinum": {
-            "goals": 0.9,
-            "assists": 0.4,
-            "saves": 0.8,
-            "shots": 1.8,
-            "win_rate": 50,
-        },
-        "Diamond": {
-            "goals": 1.1,
-            "assists": 0.5,
-            "saves": 1.0,
-            "shots": 2.0,
-            "win_rate": 50,
-        },
-        "Champion": {
-            "goals": 1.3,
-            "assists": 0.6,
-            "saves": 1.2,
-            "shots": 2.2,
-            "win_rate": 50,
-        },
-        "Grand Champion": {
-            "goals": 1.5,
-            "assists": 0.8,
-            "saves": 1.4,
-            "shots": 2.5,
-            "win_rate": 50,
-        },
-        "SSL": {
-            "goals": 1.8,
-            "assists": 1.0,
-            "saves": 1.6,
-            "shots": 2.8,
-            "win_rate": 50,
-        },
-    }
+    rank_name_to_tier = {v: k for k, v in RANK_DISPLAY_NAMES.items()}
+    rank_tier = rank_name_to_tier.get(rank)
+    if rank_tier is None:
+        rank_base = rank.split()[0] if " " in rank else rank
+        for name, tier in rank_name_to_tier.items():
+            if name.startswith(rank_base):
+                rank_tier = tier
+                break
+    if rank_tier is None:
+        rank_tier = 13  # Default to Diamond I
 
-    # Find closest rank match
-    rank_base = rank.split()[0] if " " in rank else rank
-    benchmark = benchmarks.get(rank_base, benchmarks["Diamond"])
+    benchmark = get_benchmark_for_rank(rank_tier)
+    if not benchmark:
+        benchmark = get_benchmark_for_rank(13)
 
     return {
-        "rank": rank,
+        "rank": benchmark.rank_name,
+        "rank_tier": benchmark.rank_tier,
         "mode": mode,
         "benchmarks": {
-            "goals_per_game": benchmark["goals"],
-            "assists_per_game": benchmark["assists"],
-            "saves_per_game": benchmark["saves"],
-            "shots_per_game": benchmark["shots"],
-            "win_rate": benchmark["win_rate"],
+            "goals_per_game": benchmark.goals_per_game,
+            "assists_per_game": benchmark.assists_per_game,
+            "saves_per_game": benchmark.saves_per_game,
+            "shots_per_game": benchmark.shots_per_game,
+            "shooting_pct": benchmark.shooting_pct,
+            "boost_per_minute": benchmark.boost_per_minute,
+            "supersonic_pct": benchmark.supersonic_pct,
+            "aerials_per_game": benchmark.aerials_per_game,
+            "wavedashes_per_game": benchmark.wavedashes_per_game,
         },
-        "note": "These are estimated benchmarks. Actual stats vary by playstyle.",
+        "source": "community aggregate data",
     }
 
 

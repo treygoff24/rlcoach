@@ -19,7 +19,7 @@ const IS_DEV = process.env.NODE_ENV === 'development';
  * - Google: Convenience fallback
  * - Steam: Via custom provider (see below)
  *
- * Session strategy: JWT (short-lived, 15 min)
+ * Session strategy: JWT (7-day sessions, 1h access tokens)
  * Token includes: userId, email, subscriptionTier
  */
 
@@ -136,7 +136,7 @@ export const authConfig: NextAuthConfig = {
   },
   session: {
     strategy: 'jwt',
-    maxAge: 15 * 60, // 15 minutes (short-lived for security)
+    maxAge: 7 * 24 * 60 * 60, // 7 days — standard for "remember me" UX; access tokens are short-lived (1h)
   },
   callbacks: {
     async jwt({ token, user, account, trigger }) {
@@ -207,7 +207,7 @@ export const authConfig: NextAuthConfig = {
           subscriptionTier: token.subscriptionTier,
         })
           .setProtectedHeader({ alg: 'HS256' })
-          .setExpirationTime('15m')
+          .setExpirationTime('1h')
           .sign(secret);
 
         session.accessToken = jwt;

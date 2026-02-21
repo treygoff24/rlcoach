@@ -103,3 +103,17 @@ def test_players_expose_optional_component_state_flags():
     assert "is_jumping" in sample
     assert "is_dodging" in sample
     assert "is_double_jumping" in sample
+
+
+def test_iter_frames_has_players():
+    """Regression: iter_frames must return non-empty players on real replays."""
+    adapter = RustAdapter()
+    network = adapter.parse_network(REPLAY_PATH)
+    assert network is not None, "Rust adapter failed to parse network frames"
+    frames = network.frames
+    total = len(frames)
+    frames_with_players = sum(1 for f in frames if len(f.get("players", [])) > 0)
+    assert frames_with_players > total * 0.5, (
+        f"Only {frames_with_players}/{total} frames have players — "
+        "actor-to-player mapping is broken"
+    )
