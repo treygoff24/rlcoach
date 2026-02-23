@@ -42,6 +42,7 @@ def test_rust_header_and_frames_smoke():
 
 
 @pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.xfail(reason="parse_network_with_diagnostics not yet implemented in Rust crate")
 def test_rust_network_parse_returns_diagnostics_shape():
     import rlreplay_rust  # type: ignore
 

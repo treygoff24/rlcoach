@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DBSession
 
+from ...db import UserReplay, get_session
 from ...db.models import PlayerGameStats, Replay
-from ...db.session import create_session
+from ..auth import AuthenticatedUser
 
 router = APIRouter(tags=["games"])
 
@@ -27,6 +30,8 @@ ALLOWED_SORT_FIELDS = {
 
 @router.get("/games")
 async def list_games(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
     playlist: str | None = None,
     result: str | None = None,
     date_from: date | None = None,
@@ -37,6 +42,8 @@ async def list_games(
 ) -> dict[str, Any]:
     """List games with filtering and pagination.
 
+    Requires authentication. Only returns games belonging to the current user.
+
     Args:
         playlist: Filter by playlist (e.g., DOUBLES, STANDARD)
         result: Filter by result (WIN, LOSS, DRAW)
@@ -46,208 +53,228 @@ async def list_games(
         offset: Number of games to skip
         sort: Sort field (prefix with - for descending)
     """
-    session = create_session()
-    try:
-        query = session.query(Replay)
+    # Select replay IDs belonging to this user
+    user_replay_ids = select(UserReplay.replay_id).where(UserReplay.user_id == user.id)
 
-        # Apply filters
-        if playlist:
-            query = query.filter(Replay.playlist == playlist)
-        if result:
-            query = query.filter(Replay.result == result)
-        if date_from:
-            query = query.filter(Replay.play_date >= date_from)
-        if date_to:
-            query = query.filter(Replay.play_date <= date_to)
+    query = db.query(Replay).filter(Replay.replay_id.in_(user_replay_ids))
 
-        # Get total count before pagination
-        total = query.count()
+    # Apply filters
+    if playlist:
+        query = query.filter(Replay.playlist == playlist)
+    if result:
+        query = query.filter(Replay.result == result)
+    if date_from:
+        query = query.filter(Replay.play_date >= date_from)
+    if date_to:
+        query = query.filter(Replay.play_date <= date_to)
 
-        # Apply sorting with allowlist validation
-        if sort.startswith("-"):
-            sort_field = sort[1:]
-            descending = True
-        else:
-            sort_field = sort
-            descending = False
+    # Get total count before pagination
+    total = query.count()
 
-        # Security: Only allow sorting by allowlisted fields
-        if sort_field not in ALLOWED_SORT_FIELDS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
-            )
+    # Apply sorting with allowlist validation
+    if sort.startswith("-"):
+        sort_field = sort[1:]
+        descending = True
+    else:
+        sort_field = sort
+        descending = False
 
-        order_col = getattr(Replay, sort_field)
-        query = query.order_by(order_col.desc() if descending else order_col)
+    # Security: Only allow sorting by allowlisted fields
+    if sort_field not in ALLOWED_SORT_FIELDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
+        )
 
-        # Apply pagination
-        replays = query.offset(offset).limit(limit).all()
+    order_col = getattr(Replay, sort_field)
+    query = query.order_by(order_col.desc() if descending else order_col)
 
-        items = []
-        for r in replays:
-            items.append(
-                {
-                    "replay_id": r.replay_id,
-                    "played_at_utc": (
-                        r.played_at_utc.isoformat() if r.played_at_utc else None
-                    ),
-                    "play_date": r.play_date.isoformat() if r.play_date else None,
-                    "playlist": r.playlist,
-                    "result": r.result,
-                    "my_score": r.my_score,
-                    "opponent_score": r.opponent_score,
-                    "map": r.map,
-                    "duration_seconds": r.duration_seconds,
-                    "overtime": r.overtime,
-                }
-            )
+    # Apply pagination
+    replays = query.offset(offset).limit(limit).all()
 
-        return {
-            "items": items,
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-        }
+    items = []
+    for r in replays:
+        items.append(
+            {
+                "replay_id": r.replay_id,
+                "played_at_utc": (
+                    r.played_at_utc.isoformat() if r.played_at_utc else None
+                ),
+                "play_date": r.play_date.isoformat() if r.play_date else None,
+                "playlist": r.playlist,
+                "result": r.result,
+                "my_score": r.my_score,
+                "opponent_score": r.opponent_score,
+                "map": r.map,
+                "duration_seconds": r.duration_seconds,
+                "overtime": r.overtime,
+            }
+        )
 
-    finally:
-        session.close()
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/replays/{replay_id}")
-async def get_replay(replay_id: str) -> dict[str, Any]:
+async def get_replay(
+    replay_id: str,
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> dict[str, Any]:
     """Get replay details by ID.
 
-    Args:
-        replay_id: The replay ID
-    """
-    session = create_session()
-    try:
-        replay = session.get(Replay, replay_id)
-        if not replay:
-            raise HTTPException(status_code=404, detail="Replay not found")
-
-        # Get player stats
-        stats = (
-            session.query(PlayerGameStats)
-            .filter(PlayerGameStats.replay_id == replay_id)
-            .all()
-        )
-
-        player_stats = []
-        for s in stats:
-            player_stats.append(
-                {
-                    "player_id": s.player_id,
-                    "team": s.team,
-                    "is_me": s.is_me,
-                    "goals": s.goals,
-                    "assists": s.assists,
-                    "saves": s.saves,
-                    "shots": s.shots,
-                    "bcpm": s.bcpm,
-                    "avg_boost": s.avg_boost,
-                }
-            )
-
-        return {
-            "replay_id": replay.replay_id,
-            "played_at_utc": (
-                replay.played_at_utc.isoformat() if replay.played_at_utc else None
-            ),
-            "play_date": replay.play_date.isoformat() if replay.play_date else None,
-            "playlist": replay.playlist,
-            "result": replay.result,
-            "my_score": replay.my_score,
-            "opponent_score": replay.opponent_score,
-            "map": replay.map,
-            "duration_seconds": replay.duration_seconds,
-            "overtime": replay.overtime,
-            "my_team": replay.my_team,
-            "player_stats": player_stats,
-        }
-
-    finally:
-        session.close()
-
-
-@router.get("/replays/{replay_id}/full")
-async def get_replay_full(replay_id: str) -> dict[str, Any]:
-    """Get complete replay data including all stats.
+    Requires authentication and ownership of the replay.
 
     Args:
         replay_id: The replay ID
     """
-    session = create_session()
-    try:
-        replay = session.get(Replay, replay_id)
-        if not replay:
-            raise HTTPException(status_code=404, detail="Replay not found")
-
-        # Get all player stats
-        stats = (
-            session.query(PlayerGameStats)
-            .filter(PlayerGameStats.replay_id == replay_id)
-            .all()
+    # Verify user owns this replay
+    ownership = (
+        db.query(UserReplay)
+        .filter(
+            UserReplay.replay_id == replay_id,
+            UserReplay.user_id == user.id,
         )
+        .first()
+    )
+    if not ownership:
+        raise HTTPException(status_code=404, detail="Replay not found")
 
-        player_stats = []
-        for s in stats:
-            stat_dict = {
+    replay = db.query(Replay).filter(Replay.replay_id == replay_id).first()
+    if not replay:
+        raise HTTPException(status_code=404, detail="Replay not found")
+
+    # Get player stats
+    stats = (
+        db.query(PlayerGameStats).filter(PlayerGameStats.replay_id == replay_id).all()
+    )
+
+    player_stats = []
+    for s in stats:
+        player_stats.append(
+            {
                 "player_id": s.player_id,
                 "team": s.team,
                 "is_me": s.is_me,
-                # Fundamentals
                 "goals": s.goals,
                 "assists": s.assists,
                 "saves": s.saves,
                 "shots": s.shots,
-                "shooting_pct": s.shooting_pct,
-                "score": s.score,
-                "demos_inflicted": s.demos_inflicted,
-                "demos_taken": s.demos_taken,
-                # Boost
                 "bcpm": s.bcpm,
                 "avg_boost": s.avg_boost,
-                "time_zero_boost_s": s.time_zero_boost_s,
-                "time_full_boost_s": s.time_full_boost_s,
-                "boost_collected": s.boost_collected,
-                "boost_stolen": s.boost_stolen,
-                # Movement
-                "avg_speed_kph": s.avg_speed_kph,
-                "time_supersonic_s": s.time_supersonic_s,
-                # Positioning
-                "behind_ball_pct": s.behind_ball_pct,
-                "first_man_pct": s.first_man_pct,
-                "second_man_pct": s.second_man_pct,
-                "third_man_pct": s.third_man_pct,
             }
-            player_stats.append(stat_dict)
+        )
 
-        replay_data = {
-            "replay_id": replay.replay_id,
-            "source_file": replay.source_file,
-            "file_hash": replay.file_hash,
-            "played_at_utc": (
-                replay.played_at_utc.isoformat() if replay.played_at_utc else None
-            ),
-            "play_date": replay.play_date.isoformat() if replay.play_date else None,
-            "playlist": replay.playlist,
-            "team_size": replay.team_size,
-            "result": replay.result,
-            "my_score": replay.my_score,
-            "opponent_score": replay.opponent_score,
-            "map": replay.map,
-            "duration_seconds": replay.duration_seconds,
-            "overtime": replay.overtime,
-            "my_team": replay.my_team,
-            "my_player_id": replay.my_player_id,
+    return {
+        "replay_id": replay.replay_id,
+        "played_at_utc": (
+            replay.played_at_utc.isoformat() if replay.played_at_utc else None
+        ),
+        "play_date": replay.play_date.isoformat() if replay.play_date else None,
+        "playlist": replay.playlist,
+        "result": replay.result,
+        "my_score": replay.my_score,
+        "opponent_score": replay.opponent_score,
+        "map": replay.map,
+        "duration_seconds": replay.duration_seconds,
+        "overtime": replay.overtime,
+        "my_team": replay.my_team,
+        "player_stats": player_stats,
+    }
+
+
+@router.get("/replays/{replay_id}/full")
+async def get_replay_full(
+    replay_id: str,
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
+) -> dict[str, Any]:
+    """Get complete replay data including all stats.
+
+    Requires authentication and ownership of the replay.
+
+    Args:
+        replay_id: The replay ID
+    """
+    # Verify user owns this replay
+    ownership = (
+        db.query(UserReplay)
+        .filter(
+            UserReplay.replay_id == replay_id,
+            UserReplay.user_id == user.id,
+        )
+        .first()
+    )
+    if not ownership:
+        raise HTTPException(status_code=404, detail="Replay not found")
+
+    replay = db.query(Replay).filter(Replay.replay_id == replay_id).first()
+    if not replay:
+        raise HTTPException(status_code=404, detail="Replay not found")
+
+    # Get all player stats
+    stats = (
+        db.query(PlayerGameStats).filter(PlayerGameStats.replay_id == replay_id).all()
+    )
+
+    player_stats = []
+    for s in stats:
+        stat_dict = {
+            "player_id": s.player_id,
+            "team": s.team,
+            "is_me": s.is_me,
+            # Fundamentals
+            "goals": s.goals,
+            "assists": s.assists,
+            "saves": s.saves,
+            "shots": s.shots,
+            "shooting_pct": s.shooting_pct,
+            "score": s.score,
+            "demos_inflicted": s.demos_inflicted,
+            "demos_taken": s.demos_taken,
+            # Boost
+            "bcpm": s.bcpm,
+            "avg_boost": s.avg_boost,
+            "time_zero_boost_s": s.time_zero_boost_s,
+            "time_full_boost_s": s.time_full_boost_s,
+            "boost_collected": s.boost_collected,
+            "boost_stolen": s.boost_stolen,
+            # Movement
+            "avg_speed_kph": s.avg_speed_kph,
+            "time_supersonic_s": s.time_supersonic_s,
+            # Positioning
+            "behind_ball_pct": s.behind_ball_pct,
+            "first_man_pct": s.first_man_pct,
+            "second_man_pct": s.second_man_pct,
+            "third_man_pct": s.third_man_pct,
         }
+        player_stats.append(stat_dict)
 
-        return {
-            "replay": replay_data,
-            "player_stats": player_stats,
-        }
+    replay_data = {
+        "replay_id": replay.replay_id,
+        "source_file": replay.source_file,
+        "file_hash": replay.file_hash,
+        "played_at_utc": (
+            replay.played_at_utc.isoformat() if replay.played_at_utc else None
+        ),
+        "play_date": replay.play_date.isoformat() if replay.play_date else None,
+        "playlist": replay.playlist,
+        "team_size": replay.team_size,
+        "result": replay.result,
+        "my_score": replay.my_score,
+        "opponent_score": replay.opponent_score,
+        "map": replay.map,
+        "duration_seconds": replay.duration_seconds,
+        "overtime": replay.overtime,
+        "my_team": replay.my_team,
+        "my_player_id": replay.my_player_id,
+    }
 
-    finally:
-        session.close()
+    return {
+        "replay": replay_data,
+        "player_stats": player_stats,
+    }

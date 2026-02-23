@@ -37,14 +37,27 @@ def mock_config(tmp_path):
     return config
 
 
+TEST_USER_ID = "test-user-players"
+
+
 @pytest.fixture
 def db_with_players(mock_config):
     """Initialize database with player test data."""
-    from rlcoach.db.models import Player, PlayerGameStats, Replay
+    from rlcoach.db import User
+    from rlcoach.db.models import Player, PlayerGameStats, Replay, UserReplay
     from rlcoach.db.session import create_session, init_db, reset_engine
 
     init_db(mock_config.db_path)
     session = create_session()
+
+    # Add test user
+    session.add(
+        User(
+            id=TEST_USER_ID,
+            email="test@example.com",
+            subscription_tier="free",
+        )
+    )
 
     # Add players
     session.add(
@@ -103,7 +116,14 @@ def db_with_players(mock_config):
                 json_report_path=f"/path/replay_{i}.json",
             )
         )
-        # Add teammate stats
+        # Link replay to test user
+        session.add(
+            UserReplay(
+                user_id=TEST_USER_ID,
+                replay_id=f"replay_{i}",
+            )
+        )
+        # Add stats for teammate1 (for tendency profile + list filtering)
         session.add(
             PlayerGameStats(
                 replay_id=f"replay_{i}",
@@ -125,6 +145,21 @@ def db_with_players(mock_config):
             )
         )
 
+    # Add stats for teammate2 in first replay (needed for tag_player test)
+    session.add(
+        PlayerGameStats(
+            replay_id="replay_0",
+            player_id="steam:teammate2",
+            team="ORANGE",
+            is_me=False,
+            is_teammate=False,
+            goals=0,
+            assists=1,
+            saves=1,
+            shots=2,
+        )
+    )
+
     session.commit()
     session.close()
 
@@ -135,11 +170,22 @@ def db_with_players(mock_config):
 
 @pytest.fixture
 def client(db_with_players):
-    """Create a test client with player data."""
+    """Create a test client with player data and auth override."""
+    from rlcoach.api.auth import CurrentUser, get_current_user
+
+    def _override_user():
+        return CurrentUser(
+            id=TEST_USER_ID,
+            email="test@example.com",
+            subscription_tier="free",
+            is_pro=False,
+        )
+
     with patch("rlcoach.api.app.get_config", return_value=db_with_players):
         from rlcoach.api.app import create_app
 
         app = create_app()
+        app.dependency_overrides[get_current_user] = _override_user
         yield TestClient(app)
 
 

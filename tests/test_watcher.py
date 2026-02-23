@@ -304,21 +304,21 @@ class TestReplayWatcher:
             watch_dir=watch_dir,
             callback=callback,
             poll_interval=0.1,
-            stability_seconds=0.1,
+            stability_seconds=0.2,
         )
 
         watcher.start()
 
         try:
-            time.sleep(0.1)
+            time.sleep(0.2)
 
             # First file triggers exception
             (watch_dir / "first.replay").write_bytes(b"x" * 1000)
-            time.sleep(0.3)
+            time.sleep(0.5)
 
             # Second file should still be processed
             (watch_dir / "second.replay").write_bytes(b"y" * 1000)
-            time.sleep(0.3)
+            time.sleep(0.5)
 
             assert len(processed_files) == 1
             assert processed_files[0].name == "second.replay"

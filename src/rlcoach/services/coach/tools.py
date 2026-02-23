@@ -68,7 +68,7 @@ async def _get_recent_games(
         db.query(UserReplay.replay_id).filter(UserReplay.user_id == user_id).subquery()
     )
 
-    query = db.query(Replay).filter(Replay.replay_id.in_(user_replay_ids))
+    query = db.query(Replay).filter(Replay.replay_id.in_(user_replay_ids.select()))
 
     if playlist:
         query = query.filter(Replay.playlist == playlist)
@@ -126,7 +126,7 @@ async def _get_stats_by_mode(
     )
 
     query = db.query(Replay).filter(
-        Replay.replay_id.in_(user_replay_ids),
+        Replay.replay_id.in_(user_replay_ids.select()),
         Replay.played_at_utc >= cutoff,
     )
 

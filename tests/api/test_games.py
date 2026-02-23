@@ -37,19 +37,32 @@ def mock_config(tmp_path):
     return config
 
 
+TEST_USER_ID = "test-user-games"
+
+
 @pytest.fixture
 def db_with_data(mock_config):
     """Initialize database with test data."""
-    from rlcoach.db.models import DailyStats, Player, PlayerGameStats, Replay
+    from rlcoach.db.models import DailyStats, Player, PlayerGameStats, Replay, UserReplay
     from rlcoach.db.session import create_session, init_db, reset_engine
+    from rlcoach.db import User
 
     init_db(mock_config.db_path)
     session = create_session()
 
+    # Add test user
+    session.add(
+        User(
+            id=TEST_USER_ID,
+            email="test@example.com",
+            subscription_tier="free",
+        )
+    )
+
     # Add player
     session.add(Player(player_id="steam:me123", display_name="TestPlayer", is_me=True))
 
-    # Add replays
+    # Add replays and link to test user
     for i in range(5):
         result = "WIN" if i % 2 == 0 else "LOSS"
         session.add(
@@ -83,6 +96,13 @@ def db_with_data(mock_config):
                 bcpm=350.0 + i * 10,
             )
         )
+        # Link replay to test user
+        session.add(
+            UserReplay(
+                user_id=TEST_USER_ID,
+                replay_id=f"replay_{i}",
+            )
+        )
 
     # Add daily stats
     session.add(
@@ -109,11 +129,22 @@ def db_with_data(mock_config):
 
 @pytest.fixture
 def client(db_with_data):
-    """Create a test client with database data."""
+    """Create a test client with database data and auth override."""
+    from rlcoach.api.auth import CurrentUser, get_current_user
+
+    def _override_user():
+        return CurrentUser(
+            id=TEST_USER_ID,
+            email="test@example.com",
+            subscription_tier="free",
+            is_pro=False,
+        )
+
     with patch("rlcoach.api.app.get_config", return_value=db_with_data):
         from rlcoach.api.app import create_app
 
         app = create_app()
+        app.dependency_overrides[get_current_user] = _override_user
         yield TestClient(app)
 
 

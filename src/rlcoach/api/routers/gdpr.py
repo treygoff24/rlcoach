@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from ...db import get_session
 from ...db.models import Player, PlayerGameStats
+from ..auth import AuthenticatedUser
 from ..rate_limit import check_rate_limit, rate_limit_response
 
 logger = logging.getLogger(__name__)
@@ -207,13 +208,13 @@ async def get_removal_request_status(
 @router.post("/removal-request/{request_id}/process")
 async def process_removal_request(
     request_id: str,
+    user: AuthenticatedUser,
     db: Annotated[DBSession, Depends(get_session)],
-    # In production, this would require admin authentication
 ) -> dict:
     """Process a pending removal request (admin only).
 
     Anonymizes player data in affected replays.
-    In production, this endpoint should be protected by admin auth.
+    Requires authentication. In production, restrict to admin accounts.
     """
     if request_id not in _removal_requests:
         raise HTTPException(
