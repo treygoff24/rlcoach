@@ -226,6 +226,11 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/users/me/ben
     - `pytest -q`: **415 passed in 13.75s**
     - `ruff check src/`: **failed** (53 errors, mostly `E501` line length + `B904` in `src/rlcoach/api/auth.py`)
     - `black --check src/`: **failed** (would reformat `src/rlcoach/api/routers/replays.py`, `src/rlcoach/api/routers/users.py`)
+  - Status update (2026-02-22): **ALL GATES PASS**
+    - `pytest -q`: **503 passed, 3 xfailed in 24s**
+    - `ruff check src/`: **All checks passed**
+    - `black --check src/`: **All done, 89 files unchanged**
+    - Additional security fix: All API endpoints now require authentication and scope data by user
 
 - [ ] **6.4 Call Codex for final review**
   - Run: `codex exec -p "Review SAAS fixes for correctness, regressions, and missing tests. Reply with Ship it / Needs work and explain."`
