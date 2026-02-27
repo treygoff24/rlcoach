@@ -43,7 +43,13 @@ TEST_USER_ID = "test-user-games"
 @pytest.fixture
 def db_with_data(mock_config):
     """Initialize database with test data."""
-    from rlcoach.db.models import DailyStats, Player, PlayerGameStats, Replay, UserReplay
+    from rlcoach.db.models import (
+        DailyStats,
+        Player,
+        PlayerGameStats,
+        Replay,
+        UserReplay,
+    )
     from rlcoach.db.session import create_session, init_db, reset_engine
     from rlcoach.db import User
 

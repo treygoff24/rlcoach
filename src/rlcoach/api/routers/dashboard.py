@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
@@ -27,7 +27,7 @@ async def get_dashboard(
     Returns today's stats, recent games, and quick stats.
     Requires authentication.
     """
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
 
     # Select replay IDs belonging to this user
     user_replay_ids = select(UserReplay.replay_id).where(UserReplay.user_id == user.id)

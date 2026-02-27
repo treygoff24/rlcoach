@@ -97,7 +97,9 @@ def test_parse_network_returns_diagnostics_on_degradation(monkeypatch):
     assert "network_error" in (diagnostics.error_code or "")
 
 
-@pytest.mark.xfail(reason="Rust parser does not yet emit is_jumping/is_dodging/is_double_jumping")
+@pytest.mark.xfail(
+    reason="Rust parser does not yet emit is_jumping/is_dodging/is_double_jumping"
+)
 def test_players_expose_optional_component_state_flags():
     frames = _load_frames(limit=3)
     first_players = frames[0].get("players", [])

@@ -117,6 +117,9 @@ def _verify_bootstrap_signature(
     """
     secret = os.getenv("BOOTSTRAP_SECRET")
     if not secret:
+        if os.getenv("SAAS_MODE", "").lower() == "true":
+            logger.error("BOOTSTRAP_SECRET not set in SaaS mode - rejecting request")
+            return False
         # In development without secret, allow but log warning
         logger.warning("BOOTSTRAP_SECRET not set - bootstrap requests unverified")
         return True
@@ -1130,8 +1133,8 @@ class SelfComparisonMetric(BaseModel):
     name: str
     current: float | None
     previous: float | None
-    change: float
-    change_pct: float
+    change: float | None
+    change_pct: float | None
 
 
 class SelfComparisonResponse(BaseModel):

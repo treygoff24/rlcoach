@@ -1,6 +1,5 @@
 """Tests for replay router helper functions."""
 
-
 from rlcoach.api.routers.replays import (
     _is_path_within_directory,
     _is_valid_uuid,

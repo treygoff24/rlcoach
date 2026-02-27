@@ -527,3 +527,23 @@ class UserReplay(Base):
         Index("ix_user_replays_user", "user_id"),
         Index("ix_user_replays_replay", "replay_id"),
     )
+
+
+class GDPRRemovalRequest(Base):
+    """GDPR data removal requests persisted to database."""
+
+    __tablename__ = "gdpr_removal_requests"
+
+    id = Column(String(16), primary_key=True)  # Short hash ID
+    email = Column(String, nullable=False, index=True)
+    player_identifier = Column(String, nullable=False)
+    identifier_type = Column(String, nullable=False)  # steam_id, epic_id, display_name
+    reason = Column(String, nullable=True)
+    # pending, completed, rejected
+    status = Column(String, default="pending", nullable=False)
+    affected_count = Column(Integer, default=0, nullable=False)
+    submitted_at = Column(DateTime(timezone=True), default=_utc_now, nullable=False)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    processed_by = Column(String, ForeignKey("users.id"), nullable=True)
+
+    __table_args__ = (Index("ix_gdpr_removal_status", "status"),)

@@ -162,6 +162,14 @@ async def upload_replay(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename required")
 
+    # Check original extension BEFORE sanitization (sanitize forces .replay)
+    raw_ext = Path(file.filename).suffix.lower()
+    if raw_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+        )
+
     # Sanitize filename to prevent XSS and path traversal
     safe_filename = sanitize_filename(file.filename)
 

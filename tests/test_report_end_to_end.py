@@ -95,9 +95,7 @@ def test_generate_report_error_contract(tmp_path: Path):
     validate_report(report)
 
 
-def test_report_includes_network_diagnostics_when_degraded(
-    tmp_path: Path, monkeypatch
-):
+def test_report_includes_network_diagnostics_when_degraded(tmp_path: Path, monkeypatch):
     replay = tmp_path / "sample.replay"
     _make_dummy_replay(replay)
     monkeypatch.setattr(

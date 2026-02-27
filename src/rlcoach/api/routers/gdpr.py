@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Annotated
@@ -18,13 +19,40 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session as DBSession
 
 from ...db import get_session
-from ...db.models import Player, PlayerGameStats
+from ...db.models import GDPRRemovalRequest, Player, PlayerGameStats
 from ..auth import AuthenticatedUser
 from ..rate_limit import check_rate_limit, rate_limit_response
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/gdpr", tags=["gdpr"])
+
+# Admin user IDs allowed to process removal requests.
+# Set GDPR_ADMIN_USER_IDS as comma-separated list of user UUIDs.
+_ADMIN_IDS: set[str] | None = None
+
+
+def _get_admin_ids() -> set[str]:
+    global _ADMIN_IDS
+    if _ADMIN_IDS is None:
+        raw = os.getenv("GDPR_ADMIN_USER_IDS", "")
+        _ADMIN_IDS = {uid.strip() for uid in raw.split(",") if uid.strip()}
+    return _ADMIN_IDS
+
+
+def _require_admin(user: AuthenticatedUser) -> None:
+    """Raise 403 if the authenticated user is not a GDPR admin."""
+    admin_ids = _get_admin_ids()
+    if not admin_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No GDPR admins configured. Set GDPR_ADMIN_USER_IDS.",
+        )
+    if user.id not in admin_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required to process removal requests.",
+        )
 
 
 class RemovalRequest(BaseModel):
@@ -88,15 +116,31 @@ class RemovalRequestStatus(BaseModel):
     affected_replays: int
 
 
-# In-memory storage for removal requests (in production, use Redis or database)
-# Keys: email, identifier, identifier_type, status, submitted_at, affected_count
-_removal_requests: dict[str, dict] = {}
-
-
 def _generate_request_id(email: str, identifier: str) -> str:
     """Generate a deterministic request ID."""
     key = f"{email}:{identifier}:{datetime.now(timezone.utc).date().isoformat()}"
     return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
+def _count_affected(db: DBSession, identifier_type: str, player_identifier: str) -> int:
+    """Count PlayerGameStats rows affected by a removal request."""
+    if identifier_type in ("steam_id", "epic_id"):
+        prefix = "steam" if identifier_type == "steam_id" else "epic"
+        prefixed_id = f"{prefix}:{player_identifier}"
+        return (
+            db.query(PlayerGameStats)
+            .join(Player, PlayerGameStats.player_id == Player.player_id)
+            .filter(Player.player_id == prefixed_id)
+            .count()
+        )
+    elif identifier_type == "display_name":
+        return (
+            db.query(PlayerGameStats)
+            .join(Player, PlayerGameStats.player_id == Player.player_id)
+            .filter(Player.display_name.ilike(player_identifier))
+            .count()
+        )
+    return 0
 
 
 @router.post("/removal-request", response_model=RemovalRequestResponse)
@@ -113,57 +157,41 @@ async def submit_removal_request(
     as required by GDPR.
     """
     # Rate limit by IP (prevent abuse)
-    # Using email as identifier since we don't have IP in this context
     rate_result = check_rate_limit(request.email, "gdpr")
     if not rate_result.allowed:
         raise rate_limit_response(rate_result)
 
-    # Count affected replays by searching Player table and joining to stats
-    affected_count = 0
+    affected_count = _count_affected(
+        db, request.identifier_type, request.player_identifier
+    )
 
-    # Build base query joining Player to PlayerGameStats
-    # Note: Player IDs are stored with platform prefix (steam:xxx, epic:xxx)
-    if request.identifier_type == "steam_id":
-        # Steam ID format: 76561198xxxxxxxxx (17 digits) -> stored as steam:xxx
-        prefixed_id = f"steam:{request.player_identifier}"
-        affected_count = (
-            db.query(PlayerGameStats)
-            .join(Player, PlayerGameStats.player_id == Player.player_id)
-            .filter(Player.player_id == prefixed_id)
-            .count()
-        )
-    elif request.identifier_type == "epic_id":
-        # Epic ID format: typically a UUID or alphanumeric -> stored as epic:xxx
-        prefixed_id = f"epic:{request.player_identifier}"
-        affected_count = (
-            db.query(PlayerGameStats)
-            .join(Player, PlayerGameStats.player_id == Player.player_id)
-            .filter(Player.player_id == prefixed_id)
-            .count()
-        )
-    elif request.identifier_type == "display_name":
-        # Case-insensitive search for display name via Player table
-        affected_count = (
-            db.query(PlayerGameStats)
-            .join(Player, PlayerGameStats.player_id == Player.player_id)
-            .filter(Player.display_name.ilike(request.player_identifier))
-            .count()
-        )
-
-    # Generate request ID
     request_id = _generate_request_id(request.email, request.player_identifier)
 
-    # Store request (in production, save to database)
-    _removal_requests[request_id] = {
-        "email": request.email,
-        "identifier": request.player_identifier,
-        "identifier_type": request.identifier_type,
-        "reason": request.reason,
-        "status": "pending",
-        "submitted_at": datetime.now(timezone.utc).isoformat(),
-        "processed_at": None,
-        "affected_count": affected_count,
-    }
+    # Check for existing request with same ID
+    existing = db.get(GDPRRemovalRequest, request_id)
+    if existing:
+        return RemovalRequestResponse(
+            status=existing.status,
+            request_id=request_id,
+            message=(
+                f"A removal request already exists (status: {existing.status}). "
+                f"Affected replays: {existing.affected_count}."
+            ),
+            affected_replays=existing.affected_count,
+        )
+
+    # Persist to database
+    removal = GDPRRemovalRequest(
+        id=request_id,
+        email=request.email,
+        player_identifier=request.player_identifier,
+        identifier_type=request.identifier_type,
+        reason=request.reason,
+        status="pending",
+        affected_count=affected_count,
+    )
+    db.add(removal)
+    db.commit()
 
     logger.info(
         f"GDPR removal request submitted: {request_id} "
@@ -187,21 +215,22 @@ async def submit_removal_request(
 @router.get("/removal-request/{request_id}", response_model=RemovalRequestStatus)
 async def get_removal_request_status(
     request_id: str,
+    db: Annotated[DBSession, Depends(get_session)],
 ) -> RemovalRequestStatus:
     """Check the status of a removal request."""
-    if request_id not in _removal_requests:
+    req = db.get(GDPRRemovalRequest, request_id)
+    if not req:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Removal request not found",
         )
 
-    req = _removal_requests[request_id]
     return RemovalRequestStatus(
         request_id=request_id,
-        status=req["status"],
-        submitted_at=req["submitted_at"],
-        processed_at=req["processed_at"],
-        affected_replays=req["affected_count"],
+        status=req.status,
+        submitted_at=req.submitted_at.isoformat(),
+        processed_at=req.processed_at.isoformat() if req.processed_at else None,
+        affected_replays=req.affected_count,
     )
 
 
@@ -214,26 +243,27 @@ async def process_removal_request(
     """Process a pending removal request (admin only).
 
     Anonymizes player data in affected replays.
-    Requires authentication. In production, restrict to admin accounts.
+    Requires admin authentication via GDPR_ADMIN_USER_IDS env var.
     """
-    if request_id not in _removal_requests:
+    _require_admin(user)
+
+    req = db.get(GDPRRemovalRequest, request_id)
+    if not req:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Removal request not found",
         )
 
-    req = _removal_requests[request_id]
-    if req["status"] != "pending":
-        return {"status": req["status"], "message": "Request already processed"}
+    if req.status != "pending":
+        return {"status": req.status, "message": "Request already processed"}
 
     # Anonymize player data
     anonymized_count = 0
 
     try:
-        # Anonymize player data in Player table (not PlayerGameStats)
-        # Note: Player IDs are stored with platform prefix (steam:xxx, epic:xxx)
-        if req["identifier_type"] == "steam_id":
-            prefixed_id = f"steam:{req['identifier']}"
+        if req.identifier_type in ("steam_id", "epic_id"):
+            prefix = "steam" if req.identifier_type == "steam_id" else "epic"
+            prefixed_id = f"{prefix}:{req.player_identifier}"
             result = (
                 db.query(Player)
                 .filter(Player.player_id == prefixed_id)
@@ -243,36 +273,26 @@ async def process_removal_request(
                 )
             )
             anonymized_count = result
-        elif req["identifier_type"] == "epic_id":
-            prefixed_id = f"epic:{req['identifier']}"
+        elif req.identifier_type == "display_name":
             result = (
                 db.query(Player)
-                .filter(Player.player_id == prefixed_id)
+                .filter(Player.display_name.ilike(req.player_identifier))
                 .update(
                     {"display_name": f"[Removed Player {request_id[:8]}]"},
                     synchronize_session=False,
                 )
             )
             anonymized_count = result
-        elif req["identifier_type"] == "display_name":
-            result = (
-                db.query(Player)
-                .filter(Player.display_name.ilike(req["identifier"]))
-                .update(
-                    {"display_name": f"[Removed Player {request_id[:8]}]"},
-                    synchronize_session=False,
-                )
-            )
-            anonymized_count = result
+
+        # Update request status
+        req.status = "completed"
+        req.processed_at = datetime.now(timezone.utc)
+        req.processed_by = user.id
 
         db.commit()
 
-        # Update request status
-        req["status"] = "completed"
-        req["processed_at"] = datetime.now(timezone.utc).isoformat()
-
         logger.info(
-            f"GDPR removal request completed: {request_id}, "
+            f"GDPR removal request completed: {request_id} by user {user.id}, "
             f"anonymized {anonymized_count} records"
         )
 
