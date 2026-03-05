@@ -65,7 +65,9 @@ async def _get_recent_games(
 
     # Get replay IDs owned by user through UserReplay join table
     user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user_id).subquery()
+        db.query(UserReplay.replay_id)
+        .filter(UserReplay.user_id == user_id)
+        .scalar_subquery()
     )
 
     query = db.query(Replay).filter(Replay.replay_id.in_(user_replay_ids))
@@ -122,7 +124,9 @@ async def _get_stats_by_mode(
 
     # Get replay IDs owned by user
     user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user_id).subquery()
+        db.query(UserReplay.replay_id)
+        .filter(UserReplay.user_id == user_id)
+        .scalar_subquery()
     )
 
     query = db.query(Replay).filter(

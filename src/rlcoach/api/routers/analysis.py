@@ -13,7 +13,7 @@ from ...analysis.patterns import compute_pattern_analysis
 from ...analysis.weaknesses import detect_weaknesses
 from ...db import create_session, get_session
 from ...db.models import Benchmark, PlayerGameStats, Replay, UserReplay
-from ..auth import OptionalUser
+from ..auth import AuthenticatedUser, OptionalUser
 
 router = APIRouter(tags=["analysis"])
 
@@ -160,6 +160,8 @@ async def list_benchmarks(
 
 @router.get("/compare")
 async def get_comparison(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
     rank: str = Query(..., description="Target rank to compare against"),
     playlist: str = Query(default="DOUBLES"),
     period: str = Query(default="30d"),
@@ -178,94 +180,97 @@ async def get_comparison(
         days = int(period.rstrip("d"))
         date_from = date.today() - timedelta(days=days)
 
-    session = create_session()
-    try:
-        # Get my average stats
-        query = (
-            session.query(PlayerGameStats)
-            .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me)
-            .filter(Replay.playlist == playlist)
-        )
+    # Scope to user's replays
+    user_replay_ids = (
+        db.query(UserReplay.replay_id)
+        .filter(UserReplay.user_id == user.id)
+        .scalar_subquery()
+    )
 
-        if date_from:
-            query = query.filter(Replay.play_date >= date_from)
+    # Get my average stats
+    query = (
+        db.query(PlayerGameStats)
+        .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
+        .filter(Replay.replay_id.in_(user_replay_ids))
+        .filter(PlayerGameStats.is_me)
+        .filter(Replay.playlist == playlist)
+    )
 
-        my_stats = query.all()
+    if date_from:
+        query = query.filter(Replay.play_date >= date_from)
 
-        if not my_stats:
-            return {
-                "target_rank": rank,
-                "playlist": playlist,
-                "comparisons": [],
-                "game_count": 0,
-            }
+    my_stats = query.all()
 
-        # Get benchmarks for target rank
-        benchmarks = (
-            session.query(Benchmark)
-            .filter(Benchmark.playlist == playlist)
-            .filter(Benchmark.rank_tier == rank)
-            .all()
-        )
-
-        benchmark_map = {b.metric: b for b in benchmarks}
-
-        # Compute averages and compare
-        metric_attrs = ["bcpm", "avg_boost", "goals", "assists", "saves", "shots"]
-        comparisons = []
-
-        for metric in metric_attrs:
-            values = [
-                getattr(s, metric) for s in my_stats if getattr(s, metric) is not None
-            ]
-            if not values:
-                continue
-
-            my_avg = sum(values) / len(values)
-
-            benchmark = benchmark_map.get(metric)
-            if benchmark:
-                diff = my_avg - benchmark.median_value
-                diff_pct = (
-                    (diff / benchmark.median_value * 100)
-                    if benchmark.median_value
-                    else 0
-                )
-
-                comparisons.append(
-                    {
-                        "metric": metric,
-                        "my_value": round(my_avg, 2),
-                        "target_median": benchmark.median_value,
-                        "difference": round(diff, 2),
-                        "difference_pct": round(diff_pct, 1),
-                    }
-                )
-            else:
-                comparisons.append(
-                    {
-                        "metric": metric,
-                        "my_value": round(my_avg, 2),
-                        "target_median": None,
-                        "difference": None,
-                        "difference_pct": None,
-                    }
-                )
-
+    if not my_stats:
         return {
             "target_rank": rank,
             "playlist": playlist,
-            "comparisons": comparisons,
-            "game_count": len(my_stats),
+            "comparisons": [],
+            "game_count": 0,
         }
 
-    finally:
-        session.close()
+    # Get benchmarks for target rank
+    benchmarks = (
+        db.query(Benchmark)
+        .filter(Benchmark.playlist == playlist)
+        .filter(Benchmark.rank_tier == rank)
+        .all()
+    )
+
+    benchmark_map = {b.metric: b for b in benchmarks}
+
+    # Compute averages and compare
+    metric_attrs = ["bcpm", "avg_boost", "goals", "assists", "saves", "shots"]
+    comparisons = []
+
+    for metric in metric_attrs:
+        values = [
+            getattr(s, metric) for s in my_stats if getattr(s, metric) is not None
+        ]
+        if not values:
+            continue
+
+        my_avg = sum(values) / len(values)
+
+        benchmark = benchmark_map.get(metric)
+        if benchmark:
+            diff = my_avg - benchmark.median_value
+            diff_pct = (
+                (diff / benchmark.median_value * 100) if benchmark.median_value else 0
+            )
+
+            comparisons.append(
+                {
+                    "metric": metric,
+                    "my_value": round(my_avg, 2),
+                    "target_median": benchmark.median_value,
+                    "difference": round(diff, 2),
+                    "difference_pct": round(diff_pct, 1),
+                }
+            )
+        else:
+            comparisons.append(
+                {
+                    "metric": metric,
+                    "my_value": round(my_avg, 2),
+                    "target_median": None,
+                    "difference": None,
+                    "difference_pct": None,
+                }
+            )
+
+    return {
+        "target_rank": rank,
+        "playlist": playlist,
+        "comparisons": comparisons,
+        "game_count": len(my_stats),
+    }
 
 
 @router.get("/patterns")
 async def get_patterns(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
     playlist: str = Query(default="DOUBLES"),
     period: str = Query(default="30d"),
     min_games: int = Query(default=5),
@@ -286,67 +291,72 @@ async def get_patterns(
         days = int(period.rstrip("d"))
         date_from = date.today() - timedelta(days=days)
 
-    session = create_session()
-    try:
-        # Get my stats with results
-        query = (
-            session.query(PlayerGameStats, Replay.result)
-            .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me)
-            .filter(Replay.playlist == playlist)
+    # Scope to user's replays
+    user_replay_ids = (
+        db.query(UserReplay.replay_id)
+        .filter(UserReplay.user_id == user.id)
+        .scalar_subquery()
+    )
+
+    # Get my stats with results
+    query = (
+        db.query(PlayerGameStats, Replay.result)
+        .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
+        .filter(Replay.replay_id.in_(user_replay_ids))
+        .filter(PlayerGameStats.is_me)
+        .filter(Replay.playlist == playlist)
+    )
+
+    if date_from:
+        query = query.filter(Replay.play_date >= date_from)
+
+    results = query.all()
+
+    # Group by result
+    wins = []
+    losses = []
+
+    for stats, result in results:
+        stat_dict = {
+            "bcpm": stats.bcpm,
+            "avg_boost": stats.avg_boost,
+            "goals": stats.goals,
+            "assists": stats.assists,
+            "saves": stats.saves,
+            "shots": stats.shots,
+        }
+        if result == "WIN":
+            wins.append(stat_dict)
+        elif result == "LOSS":
+            losses.append(stat_dict)
+
+    # Compute patterns
+    patterns = compute_pattern_analysis(wins, losses, min_games=min_games)
+
+    pattern_list = []
+    for p in patterns:
+        pattern_list.append(
+            {
+                "metric": p.metric,
+                "win_avg": round(p.win_avg, 2),
+                "loss_avg": round(p.loss_avg, 2),
+                "delta": round(p.delta, 2),
+                "effect_size": round(p.effect_size, 3),
+                "direction": p.direction,
+            }
         )
 
-        if date_from:
-            query = query.filter(Replay.play_date >= date_from)
-
-        results = query.all()
-
-        # Group by result
-        wins = []
-        losses = []
-
-        for stats, result in results:
-            stat_dict = {
-                "bcpm": stats.bcpm,
-                "avg_boost": stats.avg_boost,
-                "goals": stats.goals,
-                "assists": stats.assists,
-                "saves": stats.saves,
-                "shots": stats.shots,
-            }
-            if result == "WIN":
-                wins.append(stat_dict)
-            elif result == "LOSS":
-                losses.append(stat_dict)
-
-        # Compute patterns
-        patterns = compute_pattern_analysis(wins, losses, min_games=min_games)
-
-        pattern_list = []
-        for p in patterns:
-            pattern_list.append(
-                {
-                    "metric": p.metric,
-                    "win_avg": round(p.win_avg, 2),
-                    "loss_avg": round(p.loss_avg, 2),
-                    "delta": round(p.delta, 2),
-                    "effect_size": round(p.effect_size, 3),
-                    "direction": p.direction,
-                }
-            )
-
-        return {
-            "patterns": pattern_list,
-            "win_count": len(wins),
-            "loss_count": len(losses),
-        }
-
-    finally:
-        session.close()
+    return {
+        "patterns": pattern_list,
+        "win_count": len(wins),
+        "loss_count": len(losses),
+    }
 
 
 @router.get("/weaknesses")
 async def get_weaknesses(
+    user: AuthenticatedUser,
+    db: Annotated[DBSession, Depends(get_session)],
     playlist: str = Query(default="DOUBLES"),
     rank: str = Query(default="GC1"),
     period: str = Query(default="30d"),
@@ -367,84 +377,87 @@ async def get_weaknesses(
         days = int(period.rstrip("d"))
         date_from = date.today() - timedelta(days=days)
 
-    session = create_session()
-    try:
-        # Get my average stats
-        query = (
-            session.query(PlayerGameStats)
-            .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
-            .filter(PlayerGameStats.is_me)
-            .filter(Replay.playlist == playlist)
-        )
+    # Scope to user's replays
+    user_replay_ids = (
+        db.query(UserReplay.replay_id)
+        .filter(UserReplay.user_id == user.id)
+        .scalar_subquery()
+    )
 
-        if date_from:
-            query = query.filter(Replay.play_date >= date_from)
+    # Get my average stats
+    query = (
+        db.query(PlayerGameStats)
+        .join(Replay, Replay.replay_id == PlayerGameStats.replay_id)
+        .filter(Replay.replay_id.in_(user_replay_ids))
+        .filter(PlayerGameStats.is_me)
+        .filter(Replay.playlist == playlist)
+    )
 
-        my_stats = query.all()
+    if date_from:
+        query = query.filter(Replay.play_date >= date_from)
 
-        if not my_stats:
-            return {
-                "weaknesses": [],
-                "strengths": [],
-                "game_count": 0,
-            }
+    my_stats = query.all()
 
-        # Compute averages
-        metric_attrs = ["bcpm", "avg_boost", "goals", "assists", "saves", "shots"]
-        my_averages = {}
-
-        for metric in metric_attrs:
-            values = [
-                getattr(s, metric) for s in my_stats if getattr(s, metric) is not None
-            ]
-            if values:
-                my_averages[metric] = sum(values) / len(values)
-
-        # Get benchmarks
-        benchmarks = (
-            session.query(Benchmark)
-            .filter(Benchmark.playlist == playlist)
-            .filter(Benchmark.rank_tier == rank)
-            .all()
-        )
-
-        benchmark_map = {}
-        for b in benchmarks:
-            benchmark_map[b.metric] = {
-                "p25": b.p25_value,
-                "median": b.median_value,
-                "p75": b.p75_value,
-            }
-
-        # Detect weaknesses and strengths
-        weakness_results = detect_weaknesses(my_averages, benchmark_map)
-
-        weaknesses = []
-        strengths = []
-
-        for w in weakness_results:
-            item = {
-                "metric": w.metric,
-                "my_value": round(w.my_value, 2),
-                "target_median": round(w.target_median, 2),
-                "z_score": round(w.z_score, 2),
-                "severity": w.severity.value,
-            }
-
-            if w.severity.value == "strength":
-                strengths.append(item)
-            elif w.severity.value != "neutral":
-                weaknesses.append(item)
-
-        # Sort by severity
-        weaknesses.sort(key=lambda x: abs(x["z_score"]), reverse=True)
-        strengths.sort(key=lambda x: x["z_score"], reverse=True)
-
+    if not my_stats:
         return {
-            "weaknesses": weaknesses,
-            "strengths": strengths,
-            "game_count": len(my_stats),
+            "weaknesses": [],
+            "strengths": [],
+            "game_count": 0,
         }
 
-    finally:
-        session.close()
+    # Compute averages
+    metric_attrs = ["bcpm", "avg_boost", "goals", "assists", "saves", "shots"]
+    my_averages = {}
+
+    for metric in metric_attrs:
+        values = [
+            getattr(s, metric) for s in my_stats if getattr(s, metric) is not None
+        ]
+        if values:
+            my_averages[metric] = sum(values) / len(values)
+
+    # Get benchmarks
+    benchmarks = (
+        db.query(Benchmark)
+        .filter(Benchmark.playlist == playlist)
+        .filter(Benchmark.rank_tier == rank)
+        .all()
+    )
+
+    benchmark_map = {}
+    for b in benchmarks:
+        benchmark_map[b.metric] = {
+            "p25": b.p25_value,
+            "median": b.median_value,
+            "p75": b.p75_value,
+        }
+
+    # Detect weaknesses and strengths
+    weakness_results = detect_weaknesses(my_averages, benchmark_map)
+
+    weaknesses = []
+    strengths = []
+
+    for w in weakness_results:
+        item = {
+            "metric": w.metric,
+            "my_value": round(w.my_value, 2),
+            "target_median": round(w.target_median, 2),
+            "z_score": round(w.z_score, 2),
+            "severity": w.severity.value,
+        }
+
+        if w.severity.value == "strength":
+            strengths.append(item)
+        elif w.severity.value != "neutral":
+            weaknesses.append(item)
+
+    # Sort by severity
+    weaknesses.sort(key=lambda x: abs(x["z_score"]), reverse=True)
+    strengths.sort(key=lambda x: x["z_score"], reverse=True)
+
+    return {
+        "weaknesses": weaknesses,
+        "strengths": strengths,
+        "game_count": len(my_stats),
+    }

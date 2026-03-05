@@ -524,7 +524,9 @@ def list_library(
     """
     # Get replay IDs from user_replays
     user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
+        db.query(UserReplay.replay_id)
+        .filter(UserReplay.user_id == user.id)
+        .scalar_subquery()
     )
 
     base_query = db.query(Replay).filter(Replay.replay_id.in_(user_replay_ids))
@@ -856,7 +858,7 @@ def list_play_sessions(
                 Replay.replay_id.in_(user_replay_ids),
                 func.date(Replay.played_at_utc) == date_str,
             )
-            .subquery()
+            .scalar_subquery()
         )
 
         stats_agg = (
