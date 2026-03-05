@@ -16,7 +16,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from ...db import User, get_session
@@ -541,9 +541,7 @@ async def get_dashboard_stats(
     Returns aggregated stats from the user's replays.
     """
     # Get user's replay IDs
-    user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
-    )
+    user_replay_ids = select(UserReplay.replay_id).where(UserReplay.user_id == user.id)
 
     # Count total replays
     total_replays = (
@@ -791,9 +789,7 @@ async def get_benchmark_comparison(
         raise rate_limit_response(rate_result)
 
     # Get user's replay IDs
-    user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
-    )
+    user_replay_ids = select(UserReplay.replay_id).where(UserReplay.user_id == user.id)
 
     # Get user's aggregated stats (where is_me = True)
     stats_query = (
@@ -998,9 +994,7 @@ async def get_user_trends(
         date_from = datetime.now(timezone.utc).date() - timedelta(days=days)
 
     # Get user's replay IDs
-    user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
-    )
+    user_replay_ids = select(UserReplay.replay_id).where(UserReplay.user_id == user.id)
 
     # Query stats scoped to user's replays
     query = (
@@ -1176,9 +1170,7 @@ async def get_self_comparison(
     previous_end = current_start - timedelta(days=1)
 
     # Get user's replay IDs
-    user_replay_ids = (
-        db.query(UserReplay.replay_id).filter(UserReplay.user_id == user.id).subquery()
-    )
+    user_replay_ids = select(UserReplay.replay_id).where(UserReplay.user_id == user.id)
 
     def get_period_stats(start_date, end_date):
         """Get aggregated stats for a date range."""
