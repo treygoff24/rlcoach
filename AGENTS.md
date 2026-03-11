@@ -12,7 +12,7 @@ This is the #1 cause of agent failures in this project. The system Python does N
 
 ```bash
 # ALWAYS prefix Python commands with venv activation:
-source /Users/treygoff/Code/rlcoach/.venv/bin/activate && <command>
+source .venv/bin/activate && <command>
 
 # Examples:
 source .venv/bin/activate && PYTHONPATH=src pytest -q
@@ -80,7 +80,7 @@ source .venv/bin/activate
 make install-dev              # Install Black, Ruff, pytest, dev dependencies
 make rust-dev                 # (Optional) Build Rust adapter with maturin
 
-# Running tests (261 tests, ~8 seconds)
+# Running tests (553 tests collected)
 source .venv/bin/activate && PYTHONPATH=src pytest -q           # Full suite
 source .venv/bin/activate && PYTHONPATH=src pytest tests/test_foo.py -q  # Single file
 make test                     # Alternative (handles venv internally)

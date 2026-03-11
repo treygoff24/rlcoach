@@ -33,7 +33,7 @@ Fixing database initialization to work with DATABASE_URL in SaaS mode.
 - State: React hooks + server state
 - Database: PostgreSQL via SQLAlchemy
 - Queue: Celery + Redis
-- Testing: pytest (388 tests)
+- Testing: pytest (553 tests collected)
 
 ## Critical Issues Being Fixed
 
