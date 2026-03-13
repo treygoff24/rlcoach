@@ -274,13 +274,17 @@ class TestReplayWatcher:
         watcher.start()
 
         try:
-            time.sleep(0.3)
             # Existing file should be skipped
+            timeout = time.monotonic() + 1.0
+            while time.monotonic() < timeout and len(processed_files) < 1:
+                time.sleep(0.05)
             assert len(processed_files) == 0
 
             # New file should be processed
             (watch_dir / "new.replay").write_bytes(b"y" * 1000)
-            time.sleep(0.3)
+            timeout = time.monotonic() + 1.0
+            while time.monotonic() < timeout and len(processed_files) < 1:
+                time.sleep(0.05)
             assert len(processed_files) == 1
         finally:
             watcher.stop()

@@ -134,10 +134,7 @@ def build_synthetic_report(
     def _event_dict_list(items: list[Any]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for it in items:
-            d = {
-                k: _normalize(getattr(it, k))
-                for k in it.__dataclass_fields__.keys()
-            }
+            d = {k: _normalize(getattr(it, k)) for k in it.__dataclass_fields__.keys()}
             out.append(d)
         return out
 
