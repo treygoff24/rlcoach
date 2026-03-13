@@ -67,6 +67,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = ["-v", "--tb=short"]
 markers = ["slow: slower or optional tests"]
+filterwarnings = [
+    "error::sqlalchemy.exc.SAWarning",
+]
 
 [tool.coverage.run]
 source = ["src/rlcoach"]

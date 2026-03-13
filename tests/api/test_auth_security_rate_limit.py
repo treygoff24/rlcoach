@@ -37,6 +37,8 @@ from rlcoach.api.security import (
 from rlcoach.db.models import User
 from rlcoach.db.session import create_session, init_db, reset_engine
 
+TEST_JWT_SECRET = "test-secret-for-hs256-minimum-32-bytes"
+
 
 @pytest.fixture
 def db_session(tmp_path):
@@ -73,7 +75,7 @@ def test_get_jwt_secret_missing(monkeypatch):
 
 
 def test_decode_token_success_and_failure(monkeypatch):
-    monkeypatch.setenv("NEXTAUTH_SECRET", "test-secret")
+    monkeypatch.setenv("NEXTAUTH_SECRET", TEST_JWT_SECRET)
     token = jwt.encode(
         {
             "sub": "user-1",
@@ -81,7 +83,7 @@ def test_decode_token_success_and_failure(monkeypatch):
             "subscriptionTier": "pro",
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
     data = decode_token(token)
@@ -94,13 +96,13 @@ def test_decode_token_success_and_failure(monkeypatch):
 
 
 def test_decode_token_expired(monkeypatch):
-    monkeypatch.setenv("NEXTAUTH_SECRET", "test-secret")
+    monkeypatch.setenv("NEXTAUTH_SECRET", TEST_JWT_SECRET)
     token = jwt.encode(
         {
             "sub": "user-1",
             "exp": int((datetime.now(timezone.utc) - timedelta(seconds=1)).timestamp()),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
     with pytest.raises(HTTPException) as exc:
@@ -119,7 +121,7 @@ def test_get_token_from_header_validation():
 
 @pytest.mark.asyncio
 async def test_get_current_user_and_optional(monkeypatch, db_session):
-    monkeypatch.setenv("NEXTAUTH_SECRET", "test-secret")
+    monkeypatch.setenv("NEXTAUTH_SECRET", TEST_JWT_SECRET)
     user = User(id="user-123", email="u@example.com", subscription_tier="pro")
     db_session.add(user)
     db_session.commit()
@@ -129,7 +131,7 @@ async def test_get_current_user_and_optional(monkeypatch, db_session):
             "sub": "user-123",
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
 

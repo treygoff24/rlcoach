@@ -53,8 +53,9 @@ def client(mock_config, monkeypatch):
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
-    with patch("rlcoach.api.app.load_config", return_value=mock_config), patch(
-        "rlcoach.api.app.get_config", return_value=mock_config
+    with (
+        patch("rlcoach.api.app.load_config", return_value=mock_config),
+        patch("rlcoach.api.app.get_config", return_value=mock_config),
     ):
         from rlcoach.api.app import create_app
 
