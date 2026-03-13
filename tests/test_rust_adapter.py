@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import pytest
+
 from rlcoach.parser.rust_adapter import RustAdapter
 
 REPLAY_PATH = Path("Replay_files/4985385d-2a6a-4bea-a312-8e539c7fd098.replay")
