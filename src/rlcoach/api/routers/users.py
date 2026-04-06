@@ -117,7 +117,15 @@ def _verify_bootstrap_signature(
     """
     secret = os.getenv("BOOTSTRAP_SECRET")
     if not secret:
-        # In development without secret, allow but log warning
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        is_saas_mode = os.getenv("SAAS_MODE", "false").lower() in ("true", "1", "yes")
+        is_production = environment == "production" or is_saas_mode
+        if is_production:
+            logger.error(
+                "BOOTSTRAP_SECRET not set in production - rejecting bootstrap request"
+            )
+            return False
+        # Allow unverified bootstrap only in development/test environments
         logger.warning("BOOTSTRAP_SECRET not set - bootstrap requests unverified")
         return True
 

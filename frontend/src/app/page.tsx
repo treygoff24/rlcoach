@@ -65,7 +65,7 @@ export default function Home() {
               </div>
 
               <p className="mt-6 text-sm text-gray-500">
-                Join 2,000+ players improving their game
+                Free to start. No credit card required.
               </p>
             </div>
           </div>
@@ -76,20 +76,20 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
               <div>
-                <p className="text-3xl lg:text-4xl font-bold gradient-text">50K+</p>
-                <p className="mt-1 text-sm text-gray-400">Replays Analyzed</p>
+                <p className="text-3xl lg:text-4xl font-bold gradient-text">30+</p>
+                <p className="mt-1 text-sm text-gray-400">Metrics Tracked</p>
               </div>
               <div>
-                <p className="text-3xl lg:text-4xl font-bold gradient-text">98%</p>
-                <p className="mt-1 text-sm text-gray-400">Accuracy Rate</p>
+                <p className="text-3xl lg:text-4xl font-bold gradient-text">15+</p>
+                <p className="mt-1 text-sm text-gray-400">Mechanics Detected</p>
               </div>
               <div>
-                <p className="text-3xl lg:text-4xl font-bold gradient-text">2.5K+</p>
-                <p className="mt-1 text-sm text-gray-400">Active Players</p>
+                <p className="text-3xl lg:text-4xl font-bold gradient-text">30Hz</p>
+                <p className="mt-1 text-sm text-gray-400">Frame Analysis</p>
               </div>
               <div>
-                <p className="text-3xl lg:text-4xl font-bold gradient-text">300+</p>
-                <p className="mt-1 text-sm text-gray-400">Rank-Ups Reported</p>
+                <p className="text-3xl lg:text-4xl font-bold gradient-text">All</p>
+                <p className="mt-1 text-sm text-gray-400">Playlists Supported</p>
               </div>
             </div>
           </div>
@@ -321,7 +321,7 @@ export default function Home() {
               />
               <FAQItem
                 question="How accurate is the mechanic detection?"
-                answer="Our detection uses physics-based analysis at 30Hz frame rate. We achieve 98%+ accuracy on common mechanics like aerials, flips, and wavedashes."
+                answer="Our detection uses physics-based analysis at 30Hz frame rate, covering aerials, flips, wavedashes, and 15+ other mechanics automatically."
               />
               <FAQItem
                 question="What makes the AI coach different from other tools?"
@@ -342,7 +342,7 @@ export default function Home() {
               Ready to Rank Up?
             </h2>
             <p className="mt-4 text-gray-400 text-lg max-w-2xl mx-auto">
-              Join thousands of players who are improving faster with AI-powered coaching.
+              Upload your replays and get AI-powered insights in under a minute.
             </p>
             <Link href="/login" className="inline-flex btn-primary mt-8 px-10 py-4 text-lg">
               Get Started — It's Free
@@ -365,11 +365,8 @@ export default function Home() {
               <Link href="/privacy" className="hover:text-white transition-colors">
                 Privacy Policy
               </Link>
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-                GitHub
-              </a>
-              <a href="https://discord.gg" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-                Discord
+              <a href="mailto:support@rlcoach.gg" className="hover:text-white transition-colors">
+                Contact
               </a>
             </div>
           </div>

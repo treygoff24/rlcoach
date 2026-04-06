@@ -2,11 +2,18 @@
 
 This module defines the standard RLBot field coordinate system and provides
 utilities for field-relative calculations used throughout the analysis pipeline.
+
+Canonical pad data is loaded from schemas/boost_pad_tables.json so Rust and
+Python share a single source of truth. The JSON is located relative to the
+package root; a fallback to the hard-coded table is used when the file is
+unavailable (e.g. during isolated unit testing without the repo layout).
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import NamedTuple
 
 
@@ -29,12 +36,19 @@ class Vec3(NamedTuple):
 
 @dataclass(frozen=True)
 class BoostPad:
-    """Boost pad metadata for classification of pickups."""
+    """Boost pad metadata for classification of pickups.
+
+    pad_side: "blue" | "orange" | "mid" — field side of this pad.
+      blue   : pad is in the blue team's half (approx y < -2000)
+      orange : pad is in the orange team's half (approx y > 2000)
+      mid    : pad is in the midfield zone
+    """
 
     pad_id: int
     position: Vec3
     is_big: bool
     radius: float
+    pad_side: str = "mid"
 
 
 class FieldConstants:
@@ -145,22 +159,73 @@ class FieldConstants:
         return abs(pos.y - goal_y)
 
 
-# Combined boost pad table (6 big + 28 small)
-BOOST_PAD_TABLE: tuple[BoostPad, ...] = tuple(
-    [
-        BoostPad(idx, pos, True, FieldConstants.BIG_BOOST_RADIUS)
-        for idx, pos in enumerate(FieldConstants.BIG_BOOST_POSITIONS)
-    ]
-    + [
-        BoostPad(
-            idx + len(FieldConstants.BIG_BOOST_POSITIONS),
-            pos,
-            False,
-            FieldConstants.SMALL_BOOST_RADIUS,
+def _load_canonical_pad_table() -> tuple[BoostPad, ...]:
+    """Load pad table from schemas/boost_pad_tables.json.
+
+    Searches upward from this file's location for the schemas/ directory.
+    Falls back to the hard-coded table if the JSON is not found.
+    """
+    schema_path: Path | None = None
+    candidate = Path(__file__)
+    for _ in range(6):
+        candidate = candidate.parent
+        maybe = candidate / "schemas" / "boost_pad_tables.json"
+        if maybe.exists():
+            schema_path = maybe
+            break
+
+    if schema_path is None:
+        # Fallback: build from hard-coded FieldConstants positions.
+        pads: list[BoostPad] = []
+        for idx, pos in enumerate(FieldConstants.BIG_BOOST_POSITIONS):
+            side = "blue" if pos.y < 0 else "orange"
+            pads.append(BoostPad(idx, pos, True, FieldConstants.BIG_BOOST_RADIUS, side))
+        base = len(FieldConstants.BIG_BOOST_POSITIONS)
+        for idx, pos in enumerate(FieldConstants.SMALL_BOOST_POSITIONS):
+            if pos.y < -2000:
+                side = "blue"
+            elif pos.y > 2000:
+                side = "orange"
+            else:
+                side = "mid"
+            pads.append(
+                BoostPad(
+                    base + idx,
+                    pos,
+                    False,
+                    FieldConstants.SMALL_BOOST_RADIUS,
+                    side,
+                )
+            )
+        return tuple(pads)
+
+    with schema_path.open() as fh:
+        data = json.load(fh)
+
+    default_table_key = "_default_soccar"
+    raw_pads = data["arenas"][default_table_key]["pads"]
+    result: list[BoostPad] = []
+    for entry in raw_pads:
+        pos = Vec3(entry["x"], entry["y"], entry["z"])
+        radius = (
+            FieldConstants.BIG_BOOST_RADIUS
+            if entry["is_big"]
+            else FieldConstants.SMALL_BOOST_RADIUS
         )
-        for idx, pos in enumerate(FieldConstants.SMALL_BOOST_POSITIONS)
-    ]
-)
+        result.append(
+            BoostPad(
+                pad_id=entry["id"],
+                position=pos,
+                is_big=entry["is_big"],
+                radius=radius,
+                pad_side=entry["side"],
+            )
+        )
+    return tuple(result)
+
+
+# Combined boost pad table (6 big + 28 small) — loaded from canonical JSON.
+BOOST_PAD_TABLE: tuple[BoostPad, ...] = _load_canonical_pad_table()
 
 FieldConstants.BOOST_PADS = BOOST_PAD_TABLE
 
