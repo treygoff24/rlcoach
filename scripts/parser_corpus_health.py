@@ -58,6 +58,13 @@ def _evaluate_replay(path: Path, adapter_name: str) -> dict[str, Any]:
     network_ok = False
     network_status = "unavailable"
     error_code: str | None = None
+    non_empty_player_frame_coverage = 0.0
+    player_identity_coverage = 0.0
+    usable_network_parse = False
+    non_empty_player_frames = 0
+    network_frame_count = 0
+    players_with_identity = 0
+    expected_players = 0
 
     try:
         header = adapter.parse_header(path)
@@ -74,6 +81,30 @@ def _evaluate_replay(path: Path, adapter_name: str) -> dict[str, Any]:
 
         if isinstance(network, NetworkFrames):
             diagnostics = network.diagnostics
+            network_frame_count = len(network.frames)
+            non_empty_player_frames = sum(
+                1
+                for frame in network.frames
+                if isinstance(frame, dict) and isinstance(frame.get("players"), list) and frame["players"]
+            )
+            unique_player_ids = {
+                str(player.get("player_id"))
+                for frame in network.frames
+                if isinstance(frame, dict)
+                for player in (frame.get("players") or [])
+                if isinstance(player, dict) and player.get("player_id")
+            }
+            players_with_identity = len(unique_player_ids)
+            declared_players = len(header.players) if header is not None else 0
+            expected_players = max(declared_players, players_with_identity)
+            non_empty_player_frame_coverage = (
+                non_empty_player_frames / network_frame_count if network_frame_count else 0.0
+            )
+            player_identity_coverage = (
+                min(1.0, players_with_identity / expected_players)
+                if expected_players
+                else 0.0
+            )
             if diagnostics is None:
                 network_ok = bool(network.frames)
                 network_status = "ok" if network_ok else "degraded"
@@ -86,6 +117,12 @@ def _evaluate_replay(path: Path, adapter_name: str) -> dict[str, Any]:
                     error_code = diagnostics.error_code
                 elif diagnostics.status == "degraded" and error_code is None:
                     error_code = "network_degraded_unknown"
+            usable_network_parse = (
+                network_status == "ok"
+                and network_frame_count > 0
+                and non_empty_player_frame_coverage >= 0.5
+                and player_identity_coverage >= 0.5
+            )
         elif network is None:
             network_status = "unavailable"
             if error_code is None:
@@ -105,10 +142,17 @@ def _evaluate_replay(path: Path, adapter_name: str) -> dict[str, Any]:
         "header_ok": header_ok,
         "network_ok": network_ok,
         "network_status": network_status,
+        "usable_network_parse": usable_network_parse,
         "error_code": error_code,
         "playlist": playlist,
         "match_type": match_type,
         "engine_build": engine_build,
+        "non_empty_player_frame_coverage": non_empty_player_frame_coverage,
+        "player_identity_coverage": player_identity_coverage,
+        "network_frame_count": network_frame_count,
+        "non_empty_player_frames": non_empty_player_frames,
+        "players_with_identity": players_with_identity,
+        "expected_players": expected_players,
     }
 
 
@@ -119,6 +163,9 @@ def _build_summary(records: list[dict[str, Any]], top_n: int = 5) -> dict[str, A
     degraded_count = sum(
         1 for record in records if record["network_status"] == "degraded"
     )
+    usable_network_parse_count = sum(
+        1 for record in records if record["usable_network_parse"]
+    )
 
     error_counter = Counter(
         record["error_code"] for record in records if record["error_code"]
@@ -127,11 +174,27 @@ def _build_summary(records: list[dict[str, Any]], top_n: int = 5) -> dict[str, A
     match_type_counter = Counter(record["match_type"] for record in records)
     engine_build_counter = Counter(record["engine_build"] for record in records)
 
+    avg_non_empty_player_frame_coverage = (
+        sum(record["non_empty_player_frame_coverage"] for record in records) / total
+        if total
+        else 0.0
+    )
+    avg_player_identity_coverage = (
+        sum(record["player_identity_coverage"] for record in records) / total
+        if total
+        else 0.0
+    )
+
     return {
         "total": total,
         "header_success_rate": (header_success / total) if total else 0.0,
         "network_success_rate": (network_success / total) if total else 0.0,
+        "usable_network_parse_rate": (
+            usable_network_parse_count / total if total else 0.0
+        ),
         "degraded_count": degraded_count,
+        "avg_non_empty_player_frame_coverage": avg_non_empty_player_frame_coverage,
+        "avg_player_identity_coverage": avg_player_identity_coverage,
         "top_error_codes": [
             {"error_code": code, "count": count}
             for code, count in error_counter.most_common(top_n)
@@ -198,10 +261,15 @@ def main() -> int:
     else:
         print(
             "total={total} header_success_rate={header:.3f} "
-            "network_success_rate={network:.3f} degraded_count={degraded}".format(
+            "network_success_rate={network:.3f} usable_network_parse_rate={usable:.3f} "
+            "avg_non_empty_player_frame_coverage={frame_cov:.3f} "
+            "avg_player_identity_coverage={identity_cov:.3f} degraded_count={degraded}".format(
                 total=summary["total"],
                 header=summary["header_success_rate"],
                 network=summary["network_success_rate"],
+                usable=summary["usable_network_parse_rate"],
+                frame_cov=summary["avg_non_empty_player_frame_coverage"],
+                identity_cov=summary["avg_player_identity_coverage"],
                 degraded=summary["degraded_count"],
             )
         )

@@ -72,6 +72,9 @@ _PLAYLIST_ID_MAP = {
     "private": "PRIVATE",
 }
 
+_MIN_NON_EMPTY_PLAYER_FRAME_COVERAGE = 0.5
+_MIN_PLAYER_IDENTITY_COVERAGE = 0.5
+
 
 def _utc_now_iso() -> str:
     return (
@@ -152,6 +155,7 @@ def _serialize_network_diagnostics(
             "error_code": diagnostics.error_code,
             "error_detail": diagnostics.error_detail,
             "frames_emitted": emitted,
+            "attempted_backends": list(diagnostics.attempted_backends),
         }
 
     if not supports_network_parsing or not network_data_available:
@@ -160,6 +164,7 @@ def _serialize_network_diagnostics(
             "error_code": "network_data_unavailable",
             "error_detail": "network parser did not emit frames",
             "frames_emitted": frames_emitted,
+            "attempted_backends": [],
         }
 
     return {
@@ -167,6 +172,70 @@ def _serialize_network_diagnostics(
         "error_code": None,
         "error_detail": None,
         "frames_emitted": frames_emitted,
+        "attempted_backends": [],
+    }
+
+
+def _frame_players(frame: Any) -> list[Any]:
+    if isinstance(frame, dict):
+        players = frame.get("players")
+    else:
+        players = getattr(frame, "players", None)
+    return players if isinstance(players, list) else []
+
+
+def _player_identity(player: Any) -> str | None:
+    if isinstance(player, dict):
+        player_id = player.get("player_id")
+    else:
+        player_id = getattr(player, "player_id", None)
+    if player_id in (None, ""):
+        return None
+    return str(player_id)
+
+
+def _build_parser_scorecard(
+    header: Any,
+    frames_input: list[Any],
+    network_diagnostics: dict[str, Any],
+) -> dict[str, Any]:
+    total_frames = len(frames_input)
+    non_empty_player_frames = 0
+    unique_player_ids: set[str] = set()
+
+    for frame in frames_input:
+        players = _frame_players(frame)
+        if players:
+            non_empty_player_frames += 1
+        for player in players:
+            player_id = _player_identity(player)
+            if player_id is not None:
+                unique_player_ids.add(player_id)
+
+    declared_players = len(getattr(header, "players", []) or [])
+    expected_players = max(declared_players, len(unique_player_ids))
+    player_identity_coverage = (
+        min(1.0, len(unique_player_ids) / expected_players) if expected_players else 0.0
+    )
+    non_empty_player_frame_coverage = (
+        non_empty_player_frames / total_frames if total_frames else 0.0
+    )
+    network_status = str(network_diagnostics.get("status", "unavailable") or "unavailable")
+    usable_network_parse = (
+        bool(frames_input)
+        and network_status == "ok"
+        and non_empty_player_frame_coverage >= _MIN_NON_EMPTY_PLAYER_FRAME_COVERAGE
+        and player_identity_coverage >= _MIN_PLAYER_IDENTITY_COVERAGE
+    )
+
+    return {
+        "usable_network_parse": usable_network_parse,
+        "non_empty_player_frame_coverage": round(non_empty_player_frame_coverage, 4),
+        "player_identity_coverage": round(player_identity_coverage, 4),
+        "network_frame_count": len(frames_input),
+        "non_empty_player_frames": non_empty_player_frames,
+        "players_with_identity": len(unique_player_ids),
+        "expected_players": expected_players,
     }
 
 
@@ -218,6 +287,11 @@ def generate_report(
             frames_emitted=len(frames_input),
             supports_network_parsing=adapter.supports_network_parsing,
             network_data_available=network_data_available,
+        )
+        parser_scorecard = _build_parser_scorecard(
+            header,
+            frames_input,
+            network_diagnostics,
         )
 
         # Events detection (can be empty in header-only)
@@ -292,6 +366,7 @@ def generate_report(
                 "parsed_network_data": network_data_available,
                 "crc_checked": crc_checked_flag,
                 "network_diagnostics": network_diagnostics,
+                "scorecard": parser_scorecard,
             },
             "warnings": (
                 header.quality_warnings if hasattr(header, "quality_warnings") else []

@@ -1,6 +1,7 @@
 """End-to-end tests for report generation and CLI."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -49,6 +50,19 @@ class _FakeNetworkAdapter:
 
     def parse_network(self, path: Path):
         return self._network_frames
+
+
+class _FakeNetworkAdapterWithoutHeaderPlayers(_FakeNetworkAdapter):
+    def parse_header(self, path: Path) -> Header:
+        return Header(
+            playlist_id="13",
+            map_name="DFH_Stadium",
+            team_size=1,
+            team0_score=1,
+            team1_score=0,
+            match_guid="fake-guid",
+            players=[],
+        )
 
 
 def test_cli_analyze_header_only_success(tmp_path: Path, monkeypatch):
@@ -131,7 +145,10 @@ def test_report_includes_network_diagnostics_when_degraded(tmp_path: Path, monke
         "error_code",
         "error_detail",
         "frames_emitted",
+        "attempted_backends",
     }
+    assert diagnostics["attempted_backends"] == []
+    validate_report(report)
 
 
 def test_report_includes_network_diagnostics_when_unavailable(
@@ -161,7 +178,190 @@ def test_report_includes_network_diagnostics_when_unavailable(
         "error_code",
         "error_detail",
         "frames_emitted",
+        "attempted_backends",
     }
+    assert diagnostics["attempted_backends"] == []
+    validate_report(report)
+
+
+def test_report_includes_parser_scorecard(tmp_path: Path, monkeypatch):
+    replay = tmp_path / "sample.replay"
+    _make_dummy_replay(replay)
+    monkeypatch.setattr(
+        "rlcoach.report.ingest_replay",
+        lambda _path: {
+            "sha256": "abc123",
+            "crc_check": {"message": "not yet implemented", "passed": False},
+        },
+    )
+
+    frame_payload = {
+        "timestamp": 0.0,
+        "ball": {
+            "position": {"x": 0.0, "y": 0.0, "z": 93.15},
+            "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "angular_velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+        },
+        "players": [
+            {
+                "player_id": "player-blue",
+                "team": 0,
+                "position": {"x": 0.0, "y": -1000.0, "z": 17.0},
+                "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"pitch": 0.0, "yaw": 0.0, "roll": 0.0},
+                "boost_amount": 33,
+                "is_on_ground": True,
+            },
+            {
+                "player_id": "player-orange",
+                "team": 1,
+                "position": {"x": 0.0, "y": 1000.0, "z": 17.0},
+                "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"pitch": 0.0, "yaw": 3.14, "roll": 0.0},
+                "boost_amount": 33,
+                "is_on_ground": True,
+            },
+        ],
+        "boost_pad_events": [],
+    }
+    network = NetworkFrames(
+        frame_count=1,
+        sample_rate=30.0,
+        frames=[frame_payload],
+        diagnostics=NetworkDiagnostics(
+            status="ok",
+            error_code=None,
+            error_detail=None,
+            frames_emitted=1,
+            attempted_backends=["boxcars"],
+        ),
+    )
+    monkeypatch.setattr(
+        "rlcoach.report.get_adapter", lambda _name: _FakeNetworkAdapter(network)
+    )
+
+    report = generate_report(replay, header_only=False, adapter_name="rust")
+    scorecard = report["quality"]["parser"]["scorecard"]
+    diagnostics = report["quality"]["parser"]["network_diagnostics"]
+
+    assert scorecard["usable_network_parse"] is True
+    assert scorecard["non_empty_player_frame_coverage"] == 1.0
+    assert scorecard["player_identity_coverage"] == 1.0
+    assert scorecard["network_frame_count"] == 1
+    assert scorecard["non_empty_player_frames"] == 1
+    assert scorecard["players_with_identity"] == 2
+    assert scorecard["expected_players"] == 2
+    assert diagnostics["attempted_backends"] == ["boxcars"]
+    validate_report(report)
+
+
+def test_report_marks_unusable_network_parse_when_player_coverage_is_empty(
+    tmp_path: Path, monkeypatch
+):
+    replay = tmp_path / "sample.replay"
+    _make_dummy_replay(replay)
+    monkeypatch.setattr(
+        "rlcoach.report.ingest_replay",
+        lambda _path: {
+            "sha256": "abc123",
+            "crc_check": {"message": "not yet implemented", "passed": False},
+        },
+    )
+
+    frame_payload = {
+        "timestamp": 0.0,
+        "ball": {
+            "position": {"x": 0.0, "y": 0.0, "z": 93.15},
+            "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "angular_velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+        },
+        "players": [],
+        "boost_pad_events": [],
+    }
+    network = NetworkFrames(
+        frame_count=1,
+        sample_rate=30.0,
+        frames=[frame_payload],
+        diagnostics=NetworkDiagnostics(
+            status="ok",
+            error_code=None,
+            error_detail=None,
+            frames_emitted=1,
+            attempted_backends=["boxcars"],
+        ),
+    )
+    monkeypatch.setattr(
+        "rlcoach.report.get_adapter", lambda _name: _FakeNetworkAdapter(network)
+    )
+
+    report = generate_report(replay, header_only=False, adapter_name="rust")
+    scorecard = report["quality"]["parser"]["scorecard"]
+
+    assert scorecard["usable_network_parse"] is False
+    assert scorecard["non_empty_player_frame_coverage"] == 0.0
+    assert scorecard["player_identity_coverage"] == 0.0
+    assert scorecard["players_with_identity"] == 0
+    assert scorecard["expected_players"] == 2
+
+
+def test_report_marks_missing_expected_players_as_zero_identity_coverage(
+    tmp_path: Path, monkeypatch
+):
+    replay = tmp_path / "sample.replay"
+    _make_dummy_replay(replay)
+    monkeypatch.setattr(
+        "rlcoach.report.ingest_replay",
+        lambda _path: {
+            "sha256": "abc123",
+            "crc_check": {"message": "not yet implemented", "passed": False},
+        },
+    )
+
+    frame_payload = {
+        "timestamp": 0.0,
+        "ball": {
+            "position": {"x": 0.0, "y": 0.0, "z": 93.15},
+            "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "angular_velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+        },
+        "players": [
+            {
+                "team": 0,
+                "position": {"x": 0.0, "y": -1000.0, "z": 17.0},
+                "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"pitch": 0.0, "yaw": 0.0, "roll": 0.0},
+                "boost_amount": 33,
+                "is_on_ground": True,
+            }
+        ],
+        "boost_pad_events": [],
+    }
+    network = NetworkFrames(
+        frame_count=1,
+        sample_rate=30.0,
+        frames=[frame_payload],
+        diagnostics=NetworkDiagnostics(
+            status="ok",
+            error_code=None,
+            error_detail=None,
+            frames_emitted=1,
+            attempted_backends=["boxcars"],
+        ),
+    )
+    monkeypatch.setattr(
+        "rlcoach.report.get_adapter",
+        lambda _name: _FakeNetworkAdapterWithoutHeaderPlayers(network),
+    )
+
+    report = generate_report(replay, header_only=False, adapter_name="rust")
+    scorecard = report["quality"]["parser"]["scorecard"]
+
+    assert scorecard["usable_network_parse"] is False
+    assert scorecard["non_empty_player_frame_coverage"] == 1.0
+    assert scorecard["player_identity_coverage"] == 0.0
+    assert scorecard["players_with_identity"] == 0
+    assert scorecard["expected_players"] == 0
+    validate_report(report)
 
 
 @pytest.mark.skipif(not SAMPLE_REPLAY.exists(), reason="Sample replay not found")

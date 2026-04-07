@@ -220,6 +220,7 @@ def test_network_diagnostics_rejects_additional_properties():
         "error_code": "boxcars_network_error",
         "error_detail": "unknown attributes for object",
         "frames_emitted": 0,
+        "attempted_backends": [],
         "unexpected_field": "should_fail",
     }
 
