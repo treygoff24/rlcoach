@@ -19,6 +19,11 @@ const KICKOFF_POSITION_TOLERANCE: f64 = 120.0;
 const BALL_REST_HEIGHT: f64 = 93.15;
 const BALL_STATIONARY_SPEED: f64 = 60.0;
 
+// Touch detection thresholds (mirrored from Python events/constants.py)
+const TOUCH_PROXIMITY_THRESHOLD: f32 = 200.0; // Distance for player-ball contact (units)
+const TOUCH_DEBOUNCE_TIME: f64 = 0.2; // Seconds between touches to count as new
+const TOUCH_LOCATION_EPS: f32 = 120.0; // Distance to consider same location
+
 fn infer_kickoff_phase(timestamp: f64, overtime: bool, match_length: f64) -> &'static str {
     if overtime && timestamp >= f64::max(300.0, match_length) {
         "OT"
@@ -27,6 +32,17 @@ fn infer_kickoff_phase(timestamp: f64, overtime: bool, match_length: f64) -> &'s
     } else {
         "INITIAL"
     }
+}
+
+/// Compute Euclidean distance between two 3D points
+fn distance_3d(
+    (ax, ay, az): (f32, f32, f32),
+    (bx, by, bz): (f32, f32, f32),
+) -> f32 {
+    let dx = ax - bx;
+    let dy = ay - by;
+    let dz = az - bz;
+    (dx * dx + dy * dy + dz * dz).sqrt()
 }
 
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
@@ -606,6 +622,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut frame_index: i64 = 0;
         let mut kickoff_active = false;
 
+        // Touch detection state: tracks last touch time and position per car actor
+        let mut last_touch_time: HashMap<i32, f64> = HashMap::new();
+        let mut last_touch_pos: HashMap<i32, (f32, f32, f32)> = HashMap::new();
+
         // Prepare per-team header order indices
         let mut team_zero: Vec<usize> = Vec::new();
         let mut team_one: Vec<usize> = Vec::new();
@@ -687,6 +707,8 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     car_rot.remove(&aid);
                     car_demo.remove(&aid);
                     prev_demo_state.remove(&aid);
+                    last_touch_time.remove(&aid);
+                    last_touch_pos.remove(&aid);
                     component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
                     pad_registry.remove_actor(aid);
                 }
@@ -1101,7 +1123,59 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 }
                 prev_demo_state = car_demo.clone();
 
-                f.set_item("parser_touch_events", PyList::empty(py))?;
+                // Detect touches: proximity-based ball-car contact detection
+                let parser_touch_events = PyList::empty(py);
+                for (actor_id, car_position) in &car_pos {
+                    let dist = distance_3d(*car_position, ball_pos);
+                    if dist >= TOUCH_PROXIMITY_THRESHOLD {
+                        continue;
+                    }
+
+                    // Check if this is a new touch (debounce logic)
+                    let last_time = last_touch_time.get(actor_id);
+                    let last_pos = last_touch_pos.get(actor_id);
+                    let timestamp = nf.time as f64;
+
+                    let is_new_touch = if let Some(last_t) = last_time {
+                        let delta_t = timestamp - last_t;
+                        // Must wait debounce time between touches
+                        if delta_t < TOUCH_DEBOUNCE_TIME {
+                            continue;
+                        }
+                        // If same area, skip (debounce on location too)
+                        if let Some(last_p) = last_pos {
+                            let loc_dist = distance_3d(*car_position, *last_p);
+                            if loc_dist <= TOUCH_LOCATION_EPS && delta_t < TOUCH_DEBOUNCE_TIME * 2.0 {
+                                continue;
+                            }
+                        }
+                        false // Has previous touch, but not a duplicate
+                    } else {
+                        true // First touch for this actor
+                    };
+
+                    if is_new_touch || last_time.is_none() {
+                        if let Some(idx) = actor_to_player_index.get(actor_id) {
+                            let touch_dict = PyDict::new(py);
+                            touch_dict.set_item("timestamp", timestamp)?;
+                            touch_dict.set_item("player_id", format!("player_{}", idx))?;
+                            if let Some(team) = car_team.get(actor_id) {
+                                touch_dict.set_item("team", *team)?;
+                            } else {
+                                touch_dict.set_item("team", 0i64)?;
+                            }
+                            touch_dict.set_item("frame_index", frame_index)?;
+                            touch_dict.set_item("source", "parser")?;
+                            parser_touch_events.append(touch_dict)?;
+
+                            // Update touch state for debouncing
+                            last_touch_time.insert(*actor_id, timestamp);
+                            last_touch_pos.insert(*actor_id, *car_position);
+                        }
+                    }
+                }
+
+                f.set_item("parser_touch_events", parser_touch_events)?;
                 f.set_item("parser_demo_events", parser_demo_events)?;
                 f.set_item("parser_tickmarks", PyList::empty(py))?;
 
