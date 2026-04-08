@@ -50,6 +50,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.ruff_cache/
 cover/
 
 # Translations
@@ -234,3 +235,7 @@ logs/
 tmp/
 temp/
 .DS_Store
+
+# Personal Claude Code config
+.claude/
+CLAUDE.local.md

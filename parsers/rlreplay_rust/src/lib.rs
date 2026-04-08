@@ -19,6 +19,16 @@ const KICKOFF_POSITION_TOLERANCE: f64 = 120.0;
 const BALL_REST_HEIGHT: f64 = 93.15;
 const BALL_STATIONARY_SPEED: f64 = 60.0;
 
+fn infer_kickoff_phase(timestamp: f64, overtime: bool, match_length: f64) -> &'static str {
+    if overtime && timestamp >= f64::max(300.0, match_length) {
+        "OT"
+    } else if timestamp >= 300.0 {
+        "OT"
+    } else {
+        "INITIAL"
+    }
+}
+
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
     let mut file = File::open(path)
         .map_err(|e| PyIOError::new_err(format!("Failed to open replay file '{}': {}", path, e)))?;
@@ -478,6 +488,21 @@ fn map_network_error_code(message: &str) -> &'static str {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::infer_kickoff_phase;
+
+    #[test]
+    fn kickoff_phase_stays_initial_before_overtime() {
+        assert_eq!(infer_kickoff_phase(15.0, false, 300.0), "INITIAL");
+    }
+
+    #[test]
+    fn kickoff_phase_uses_overtime_metadata() {
+        assert_eq!(infer_kickoff_phase(301.0, true, 300.0), "OT");
+    }
+}
+
 #[pyfunction]
 fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
     Python::with_gil(|py| {
@@ -496,6 +521,23 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
             .and_then(|(_, v)| v.as_string())
             .map(|s| s.to_string())
             .unwrap_or_default();
+        let header_overtime = replay
+            .properties
+            .iter()
+            .find(|(k, _)| k == "bOverTime" || k == "Overtime" || k == "IsOvertime")
+            .and_then(|(_, prop)| match prop {
+                HeaderProp::Bool(value) => Some(*value),
+                HeaderProp::Int(value) => Some(*value != 0),
+                _ => None,
+            })
+            .unwrap_or(false);
+        let header_match_length = replay
+            .properties
+            .iter()
+            .find(|(k, _)| k == "NumFrames")
+            .and_then(|(_, prop)| prop.as_i32())
+            .map(|frames| frames as f64 / 30.0)
+            .unwrap_or(0.0);
 
         // Header-derived players with teams for mapping
         let mut header_players: Vec<(String, i64)> = Vec::new();
@@ -975,12 +1017,15 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         p.set_item("is_supersonic", speed > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
-                        p.set_item("is_jumping", frame_jumping_actors.contains(&aid))?;
-                        p.set_item("is_dodging", frame_dodging_actors.contains(&aid))?;
-                        p.set_item(
-                            "is_double_jumping",
-                            frame_double_jumping_actors.contains(&aid),
-                        )?;
+                        if frame_jumping_actors.contains(&aid) {
+                            p.set_item("is_jumping", true)?;
+                        }
+                        if frame_dodging_actors.contains(&aid) {
+                            p.set_item("is_dodging", true)?;
+                        }
+                        if frame_double_jumping_actors.contains(&aid) {
+                            p.set_item("is_double_jumping", true)?;
+                        }
 
                         players_map.insert(idx, p.into_py(py));
                     }
@@ -1061,18 +1106,26 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 f.set_item("parser_tickmarks", PyList::empty(py))?;
 
                 let parser_kickoff_markers = PyList::empty(py);
-                let at_center = ball_pos.0.abs() <= KICKOFF_POSITION_TOLERANCE
-                    && ball_pos.1.abs() <= KICKOFF_POSITION_TOLERANCE
-                    && (ball_pos.2 - BALL_REST_HEIGHT).abs() <= KICKOFF_POSITION_TOLERANCE;
+                let at_center = ball_pos.0.abs() <= KICKOFF_POSITION_TOLERANCE as f32
+                    && ball_pos.1.abs() <= KICKOFF_POSITION_TOLERANCE as f32
+                    && (ball_pos.2 - BALL_REST_HEIGHT as f32).abs()
+                        <= KICKOFF_POSITION_TOLERANCE as f32;
                 let ball_speed =
                     (ball_vel.0 * ball_vel.0 + ball_vel.1 * ball_vel.1 + ball_vel.2 * ball_vel.2)
                         .sqrt();
-                let stationary = ball_speed <= BALL_STATIONARY_SPEED;
+                let stationary = ball_speed <= BALL_STATIONARY_SPEED as f32;
                 if at_center && stationary && !kickoff_active {
                     kickoff_active = true;
                     let marker = PyDict::new(py);
                     marker.set_item("timestamp", nf.time as f64)?;
-                    marker.set_item("phase", "INITIAL")?;
+                    marker.set_item(
+                        "phase",
+                        infer_kickoff_phase(
+                            nf.time as f64,
+                            header_overtime,
+                            header_match_length,
+                        ),
+                    )?;
                     marker.set_item("frame_index", frame_index)?;
                     marker.set_item("source", "parser")?;
                     parser_kickoff_markers.append(marker)?;

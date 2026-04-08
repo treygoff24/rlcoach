@@ -17,6 +17,7 @@ from rlcoach.field_constants import FIELD, Vec3
 from rlcoach.parser.types import (
     BallFrame,
     Frame,
+    Header,
     ParserDemoEvent,
     ParserKickoffMarker,
     ParserTouchEvent,
@@ -1198,10 +1199,60 @@ class TestParserAuthorityPreference:
         assert demos[0].victim == "victim"
         assert demos[0].attacker == "attacker"
 
-    def test_kickoffs_prefer_parser_markers_when_present(self):
+    def test_kickoffs_merge_parser_markers_with_heuristic_enrichment(self):
         frames = [
             create_test_frame(
-                5.0,
+                0.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("blue_go", 0, Vec3(-500.0, -1000.0, 17.0)),
+                    create_test_player("orange_go", 1, Vec3(500.0, 1000.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                0.25,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("blue_go", 0, Vec3(0.0, -130.0, 17.0)),
+                    create_test_player("orange_go", 1, Vec3(0.0, 110.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                0.35,
+                Vec3(0.0, 60.0, 93.15),
+                Vec3(0.0, 960.0, 0.0),
+                [
+                    create_test_player("blue_go", 0, Vec3(0.0, 55.0, 17.0)),
+                    create_test_player("orange_go", 1, Vec3(0.0, 65.0, 17.0)),
+                ],
+            ),
+        ]
+        frames[0] = Frame(
+            timestamp=frames[0].timestamp,
+            ball=frames[0].ball,
+            players=frames[0].players,
+            parser_kickoff_markers=[
+                ParserKickoffMarker(timestamp=0.0, phase="INITIAL")
+            ],
+        )
+
+        kickoffs = detect_kickoffs(frames)
+
+        assert len(kickoffs) == 1
+        kickoff = kickoffs[0]
+        assert kickoff.phase == "INITIAL"
+        assert kickoff.source == "parser"
+        assert kickoff.first_touch_player == "blue_go"
+        assert kickoff.time_to_first_touch == 0.25
+        assert {player["role"] for player in kickoff.players} == {"GO"}
+        assert all(player["approach_type"] != "UNKNOWN" for player in kickoff.players)
+
+    def test_parser_kickoff_markers_preserve_ot_phase(self):
+        frames = [
+            create_test_frame(
+                301.0,
                 Vec3(1000.0, 1000.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
                 [],
@@ -1211,11 +1262,13 @@ class TestParserAuthorityPreference:
             timestamp=frames[0].timestamp,
             ball=frames[0].ball,
             players=frames[0].players,
-            parser_kickoff_markers=[
-                ParserKickoffMarker(timestamp=5.0, phase="INITIAL")
-            ],
+            parser_kickoff_markers=[ParserKickoffMarker(timestamp=301.0, phase="OT")],
         )
 
-        kickoffs = detect_kickoffs(frames)
+        kickoffs = detect_kickoffs(
+            frames,
+            Header(match_length=300.0, overtime=True),
+        )
+
         assert len(kickoffs) == 1
-        assert kickoffs[0].phase == "INITIAL"
+        assert kickoffs[0].phase == "OT"

@@ -36,9 +36,17 @@ def detect_kickoffs(
     if not frames:
         return []
 
+    heuristic_kickoffs = _detect_heuristic_kickoffs(frames, header)
     parser_kickoffs = _kickoffs_from_parser_markers(frames)
     if parser_kickoffs:
-        return parser_kickoffs
+        return _merge_kickoff_sources(heuristic_kickoffs, parser_kickoffs)
+    return heuristic_kickoffs
+
+
+def _detect_heuristic_kickoffs(
+    frames: list[Frame], header: Header | None = None
+) -> list[KickoffEvent]:
+    """Detect kickoff windows from gameplay state alone."""
 
     kickoffs: list[KickoffEvent] = []
     kickoff_state: dict[str, Any] | None = None
@@ -127,6 +135,74 @@ def _kickoffs_from_parser_markers(frames: list[Frame]) -> list[KickoffEvent]:
             )
     events.sort(key=lambda kickoff: kickoff.t_start)
     return events
+
+
+def _merge_kickoff_sources(
+    heuristic_kickoffs: list[KickoffEvent],
+    parser_kickoffs: list[KickoffEvent],
+) -> list[KickoffEvent]:
+    """Prefer parser timing/phase while preserving heuristic enrichment."""
+    if not heuristic_kickoffs:
+        return parser_kickoffs
+    if not parser_kickoffs:
+        return heuristic_kickoffs
+
+    merged: list[KickoffEvent] = []
+    used_heuristics: set[int] = set()
+
+    for parser_kickoff in parser_kickoffs:
+        match_index = _find_matching_kickoff(
+            parser_kickoff,
+            heuristic_kickoffs,
+            used_heuristics,
+        )
+        if match_index is None:
+            merged.append(parser_kickoff)
+            continue
+
+        used_heuristics.add(match_index)
+        heuristic = heuristic_kickoffs[match_index]
+        merged.append(
+            KickoffEvent(
+                phase=parser_kickoff.phase or heuristic.phase,
+                t_start=parser_kickoff.t_start,
+                players=heuristic.players,
+                outcome=heuristic.outcome,
+                first_touch_player=heuristic.first_touch_player,
+                time_to_first_touch=heuristic.time_to_first_touch,
+                source=parser_kickoff.source or heuristic.source,
+            )
+        )
+
+    for index, heuristic in enumerate(heuristic_kickoffs):
+        if index not in used_heuristics:
+            merged.append(heuristic)
+
+    merged.sort(key=lambda kickoff: kickoff.t_start)
+    return merged
+
+
+def _find_matching_kickoff(
+    parser_kickoff: KickoffEvent,
+    heuristic_kickoffs: list[KickoffEvent],
+    used_heuristics: set[int],
+) -> int | None:
+    """Match a parser kickoff marker to the nearest heuristic kickoff."""
+    best_index: int | None = None
+    best_delta: float | None = None
+    max_delta = 1.0
+
+    for index, heuristic in enumerate(heuristic_kickoffs):
+        if index in used_heuristics:
+            continue
+        delta = abs(heuristic.t_start - parser_kickoff.t_start)
+        if delta > max_delta:
+            continue
+        if best_delta is None or delta < best_delta:
+            best_delta = delta
+            best_index = index
+
+    return best_index
 
 
 def _start_kickoff(frame: Frame) -> dict[str, Any]:

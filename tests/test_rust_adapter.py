@@ -99,14 +99,15 @@ def test_parse_network_returns_diagnostics_on_degradation(monkeypatch):
 
 
 def test_players_expose_optional_component_state_flags():
-    frames = _load_frames(limit=3)
-    first_players = frames[0].get("players", [])
-    assert first_players, "no players detected in first frame"
+    frames = _load_frames(limit=10)
+    players = []
+    for frame in frames:
+        players.extend(frame.get("players", []))
+    assert players, "no players detected in fixture frames"
 
-    sample = first_players[0]
-    assert "is_jumping" in sample
-    assert "is_dodging" in sample
-    assert "is_double_jumping" in sample
+    assert any("is_jumping" not in player for player in players)
+    assert any("is_dodging" not in player for player in players)
+    assert any("is_double_jumping" not in player for player in players)
 
 
 def test_rust_header_exposes_match_guid_overtime_and_mutators():
@@ -119,7 +120,7 @@ def test_rust_header_exposes_match_guid_overtime_and_mutators():
     assert isinstance(header.mutators, dict)
 
 
-def test_component_state_flags_are_explicit_booleans_when_present():
+def test_component_state_flags_are_boolean_only_when_present():
     frames = _load_frames(limit=15)
     players = []
     for frame in frames:
@@ -127,9 +128,12 @@ def test_component_state_flags_are_explicit_booleans_when_present():
     assert players, "expected player snapshots in replay fixture"
 
     for player in players[:20]:
-        assert isinstance(player.get("is_jumping"), bool)
-        assert isinstance(player.get("is_dodging"), bool)
-        assert isinstance(player.get("is_double_jumping"), bool)
+        if "is_jumping" in player:
+            assert isinstance(player["is_jumping"], bool)
+        if "is_dodging" in player:
+            assert isinstance(player["is_dodging"], bool)
+        if "is_double_jumping" in player:
+            assert isinstance(player["is_double_jumping"], bool)
 
 
 def test_frames_expose_parser_event_carrier_lists():
