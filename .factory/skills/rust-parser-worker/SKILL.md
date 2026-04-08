@@ -23,15 +23,18 @@ None.
 ## Work Procedure
 
 1. Read the assigned feature, `mission.md`, mission `AGENTS.md`, and `.factory/library/architecture.md` before editing anything.
-2. Inspect the owned parser files and surrounding tests to match existing patterns. Do not edit outside the feature’s owned-file scope.
-3. Write or extend failing tests first for the parser contract you are changing. Favor targeted parser interface, adapter, smoke, or corpus-health tests.
-4. Run the targeted failing tests to verify the red state.
-5. Implement the minimal Rust/parser/adapter changes needed to satisfy the feature while preserving diagnostics-first degraded behavior.
-6. Run the feature’s targeted verification commands. For Rust-facing work, this usually includes `cargo test` and parser-focused pytest.
-7. If the feature affects installation/importability, run `maturin develop` and verify the extension imports.
-8. Perform one manual CLI sanity check when the feature changes observable parser behavior (for example `python -m rlcoach.cli analyze ... --adapter rust`).
-9. Do not leave broad refactors, speculative cleanup, or unrelated warning fixes mixed into the feature.
-10. In the handoff, report exact commands, exact observations, and any remaining parser decision gates or fallback semantics.
+2. Inspect the owned parser files and surrounding tests to match existing patterns. Do not edit outside the feature’s owned-file scope unless the feature uncovers a small, directly-caused downstream parser-contract bug that must be fixed for correctness.
+3. If the assigned feature's expected behavior is already satisfied by pre-existing code, do not attach an unrelated commit or claim new implementation work. Return to the orchestrator immediately with explicit evidence that the feature is pre-satisfied and identify the existing code/tests that already satisfy it.
+4. Write or extend failing tests first for the parser contract you are changing. Favor targeted parser interface, adapter, smoke, or corpus-health tests.
+5. Run the targeted failing tests to verify the red state.
+6. Implement the minimal Rust/parser/adapter changes needed to satisfy the feature while preserving diagnostics-first degraded behavior.
+7. If a parser-contract bug first surfaces in a small downstream file outside the normal owned scope (for example event shaping code), you may fix it in the same feature only when the downstream change is tightly coupled, clearly explained in the handoff, and covered by a targeted regression test. Escalate to the orchestrator if the downstream change is non-trivial.
+8. For any bug fix discovered via manual CLI validation or behavioral observation, add a targeted regression test for that exact bug surface before marking the feature complete.
+9. Run the feature’s targeted verification commands. For Rust-facing work, this usually includes `cargo test` and parser-focused pytest.
+10. If the feature affects installation/importability, run `maturin develop` and verify the extension imports.
+11. Perform one manual CLI sanity check when the feature changes observable parser behavior (for example `python -m rlcoach.cli analyze ... --adapter rust`).
+12. Do not leave broad refactors, speculative cleanup, or unrelated warning fixes mixed into the feature.
+13. In the handoff, report exact commands, exact observations, any out-of-scope downstream edits, and any remaining parser decision gates or fallback semantics.
 
 ## Example Handoff
 

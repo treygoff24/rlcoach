@@ -1,0 +1,28 @@
+{
+  "featureId": "emit-parser-authoritative-events-and-consistency-contract",
+  "reviewedAt": "2026-04-08T18:54:13.212761+00:00",
+  "commitId": "fb77725",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature does not reliably emit authoritative parser touch carriers. The new Rust debounce logic only records the first touch for a given actor and suppresses subsequent valid touches unless the actor state is fully reset, so the shipped parser-authored touch stream is incomplete and cannot serve as a stable authoritative contract downstream.",
+    "issues": [
+      {
+        "file": "parsers/rlreplay_rust/src/lib.rs",
+        "line": 1139,
+        "severity": "blocking",
+        "description": "The new touch debounce branch never emits a later valid touch for the same actor. When `last_time` exists and the code does not `continue`, `is_new_touch` is set to `false`, and the subsequent guard `if is_new_touch || last_time.is_none()` at line 1157 prevents appending the event. In practice this means each car actor can emit at most one touch until its actor state is removed, which undercounts normal repeated touches and breaks the feature's promise of authoritative parser-authored touch carriers."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The rust-parser-worker procedure says to write or extend failing tests first for parser contract changes, but this feature added no tests and the existing suite only checks that parser event carrier lists exist, not that real Rust touch emission can produce multiple touches for the same actor over time.",
+      "evidence": "Skill file `.factory/skills/rust-parser-worker/SKILL.md` step 3 requires test-first coverage; handoff `...emit-parser-authoritative-events...9e89f55a...json` reports `tests.added: []`; `tests/test_rust_adapter.py:142-149` only asserts list presence, and no targeted test covers repeated parser touch emission semantics."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed the feature handoff, transcript skeleton, skill guidance, mission/shared-state docs, and commit `fb77725`. The implementation is not correct for its scoped contract because the new Rust touch-emission logic suppresses subsequent touches from the same actor after the first emission, so parser-authored touch carriers are incomplete and not stable enough for downstream authoritative consumption. Report written to the requested scrutiny review path."
+}

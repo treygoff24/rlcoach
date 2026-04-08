@@ -1,0 +1,77 @@
+{
+  "milestone": "parser-contract",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "source .venv/bin/activate && PYTHONPATH=src pytest -q",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "(not defined in /Users/treygoff/Code/rlcoach/.factory/services.yaml for this milestone)",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "source .venv/bin/activate && ruff check src/ tests/ && source .venv/bin/activate && black --check src/ tests/",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 1,
+    "failed": 3,
+    "failedFeatures": [
+      "freeze-parser-contract-foundation",
+      "complete-rust-cli-contract-and-runtime-modes",
+      "emit-parser-authoritative-events-and-consistency-contract"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "freeze-parser-contract-foundation",
+      "severity": "blocking",
+      "description": "The reviewed implementation commit `de16738` only introduces mission scaffolding files and makes no changes to the feature's scoped parser contract, schema, or test surfaces, so the handoff's implementation claim is unsupported by the diff."
+    },
+    {
+      "featureId": "complete-rust-cli-contract-and-runtime-modes",
+      "severity": "blocking",
+      "description": "`src/rlcoach/events/kickoffs.py:118` hardcodes parser-marker kickoff roles to `BACK`, which makes parser-only kickoff output schema-valid but semantically wrong whenever a parser kickoff marker is emitted without a heuristic merge match."
+    },
+    {
+      "featureId": "emit-parser-authoritative-events-and-consistency-contract",
+      "severity": "blocking",
+      "description": "`parsers/rlreplay_rust/src/lib.rs:1139` suppresses later valid touches from the same actor after the first emission, so the shipped parser-authored touch stream is incomplete and not stable enough for authoritative downstream consumption."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills",
+      "suggestion": "Tighten rust-parser-worker enforcement around test-first workflow and require reviewers/workers to call out when a feature is already pre-satisfied instead of attaching an unrelated commit to the feature handoff.",
+      "evidence": "`freeze-parser-contract-foundation` reported `followedProcedure: true` and linked commit `de16738`, but the diff only adds mission scaffolding and shows no parser/schema/test changes for the claimed feature implementation.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills",
+      "suggestion": "Clarify rust-parser-worker scope guidance for parser-contract work that may require downstream event-shaping changes outside `parsers/rlreplay_rust/` and `src/rlcoach/parser/`, or explicitly require orchestrator escalation when the first failing surface is downstream.",
+      "evidence": "`complete-rust-cli-contract-and-runtime-modes` used the rust-parser-worker skill but fixed a failure in `src/rlcoach/events/kickoffs.py`, outside the skill's documented owned-file scope.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills",
+      "suggestion": "Require targeted regression coverage for parser-contract bug fixes discovered via manual CLI validation, especially for authoritative event emission semantics and parser-marker role shaping.",
+      "evidence": "Both `complete-rust-cli-contract-and-runtime-modes` and `emit-parser-authoritative-events-and-consistency-contract` changed runtime behavior without adding focused regression tests for the exact bug surfaces later caught in scrutiny.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Add a standalone typecheck command to services.yaml for parser-contract scrutiny.",
+      "reason": "ambiguous: this repo's milestone manifest currently defines test, lint, format, Rust build/test, corpus-health, and CLI checks, but no factual standalone typecheck command was established during this scrutiny run."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,0 +1,33 @@
+{
+  "featureId": "complete-rust-cli-contract-and-runtime-modes",
+  "reviewedAt": "2026-04-08T18:53:04.732357+00:00",
+  "commitId": "758c817",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The commit fixes one schema-validation failure on a healthy Rust analyze run, but it does so by hardcoding parser-marker kickoff roles to BACK. That makes parser-only kickoff output schema-valid yet semantically incorrect and violates the kickoff detector's own contract that roles are inferred from spawn positions.",
+    "issues": [
+      {
+        "file": "src/rlcoach/events/kickoffs.py",
+        "line": 118,
+        "severity": "blocking",
+        "description": "Parser-authored kickoff markers now assign every player the role BACK. When a parser kickoff marker cannot be merged with a heuristic kickoff in _merge_kickoff_sources(), analyze will emit schema-valid kickoff data with incorrect per-player roles for every participant. The module documentation and heuristic path both define kickoff roles as GO/CHEAT/WING/BACK inferred from spawn positions, so replacing UNKNOWN with BACK fixes validation by falsifying the output rather than preserving correct semantics."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The rust-parser-worker skill says to write or extend failing tests first for the parser contract being changed, but this worker changed runtime behavior without adding a targeted regression test for parser-marker kickoff role handling or the healthy analyze path that originally failed.",
+      "evidence": "Transcript skeleton for session 8f1614e7-212b-43be-a816-09f703f7a84b shows the worker ran existing test suites, discovered the UNKNOWN enum failure from a manual CLI run, edited src/rlcoach/events/kickoffs.py, and reported \"No new tests were needed\" in the handoff."
+    },
+    {
+      "area": "conventions",
+      "observation": "The worker used the rust-parser-worker skill for a change in src/rlcoach/events/kickoffs.py, outside the skill's stated owned-file scope of Rust/parser/adapter-focused files. That scope boundary may be too narrow for parser-contract features whose first failing surface appears downstream in event shaping.",
+      "evidence": "Skill file .factory/skills/rust-parser-worker/SKILL.md says \"Do not edit outside the feature’s owned-file scope\" and describes ownership as parsers/rlreplay_rust/, src/rlcoach/parser/, and parser-focused coverage, but commit 758c817 edits src/rlcoach/events/kickoffs.py."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed the feature handoff, transcript skeleton, skill instructions, mission guidance, and commit 758c817. The implementation is not acceptable as shipped: it converts an invalid UNKNOWN kickoff role into BACK for all parser-marker players, which can silently produce incorrect kickoff-role data whenever parser markers are emitted without a heuristic merge match. Review report written for scrutiny triage."
+}

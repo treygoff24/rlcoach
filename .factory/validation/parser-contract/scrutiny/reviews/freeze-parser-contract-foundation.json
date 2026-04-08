@@ -1,0 +1,33 @@
+{
+  "featureId": "freeze-parser-contract-foundation",
+  "reviewedAt": "2026-04-08T18:58:00Z",
+  "commitId": "de16738",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Failing review. The worker handoff claims the parser contract foundation is implemented, but the referenced commit (`de16738`) only adds mission scaffolding under `.factory/` and does not modify the scoped parser contract files, schema, or tests. The repository does contain the richer contract in `src/rlcoach/parser/types.py` and related tests, but this reviewed feature did not land that work in its claimed implementation commit, so the feature is not correctly or credibly implemented as reviewed.",
+    "issues": [
+      {
+        "file": ".factory/init.sh",
+        "line": 1,
+        "severity": "blocking",
+        "description": "The reviewed implementation commit `de16738` only introduces mission scaffolding files like `.factory/init.sh`, `.factory/library/architecture.md`, `.factory/services.yaml`, and worker skill docs. It makes no changes to the feature's scoped surfaces (`src/rlcoach/parser/types.py`, schema scaffolding, or targeted parser/schema tests), so the handoff's claim that this feature implemented the canonical parser contract is unsupported by the diff."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker marked `followedProcedure: true`, but the transcript and handoff do not show the rust-parser-worker's required red-state workflow. The skill requires writing/extending failing tests first and running those failing tests before implementation, yet the session only shows green verification runs and reports `tests.added: []`.",
+      "evidence": "`.factory/skills/rust-parser-worker/SKILL.md:27-28` require failing tests first; mission handoff `2026-04-08T17-50-15-698Z__freeze-parser-contract-foundation__f4f84ebd-5349-4182-ac1c-c25aa9c4d091.json:23-29` reports no tests added and `followedProcedure: true`; transcript skeleton shows only passing pytest execution."
+    },
+    {
+      "area": "conventions",
+      "observation": "Mission process guidance appears to lack a clear convention for features that are discovered to be pre-satisfied before the assigned worker starts. This session attached an unrelated mission-scaffolding commit to a completed feature and reported success instead of escalating that the scoped implementation pre-existed elsewhere.",
+      "evidence": "Handoff `2026-04-08T17-50-15-698Z__freeze-parser-contract-foundation__f4f84ebd-5349-4182-ac1c-c25aa9c4d091.json:6-11` ties the feature to commit `de16738` while claiming parser contract dataclasses/schema scaffolding were implemented; `git show --stat de16738` shows only `.factory/*` mission files and no parser/schema/test files."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed the feature metadata, latest handoff, transcript skeleton, rust-parser-worker skill, mission guidance, architecture docs, and the claimed implementation commit. The richer parser contract does exist in the repository, but the reviewed worker session did not land that work in its referenced commit; the handoff instead points to an unrelated mission-scaffolding commit and overstates implementation, so this feature fails scrutiny."
+}
