@@ -42,9 +42,11 @@ class TestBoostPadTable:
 
     def test_pad_side_field_present(self) -> None:
         for pad in BOOST_PAD_TABLE:
-            assert pad.pad_side in {"blue", "orange", "mid"}, (
-                f"Pad {pad.pad_id} has invalid pad_side '{pad.pad_side}'"
-            )
+            assert pad.pad_side in {
+                "blue",
+                "orange",
+                "mid",
+            }, f"Pad {pad.pad_id} has invalid pad_side '{pad.pad_side}'"
 
     def test_all_three_sides_represented(self) -> None:
         sides = {p.pad_side for p in BOOST_PAD_TABLE}
@@ -53,9 +55,9 @@ class TestBoostPadTable:
     def test_big_pads_not_mid(self) -> None:
         for pad in BOOST_PAD_TABLE:
             if pad.is_big:
-                assert pad.pad_side != "mid", (
-                    f"Big pad {pad.pad_id} wrongly classified as mid"
-                )
+                assert (
+                    pad.pad_side != "mid"
+                ), f"Big pad {pad.pad_id} wrongly classified as mid"
 
     def test_big_pad_radius(self) -> None:
         for pad in BOOST_PAD_TABLE:
@@ -70,23 +72,23 @@ class TestBoostPadTable:
     def test_blue_pads_in_blue_half(self) -> None:
         for pad in BOOST_PAD_TABLE:
             if pad.pad_side == "blue":
-                assert pad.position.y < 0, (
-                    f"Blue pad {pad.pad_id} has y={pad.position.y}"
-                )
+                assert (
+                    pad.position.y < 0
+                ), f"Blue pad {pad.pad_id} has y={pad.position.y}"
 
     def test_orange_pads_in_orange_half(self) -> None:
         for pad in BOOST_PAD_TABLE:
             if pad.pad_side == "orange":
-                assert pad.position.y > 0, (
-                    f"Orange pad {pad.pad_id} has y={pad.position.y}"
-                )
+                assert (
+                    pad.position.y > 0
+                ), f"Orange pad {pad.pad_id} has y={pad.position.y}"
 
     def test_mid_pads_within_centre_band(self) -> None:
         for pad in BOOST_PAD_TABLE:
             if pad.pad_side == "mid":
-                assert abs(pad.position.y) <= 2000, (
-                    f"Mid pad {pad.pad_id} has |y|={abs(pad.position.y)} > 2000"
-                )
+                assert (
+                    abs(pad.position.y) <= 2000
+                ), f"Mid pad {pad.pad_id} has |y|={abs(pad.position.y)} > 2000"
 
 
 class TestBoostPadDataclass:

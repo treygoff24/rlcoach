@@ -70,9 +70,9 @@ class TestBoostPadTablesSchema:
         pads = pad_tables["arenas"]["_default_soccar"]["pads"]
         valid_sides = {"blue", "orange", "mid"}
         for pad in pads:
-            assert pad["side"] in valid_sides, (
-                f"Pad {pad['id']} has invalid side '{pad['side']}'"
-            )
+            assert (
+                pad["side"] in valid_sides
+            ), f"Pad {pad['id']} has invalid side '{pad['side']}'"
 
     def test_side_coverage_all_present(self, pad_tables: dict) -> None:
         pads = pad_tables["arenas"]["_default_soccar"]["pads"]
@@ -83,9 +83,9 @@ class TestBoostPadTablesSchema:
         pads = pad_tables["arenas"]["_default_soccar"]["pads"]
         for pad in pads:
             if pad["is_big"]:
-                assert pad["side"] != "mid", (
-                    f"Big pad {pad['id']} incorrectly classified as mid"
-                )
+                assert (
+                    pad["side"] != "mid"
+                ), f"Big pad {pad['id']} incorrectly classified as mid"
 
     def test_snap_tolerances_present(self, pad_tables: dict) -> None:
         tols = pad_tables.get("snap_tolerances", {})
@@ -151,25 +151,25 @@ class TestPadSideByPosition:
         pads = pad_tables["arenas"]["_default_soccar"]["pads"]
         for pad in pads:
             if pad["side"] == "blue":
-                assert pad["y"] < 0, (
-                    f"Blue pad {pad['id']} has non-negative y={pad['y']}"
-                )
+                assert (
+                    pad["y"] < 0
+                ), f"Blue pad {pad['id']} has non-negative y={pad['y']}"
 
     def test_orange_pads_have_positive_y(self, pad_tables: dict) -> None:
         pads = pad_tables["arenas"]["_default_soccar"]["pads"]
         for pad in pads:
             if pad["side"] == "orange":
-                assert pad["y"] > 0, (
-                    f"Orange pad {pad['id']} has non-positive y={pad['y']}"
-                )
+                assert (
+                    pad["y"] > 0
+                ), f"Orange pad {pad['id']} has non-positive y={pad['y']}"
 
     def test_mid_pads_near_centre(self, pad_tables: dict) -> None:
         pads = pad_tables["arenas"]["_default_soccar"]["pads"]
         for pad in pads:
             if pad["side"] == "mid":
-                assert abs(pad["y"]) <= 2000, (
-                    f"Mid pad {pad['id']} has |y|={abs(pad['y'])} > 2000"
-                )
+                assert (
+                    abs(pad["y"]) <= 2000
+                ), f"Mid pad {pad['id']} has |y|={abs(pad['y'])} > 2000"
 
 
 class TestUnknownArenaHandling:
@@ -195,9 +195,9 @@ class TestUnknownArenaHandling:
         silently treat the result as Soccar data without an explicit check."""
         arena_map = pad_tables.get("arena_map", {})
         result = arena_map.get("UNKNOWN_ARENA_NO_ENTRY")
-        assert result is None, (
-            "Expected None for an unknown arena; got a pad-table key instead."
-        )
+        assert (
+            result is None
+        ), "Expected None for an unknown arena; got a pad-table key instead."
 
     def test_unsupported_arena_maps_to_null(self, pad_tables: dict) -> None:
         """Explicitly unsupported arenas (e.g. Hoops, Dropshot) must map to null,
@@ -205,9 +205,9 @@ class TestUnknownArenaHandling:
         arena_map = pad_tables.get("arena_map", {})
         unsupported = ["HoopsStadium_P", "Dropshot_P", "ShatterShot_P"]
         for arena in unsupported:
-            assert arena in arena_map, (
-                f"Unsupported arena '{arena}' is missing from arena_map entirely."
-            )
+            assert (
+                arena in arena_map
+            ), f"Unsupported arena '{arena}' is missing from arena_map entirely."
             assert arena_map[arena] is None, (
                 f"Unsupported arena '{arena}' should map to null, "
                 f"not '{arena_map[arena]}'."
@@ -217,6 +217,6 @@ class TestUnknownArenaHandling:
         """An unknown arena name must not have a pad-table entry in 'arenas'."""
         arenas = pad_tables.get("arenas", {})
         unknown_key = "totally_unknown_arena_xyz"
-        assert unknown_key not in arenas, (
-            f"Unknown arena table key '{unknown_key}' unexpectedly found in 'arenas'."
-        )
+        assert (
+            unknown_key not in arenas
+        ), f"Unknown arena table key '{unknown_key}' unexpectedly found in 'arenas'."
