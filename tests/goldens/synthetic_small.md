@@ -553,7 +553,9 @@
           "musty_flick_count": 0,
           "power_slide_count": 0,
           "power_slide_total_time_s": 0,
+          "psycho_count": 0,
           "redirect_count": 0,
+          "skim_count": 0,
           "speedflip_count": 0,
           "stall_count": 0,
           "total_mechanics": 0,
@@ -828,7 +830,9 @@
           "musty_flick_count": 0,
           "power_slide_count": 0,
           "power_slide_total_time_s": 0,
+          "psycho_count": 0,
           "redirect_count": 0,
+          "skim_count": 0,
           "speedflip_count": 0,
           "stall_count": 0,
           "total_mechanics": 0,
@@ -960,10 +964,21 @@
         },
         "mechanics": {
           "total_aerials": 0,
+          "total_ceiling_shots": 0,
+          "total_double_touches": 0,
+          "total_dribbles": 0,
+          "total_fast_aerials": 0,
+          "total_flicks": 0,
           "total_flip_cancels": 0,
+          "total_flip_resets": 0,
           "total_flips": 0,
+          "total_ground_pinches": 0,
           "total_halfflips": 0,
+          "total_psychos": 0,
+          "total_redirects": 0,
+          "total_skims": 0,
           "total_speedflips": 0,
+          "total_stalls": 0,
           "total_wavedashes": 0
         },
         "movement": {
@@ -1067,10 +1082,21 @@
         },
         "mechanics": {
           "total_aerials": 0,
+          "total_ceiling_shots": 0,
+          "total_double_touches": 0,
+          "total_dribbles": 0,
+          "total_fast_aerials": 0,
+          "total_flicks": 0,
           "total_flip_cancels": 0,
+          "total_flip_resets": 0,
           "total_flips": 0,
+          "total_ground_pinches": 0,
           "total_halfflips": 0,
+          "total_psychos": 0,
+          "total_redirects": 0,
+          "total_skims": 0,
           "total_speedflips": 0,
+          "total_stalls": 0,
           "total_wavedashes": 0
         },
         "movement": {
@@ -1139,6 +1165,7 @@
             "time_to_first_touch": null
           }
         ],
+        "source": "inferred",
         "t_start": 0.0,
         "time_to_first_touch": null
       }
@@ -1198,6 +1225,7 @@
         },
         "outcome": "PASS",
         "player_id": "A",
+        "source": "inferred",
         "t": 1.1,
         "touch_context": "ground"
       }

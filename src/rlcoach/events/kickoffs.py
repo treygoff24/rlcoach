@@ -36,6 +36,10 @@ def detect_kickoffs(
     if not frames:
         return []
 
+    parser_kickoffs = _kickoffs_from_parser_markers(frames)
+    if parser_kickoffs:
+        return parser_kickoffs
+
     kickoffs: list[KickoffEvent] = []
     kickoff_state: dict[str, Any] | None = None
     last_kickoff_end_time = -KICKOFF_MIN_COOLDOWN
@@ -87,6 +91,42 @@ def detect_kickoffs(
             kickoffs.append(kickoff_event)
 
     return kickoffs
+
+
+def _kickoffs_from_parser_markers(frames: list[Frame]) -> list[KickoffEvent]:
+    """Convert parser kickoff markers, populating players from frame data."""
+    events: list[KickoffEvent] = []
+    seen: set[tuple[float, str]] = set()
+    for frame in frames:
+        for marker in frame.parser_kickoff_markers:
+            phase = str(marker.phase or "INITIAL").upper()
+            key = (round(float(marker.timestamp), 4), phase)
+            if key in seen:
+                continue
+            seen.add(key)
+            players = [
+                {
+                    "player_id": p.player_id,
+                    "role": "UNKNOWN",
+                    "boost_used": 0.0,
+                    "approach_type": "UNKNOWN",
+                    "time_to_first_touch": None,
+                }
+                for p in frame.players
+            ]
+            events.append(
+                KickoffEvent(
+                    phase=phase,
+                    t_start=float(marker.timestamp),
+                    players=players,
+                    outcome="NEUTRAL",
+                    first_touch_player=None,
+                    time_to_first_touch=None,
+                    source=marker.source or "parser",
+                )
+            )
+    events.sort(key=lambda kickoff: kickoff.t_start)
+    return events
 
 
 def _start_kickoff(frame: Frame) -> dict[str, Any]:
@@ -262,6 +302,7 @@ def _finalize_kickoff(
         time_to_first_touch=(
             None if time_to_first_touch is None else round(time_to_first_touch, 3)
         ),
+        source="inferred",
     )
 
 

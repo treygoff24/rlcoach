@@ -6,6 +6,8 @@ Detects player-ball contact events with context classification
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, PlayerFrame
 from ..physics_constants import UU_S_TO_KPH
@@ -36,6 +38,10 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
     """Detect player-ball contact events with richer classification."""
     if not frames:
         return []
+
+    parser_touches = _touches_from_parser_events(frames)
+    if parser_touches:
+        return parser_touches
 
     touches: list[TouchEvent] = []
     last_touch_event: dict[str, TouchEvent] = {}
@@ -91,6 +97,7 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
                 touch_context=touch_context,
                 car_height=round(player.position.z, 2),
                 is_first_touch=is_first,
+                source="inferred",
             )
             touches.append(touch)
             last_touch_event[player.player_id] = touch
@@ -99,6 +106,64 @@ def detect_touches(frames: list[Frame]) -> list[TouchEvent]:
         prev_ball_position = frame.ball.position
 
     return touches
+
+
+def _touches_from_parser_events(frames: list[Frame]) -> list[TouchEvent]:
+    """Convert parser-emitted touch lists into enriched TouchEvent objects."""
+    converted: list[TouchEvent] = []
+    seen: set[tuple[float, str]] = set()
+    prev_ball_velocity: Vec3 | None = None
+    prev_ball_position: Vec3 | None = None
+
+    for frame in frames:
+        for event in frame.parser_touch_events:
+            key = (round(float(event.timestamp), 4), event.player_id)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            player = next(
+                (p for p in frame.players if p.player_id == event.player_id),
+                None,
+            )
+
+            if player:
+                car_height = round(player.position.z, 2)
+                location = player.position
+                touch_context = _classify_touch_context(player, frame.ball.position)
+                outcome, is_save = _classify_touch_outcome(
+                    player, frame, prev_ball_velocity, prev_ball_position
+                )
+            else:
+                car_height = 0.0
+                location = frame.ball.position
+                touch_context = TouchContext.UNKNOWN
+                outcome, is_save = "NEUTRAL", False
+
+            converted.append(
+                TouchEvent(
+                    t=float(event.timestamp),
+                    frame=event.frame_index,
+                    player_id=event.player_id,
+                    location=location,
+                    ball_speed_kph=round(
+                        vector_magnitude(frame.ball.velocity) * UU_S_TO_KPH, 2
+                    ),
+                    outcome=outcome,
+                    is_save=is_save,
+                    touch_context=touch_context,
+                    car_height=car_height,
+                    is_first_touch=False,
+                    source=event.source or "parser",
+                )
+            )
+        prev_ball_velocity = frame.ball.velocity
+        prev_ball_position = frame.ball.position
+
+    converted.sort(key=lambda touch: touch.t)
+    if converted:
+        converted[0] = replace(converted[0], is_first_touch=True)
+    return converted
 
 
 def _classify_touch_context(player: PlayerFrame, ball_position: Vec3) -> TouchContext:

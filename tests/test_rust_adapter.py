@@ -109,6 +109,73 @@ def test_players_expose_optional_component_state_flags():
     assert "is_double_jumping" in sample
 
 
+def test_rust_header_exposes_match_guid_overtime_and_mutators():
+    adapter = RustAdapter()
+    header = adapter.parse_header(REPLAY_PATH)
+
+    assert hasattr(header, "match_guid")
+    assert hasattr(header, "overtime")
+    assert hasattr(header, "mutators")
+    assert isinstance(header.mutators, dict)
+
+
+def test_component_state_flags_are_explicit_booleans_when_present():
+    frames = _load_frames(limit=15)
+    players = []
+    for frame in frames:
+        players.extend(frame.get("players", []))
+    assert players, "expected player snapshots in replay fixture"
+
+    for player in players[:20]:
+        assert isinstance(player.get("is_jumping"), bool)
+        assert isinstance(player.get("is_dodging"), bool)
+        assert isinstance(player.get("is_double_jumping"), bool)
+
+
+def test_frames_expose_parser_event_carrier_lists():
+    frames = _load_frames(limit=1)
+    frame = frames[0]
+    assert "parser_touch_events" in frame
+    assert "parser_demo_events" in frame
+    assert "parser_tickmarks" in frame
+    assert "parser_kickoff_markers" in frame
+    assert isinstance(frame["parser_touch_events"], list)
+    assert isinstance(frame["parser_demo_events"], list)
+    assert isinstance(frame["parser_tickmarks"], list)
+    assert isinstance(frame["parser_kickoff_markers"], list)
+
+
+def test_parse_header_maps_extended_metadata(monkeypatch):
+    class FakeRustHeader:
+        @staticmethod
+        def parse_header(_path: str):
+            return {
+                "playlist_id": "ranked_doubles",
+                "map_name": "DFHStadium",
+                "team_size": 2,
+                "team0_score": 4,
+                "team1_score": 2,
+                "match_length": 305.5,
+                "engine_build": "build-1234",
+                "match_guid": "GUID-abc",
+                "overtime": True,
+                "mutators": {"BallMaxSpeed": "Fast"},
+                "players": [],
+                "goals": [],
+                "highlights": [],
+                "quality_warnings": [],
+            }
+
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._rust", FakeRustHeader())
+    monkeypatch.setattr("rlcoach.parser.rust_adapter._RUST_AVAILABLE", True)
+
+    header = RustAdapter().parse_header(Path("testing_replay.replay"))
+    assert header.engine_build == "build-1234"
+    assert header.match_guid == "GUID-abc"
+    assert header.overtime is True
+    assert header.mutators == {"BallMaxSpeed": "Fast"}
+
+
 def test_iter_frames_has_players():
     """Regression: iter_frames must return non-empty players on real replays."""
     adapter = RustAdapter()

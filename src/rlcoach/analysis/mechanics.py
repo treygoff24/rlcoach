@@ -1978,6 +1978,8 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
             "double_touch_count": counts.get("double_touch", 0),
             "redirect_count": counts.get("redirect", 0),
             "stall_count": counts.get("stall", 0),
+            "skim_count": counts.get("skim", 0),
+            "psycho_count": counts.get("psycho", 0),
             "total_mechanics": sum(counts.values()),
         }
 
@@ -2010,4 +2012,6 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
         "total_ceiling_shots": sum(
             p.get("ceiling_shot_count", 0) for p in per_player.values()
         ),
+        "total_skims": sum(p.get("skim_count", 0) for p in per_player.values()),
+        "total_psychos": sum(p.get("psycho_count", 0) for p in per_player.values()),
     }

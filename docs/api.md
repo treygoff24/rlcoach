@@ -15,6 +15,10 @@ Tokens are obtained through the NextAuth OAuth flow and contain:
 - `email`: User email
 - `subscriptionTier`: "free" or "pro"
 
+## Parser Contract Notes
+
+Replay analysis endpoints surface parser diagnostics, backend attempts, and scorecard coverage in the response quality block. The canonical parser contract and fallback policy are documented in [`docs/parser_adapter.md`](parser_adapter.md).
+
 ## Endpoints
 
 ### Health

@@ -38,6 +38,7 @@ class DemoEvent:
     team_attacker: str | None = None  # "BLUE" or "ORANGE"
     team_victim: str | None = None
     location: Vec3 | None = None
+    source: str = "inferred"
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class KickoffEvent:
     outcome: str = "NEUTRAL"  # Simplified outcome
     first_touch_player: str | None = None
     time_to_first_touch: float | None = None
+    source: str = "inferred"
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,7 @@ class TouchEvent:
     touch_context: TouchContext = TouchContext.UNKNOWN
     car_height: float = 0.0
     is_first_touch: bool = False
+    source: str = "inferred"
 
 
 @dataclass(frozen=True)

@@ -11,6 +11,7 @@ atomic file writes and schema validation.
 from __future__ import annotations
 
 import datetime as _dt
+import enum
 import json
 import os
 from pathlib import Path
@@ -108,6 +109,8 @@ def _normalize_playlist_id(raw_value: Any) -> tuple[str, list[str]]:
 
 
 def _serialize_value(obj: Any) -> Any:
+    if isinstance(obj, enum.Enum):
+        return obj.value
     if hasattr(obj, "__dict__"):
         d = {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
         for kk, vv in list(d.items()):
@@ -220,7 +223,9 @@ def _build_parser_scorecard(
     non_empty_player_frame_coverage = (
         non_empty_player_frames / total_frames if total_frames else 0.0
     )
-    network_status = str(network_diagnostics.get("status", "unavailable") or "unavailable")
+    network_status = str(
+        network_diagnostics.get("status", "unavailable") or "unavailable"
+    )
     usable_network_parse = (
         bool(frames_input)
         and network_status == "ok"
@@ -494,20 +499,8 @@ def generate_report(
             ],
             "touches": [
                 {
-                    "t": t.t,
-                    "frame": t.frame,
-                    "player_id": t.player_id,
-                    "location": _serialize_value(t.location),
-                    "ball_speed_kph": t.ball_speed_kph,
-                    "outcome": t.outcome,
-                    "is_save": t.is_save,
-                    "touch_context": (
-                        t.touch_context.value
-                        if hasattr(t.touch_context, "value")
-                        else str(t.touch_context)
-                    ),
-                    "car_height": t.car_height,
-                    "is_first_touch": t.is_first_touch,
+                    k: _serialize_value(getattr(t, k))
+                    for k in t.__dataclass_fields__.keys()
                 }
                 for t in touches
             ],

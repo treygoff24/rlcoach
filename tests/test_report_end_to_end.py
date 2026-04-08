@@ -1,7 +1,6 @@
 """End-to-end tests for report generation and CLI."""
 
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 

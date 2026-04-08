@@ -118,6 +118,7 @@ source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.
 ## Documentation
 
 - [Implementation plan](codex/Plans/rlcoach_implementation_plan.md) — architecture and scope.
+- [Parser adapter contract](docs/parser_adapter.md) — Rust/null backend contract, fallback policy, and parser event semantics.
 - [Markdown mapping](codex/docs/json-report-markdown-mapping.md) — JSON → Markdown coverage matrix.
 - [Markdown composer plan](codex/docs/json-to-markdown-report-plan.md) — report generation roadmap.
 - [Offline UI guide](codex/docs/ui.md) — CLI viewer usage.

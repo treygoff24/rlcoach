@@ -517,6 +517,47 @@ class TestTimelineBuilding:
         assert frame.ball.position == Vec3(100.0, 200.0, 300.0)
         assert frame.ball.velocity == Vec3(10.0, 20.0, 30.0)
 
+    def test_parser_event_lists_are_preserved_in_normalized_frames(self):
+        """Parser event carriers pass through normalization with aligned timestamps."""
+        header = Header()
+
+        frame_dict = {
+            "timestamp": 12.0,
+            "ball": {
+                "position": {"x": 0, "y": 0, "z": 93.15},
+                "velocity": {"x": 0, "y": 0, "z": 0},
+                "angular_velocity": {"x": 0, "y": 0, "z": 0},
+            },
+            "players": [],
+            "parser_touch_events": [
+                {"timestamp": 12.0, "player_id": "player_0", "team": 0}
+            ],
+            "parser_demo_events": [
+                {"timestamp": 12.0, "victim_id": "player_1", "victim_team": 1}
+            ],
+            "parser_tickmarks": [{"timestamp": 12.0, "kind": "goal_hint"}],
+            "parser_kickoff_markers": [{"timestamp": 12.0, "phase": "INITIAL"}],
+        }
+
+        timeline = build_timeline(header, [frame_dict])
+        frame = timeline[0]
+
+        assert len(frame.parser_touch_events) == 1
+        assert frame.parser_touch_events[0].player_id == "player_0"
+        assert frame.parser_touch_events[0].timestamp == 0.0
+
+        assert len(frame.parser_demo_events) == 1
+        assert frame.parser_demo_events[0].victim_id == "player_1"
+        assert frame.parser_demo_events[0].timestamp == 0.0
+
+        assert len(frame.parser_tickmarks) == 1
+        assert frame.parser_tickmarks[0].kind == "goal_hint"
+        assert frame.parser_tickmarks[0].timestamp == 0.0
+
+        assert len(frame.parser_kickoff_markers) == 1
+        assert frame.parser_kickoff_markers[0].phase == "INITIAL"
+        assert frame.parser_kickoff_markers[0].timestamp == 0.0
+
 
 class TestIntegration:
     """Integration tests combining multiple normalization functions."""

@@ -14,7 +14,14 @@ from rlcoach.events import (
     detect_touches,
 )
 from rlcoach.field_constants import FIELD, Vec3
-from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
+from rlcoach.parser.types import (
+    BallFrame,
+    Frame,
+    ParserDemoEvent,
+    ParserKickoffMarker,
+    ParserTouchEvent,
+    PlayerFrame,
+)
 
 
 def create_test_frame(
@@ -1122,3 +1129,93 @@ class TestTimelineAggregation:
         assert timeline[0].type == "DEMO"
         assert timeline[1].type == "GOAL"
         assert timeline[2].type == "TOUCH"
+
+
+class TestParserAuthorityPreference:
+    """Parser-auth event streams should win over heuristic fallbacks."""
+
+    def test_touches_prefer_parser_events_when_present(self):
+        frames = [
+            create_test_frame(
+                1.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 1000.0, 0.0),
+                [create_test_player("heuristic_player", 0, Vec3(0.0, 0.0, 17.0))],
+            )
+        ]
+        frames[0] = Frame(
+            timestamp=frames[0].timestamp,
+            ball=frames[0].ball,
+            players=frames[0].players,
+            parser_touch_events=[
+                ParserTouchEvent(timestamp=1.0, player_id="parser_player", team=0)
+            ],
+        )
+
+        touches = detect_touches(frames)
+        assert len(touches) == 1
+        assert touches[0].player_id == "parser_player"
+
+    def test_touches_fall_back_to_inference_without_parser_events(self):
+        frames = [
+            create_test_frame(
+                1.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 1000.0, 0.0),
+                [create_test_player("heuristic_player", 0, Vec3(0.0, 0.0, 17.0))],
+            )
+        ]
+
+        touches = detect_touches(frames)
+        assert touches
+
+    def test_demos_prefer_parser_events_when_present(self):
+        frames = [
+            create_test_frame(
+                2.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("victim", 0, Vec3(500.0, 0.0, 17.0))],
+            )
+        ]
+        frames[0] = Frame(
+            timestamp=frames[0].timestamp,
+            ball=frames[0].ball,
+            players=frames[0].players,
+            parser_demo_events=[
+                ParserDemoEvent(
+                    timestamp=2.0,
+                    victim_id="victim",
+                    attacker_id="attacker",
+                    victim_team=0,
+                    attacker_team=1,
+                )
+            ],
+        )
+
+        demos = detect_demos(frames)
+        assert len(demos) == 1
+        assert demos[0].victim == "victim"
+        assert demos[0].attacker == "attacker"
+
+    def test_kickoffs_prefer_parser_markers_when_present(self):
+        frames = [
+            create_test_frame(
+                5.0,
+                Vec3(1000.0, 1000.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [],
+            )
+        ]
+        frames[0] = Frame(
+            timestamp=frames[0].timestamp,
+            ball=frames[0].ball,
+            players=frames[0].players,
+            parser_kickoff_markers=[
+                ParserKickoffMarker(timestamp=5.0, phase="INITIAL")
+            ],
+        )
+
+        kickoffs = detect_kickoffs(frames)
+        assert len(kickoffs) == 1
+        assert kickoffs[0].phase == "INITIAL"

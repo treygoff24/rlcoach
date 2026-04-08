@@ -210,6 +210,51 @@ class BoostPadEventFrame:
 
 
 @dataclass(frozen=True)
+class ParserTouchEvent:
+    """Parser-emitted touch event payload."""
+
+    timestamp: float
+    player_id: str
+    team: int
+    frame_index: int | None = None
+    source: str = "parser"
+
+
+@dataclass(frozen=True)
+class ParserDemoEvent:
+    """Parser-emitted demolition event payload."""
+
+    timestamp: float
+    victim_id: str
+    attacker_id: str | None = None
+    victim_team: int | None = None
+    attacker_team: int | None = None
+    frame_index: int | None = None
+    source: str = "parser"
+
+
+@dataclass(frozen=True)
+class ParserTickmarkEvent:
+    """Parser-emitted timeline marker payload."""
+
+    timestamp: float
+    kind: str
+    frame_index: int | None = None
+    payload: dict[str, Any] | None = None
+    source: str = "parser"
+
+
+@dataclass(frozen=True)
+class ParserKickoffMarker:
+    """Parser-emitted kickoff marker payload."""
+
+    timestamp: float
+    phase: str
+    frame_index: int | None = None
+    source: str = "parser"
+
+
+@dataclass(frozen=True)
 class Frame:
     """Normalized frame containing all game state at a specific time."""
 
@@ -217,6 +262,10 @@ class Frame:
     ball: BallFrame
     players: list[PlayerFrame] = field(default_factory=list)
     boost_pad_events: list[BoostPadEventFrame] = field(default_factory=list)
+    parser_touch_events: list[ParserTouchEvent] = field(default_factory=list)
+    parser_demo_events: list[ParserDemoEvent] = field(default_factory=list)
+    parser_tickmarks: list[ParserTickmarkEvent] = field(default_factory=list)
+    parser_kickoff_markers: list[ParserKickoffMarker] = field(default_factory=list)
 
     def get_player_by_id(self, player_id: str) -> PlayerFrame | None:
         """Get player frame by ID, or None if not found."""

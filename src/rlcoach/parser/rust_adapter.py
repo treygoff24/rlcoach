@@ -137,6 +137,9 @@ class RustAdapter(ParserAdapter):
             )
         # Use warnings as provided by Rust core; avoid adding any *_stub markers
         warnings = list(d.get("quality_warnings", []))
+        mutators = d.get("mutators", {})
+        if not isinstance(mutators, dict):
+            mutators = {}
         return Header(
             playlist_id=d.get("playlist_id"),
             map_name=d.get("map_name"),
@@ -147,7 +150,7 @@ class RustAdapter(ParserAdapter):
             engine_build=d.get("engine_build"),
             match_guid=d.get("match_guid"),
             overtime=d.get("overtime"),
-            mutators=d.get("mutators", {}),
+            mutators=mutators,
             players=players,
             goals=goals,
             highlights=highlights,

@@ -2047,12 +2047,14 @@ class TestSchemaValidation:
                 "error_code": "boxcars_network_error",
                 "error_detail": "unknown attributes for object",
                 "frames_emitted": 0,
+                "attempted_backends": ["boxcars"],
             },
             {
                 "status": "unavailable",
                 "error_code": "network_data_unavailable",
                 "error_detail": "network parser did not emit frames",
                 "frames_emitted": None,
+                "attempted_backends": ["boxcars"],
             },
         ],
     )

@@ -9,15 +9,12 @@ Covers:
 - 400 when the session has fewer than 3 messages
 """
 
-from __future__ import annotations
-
 import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -191,7 +188,7 @@ def _fake_anthropic_response(payload: dict) -> MagicMock:
 
 
 def _make_anthropic_module(fake_client: MagicMock) -> MagicMock:
-    """Return a mock that acts as the anthropic module with Anthropic() -> fake_client."""
+    """Return a mock anthropic module that yields the provided fake client."""
     mock_module = MagicMock()
     mock_module.Anthropic.return_value = fake_client
     return mock_module

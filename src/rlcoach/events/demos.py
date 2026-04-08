@@ -23,6 +23,10 @@ def detect_demos(frames: list[Frame]) -> list[DemoEvent]:
     if not frames:
         return []
 
+    parser_demos = _demos_from_parser_events(frames)
+    if parser_demos and any(d.attacker is not None for d in parser_demos):
+        return parser_demos
+
     demos = []
     previous_demo_states = {}  # Track player demolition states
 
@@ -65,6 +69,7 @@ def detect_demos(frames: list[Frame]) -> list[DemoEvent]:
                     team_attacker=attacker_team,
                     team_victim=victim_team,
                     location=player.position,
+                    source="inferred",
                 )
                 demos.append(demo)
 
@@ -72,3 +77,47 @@ def detect_demos(frames: list[Frame]) -> list[DemoEvent]:
             previous_demo_states[player_id] = is_demolished
 
     return demos
+
+
+def _demos_from_parser_events(frames: list[Frame]) -> list[DemoEvent]:
+    """Convert parser-emitted demo lists into event-layer DemoEvent objects."""
+    converted: list[DemoEvent] = []
+    seen: set[tuple[float, str]] = set()
+    for frame in frames:
+        for event in getattr(frame, "parser_demo_events", []) or []:
+            victim = event.victim_id
+            key = (round(float(event.timestamp), 4), victim)
+            if key in seen:
+                continue
+            seen.add(key)
+            team_victim = (
+                "BLUE"
+                if event.victim_team == 0
+                else "ORANGE" if event.victim_team == 1 else None
+            )
+            team_attacker = (
+                "BLUE"
+                if event.attacker_team == 0
+                else "ORANGE" if event.attacker_team == 1 else None
+            )
+            victim_position = next(
+                (
+                    player.position
+                    for player in frame.players
+                    if player.player_id == victim
+                ),
+                None,
+            )
+            converted.append(
+                DemoEvent(
+                    t=float(event.timestamp),
+                    victim=victim,
+                    attacker=event.attacker_id,
+                    team_attacker=team_attacker,
+                    team_victim=team_victim,
+                    location=victim_position,
+                    source=event.source or "parser",
+                )
+            )
+    converted.sort(key=lambda demo: demo.t)
+    return converted

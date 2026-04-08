@@ -19,7 +19,7 @@ from rlcoach.parser import (
 )
 from rlcoach.parser.interface import ParserAdapter as BaseParserAdapter
 from rlcoach.parser.null_adapter import NullAdapter
-from rlcoach.parser.types import NetworkDiagnostics
+from rlcoach.parser.types import Frame, NetworkDiagnostics
 
 
 class TestTypes:
@@ -129,6 +129,15 @@ class TestTypes:
 
         with pytest.raises(ValueError, match="sample_rate must be positive"):
             NetworkFrames(sample_rate=-30.0)
+
+    def test_network_frame_contract_supports_explicit_parser_event_lists(self):
+        """Frame dataclass keeps explicit parser event carriers."""
+        fields = getattr(Frame, "__dataclass_fields__", {})
+        assert "boost_pad_events" in fields
+        assert "parser_touch_events" in fields
+        assert "parser_demo_events" in fields
+        assert "parser_tickmarks" in fields
+        assert "parser_kickoff_markers" in fields
 
 
 class TestParserInterface:

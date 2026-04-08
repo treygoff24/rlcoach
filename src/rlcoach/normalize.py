@@ -20,6 +20,10 @@ from .parser.types import (
     BoostPadEventFrame,
     Frame,
     Header,
+    ParserDemoEvent,
+    ParserKickoffMarker,
+    ParserTickmarkEvent,
+    ParserTouchEvent,
     PlayerFrame,
     Quaternion,
     Rotation,
@@ -274,6 +278,125 @@ def _extract_optional_bool_flag(source: Any, field: str) -> tuple[bool, bool | N
     return (False, None)
 
 
+def _extract_event_field(item: Any, field: str) -> Any:
+    if isinstance(item, dict):
+        return item.get(field)
+    return getattr(item, field, None)
+
+
+def _extract_raw_event_list(frame_data: Any, key: str) -> list[Any]:
+    """Extract a list field from frame data, handling both dict and object formats."""
+    if hasattr(frame_data, key):
+        candidate = getattr(frame_data, key)
+        return candidate if isinstance(candidate, list) else []
+    if isinstance(frame_data, dict) and key in frame_data:
+        value = frame_data.get(key, [])
+        return value if isinstance(value, list) else []
+    return []
+
+
+def _parse_frame_index(item: Any) -> int | None:
+    """Extract optional frame_index as int from a raw event item."""
+    raw = _extract_event_field(item, "frame_index")
+    return int(raw) if isinstance(raw, (int, float)) else None
+
+
+def _convert_touch_event(item: Any) -> ParserTouchEvent | None:
+    ts = _extract_event_field(item, "timestamp")
+    player_id = _extract_event_field(item, "player_id")
+    team = _extract_event_field(item, "team")
+    if ts is None or player_id is None or team is None:
+        return None
+    return ParserTouchEvent(
+        timestamp=float(ts),
+        player_id=str(player_id),
+        team=int(team),
+        frame_index=_parse_frame_index(item),
+        source=str(_extract_event_field(item, "source") or "parser"),
+    )
+
+
+def _convert_demo_event(item: Any) -> ParserDemoEvent | None:
+    ts = _extract_event_field(item, "timestamp")
+    victim_id = _extract_event_field(item, "victim_id")
+    if ts is None or victim_id is None:
+        return None
+    attacker_id = _extract_event_field(item, "attacker_id")
+    victim_team = _extract_event_field(item, "victim_team")
+    attacker_team = _extract_event_field(item, "attacker_team")
+    return ParserDemoEvent(
+        timestamp=float(ts),
+        victim_id=str(victim_id),
+        attacker_id=(
+            str(attacker_id) if isinstance(attacker_id, str) and attacker_id else None
+        ),
+        victim_team=int(victim_team) if isinstance(victim_team, (int, float)) else None,
+        attacker_team=(
+            int(attacker_team) if isinstance(attacker_team, (int, float)) else None
+        ),
+        frame_index=_parse_frame_index(item),
+        source=str(_extract_event_field(item, "source") or "parser"),
+    )
+
+
+def _convert_tickmark_event(item: Any) -> ParserTickmarkEvent | None:
+    ts = _extract_event_field(item, "timestamp")
+    kind = _extract_event_field(item, "kind")
+    if ts is None or kind is None:
+        return None
+    payload = _extract_event_field(item, "payload")
+    return ParserTickmarkEvent(
+        timestamp=float(ts),
+        kind=str(kind),
+        frame_index=_parse_frame_index(item),
+        payload=payload if isinstance(payload, dict) else None,
+        source=str(_extract_event_field(item, "source") or "parser"),
+    )
+
+
+def _convert_kickoff_marker(item: Any) -> ParserKickoffMarker | None:
+    ts = _extract_event_field(item, "timestamp")
+    phase = _extract_event_field(item, "phase")
+    if ts is None or phase is None:
+        return None
+    return ParserKickoffMarker(
+        timestamp=float(ts),
+        phase=str(phase),
+        frame_index=_parse_frame_index(item),
+        source=str(_extract_event_field(item, "source") or "parser"),
+    )
+
+
+def _parse_events(frame_data: Any, key: str, converter: Any) -> list:
+    """Extract and convert a list of parser events from frame data."""
+    result = []
+    for item in _extract_raw_event_list(frame_data, key):
+        try:
+            event = converter(item)
+            if event is not None:
+                result.append(event)
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _shift_event_timestamps(events: list, start_time: float) -> list:
+    """Shift timestamps in parser events to be relative to start_time."""
+    shifted = []
+    for event in events:
+        event_time = getattr(event, "timestamp", None)
+        if event_time is None:
+            continue
+        try:
+            new_time = float(event_time) - start_time
+        except (TypeError, ValueError):
+            continue
+        if abs(new_time) < 1e-6:
+            new_time = 0.0
+        shifted.append(replace(event, timestamp=new_time))
+    return shifted
+
+
 def _apply_component_state_flags(player_frame: PlayerFrame, source: Any) -> PlayerFrame:
     """Copy optional authoritative component flags when PlayerFrame supports them."""
     dataclass_fields = getattr(player_frame, "__dataclass_fields__", {})
@@ -371,6 +494,10 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 ),
                 players=[],
                 boost_pad_events=[],
+                parser_touch_events=[],
+                parser_demo_events=[],
+                parser_tickmarks=[],
+                parser_kickoff_markers=[],
             )
         ]
 
@@ -717,12 +844,29 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     )
                 )
 
+            parser_touch_events = _parse_events(
+                frame_data, "parser_touch_events", _convert_touch_event
+            )
+            parser_demo_events = _parse_events(
+                frame_data, "parser_demo_events", _convert_demo_event
+            )
+            parser_tickmarks = _parse_events(
+                frame_data, "parser_tickmarks", _convert_tickmark_event
+            )
+            parser_kickoff_markers = _parse_events(
+                frame_data, "parser_kickoff_markers", _convert_kickoff_marker
+            )
+
             # Create normalized frame
             normalized_frame = Frame(
                 timestamp=timestamp,
                 ball=ball_frame,
                 players=list(player_frames_map.values()),
                 boost_pad_events=pad_events,
+                parser_touch_events=parser_touch_events,
+                parser_demo_events=parser_demo_events,
+                parser_tickmarks=parser_tickmarks,
+                parser_kickoff_markers=parser_kickoff_markers,
             )
 
             normalized_frames.append(normalized_frame)
@@ -751,6 +895,10 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 ),
                 players=[],
                 boost_pad_events=[],
+                parser_touch_events=[],
+                parser_demo_events=[],
+                parser_tickmarks=[],
+                parser_kickoff_markers=[],
             )
         ]
     )
@@ -826,6 +974,18 @@ def _align_match_clock(frames: list[Frame], header: Header | None) -> list[Frame
                 frame,
                 timestamp=shifted,
                 boost_pad_events=normalized_events,
+                parser_touch_events=_shift_event_timestamps(
+                    frame.parser_touch_events, start_time
+                ),
+                parser_demo_events=_shift_event_timestamps(
+                    frame.parser_demo_events, start_time
+                ),
+                parser_tickmarks=_shift_event_timestamps(
+                    frame.parser_tickmarks, start_time
+                ),
+                parser_kickoff_markers=_shift_event_timestamps(
+                    frame.parser_kickoff_markers, start_time
+                ),
             )
         )
 

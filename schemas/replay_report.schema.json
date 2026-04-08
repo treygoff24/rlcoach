@@ -256,7 +256,8 @@
         "attacker": { "type": ["string", "null"] },
         "team_attacker": { "type": ["string", "null"], "enum":["BLUE","ORANGE", null] },
         "team_victim": { "type": "string", "enum":["BLUE","ORANGE"] },
-        "location": { "$ref": "#/definitions/vec3" }
+        "location": { "$ref": "#/definitions/vec3" },
+        "source": { "type": "string", "enum": ["parser", "inferred"] }
       }
     },
 
@@ -282,7 +283,8 @@
         },
         "outcome": { "type": "string", "enum": ["FIRST_POSSESSION_BLUE","FIRST_POSSESSION_ORANGE","NEUTRAL","GOAL_AGAINST","GOAL_FOR"] },
         "first_touch_player": { "type": ["string","null"] },
-        "time_to_first_touch": { "type": ["number","null"] }
+        "time_to_first_touch": { "type": ["number","null"] },
+        "source": { "type": "string", "enum": ["parser", "inferred"] }
       }
     },
 
@@ -310,7 +312,8 @@
         "player_id": { "type": "string" },
         "location": { "$ref": "#/definitions/vec3" },
         "ball_speed_kph": { "type": "number" },
-        "outcome": { "type": "string", "enum": ["SHOT","CLEAR","PASS","DRIBBLE","50","NEUTRAL"] }
+        "outcome": { "type": "string", "enum": ["SHOT","CLEAR","PASS","DRIBBLE","50","NEUTRAL"] },
+        "source": { "type": "string", "enum": ["parser", "inferred"] }
       }
     },
 
@@ -602,7 +605,18 @@
         "total_speedflips": { "type": "integer", "minimum": 0 },
         "total_aerials": { "type": "integer", "minimum": 0 },
         "total_flips": { "type": "integer", "minimum": 0 },
-        "total_flip_cancels": { "type": "integer", "minimum": 0 }
+        "total_flip_cancels": { "type": "integer", "minimum": 0 },
+        "total_fast_aerials": { "type": "integer", "minimum": 0 },
+        "total_flip_resets": { "type": "integer", "minimum": 0 },
+        "total_dribbles": { "type": "integer", "minimum": 0 },
+        "total_flicks": { "type": "integer", "minimum": 0 },
+        "total_ceiling_shots": { "type": "integer", "minimum": 0 },
+        "total_ground_pinches": { "type": "integer", "minimum": 0 },
+        "total_double_touches": { "type": "integer", "minimum": 0 },
+        "total_redirects": { "type": "integer", "minimum": 0 },
+        "total_stalls": { "type": "integer", "minimum": 0 },
+        "total_skims": { "type": "integer", "minimum": 0 },
+        "total_psychos": { "type": "integer", "minimum": 0 }
       }
     },
 

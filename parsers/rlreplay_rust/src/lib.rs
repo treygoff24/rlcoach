@@ -14,6 +14,11 @@ use boxcars::{HeaderProp, ParserBuilder, Replay};
 
 use pads::{PadEvent, PadRegistry};
 
+// Ball state thresholds for kickoff detection
+const KICKOFF_POSITION_TOLERANCE: f64 = 120.0;
+const BALL_REST_HEIGHT: f64 = 93.15;
+const BALL_STATIONARY_SPEED: f64 = 60.0;
+
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
     let mut file = File::open(path)
         .map_err(|e| PyIOError::new_err(format!("Failed to open replay file '{}': {}", path, e)))?;
@@ -90,6 +95,8 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         // Parsed fields
         let mut playlist_id: Option<String> = None;
         let mut map_name: Option<String> = None;
+        let mut match_guid: Option<String> = None;
+        let mut overtime: Option<bool> = None;
         let mut team0_score: i64 = 0;
         let mut team1_score: i64 = 0;
         let mut match_length: f64 = 0.0;
@@ -98,6 +105,7 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         let highlights_list = PyList::empty(py);
         let mut team_size: i64 = 0;
         let mut warnings_vec: Vec<String> = Vec::new();
+        let mutators = PyDict::new(py);
 
         // Helper: get prop by key
         fn find_prop<'a>(
@@ -155,6 +163,38 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                 if let Some(p) = find_prop(&properties, "BuildVersion") {
                     if let Some(s) = p.as_string() {
                         warnings_vec.push(format!("build_version:{}", s));
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "MatchGUID")
+                    .or_else(|| find_prop(&properties, "MatchGuid"))
+                {
+                    if let Some(s) = p.as_string() {
+                        match_guid = Some(s.to_string());
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "bOverTime")
+                    .or_else(|| find_prop(&properties, "Overtime"))
+                    .or_else(|| find_prop(&properties, "IsOvertime"))
+                {
+                    overtime = match p {
+                        HeaderProp::Bool(v) => Some(*v),
+                        HeaderProp::Int(v) => Some(*v != 0),
+                        _ => None,
+                    };
+                }
+                if let Some(p) = find_prop(&properties, "MutatorSettings")
+                    .or_else(|| find_prop(&properties, "Mutators"))
+                {
+                    match p {
+                        HeaderProp::Struct { fields, .. } => {
+                            for (k, v) in fields {
+                                let value = header_prop_to_py(py, v)?;
+                                mutators.set_item(k.as_str(), value)?;
+                            }
+                        }
+                        _ => {
+                            mutators.set_item("raw", header_prop_to_py(py, p)?)?;
+                        }
                     }
                 }
                 if let Some(p) = find_prop(&properties, "NumFrames") {
@@ -330,6 +370,12 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         header.set_item("team0_score", team0_score)?;
         header.set_item("team1_score", team1_score)?;
         header.set_item("match_length", match_length)?;
+        header.set_item("match_guid", match_guid)?;
+        match overtime {
+            Some(value) => header.set_item("overtime", value)?,
+            None => header.set_item("overtime", py.None())?,
+        }
+        header.set_item("mutators", mutators)?;
 
         if players_meta.is_empty() {
             let players = PyList::empty(py);
@@ -514,6 +560,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut next_by_team: HashMap<i64, Vec<usize>> = HashMap::new();
         let mut fallback_actor_index: HashMap<i32, usize> = HashMap::new();
         let mut next_fallback_index: usize = 0;
+        let mut prev_demo_state: HashMap<i32, bool> = HashMap::new();
+        let mut frame_index: i64 = 0;
+        let mut kickoff_active = false;
 
         // Prepare per-team header order indices
         let mut team_zero: Vec<usize> = Vec::new();
@@ -595,6 +644,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     car_vel.remove(&aid);
                     car_rot.remove(&aid);
                     car_demo.remove(&aid);
+                    prev_demo_state.remove(&aid);
                     component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
                     pad_registry.remove_actor(aid);
                 }
@@ -925,21 +975,12 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         p.set_item("is_supersonic", speed > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
-                        if frame_jumping_actors.contains(&aid) {
-                            p.set_item("is_jumping", true)?;
-                        } else {
-                            p.set_item("is_jumping", py.None())?;
-                        }
-                        if frame_dodging_actors.contains(&aid) {
-                            p.set_item("is_dodging", true)?;
-                        } else {
-                            p.set_item("is_dodging", py.None())?;
-                        }
-                        if frame_double_jumping_actors.contains(&aid) {
-                            p.set_item("is_double_jumping", true)?;
-                        } else {
-                            p.set_item("is_double_jumping", py.None())?;
-                        }
+                        p.set_item("is_jumping", frame_jumping_actors.contains(&aid))?;
+                        p.set_item("is_dodging", frame_dodging_actors.contains(&aid))?;
+                        p.set_item(
+                            "is_double_jumping",
+                            frame_double_jumping_actors.contains(&aid),
+                        )?;
 
                         players_map.insert(idx, p.into_py(py));
                     }
@@ -996,7 +1037,53 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 }
                 f.set_item("boost_pad_events", pad_list)?;
 
+                let parser_demo_events = PyList::empty(py);
+                for (actor_id, is_demolished) in &car_demo {
+                    let was_demolished = *prev_demo_state.get(actor_id).unwrap_or(&false);
+                    if !was_demolished && *is_demolished {
+                        if let Some(idx) = actor_to_player_index.get(actor_id) {
+                            let demo_dict = PyDict::new(py);
+                            demo_dict.set_item("timestamp", nf.time as f64)?;
+                            demo_dict.set_item("victim_id", format!("player_{}", idx))?;
+                            if let Some(team) = car_team.get(actor_id) {
+                                demo_dict.set_item("victim_team", *team)?;
+                            }
+                            demo_dict.set_item("frame_index", frame_index)?;
+                            demo_dict.set_item("source", "parser")?;
+                            parser_demo_events.append(demo_dict)?;
+                        }
+                    }
+                }
+                prev_demo_state = car_demo.clone();
+
+                f.set_item("parser_touch_events", PyList::empty(py))?;
+                f.set_item("parser_demo_events", parser_demo_events)?;
+                f.set_item("parser_tickmarks", PyList::empty(py))?;
+
+                let parser_kickoff_markers = PyList::empty(py);
+                let at_center = ball_pos.0.abs() <= KICKOFF_POSITION_TOLERANCE
+                    && ball_pos.1.abs() <= KICKOFF_POSITION_TOLERANCE
+                    && (ball_pos.2 - BALL_REST_HEIGHT).abs() <= KICKOFF_POSITION_TOLERANCE;
+                let ball_speed =
+                    (ball_vel.0 * ball_vel.0 + ball_vel.1 * ball_vel.1 + ball_vel.2 * ball_vel.2)
+                        .sqrt();
+                let stationary = ball_speed <= BALL_STATIONARY_SPEED;
+                if at_center && stationary && !kickoff_active {
+                    kickoff_active = true;
+                    let marker = PyDict::new(py);
+                    marker.set_item("timestamp", nf.time as f64)?;
+                    marker.set_item("phase", "INITIAL")?;
+                    marker.set_item("frame_index", frame_index)?;
+                    marker.set_item("source", "parser")?;
+                    parser_kickoff_markers.append(marker)?;
+                }
+                if !at_center || !stationary {
+                    kickoff_active = false;
+                }
+                f.set_item("parser_kickoff_markers", parser_kickoff_markers)?;
+
                 frames_out.append(f)?;
+                frame_index += 1;
             }
         }
 
@@ -1057,6 +1144,10 @@ fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
                                     f.set_item("ball", ball)?;
                                     f.set_item("players", PyList::empty(py))?;
                                     f.set_item("boost_pad_events", PyList::empty(py))?;
+                                    f.set_item("parser_touch_events", PyList::empty(py))?;
+                                    f.set_item("parser_demo_events", PyList::empty(py))?;
+                                    f.set_item("parser_tickmarks", PyList::empty(py))?;
+                                    f.set_item("parser_kickoff_markers", PyList::empty(py))?;
 
                                     let parser_meta = PyDict::new(py);
                                     parser_meta.set_item(

@@ -4,7 +4,7 @@ from rlcoach.api.routers.users import BootstrapRequest, _verify_bootstrap_signat
 
 
 def test_verify_bootstrap_signature_empty_secret_in_production(monkeypatch):
-    """Empty-string BOOTSTRAP_SECRET is indistinguishable from absent — must reject in production."""
+    """Empty BOOTSTRAP_SECRET must be rejected in production."""
     monkeypatch.setenv("BOOTSTRAP_SECRET", "")
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("SAAS_MODE", raising=False)

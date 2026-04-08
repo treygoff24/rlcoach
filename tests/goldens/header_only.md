@@ -398,10 +398,21 @@
         },
         "mechanics": {
           "total_aerials": 0,
+          "total_ceiling_shots": 0,
+          "total_double_touches": 0,
+          "total_dribbles": 0,
+          "total_fast_aerials": 0,
+          "total_flicks": 0,
           "total_flip_cancels": 0,
+          "total_flip_resets": 0,
           "total_flips": 0,
+          "total_ground_pinches": 0,
           "total_halfflips": 0,
+          "total_psychos": 0,
+          "total_redirects": 0,
+          "total_skims": 0,
           "total_speedflips": 0,
+          "total_stalls": 0,
           "total_wavedashes": 0
         },
         "movement": {
@@ -504,10 +515,21 @@
         },
         "mechanics": {
           "total_aerials": 0,
+          "total_ceiling_shots": 0,
+          "total_double_touches": 0,
+          "total_dribbles": 0,
+          "total_fast_aerials": 0,
+          "total_flicks": 0,
           "total_flip_cancels": 0,
+          "total_flip_resets": 0,
           "total_flips": 0,
+          "total_ground_pinches": 0,
           "total_halfflips": 0,
+          "total_psychos": 0,
+          "total_redirects": 0,
+          "total_skims": 0,
           "total_speedflips": 0,
+          "total_stalls": 0,
           "total_wavedashes": 0
         },
         "movement": {
