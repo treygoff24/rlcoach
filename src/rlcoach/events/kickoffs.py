@@ -115,7 +115,7 @@ def _kickoffs_from_parser_markers(frames: list[Frame]) -> list[KickoffEvent]:
             players = [
                 {
                     "player_id": p.player_id,
-                    "role": "UNKNOWN",
+                    "role": "BACK",
                     "boost_used": 0.0,
                     "approach_type": "UNKNOWN",
                     "time_to_first_touch": None,
