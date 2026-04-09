@@ -27,12 +27,29 @@ from .types import GoalEvent
 from .utils import distance_3d, team_name, vector_magnitude
 
 
-def detect_goals(frames: list[Frame], header: Header | None = None) -> list[GoalEvent]:
-    """Detect goal events, preferring authoritative header metadata."""
+def detect_goals(
+    frames: list[Frame],
+    header: Header | None = None,
+    *,
+    header_only: bool = False,
+) -> list[GoalEvent]:
+    """Detect goal events, preferring authoritative header metadata.
+
+    Args:
+        frames: Normalized frame data (may be empty for header-only).
+        header: Parsed header information.
+        header_only: When True, skip header goal metadata even if available,
+            because header.goals is network-derived content that should not
+            be emitted when no actual network frames were parsed.
+    """
     if not frames:
         return []
 
-    if header is not None and getattr(header, "goals", []):
+    # When header_only=True, do not use header.goals even if present, because
+    # header.goals is goal information derived from network frame parsing.
+    # Emitting it when no real frames were parsed would leak network-derived
+    # content into the output.
+    if header is not None and getattr(header, "goals", []) and not header_only:
         return _detect_goals_from_header(frames, header)
 
     return _detect_goals_from_ball_path(frames, header)

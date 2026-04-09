@@ -300,8 +300,15 @@ def generate_report(
         )
 
         # Events detection (can be empty in header-only)
+        # When header_only=True or network_data_available=False, do not emit
+        # network-derived events (goals) even if header.goals exists.
+        # header.goals is derived from network frame data and should not be
+        # presented as real events when no actual frames were parsed.
+        emit_header_derived = not header_only and network_data_available
         touches = detect_touches(normalized_frames)
-        goals = detect_goals(normalized_frames, header)
+        goals = detect_goals(
+            normalized_frames, header, header_only=not emit_header_derived
+        )
         demos = detect_demos(normalized_frames)
         kickoffs = detect_kickoffs(normalized_frames, header)
         pickups = detect_boost_pickups(normalized_frames)

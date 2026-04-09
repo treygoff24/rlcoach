@@ -410,3 +410,101 @@ def test_generate_report_without_identity_config():
 
     # Validate report still passes schema
     validate_report(report)
+
+
+class _FakeAdapterWithHeaderGoalsButNoFrames:
+    """Fake adapter that has goals in header but no actual network frames."""
+
+    def __init__(self):
+        self._name = "rust"
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def supports_network_parsing(self) -> bool:
+        return True
+
+    def parse_header(self, path: Path):
+        # Return header WITH goals metadata but no actual frame data
+        from rlcoach.parser.types import GoalHeader, Highlight, PlayerInfo
+
+        return Header(
+            playlist_id="13",
+            map_name="DFH_Stadium",
+            team_size=2,
+            team0_score=3,
+            team1_score=2,
+            match_guid="fake-guid",
+            players=[
+                PlayerInfo(name="Blue1", team=0),
+                PlayerInfo(name="Blue2", team=0),
+                PlayerInfo(name="Orange1", team=1),
+                PlayerInfo(name="Orange2", team=1),
+            ],
+            # Goals and highlights parsed from header (network-derived content)
+            goals=[
+                GoalHeader(frame=527, player_name="Orange1", player_team=1),
+                GoalHeader(frame=987, player_name="Orange2", player_team=1),
+                GoalHeader(frame=1706, player_name="Blue1", player_team=0),
+            ],
+            highlights=[
+                Highlight(frame=520),
+                Highlight(frame=980),
+                Highlight(frame=1700),
+            ],
+        )
+
+    def parse_network(self, path: Path):
+        # Return empty frames - no actual network data
+        return NetworkFrames(
+            frame_count=0,
+            sample_rate=30.0,
+            frames=[],
+            diagnostics=NetworkDiagnostics(
+                status="unavailable",
+                error_code="network_data_unavailable",
+                error_detail="header only mode",
+                frames_emitted=0,
+                attempted_backends=["boxcars"],
+            ),
+        )
+
+
+def test_header_only_no_network_no_goal_leakage(tmp_path: Path, monkeypatch):
+    """Regression: no goals/timeline when header-only or no frames parsed.
+
+    When parsed_network_data=false and frames_emitted=0, goals and timeline
+    events must NOT be emitted, even if header.goals exists. header.goals
+    is network-derived content that must not leak into the output.
+    """
+    replay = tmp_path / "sample.replay"
+    _make_dummy_replay(replay)
+    monkeypatch.setattr(
+        "rlcoach.report.ingest_replay",
+        lambda _path: {
+            "sha256": "abc123",
+            "crc_check": {"message": "not yet implemented", "passed": False},
+        },
+    )
+    monkeypatch.setattr(
+        "rlcoach.report.get_adapter",
+        lambda _name: _FakeAdapterWithHeaderGoalsButNoFrames(),
+    )
+
+    # Case 1: Explicit header_only=True
+    report = generate_report(replay, header_only=True, adapter_name="rust")
+    assert report["quality"]["parser"]["parsed_network_data"] is False
+    assert report["quality"]["parser"]["network_diagnostics"]["frames_emitted"] == 0
+    assert report["events"]["goals"] == []
+    assert report["events"]["timeline"] == []
+    validate_report(report)
+
+    # Case 2: header_only=False but adapter returns no frames
+    report2 = generate_report(replay, header_only=False, adapter_name="rust")
+    assert report2["quality"]["parser"]["parsed_network_data"] is False
+    assert report2["quality"]["parser"]["network_diagnostics"]["frames_emitted"] == 0
+    assert report2["events"]["goals"] == []
+    assert report2["events"]["timeline"] == []
+    validate_report(report2)
