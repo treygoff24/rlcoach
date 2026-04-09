@@ -216,7 +216,8 @@ def test_parser_touch_events_collected_across_replay():
 
     # The replay should have touches across multiple frames (not just the first one)
     assert frames_with_touches > 1, (
-        f"Expected touches across multiple frames, got touches in only {frames_with_touches} frame(s). "
+        f"Expected touches across multiple frames, got touches in only "
+        f"{frames_with_touches} frame(s). "
         "This may indicate touch suppression after the first touch."
     )
 
@@ -238,6 +239,6 @@ def test_parser_touch_events_collected_across_replay():
     multi_touch_players = {p: ts for p, ts in player_touches.items() if len(ts) >= 2}
     assert multi_touch_players, (
         f"Expected at least one player to have multiple touches across time, "
-        f"got player touches: {player_touches}. This may indicate touch events are being "
-        f"suppressed after the first one."
+        f"got player touches: {player_touches}. "
+        "This may indicate touch events being suppressed after the first one."
     )
