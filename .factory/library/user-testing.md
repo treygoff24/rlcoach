@@ -80,6 +80,15 @@ Rationale:
 - corpus-health and replay parsing are CPU-heavy sustained workloads
 - 4 concurrent validators stays well inside 70% of practical CPU headroom while leaving room for the orchestrator and background processes
 
+## Flow Validator Guidance: Execute
+
+- Surface: local CLI execution only; do not start servers or use browser automation for parser-contract validation.
+- Isolation boundary: each validator must use its assigned output directory under `/tmp` and its assigned evidence directory under the mission path.
+- Shared repo state is read-only for flow validators except writing the single assigned flow JSON report and evidence files.
+- Do not modify source files, install packages, or change service configuration from a flow validator.
+- Safe concurrency: validators may run in parallel because they only read the repo and replay fixture, but they must not share the same output target paths.
+- Required environment pattern for every Python command: `source .venv/bin/activate && PYTHONPATH=src ...`.
+
 ## Known Gotchas
 
 - Always activate `.venv` before direct Python commands.

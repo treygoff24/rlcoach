@@ -1,0 +1,40 @@
+{
+  "milestone": "parser-contract",
+  "round": 1,
+  "status": "fail",
+  "generatedAt": "2026-04-09T17:17:24.587615+00:00",
+  "assertionsSummary": {
+    "total": 7,
+    "passed": 6,
+    "failed": 1,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-ANALYZE-001",
+    "VAL-ANALYZE-002",
+    "VAL-ANALYZE-003",
+    "VAL-ANALYZE-004",
+    "VAL-ANALYZE-004B",
+    "VAL-ANALYZE-004D"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-ANALYZE-004C",
+      "reason": "Header-only output remains schema-valid and degraded, but it still includes 9 goal/timeline events while parsed_network_data=false and frames_emitted=0, so the contract requirement that absence of network-derived events/analysis be explicit is not met."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added Execute surface flow-validator isolation guidance for parser-contract CLI validation.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    ".factory/validation/parser-contract/user-testing/flows/analyze-success.json",
+    ".factory/validation/parser-contract/user-testing/flows/analyze-modes.json"
+  ],
+  "summary": "Validated 4 analyze success-path assertions through the local CLI surface. The Rust analyze command completed successfully on `Replay_files/testing_replay.replay`, produced `/tmp/rlcoach-ut-analyze-success/testing_replay.json`, the output validated against `schemas/replay_report.schema.json` as a success payload, and the report preserved explicit parser diagnostics/provenance plus expanded header metadata fields required by the mission. Validated 3 analyze-mode assertions via local CLI execution: VAL-ANALYZE-004B passed, VAL-ANALYZE-004D passed, and VAL-ANALYZE-004C failed because --header-only remained schema-valid and degraded but still emitted 9 goal/timeline events while parsed_network_data=false."
+}

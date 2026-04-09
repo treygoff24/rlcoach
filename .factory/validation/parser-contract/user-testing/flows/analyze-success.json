@@ -1,0 +1,86 @@
+{
+  "groupId": "analyze-success",
+  "surface": "cli-execute",
+  "assertions": [
+    {
+      "id": "VAL-ANALYZE-001",
+      "title": "Rust analyze command succeeds on a healthy replay",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `source .venv/bin/activate && PYTHONPATH=src python -m rlcoach.cli analyze Replay_files/testing_replay.replay --adapter rust --out /tmp/rlcoach-ut-analyze-success --pretty` from the repo root",
+          "expected": "Command exits successfully and writes `/tmp/rlcoach-ut-analyze-success/testing_replay.json`",
+          "observed": "Command exited with code 0 and printed `/tmp/rlcoach-ut-analyze-success/testing_replay.json`; the file exists at the assigned output path"
+        }
+      ],
+      "evidence": {
+        "terminalOutput": "parser-contract/analyze-success/VAL-ANALYZE-terminal.txt",
+        "outputFile": "/tmp/rlcoach-ut-analyze-success/testing_replay.json"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ANALYZE-002",
+      "title": "Analyze output is schema-valid success payload",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Load the generated JSON and validate it against `schemas/replay_report.schema.json` with the environment's `jsonschema` package",
+          "expected": "The report matches the success branch of the schema and does not validate as an error payload",
+          "observed": "Validation succeeded with `valid: true`; the JSON contains the required success keys (`replay_id`, `schema_version`, `metadata`, `quality`, `teams`, `players`, `events`, `analysis`) and no `error` object"
+        }
+      ],
+      "evidence": {
+        "validationSummary": "parser-contract/analyze-success/validation-summary.json"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ANALYZE-003",
+      "title": "Analyze output preserves parser diagnostics and provenance",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `quality.parser` and nested diagnostics fields in the generated JSON",
+          "expected": "Rust parser health/provenance is explicit, including parser status, frames emitted, usable parse details, and attempted backend information",
+          "observed": "`quality.parser` includes `name: rust`, `version: 0.1.0`, `parsed_header: true`, `parsed_network_data: true`, `crc_checked: true`, `network_diagnostics.status: ok`, `network_diagnostics.frames_emitted: 14661`, `attempted_backends: [\"boxcars\"]`, and scorecard coverage/provenance fields including `usable_network_parse: true`, `player_identity_coverage: 1.0`, and `network_frame_count: 14661`"
+        }
+      ],
+      "evidence": {
+        "validationSummary": "parser-contract/analyze-success/validation-summary.json"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ANALYZE-004",
+      "title": "Analyze output exposes expanded header metadata",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect the report `metadata` block for expanded replay/header fields",
+          "expected": "Concrete header metadata fields are present and populated when available, including match identity and replay metadata fields",
+          "observed": "`metadata` includes `match_guid: 54E794FA11F08C334351ED92459FE61A`, `map: EuroStadium_Dusk_P`, `engine_build: 250811.43331.492665`, `overtime: false`, `mutators: {}`, `playlist: DOUBLES`, `team_size: 2`, `duration_seconds: 494.385799407959`, `recorded_frame_hz: 29.8978102189781`, and `total_frames: 13669`"
+        }
+      ],
+      "evidence": {
+        "validationSummary": "parser-contract/analyze-success/validation-summary.json"
+      },
+      "issues": null
+    }
+  ],
+  "status": "pass",
+  "summary": "Validated 4 analyze success-path assertions through the local CLI surface. The Rust analyze command completed successfully on `Replay_files/testing_replay.replay`, produced `/tmp/rlcoach-ut-analyze-success/testing_replay.json`, the output validated against `schemas/replay_report.schema.json` as a success payload, and the report preserved explicit parser diagnostics/provenance plus expanded header metadata fields required by the mission.",
+  "evidence": {
+    "files": [
+      "parser-contract/analyze-success/VAL-ANALYZE-terminal.txt",
+      "parser-contract/analyze-success/validation-summary.json"
+    ],
+    "generatedOutput": "/tmp/rlcoach-ut-analyze-success/testing_replay.json"
+  },
+  "toolsUsed": [
+    "Execute",
+    "Read"
+  ],
+  "blockers": [],
+  "frictions": []
+}

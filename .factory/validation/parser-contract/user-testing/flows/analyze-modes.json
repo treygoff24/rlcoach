@@ -1,0 +1,113 @@
+{
+  "groupId": "analyze-modes",
+  "surface": "cli-analyze",
+  "assertions": [
+    {
+      "id": "VAL-ANALYZE-004B",
+      "title": "Analyze surfaces schema-valid error payloads for unreadable input",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run analyze against a missing replay path",
+          "expected": "Structured documented error behavior without traceback or partial success payload",
+          "observed": "CLI exited with code 1 and wrote /tmp/rlcoach-ut-analyze-modes/does-not-exist.json containing {\"error\": \"unreadable_replay_file\", \"details\": \"Replay file not found: ...\"}"
+        },
+        {
+          "action": "Validate resulting artifact against project report schema",
+          "expected": "Schema-valid error payload branch",
+          "observed": "validate_report(...) succeeded for the error JSON artifact"
+        }
+      ],
+      "evidence": {
+        "terminal": [
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004B-terminal.txt",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004B-exit-code.txt"
+        ],
+        "artifacts": [
+          "/tmp/rlcoach-ut-analyze-modes/does-not-exist.json",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004B-summary.json"
+        ],
+        "summary": "Missing replay path produced a schema-valid unreadable_replay_file payload and no traceback."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ANALYZE-004C",
+      "title": "Header-only mode remains a valid degraded contract",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Run analyze with --header-only against testing_replay.replay",
+          "expected": "Exit 0 with a schema-valid degraded report that preserves header metadata and makes absence of network-derived events/analysis explicit",
+          "observed": "CLI exited with code 0 and wrote a schema-valid report with explicit degraded parser state: parser.name=rust, parsed_header=true, parsed_network_data=false, network_diagnostics.status=unavailable"
+        },
+        {
+          "action": "Inspect degraded output for absence of network-derived content",
+          "expected": "No network-derived events/analysis should appear in the header-only contract",
+          "observed": "Report still contains 9 GOAL entries in events.goals and 9 entries in events.timeline despite parsed_network_data=false and frames_emitted=0"
+        }
+      ],
+      "evidence": {
+        "terminal": [
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004C-terminal.txt",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004C-exit-code.txt"
+        ],
+        "artifacts": [
+          "/tmp/rlcoach-ut-analyze-modes/testing_replay.json",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004C-summary.json"
+        ],
+        "summary": "Schema validation passed and header metadata was preserved, but the degraded report was not explicit about absence of network-derived content because goal/timeline events were still populated."
+      },
+      "issues": "Header-only output remains schema-valid and degraded, but it still includes 9 goal/timeline events while parsed_network_data=false and frames_emitted=0, so the contract requirement that absence of network-derived events/analysis be explicit is not met."
+    },
+    {
+      "id": "VAL-ANALYZE-004D",
+      "title": "Null adapter fallback remains explicit and schema-valid",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run analyze with --adapter null against testing_replay.replay",
+          "expected": "Exit 0 with a schema-valid fallback report exposing explicit null-adapter/parser-unavailable state",
+          "observed": "CLI exited with code 0 and wrote a schema-valid report with parser.name=null, parsed_network_data=false, network_diagnostics.status=unavailable, and fallback warnings"
+        },
+        {
+          "action": "Inspect fallback output for explicit degraded semantics",
+          "expected": "Fallback quality state should be observable and should not pretend rich Rust parsing occurred",
+          "observed": "Metadata fields fell back to unknown placeholders, all event arrays were empty, analysis was zeroed, and warnings included network_data_unparsed_fallback_header_only and using_null_adapter_file_size_1.5mb"
+        }
+      ],
+      "evidence": {
+        "terminal": [
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004D-terminal.txt",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004D-exit-code.txt"
+        ],
+        "artifacts": [
+          "/tmp/rlcoach-ut-analyze-modes-null/testing_replay.json",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes/VAL-ANALYZE-004D-summary.json"
+        ],
+        "summary": "Null adapter output was schema-valid, explicitly marked parser fallback/unavailable state, and did not masquerade as rich parsing."
+      },
+      "issues": null
+    }
+  ],
+  "status": "fail",
+  "summary": "Validated 3 analyze-mode assertions via local CLI execution: VAL-ANALYZE-004B passed, VAL-ANALYZE-004D passed, and VAL-ANALYZE-004C failed because --header-only remained schema-valid and degraded but still emitted 9 goal/timeline events while parsed_network_data=false.",
+  "evidence": {
+    "artifactRoot": "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-modes",
+    "outputDirs": [
+      "/tmp/rlcoach-ut-analyze-modes",
+      "/tmp/rlcoach-ut-analyze-modes-null"
+    ],
+    "schemaValidation": "Validated all three JSON artifacts with source .venv/bin/activate && PYTHONPATH=src python and rlcoach.schema.validate_report",
+    "reportFile": "/Users/treygoff/Code/rlcoach/.factory/validation/parser-contract/user-testing/flows/analyze-modes.json"
+  },
+  "toolsUsed": [
+    "Read",
+    "Glob",
+    "Grep",
+    "LS",
+    "Execute"
+  ],
+  "blockers": [],
+  "frictions": []
+}
