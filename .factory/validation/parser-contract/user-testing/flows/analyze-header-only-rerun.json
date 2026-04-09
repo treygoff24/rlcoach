@@ -1,0 +1,61 @@
+{
+  "groupId": "analyze-header-only-rerun",
+  "surface": "Execute",
+  "assertions": [
+    {
+      "id": "VAL-ANALYZE-004C",
+      "title": "Header-only mode remains a valid degraded contract",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run analyze with --header-only against /Users/treygoff/Code/rlcoach/Replay_files/testing_replay.replay using the project venv",
+          "expected": "CLI exits 0 and writes a degraded header-only report",
+          "observed": "CLI exited with code 0 and wrote /tmp/rlcoach-ut-analyze-header-only-rerun/testing_replay.json"
+        },
+        {
+          "action": "Validate the generated JSON with rlcoach.schema.validate_report",
+          "expected": "Output remains schema-valid even in degraded mode",
+          "observed": "Schema validation succeeded for /tmp/rlcoach-ut-analyze-header-only-rerun/testing_replay.json"
+        },
+        {
+          "action": "Inspect parser diagnostics and header metadata",
+          "expected": "Header metadata is preserved and degraded parser state is explicit",
+          "observed": "quality.parser.name=rust, parsed_header=true, parsed_network_data=false, network_diagnostics.status=unavailable, network_diagnostics.error_code=network_data_unavailable, frames_emitted=0; top-level metadata preserved map=EuroStadium_Dusk_P, playlist=DOUBLES, team_size=2, duration_seconds=0.0"
+        },
+        {
+          "action": "Inspect network-derived events/timeline/analysis surface",
+          "expected": "Absence of network-derived content is explicit when parsed_network_data=false / frames_emitted=0",
+          "observed": "events.timeline=0, events.goals=0, events.demos=0, events.touches=0, events.kickoffs=0; analysis.per_player has 0 entries; analysis.per_team retains degraded team buckets only"
+        }
+      ],
+      "evidence": {
+        "terminal": [
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-header-only-rerun/VAL-ANALYZE-004C-terminal.txt",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-header-only-rerun/VAL-ANALYZE-004C-exit-code.txt"
+        ],
+        "artifacts": [
+          "/tmp/rlcoach-ut-analyze-header-only-rerun/testing_replay.json",
+          "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-header-only-rerun/VAL-ANALYZE-004C-summary.json"
+        ],
+        "summary": "Header-only rerun now satisfies the degraded contract: exit code 0, schema-valid output, explicit parser-unavailable network diagnostics, preserved top-level header metadata, and zero network-derived event arrays."
+      },
+      "issues": null
+    }
+  ],
+  "status": "pass",
+  "summary": "Retested VAL-ANALYZE-004C via local CLI execution. The header-only analyze flow now passes: it exits 0, validates against the report schema, preserves top-level header metadata, and explicitly omits network-derived events while reporting parsed_network_data=false and frames_emitted=0.",
+  "evidence": {
+    "artifactRoot": "/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/evidence/parser-contract/analyze-header-only-rerun",
+    "outputDir": "/tmp/rlcoach-ut-analyze-header-only-rerun",
+    "reportFile": "/Users/treygoff/Code/rlcoach/.factory/validation/parser-contract/user-testing/flows/analyze-header-only-rerun.json"
+  },
+  "toolsUsed": [
+    "Read",
+    "LS",
+    "TodoWrite",
+    "Execute",
+    "Create"
+  ],
+  "blockers": [],
+  "frictions": []
+}
