@@ -184,14 +184,25 @@
 
 ### Mechanics
 
-| Metric             | Blue | Blue Rate | Orange | Orange Rate | Delta Blue-Orange |
-| ------------------ | ---- | --------- | ------ | ----------- | ----------------- |
-| Total Flips        | 0    | 0         | 0      | 0           | 0                 |
-| Total Aerials      | 0    | 0         | 0      | 0           | 0                 |
-| Total Wavedashes   | 0    | 0         | 0      | 0           | 0                 |
-| Total Half-Flips   | 0    | 0         | 0      | 0           | 0                 |
-| Total Speedflips   | 0    | 0         | 0      | 0           | 0                 |
-| Total Flip Cancels | 0    | 0         | 0      | 0           | 0                 |
+| Metric               | Blue | Blue Rate | Orange | Orange Rate | Delta Blue-Orange |
+| -------------------- | ---- | --------- | ------ | ----------- | ----------------- |
+| Total Flips          | 0    | 0         | 0      | 0           | 0                 |
+| Total Aerials        | 0    | 0         | 0      | 0           | 0                 |
+| Total Wavedashes     | 0    | 0         | 0      | 0           | 0                 |
+| Total Half-Flips     | 0    | 0         | 0      | 0           | 0                 |
+| Total Speedflips     | 0    | 0         | 0      | 0           | 0                 |
+| Total Flip Cancels   | 0    | 0         | 0      | 0           | 0                 |
+| Total Fast Aerials   | 0    | 0         | 0      | 0           | 0                 |
+| Total Flip Resets    | 0    | 0         | 0      | 0           | 0                 |
+| Total Dribbles       | 0    | 0         | 0      | 0           | 0                 |
+| Total Flicks         | 0    | 0         | 0      | 0           | 0                 |
+| Total Ceiling Shots  | 0    | 0         | 0      | 0           | 0                 |
+| Total Ground Pinches | 0    | 0         | 0      | 0           | 0                 |
+| Total Double Touches | 0    | 0         | 0      | 0           | 0                 |
+| Total Redirects      | 0    | 0         | 0      | 0           | 0                 |
+| Total Stalls         | 0    | 0         | 0      | 0           | 0                 |
+| Total Skims          | 0    | 0         | 0      | 0           | 0                 |
+| Total Psychos        | 0    | 0         | 0      | 0           | 0                 |
 
 
 ## Player Metrics

@@ -183,6 +183,16 @@ class _MarkdownComposer:
             ("CRC Checked", self._fmt_bool(parser_info.get("crc_checked", False))),
         ]
         self._emit(self._tabulate(quality_rows))
+        network_diagnostics = parser_info.get("network_diagnostics") or {}
+        if network_diagnostics:
+            self._emit()
+            self._emit("### Network Diagnostics")
+            self._emit(self._parser_network_diagnostics_table(network_diagnostics))
+        scorecard = parser_info.get("scorecard") or {}
+        if scorecard:
+            self._emit()
+            self._emit("### Parser Scorecard")
+            self._emit(self._parser_scorecard_table(scorecard))
         warnings = list(self.quality.get("warnings", []) or [])
         if warnings:
             self._emit()
@@ -334,6 +344,17 @@ class _MarkdownComposer:
                     "total_halfflips": ("Total Half-Flips", "count"),
                     "total_speedflips": ("Total Speedflips", "count"),
                     "total_flip_cancels": ("Total Flip Cancels", "count"),
+                    "total_fast_aerials": ("Total Fast Aerials", "count"),
+                    "total_flip_resets": ("Total Flip Resets", "count"),
+                    "total_dribbles": ("Total Dribbles", "count"),
+                    "total_flicks": ("Total Flicks", "count"),
+                    "total_ceiling_shots": ("Total Ceiling Shots", "count"),
+                    "total_ground_pinches": ("Total Ground Pinches", "count"),
+                    "total_double_touches": ("Total Double Touches", "count"),
+                    "total_redirects": ("Total Redirects", "count"),
+                    "total_stalls": ("Total Stalls", "count"),
+                    "total_skims": ("Total Skims", "count"),
+                    "total_psychos": ("Total Psychos", "count"),
                 },
             ),
         )
@@ -645,6 +666,50 @@ class _MarkdownComposer:
     def _fmt_bool(self, flag: Any) -> str:
         return "Yes" if bool(flag) else "No"
 
+    def _parser_network_diagnostics_table(self, diagnostics: dict[str, Any]) -> str:
+        attempted_backends = diagnostics.get("attempted_backends") or []
+        rows = [
+            ("Status", diagnostics.get("status", "unknown")),
+            ("Error Code", diagnostics.get("error_code", "-")),
+            ("Error Detail", diagnostics.get("error_detail", "-")),
+            ("Frames Emitted", self._fmt_num(diagnostics.get("frames_emitted", 0))),
+            (
+                "Attempted Backends",
+                ", ".join(str(item) for item in attempted_backends) or "-",
+            ),
+        ]
+        return self._tabulate(rows)
+
+    def _parser_scorecard_table(self, scorecard: dict[str, Any]) -> str:
+        rows = [
+            (
+                "Usable Network Parse",
+                self._fmt_bool(scorecard.get("usable_network_parse", False)),
+            ),
+            (
+                "Non-Empty Player Frame Coverage",
+                self._fmt_num(scorecard.get("non_empty_player_frame_coverage", 0)),
+            ),
+            (
+                "Player Identity Coverage",
+                self._fmt_num(scorecard.get("player_identity_coverage", 0)),
+            ),
+            (
+                "Network Frame Count",
+                self._fmt_num(scorecard.get("network_frame_count", 0)),
+            ),
+            (
+                "Non-Empty Player Frames",
+                self._fmt_num(scorecard.get("non_empty_player_frames", 0)),
+            ),
+            (
+                "Players With Identity",
+                self._fmt_num(scorecard.get("players_with_identity", 0)),
+            ),
+            ("Expected Players", self._fmt_num(scorecard.get("expected_players", 0))),
+        ]
+        return self._tabulate(rows)
+
     def _team_player_ids(self, team_name: str) -> list[str]:
         key = "blue" if team_name == "BLUE" else "orange"
         team = self.teams.get(key)
@@ -852,6 +917,44 @@ class _MarkdownComposer:
             ("Half-Flips", self._fmt_num(mechanics.get("halfflip_count", 0))),
             ("Speedflips", self._fmt_num(mechanics.get("speedflip_count", 0))),
             ("Flip Cancels", self._fmt_num(mechanics.get("flip_cancel_count", 0))),
+            ("Fast Aerials", self._fmt_num(mechanics.get("fast_aerial_count", 0))),
+            ("Flip Resets", self._fmt_num(mechanics.get("flip_reset_count", 0))),
+            ("Air Rolls", self._fmt_num(mechanics.get("air_roll_count", 0))),
+            (
+                "Air Roll Time (s)",
+                self._fmt_num(mechanics.get("air_roll_total_time_s", 0)),
+            ),
+            ("Dribbles", self._fmt_num(mechanics.get("dribble_count", 0))),
+            (
+                "Dribble Time (s)",
+                self._fmt_num(mechanics.get("dribble_total_time_s", 0)),
+            ),
+            ("Flicks", self._fmt_num(mechanics.get("flick_count", 0))),
+            ("Musty Flicks", self._fmt_num(mechanics.get("musty_flick_count", 0))),
+            (
+                "Ceiling Shots",
+                self._fmt_num(mechanics.get("ceiling_shot_count", 0)),
+            ),
+            (
+                "Power Slides",
+                self._fmt_num(mechanics.get("power_slide_count", 0)),
+            ),
+            (
+                "Power Slide Time (s)",
+                self._fmt_num(mechanics.get("power_slide_total_time_s", 0)),
+            ),
+            (
+                "Ground Pinches",
+                self._fmt_num(mechanics.get("ground_pinch_count", 0)),
+            ),
+            (
+                "Double Touches",
+                self._fmt_num(mechanics.get("double_touch_count", 0)),
+            ),
+            ("Redirects", self._fmt_num(mechanics.get("redirect_count", 0))),
+            ("Stalls", self._fmt_num(mechanics.get("stall_count", 0))),
+            ("Skims", self._fmt_num(mechanics.get("skim_count", 0))),
+            ("Psychos", self._fmt_num(mechanics.get("psycho_count", 0))),
             ("Total Mechanics", self._fmt_num(mechanics.get("total_mechanics", 0))),
         ]
         return self._tabulate(rows, headers=("Mechanic", "Count"))

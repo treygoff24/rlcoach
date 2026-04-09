@@ -15,7 +15,9 @@ This matrix maps every field in `schemas/replay_report.schema.json` to the plann
 | `metadata.match_guid` | Metadata summary | Shown under provenance for cross-system tracing. |
 | `metadata.duration_seconds`, `metadata.recorded_frame_hz`, `metadata.total_frames` | Metadata summary | Used to compute per-minute normalizations and tick rate. |
 | `metadata.coordinate_reference.*` | Field reference callout | Included in appendix and referenced when describing heatmaps. |
-| `quality.parser.*` | Parser status block | Show parser name/version, network/header flags, CRC state. |
+| `quality.parser.name`, `quality.parser.version`, `quality.parser.parsed_header`, `quality.parser.parsed_network_data`, `quality.parser.crc_checked` | Parser status block | Show parser name/version, network/header flags, CRC state. |
+| `quality.parser.network_diagnostics.*` | Network diagnostics block | Render parser status, error code/detail, emitted frame count, and attempted backends for both degraded and unavailable cases. |
+| `quality.parser.scorecard.*` | Parser scorecard block | Show usable-network flag, player-frame coverage, identity coverage, and expected-vs-observed player counts. |
 | `quality.warnings[]` | Quality warnings list | Highlighted near top with severity tags. |
 | `players[].player_id`, `players[].display_name`, `players[].team`, `players[].platform_ids`, `players[].camera`, `players[].loadout` | Roster overview | Displayed as roster table in front matter and reused in player sections for camera/loadout details. |
 
@@ -30,6 +32,7 @@ This matrix maps every field in `schemas/replay_report.schema.json` to the plann
 | `analysis.per_team.*.passing.*` | Possession & passing table | Compute pass success %, turnovers per minute. |
 | `analysis.per_team.*.challenges.*` | Challenges table | Report win/loss counts, win rate, depth, risk index. |
 | `analysis.per_team.*.kickoffs.*` | Kickoff outcomes table | Include counts, goals for/against, approach type distribution, avg time to first touch. |
+| `analysis.per_team.*.mechanics.*` | Team mechanics table | Include legacy and advanced mechanic totals such as fast aerials, flip resets, dribbles, flicks, ceiling shots, pinches, redirects, stalls, skims, and psychos. |
 | `analysis.coaching_insights[]` | Team insights callout | Render as bullet insights with severity tags inside Team Metrics section. |
 
 ### Player Metrics
@@ -43,6 +46,7 @@ This matrix maps every field in `schemas/replay_report.schema.json` to the plann
 | `analysis.per_player[].passing.*` | Possession & passing subsection | Calculate completion %, give-and-go rate, possession per minute. |
 | `analysis.per_player[].challenges.*` | Challenges subsection | Include win rate, first-to-ball %, depth, risk index. |
 | `analysis.per_player[].kickoffs.*` | Kickoff subsection | Present kickoff role distribution, approaches, time to touch. |
+| `analysis.per_player[].mechanics.*` | Mechanics subsection | Include legacy and advanced counts plus duration fields for air roll, dribble, and power slide. |
 | `analysis.per_player[].rotation_compliance.*` | Rotation compliance subsection | Numeric score plus flag list; flags rendered as bullet list. |
 | `analysis.per_player[].insights[]` | Player insights callout | Badges with severity labels. |
 | `players[].camera`, `players[].loadout` | Player appendix | Render compact tables when data present. |
