@@ -1199,6 +1199,48 @@ class TestParserAuthorityPreference:
         assert demos[0].victim == "victim"
         assert demos[0].attacker == "attacker"
 
+    def test_demos_keep_parser_authority_without_attacker_attribution(self):
+        frames = [
+            create_test_frame(
+                2.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("victim", 0, Vec3(500.0, 0.0, 17.0)),
+                    create_test_player("attacker", 1, Vec3(560.0, 0.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                2.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("victim", 0, Vec3(500.0, 0.0, 17.0), demolished=True),
+                    create_test_player("attacker", 1, Vec3(540.0, 0.0, 17.0)),
+                ],
+            ),
+        ]
+        frames[1] = Frame(
+            timestamp=frames[1].timestamp,
+            ball=frames[1].ball,
+            players=frames[1].players,
+            parser_demo_events=[
+                ParserDemoEvent(
+                    timestamp=2.1,
+                    victim_id="victim",
+                    attacker_id=None,
+                    victim_team=0,
+                    attacker_team=None,
+                )
+            ],
+        )
+
+        demos = detect_demos(frames)
+        assert len(demos) == 1
+        assert demos[0].victim == "victim"
+        assert demos[0].attacker is None
+        assert demos[0].source == "parser"
+
     def test_kickoffs_merge_parser_markers_with_heuristic_enrichment(self):
         frames = [
             create_test_frame(

@@ -558,6 +558,68 @@ class TestTimelineBuilding:
         assert frame.parser_kickoff_markers[0].phase == "INITIAL"
         assert frame.parser_kickoff_markers[0].timestamp == 0.0
 
+    def test_parser_event_player_ids_follow_alias_lookup(self):
+        """Parser touch/demo IDs are canonicalized alongside player frames."""
+        header = Header(
+            players=[
+                PlayerInfo(name="Blue", platform_ids={"steam": "123"}, team=0),
+                PlayerInfo(name="Orange", platform_ids={"epic": "456"}, team=1),
+            ]
+        )
+
+        frame_dict = {
+            "timestamp": 12.0,
+            "ball": {
+                "position": {"x": 0, "y": 0, "z": 93.15},
+                "velocity": {"x": 0, "y": 0, "z": 0},
+                "angular_velocity": {"x": 0, "y": 0, "z": 0},
+            },
+            "players": [
+                {
+                    "player_id": "player_0",
+                    "team": 0,
+                    "position": {"x": 0, "y": -1000, "z": 17},
+                    "velocity": {"x": 0, "y": 0, "z": 0},
+                    "rotation": {"x": 0, "y": 0, "z": 0},
+                    "boost_amount": 33,
+                    "is_supersonic": False,
+                    "is_on_ground": True,
+                    "is_demolished": False,
+                },
+                {
+                    "player_id": "player_1",
+                    "team": 1,
+                    "position": {"x": 0, "y": 1000, "z": 17},
+                    "velocity": {"x": 0, "y": 0, "z": 0},
+                    "rotation": {"x": 0, "y": 0, "z": 0},
+                    "boost_amount": 33,
+                    "is_supersonic": False,
+                    "is_on_ground": True,
+                    "is_demolished": False,
+                },
+            ],
+            "parser_touch_events": [
+                {"timestamp": 12.0, "player_id": "player_0", "team": 0}
+            ],
+            "parser_demo_events": [
+                {
+                    "timestamp": 12.0,
+                    "victim_id": "player_1",
+                    "attacker_id": "player_0",
+                    "victim_team": 1,
+                    "attacker_team": 0,
+                }
+            ],
+        }
+
+        timeline = build_timeline(header, [frame_dict])
+        frame = timeline[0]
+
+        assert frame.parser_touch_events[0].player_id == "steam:123"
+        assert frame.parser_demo_events[0].victim_id == "epic:456"
+        assert frame.parser_demo_events[0].attacker_id == "steam:123"
+        assert frame.parser_demo_events[0].timestamp == 0.0
+
 
 class TestIntegration:
     """Integration tests combining multiple normalization functions."""

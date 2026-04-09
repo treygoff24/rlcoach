@@ -301,35 +301,58 @@ def _parse_frame_index(item: Any) -> int | None:
     return int(raw) if isinstance(raw, (int, float)) else None
 
 
-def _convert_touch_event(item: Any) -> ParserTouchEvent | None:
+def _convert_touch_event(
+    item: Any, alias_lookup: dict[str, str] | None = None
+) -> ParserTouchEvent | None:
     ts = _extract_event_field(item, "timestamp")
-    player_id = _extract_event_field(item, "player_id")
+    raw_player_id = _extract_event_field(item, "player_id")
     team = _extract_event_field(item, "team")
-    if ts is None or player_id is None or team is None:
+    if ts is None or raw_player_id is None or team is None:
         return None
+    raw_player_id_str = str(raw_player_id)
+    if alias_lookup:
+        player_id = alias_lookup.get(raw_player_id_str, raw_player_id_str)
+    else:
+        player_id = raw_player_id_str
     return ParserTouchEvent(
         timestamp=float(ts),
-        player_id=str(player_id),
+        player_id=player_id,
         team=int(team),
         frame_index=_parse_frame_index(item),
         source=str(_extract_event_field(item, "source") or "parser"),
     )
 
 
-def _convert_demo_event(item: Any) -> ParserDemoEvent | None:
+def _convert_demo_event(
+    item: Any, alias_lookup: dict[str, str] | None = None
+) -> ParserDemoEvent | None:
     ts = _extract_event_field(item, "timestamp")
-    victim_id = _extract_event_field(item, "victim_id")
-    if ts is None or victim_id is None:
+    raw_victim_id = _extract_event_field(item, "victim_id")
+    if ts is None or raw_victim_id is None:
         return None
-    attacker_id = _extract_event_field(item, "attacker_id")
+    raw_victim_id_str = str(raw_victim_id)
+    if alias_lookup:
+        victim_id = alias_lookup.get(raw_victim_id_str, raw_victim_id_str)
+    else:
+        victim_id = raw_victim_id_str
+
+    attacker_id_raw = _extract_event_field(item, "attacker_id")
+    if attacker_id_raw and alias_lookup:
+        attacker_id_str = str(attacker_id_raw)
+        attacker_id = alias_lookup.get(attacker_id_str, attacker_id_str)
+    else:
+        attacker_id = (
+            str(attacker_id_raw)
+            if isinstance(attacker_id_raw, str) and attacker_id_raw
+            else None
+        )
+
     victim_team = _extract_event_field(item, "victim_team")
     attacker_team = _extract_event_field(item, "attacker_team")
     return ParserDemoEvent(
         timestamp=float(ts),
-        victim_id=str(victim_id),
-        attacker_id=(
-            str(attacker_id) if isinstance(attacker_id, str) and attacker_id else None
-        ),
+        victim_id=victim_id,
+        attacker_id=attacker_id,
         victim_team=int(victim_team) if isinstance(victim_team, (int, float)) else None,
         attacker_team=(
             int(attacker_team) if isinstance(attacker_team, (int, float)) else None
@@ -367,12 +390,20 @@ def _convert_kickoff_marker(item: Any) -> ParserKickoffMarker | None:
     )
 
 
-def _parse_events(frame_data: Any, key: str, converter: Any) -> list:
+def _parse_events(
+    frame_data: Any,
+    key: str,
+    converter: Any,
+    alias_lookup: dict[str, str] | None = None,
+) -> list:
     """Extract and convert a list of parser events from frame data."""
     result = []
     for item in _extract_raw_event_list(frame_data, key):
         try:
-            event = converter(item)
+            if alias_lookup is not None:
+                event = converter(item, alias_lookup)
+            else:
+                event = converter(item)
             if event is not None:
                 result.append(event)
         except (TypeError, ValueError):
@@ -845,10 +876,10 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 )
 
             parser_touch_events = _parse_events(
-                frame_data, "parser_touch_events", _convert_touch_event
+                frame_data, "parser_touch_events", _convert_touch_event, alias_lookup
             )
             parser_demo_events = _parse_events(
-                frame_data, "parser_demo_events", _convert_demo_event
+                frame_data, "parser_demo_events", _convert_demo_event, alias_lookup
             )
             parser_tickmarks = _parse_events(
                 frame_data, "parser_tickmarks", _convert_tickmark_event

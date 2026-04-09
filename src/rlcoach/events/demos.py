@@ -24,7 +24,7 @@ def detect_demos(frames: list[Frame]) -> list[DemoEvent]:
         return []
 
     parser_demos = _demos_from_parser_events(frames)
-    if parser_demos and any(d.attacker is not None for d in parser_demos):
+    if parser_demos:
         return parser_demos
 
     demos = []
