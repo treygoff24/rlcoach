@@ -8,12 +8,13 @@ rlcoach is designed to provide detailed analysis of Rocket League replays withou
 
 ## Project Status
 
-- End-to-end CLI pipeline (ingest -> normalize -> events -> analyzers -> JSON/Markdown) is implemented with 553 tests collected by pytest.
+- End-to-end CLI pipeline (ingest -> normalize -> events -> analyzers -> JSON/Markdown) is implemented and covered by the local pytest suite.
 - Parser adapters are pluggable:
   - `null` adapter (header-only fallback; always available)
   - optional `rust` adapter (pyo3 + boxcars) for richer header parsing and network frames
-- Rust parser behavior is diagnostics-first: degraded/unavailable network parses emit explicit machine-readable diagnostics instead of silent fallback.
-- Corpus reliability gate (2026-02-10): on 202 local replays, header success was 100%, network success was 99.50%, with 1 degraded replay (`boxcars_network_error`).
+- Rust parser behavior is diagnostics-first: degraded/unavailable network parses emit explicit machine-readable diagnostics and scorecard coverage instead of silent fallback.
+- Parser event streams are parser-first when present (`parser_touch_events`, `parser_demo_events`, `parser_tickmarks`, `parser_kickoff_markers`) with existing inference used only when parser authority is absent.
+- Corpus reliability gate (2026-04-09): on 202 local replays, header success was 100%, network success was 99.50%, usable network parse rate was 98.02%, and parser event/provenance coverage was fully parser-authored for observed parser event streams.
 - 14 analysis modules covering fundamentals, boost, movement, positioning, mechanics, defense, xG, and more.
 - Markdown dossier generator mirrors the JSON schema and ships with golden fixtures.
 - Offline CLI viewer renders summaries from previously generated JSON reports.
@@ -61,7 +62,7 @@ python -m rlcoach.ui view out/replay.json --player "DisplayName"
 
 - **Replay ingest**: Validates file bounds, surface CRC status, and captures deterministic file metadata.
 - **Pluggable parsing**: Header-only fallback plus optional Rust bridge for network frames.
-- **Normalization & events**: Builds a consolidated timeline and detects goals, demos, touches, challenges, boost pickups, and kickoffs.
+- **Normalization & events**: Builds a consolidated timeline, preserves parser touch/demo/tickmark/kickoff streams, and falls back to inference only where parser authority is absent.
 - **14 Analysis modules**:
   - Core: fundamentals, boost economy, movement, positioning
   - Advanced: mechanics (jumps/flips/wavedashes), recovery quality, defense (shadow/last defender)
@@ -100,7 +101,7 @@ make rust-dev
 # Clean build artifacts
 make clean
 
-# Parser corpus health gate (JSON summary)
+# Parser corpus health gate (reliability, scorecard coverage, parser event/provenance coverage)
 source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.py --roots replays,Replay_files --json
 ```
 
@@ -112,13 +113,13 @@ source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.
 - `codex/Plans/` — Project planning and design documents
 - `codex/tickets/` — Development work items
 - `codex/logs/` — Engineering logs
-- `codex/docs/` — Developer docs (e.g., parser adapter, UI)
+- `codex/docs/` — Developer docs (status, parser reliability notes, UI)
 - `parsers/rlreplay_rust/` — Optional Rust parser adapter (pyo3)
 
 ## Documentation
 
 - [Implementation plan](codex/Plans/rlcoach_implementation_plan.md) — architecture and scope.
-- [Parser adapter contract](docs/parser_adapter.md) — Rust/null backend contract, fallback policy, and parser event semantics.
+- [Parser adapter contract](docs/parser_adapter.md) — Rust/null backend contract, fallback policy, parser event semantics, scorecard coverage, and corpus gates.
 - [Markdown mapping](codex/docs/json-report-markdown-mapping.md) — JSON → Markdown coverage matrix.
 - [Markdown composer plan](codex/docs/json-to-markdown-report-plan.md) — report generation roadmap.
 - [Offline UI guide](codex/docs/ui.md) — CLI viewer usage.

@@ -1,5 +1,7 @@
 # Parser Adapter Contract
 
+Canonical path: `docs/parser_adapter.md`.
+
 This document defines the runtime contract between the parser bridge, normalization layer, event detectors, and report output.
 
 ## Build And Dev Workflow
@@ -18,6 +20,8 @@ source .venv/bin/activate && cd parsers/rlreplay_rust && maturin develop
 - `null` adapter remains a header-only fallback.
 - `rust` adapter remains the primary network-data backend (boxcars + pyo3).
 - Network failures must produce structured diagnostics, never silent fallback.
+- JSON, Markdown, and corpus-health surfaces report parser scorecard coverage as current behavior.
+- JSON and Markdown reports surface parser diagnostics plus scorecard coverage for the selected backend.
 
 ## Header Contract
 
@@ -61,6 +65,14 @@ The parser-facing event carriers on each frame are:
 
 Event detectors consume parser events first when present, then use existing inference fallbacks when absent.
 
+Corpus-health tracks parser event/provenance coverage across these carriers:
+
+- `parser_event_coverage` reports touch, demo, tickmark, and kickoff-marker replay/frame coverage.
+- `event_provenance` reports parser-vs-inferred prevalence for touch, demo, and kickoff event surfaces where provenance is observable.
+- `parser_event_totals` and `parser_event_source_counts` preserve the raw aggregate event counts.
+
+Parser event `source` values preserve provenance. Parser-authored carriers should use `source="parser"`; inferred downstream events retain `source="inferred"` when parser authority is absent.
+
 ## Diagnostics And Degradation Semantics
 
 `network_diagnostics` must preserve:
@@ -72,6 +84,30 @@ Event detectors consume parser events first when present, then use existing infe
 - `attempted_backends`
 
 Degraded and unavailable states are valid outputs and are expected in corpus-health reporting.
+
+`scorecard` and `scorecard_coverage` fields measure whether parser output is usable for downstream analysis; the exact fields are listed below.
+
+## Scorecard And Corpus-Health Semantics
+
+Reports include `quality.parser.scorecard` with:
+
+- `usable_network_parse`
+- `non_empty_player_frame_coverage`
+- `player_identity_coverage`
+- `network_frame_count`
+- `non_empty_player_frames`
+- `players_with_identity`
+- `expected_players`
+
+The corpus harness extends those per-report scorecard semantics across replay roots and also reports:
+
+- `scorecard_coverage`
+- `parser_event_totals`
+- `parser_event_coverage`
+- `parser_event_source_counts`
+- `event_provenance`
+
+Invalid replay roots fail explicitly with `invalid_replay_root`; valid roots with no `.replay` files fail explicitly with `no_replays_found`.
 
 ## Test And Corpus-Health Commands
 

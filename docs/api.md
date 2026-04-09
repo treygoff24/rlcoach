@@ -19,6 +19,10 @@ Tokens are obtained through the NextAuth OAuth flow and contain:
 
 Replay analysis endpoints surface parser diagnostics, backend attempts, and scorecard coverage in the response quality block. The canonical parser contract and fallback policy are documented in [`docs/parser_adapter.md`](parser_adapter.md).
 
+The parser quality block is diagnostics-first. Consumers should inspect `quality.parser.network_diagnostics.status` (`ok`, `degraded`, or `unavailable`) before assuming frame-derived metrics are complete. When parser event carriers are present, downstream events prefer parser-authored touch, demo, tickmark, and kickoff data; inference is fallback-only when parser authority is absent.
+
+Corpus-level validation uses `scripts/parser_corpus_health.py` to summarize reliability, scorecard coverage, parser event coverage, and parser-vs-inferred provenance across local replay roots.
+
 ## Endpoints
 
 ### Health

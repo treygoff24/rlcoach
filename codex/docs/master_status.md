@@ -1,29 +1,34 @@
 # RLCoach Master Status (Single Source of Truth)
 
-**Last updated:** 2026-02-10
+**Last updated:** 2026-04-09
 **Purpose:** Provide a durable, detailed snapshot of current state, plan status, gaps, and blockers for all future sessions.
 
 ---
 
 ## 1) Executive Summary
 
-- **Core local pipeline is implemented** (ingest → parse/normalize → events → analysis → JSON + Markdown report), with a pluggable Rust adapter and comprehensive pytest coverage.
+- **Core local pipeline is implemented** (ingest → parse/normalize → events → analysis → JSON + Markdown report), with a pluggable Rust adapter and local pytest coverage.
 - **SaaS product is partially implemented**: backend + frontend exist, OAuth login + upload + dashboard + coach flows are wired, and Stripe endpoints are present, but formal E2E verification and several plan phases remain uncompleted or stale in docs.
-- **Critical blocker (historical):** Rust adapter network frames previously emitted empty players arrays; current code now produces per-frame car telemetry for at least `testing_replay.replay`, but mapping robustness still needs hardening (see parser gap section).
+- **Critical blocker (historical):** Rust adapter network frames previously emitted empty player arrays. Current code emits player telemetry, parser event carriers, parser diagnostics, and scorecard coverage; the remaining parser work is hardening and validation, not a silent-loss blocker.
 - **Plan docs are stale:** `IMPLEMENTATION_PLAN.md` and `UX_IMPLEMENTATION_PLAN.md` checklists do not reflect actual code state. `SAAS_FIXES_PLAN.md` is closest to current reality but Phase 6 remains unchecked.
 - **Ballchasing parity is no longer a target:** parity tests, scripts, fixtures, and helpers have been removed to avoid enforcing external alignment.
 - **Parity artifacts archived:** legacy parity plans/sprints moved to `codex/archive/ballchasing-parity/`.
-- **Parser reliability gate (2026-02-10):** corpus harness on 202 local replays reported `header_success_rate=1.0`, `network_success_rate=0.9950495`, and `degraded_count=1` (`boxcars_network_error` on one tournament replay). This meets the global `>=99.5%` target.
+- **Parser reliability gate (2026-04-09):** corpus harness on 202 local replays reported `header_success_rate=1.0`, `network_success_rate=0.9950495`, `usable_network_parse_rate=0.9801980`, `degraded_count=1`, and parser event source counts of parser=26203, inferred=0, missing=0, other=0. This meets the global `>=99.5%` network-success target.
 - **Backend decision gate (2026-02-10):** current outcome is **No-Go for non-boxcars backend implementation**. Criteria were: Go only if network success `<99.5%` or any ranked-standard class `>1%` degraded. Current ranked-standard bucket (`inferred_3`) is `0/65` degraded.
 
-### 1.1 Parser Reliability Snapshot (2026-02-10)
+### 1.1 Parser Reliability Snapshot (2026-04-09)
 
 - Diagnostics-first behavior is active: `parse_network()` returns explicit `NetworkDiagnostics` (`ok|degraded|unavailable`) instead of silent loss.
+- Canonical parser contract path: `docs/parser_adapter.md`.
+- Parser event carriers are active on network frames: `parser_touch_events`, `parser_demo_events`, `parser_tickmarks`, and `parser_kickoff_markers`.
+- Report quality includes parser `network_diagnostics` and `scorecard`; Markdown now renders the same parser diagnostics/scorecard surface as JSON.
+- Corpus-health now reports `scorecard_coverage`, `parser_event_totals`, `parser_event_coverage`, `parser_event_source_counts`, and `event_provenance`.
 - Corpus metadata coverage from harness:
   - playlist buckets: inferred_2=108, inferred_3=65, tournament=20, inferred_4=6, private=2, inferred_1=1
   - match type buckets: 2v2=116, 3v3=78, 4v4=6, 1v1=2
   - engine build buckets: 251202.62834.504897=196, 250811.43331.492665=5, 250909.54128.495700=1
 - Open reliability issue is isolated to one tournament replay (`replays/A181B28546BBD8AC71E63793B65BABAE.replay`), not ranked-standard.
+- Parser event totals from the current corpus: touches=21178, demos=725, tickmarks=2142, kickoff_markers=2158.
 
 ---
 
@@ -47,7 +52,7 @@
 
 - **Ingest & validation:** `src/rlcoach/ingest.py`
   - Handles size bounds, hashing, and CRC scaffolding.
-  - CRC is still flagged as stubbed in report quality metadata.
+  - CRC is still flagged as a placeholder in report quality metadata.
 - **Parser layer (pluggable):** `src/rlcoach/parser/`
   - `null_adapter.py` (header-only fallback)
   - `rust_adapter.py` (boxcars-backed pyo3 module)
@@ -116,7 +121,7 @@
 - Upload endpoint exists: `POST /api/v1/replays/upload`.
 - Worker pipeline persists analysis via `db/writer.py`.
 - Backpressure and disk checks exist in worker (`check_disk_usage`).
-- **Gaps:** Real-time progress over websockets/SSE not implemented; relies on polling.
+- **Gaps:** Real-time progress over websockets/SSE remains pending; current flow relies on polling.
 
 **Phase 5: Dashboard Frontend**
 - Pages implemented:
@@ -138,7 +143,7 @@
 - Claude Opus 4.5 integration exists in `src/rlcoach/api/routers/coach.py`.
 - Tools + prompts live in `src/rlcoach/services/coach/`.
 - Free preview logic exists (1 message) and token budget tracking is wired.
-- **Gaps:** Streaming endpoint not implemented (UX plan expects it); structured review sessions not implemented.
+- **Gaps:** Streaming endpoint and structured review sessions remain pending.
 
 **Phase 8: Polish, Testing & Launch**
 - Legal pages exist (`frontend/src/app/privacy`, `terms`).
@@ -174,11 +179,11 @@
 - ErrorBoundary exists and is used in dashboard layout.
 - More granular error mapping and toast system exists, but not fully standardized across the app.
 
-**Phase 3 (Onboarding & landing):** Not implemented in code:
+**Phase 3 (Onboarding & landing):** Pending in code:
 - No onboarding tour component.
 - Landing page enhancements (testimonials, FAQ, demo embed) not present.
 
-**Phase 4 (Streaming coach):** Not implemented:
+**Phase 4 (Streaming coach):** Pending:
 - No `/api/v1/coach/chat/stream` endpoint.
 - No streaming client hook or SSE UI.
 
@@ -194,7 +199,7 @@
 - Trends endpoint exists and supports metrics/time ranges.
 - UI aggregates data but does not match planned charting/insight depth.
 
-**Phase 8 (Cause-effect insights):** Not implemented.
+**Phase 8 (Cause-effect insights):** Pending.
 
 ---
 
@@ -213,16 +218,16 @@
 
 **Remaining gaps:**
 - Rust adapter robustness still needs hardening (player identity mapping, classification across builds).
-- CRC verification remains stubbed; report warns “CRC not verified (stubbed)”.
+- CRC verification remains a placeholder; report warns “CRC not verified”.
 
 ---
 
 ## 5) Critical Gaps & Blockers
 
 1. **Rust adapter robustness**
-- Players are present for `testing_replay.replay`, and a headerless fallback index was added on 2026-02-02 to avoid empty player arrays.
-- Mapping still relies on team order rather than PRI/Reservation linkage, so per-player identity can still be wrong in some replays.
-- Next hardening step: PRI/Reservation-based mapping to unique IDs.
+- Players and parser event carriers are present in network output, and parser failures now degrade explicitly.
+- Current corpus scorecard coverage is strong but not perfect: `usable_network_parse_rate=0.9801980`, `avg_non_empty_player_frame_coverage=0.9798576`, and `avg_player_identity_coverage=0.9950495`.
+- Next hardening step: improve the remaining degraded/low-coverage replays while preserving diagnostics-first behavior.
 
 2. **E2E SaaS verification**
    - Phase 6 in `SAAS_FIXES_PLAN.md` has not been completed.
@@ -243,11 +248,11 @@
 
 - Pytest exists with significant coverage (`tests/`), including Rust adapter integration tests in `tests/test_rust_adapter.py`.
 - Ballchasing parity harnesses and fixtures have been removed; there is no parity gating in the suite.
-- Quality gates defined in `CONTEXT.md`:
-  - `PYTHONPATH=src pytest -q`
-  - `ruff check src/`
-  - `black --check src/`
-- README mentions 261 tests; `CONTEXT.md` mentions 388 tests (likely stale). Needs reconciliation.
+- Parser mission quality gates:
+  - `source .venv/bin/activate && PYTHONPATH=src pytest -q`
+  - `source .venv/bin/activate && ruff check src/ tests/`
+  - `source .venv/bin/activate && black --check src/ tests/`
+  - `source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.py --roots replays,Replay_files --json`
 
 ---
 
@@ -266,9 +271,8 @@
 ## 8) Concrete Next Steps (Recommended)
 
 1. **Parser robustness**
-   - Implement fallback player indexing when header `PlayerStats` missing.
-   - Improve car/ball classification patterns.
-   - Add or refine mapping using PRI/Reservation if possible.
+   - Reduce the remaining degraded and non-usable replay cases surfaced by corpus-health.
+   - Preserve parser-first event carriers and diagnostics-first degradation while hardening identity/frame coverage.
 
 2. **E2E SaaS verification**
    - Process 10 replays from `/replays/`, verify dashboard metrics and coach flow.
@@ -288,8 +292,8 @@
 ## 9) Notes on the Rust Adapter Issue (Historical)
 
 - `codex/docs/network-frames-integration-issue.md` documents the original “empty players array” bug.
-- Current code yields players for `testing_replay.replay` and includes a headerless fallback index in the Rust adapter to prevent empty player arrays.
-- Mapping is still fragile for identity; a PRI/Reservation-based mapping is the recommended follow-up.
+- Current code yields players for `testing_replay.replay`, includes parser-authored event carriers, and reports parser diagnostics/scorecard coverage through JSON, Markdown, and corpus-health.
+- Remaining hardening is tracked through corpus-health scorecard/event coverage rather than silent parser-loss symptoms.
 
 ---
 
@@ -300,11 +304,11 @@
 source .venv/bin/activate
 
 # Run tests
-PYTHONPATH=src pytest -q
+source .venv/bin/activate && PYTHONPATH=src pytest -q
 
 # Lint & format
-ruff check src/
-black --check src/
+source .venv/bin/activate && ruff check src/ tests/
+source .venv/bin/activate && black --check src/ tests/
 
 # Build Rust adapter
 make rust-dev
@@ -314,4 +318,7 @@ python -m rlcoach.cli analyze Replay_files/testing_replay.replay --adapter rust 
 
 # Generate JSON + Markdown dossier
 python -m rlcoach.cli report-md Replay_files/testing_replay.replay --adapter rust --out out --pretty
+
+# Parser corpus health
+source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.py --roots replays,Replay_files --json
 ```
