@@ -1149,12 +1149,12 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                 continue;
                             }
                         }
-                        false // Has previous touch, but not a duplicate
+                        true // Enough time has passed, this is a new touch
                     } else {
                         true // First touch for this actor
                     };
 
-                    if is_new_touch || last_time.is_none() {
+                    if is_new_touch {
                         if let Some(idx) = actor_to_player_index.get(actor_id) {
                             let touch_dict = PyDict::new(py);
                             touch_dict.set_item("timestamp", timestamp)?;

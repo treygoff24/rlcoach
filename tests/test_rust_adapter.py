@@ -192,3 +192,52 @@ def test_iter_frames_has_players():
         f"Only {frames_with_players}/{total} frames have players — "
         "actor-to-player mapping is broken"
     )
+
+
+def test_parser_touch_events_collected_across_replay():
+    """Regression: verify that parser touch events are collected across the replay.
+
+    This test verifies that the Rust parser correctly emits touch events throughout
+    the replay, not just at the first touch. It ensures repeated touches from the
+    same actor are emitted (not suppressed after the first one).
+    """
+    adapter = RustAdapter()
+    network = adapter.parse_network(REPLAY_PATH)
+    if network is None or not network.frames:
+        pytest.skip("Rust adapter failed to parse network frames")
+
+    all_touches = []
+    frames_with_touches = 0
+    for frame in network.frames:
+        touches = frame.get("parser_touch_events", [])
+        if touches:
+            frames_with_touches += 1
+            all_touches.extend(touches)
+
+    # The replay should have touches across multiple frames (not just the first one)
+    assert frames_with_touches > 1, (
+        f"Expected touches across multiple frames, got touches in only {frames_with_touches} frame(s). "
+        "This may indicate touch suppression after the first touch."
+    )
+
+    # We should have multiple touch events total
+    assert len(all_touches) >= 2, (
+        f"Expected at least 2 touch events across the replay, got {len(all_touches)}. "
+        "This may indicate touch events are being suppressed after the first one."
+    )
+
+    # Verify touches come from the same player_id appearing in different frames
+    player_touches: dict[str, list[float]] = {}
+    for touch in all_touches:
+        player_id = touch.get("player_id")
+        timestamp = touch.get("timestamp")
+        if player_id and timestamp is not None:
+            player_touches.setdefault(player_id, []).append(float(timestamp))
+
+    # At least one player should have multiple touches across time
+    multi_touch_players = {p: ts for p, ts in player_touches.items() if len(ts) >= 2}
+    assert multi_touch_players, (
+        f"Expected at least one player to have multiple touches across time, "
+        f"got player touches: {player_touches}. This may indicate touch events are being "
+        f"suppressed after the first one."
+    )
