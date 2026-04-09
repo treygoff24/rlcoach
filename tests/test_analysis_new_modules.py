@@ -375,6 +375,48 @@ class TestMechanicsAnalysis:
         assert stats["jump_count"] == 1
         assert stats["double_jump_count"] == 1
 
+    def test_authoritative_dodge_emits_causal_jump_when_jump_flag_not_seen(self):
+        """A parser-authoritative dodge still implies the causal jump."""
+        frames = [
+            create_test_frame(
+                0.0,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 17.0),
+                        velocity=Vec3(0.0, 0.0, 0.0),
+                        is_on_ground=True,
+                        is_jumping=False,
+                        is_double_jumping=False,
+                        is_dodging=False,
+                    )
+                ],
+            ),
+            create_test_frame(
+                0.1,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 90.0),
+                        velocity=Vec3(0.0, 0.0, 50.0),
+                        is_on_ground=False,
+                        is_jumping=False,
+                        is_double_jumping=False,
+                        is_dodging=True,
+                    )
+                ],
+            ),
+        ]
+
+        result = analyze_mechanics(frames)
+        stats = result["per_player"]["player1"]
+
+        assert stats["jump_count"] == 1
+        assert stats["flip_count"] == 1
+        assert stats["total_mechanics"] == 2
+
 
 class TestRecoveryAnalysis:
     """Test recovery detection analysis."""
