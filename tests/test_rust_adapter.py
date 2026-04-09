@@ -98,16 +98,40 @@ def test_parse_network_returns_diagnostics_on_degradation(monkeypatch):
     assert "network_error" in (diagnostics.error_code or "")
 
 
-def test_players_expose_optional_component_state_flags():
-    frames = _load_frames(limit=10)
+def test_players_expose_explicit_false_component_states_when_parser_knows_them():
+    frames = _load_frames(limit=300)
     players = []
     for frame in frames:
         players.extend(frame.get("players", []))
     assert players, "no players detected in fixture frames"
 
-    assert any("is_jumping" not in player for player in players)
-    assert any("is_dodging" not in player for player in players)
-    assert any("is_double_jumping" not in player for player in players)
+    assert any(player.get("is_jumping") is False for player in players)
+    assert any(player.get("is_dodging") is False for player in players)
+    assert any(player.get("is_double_jumping") is False for player in players)
+
+
+def test_opening_frames_do_not_mark_every_player_as_actively_jumping():
+    frames = _load_frames(limit=5)
+    opening_players = [
+        player for frame in frames for player in frame.get("players", [])
+    ]
+    assert opening_players, "expected opening player snapshots from fixture replay"
+
+    active_jump_flags = [
+        player.get("is_jumping") is True for player in opening_players if "is_jumping" in player
+    ]
+    active_dodge_flags = [
+        player.get("is_dodging") is True for player in opening_players if "is_dodging" in player
+    ]
+    active_double_jump_flags = [
+        player.get("is_double_jumping") is True
+        for player in opening_players
+        if "is_double_jumping" in player
+    ]
+
+    assert active_jump_flags and not all(active_jump_flags)
+    assert active_dodge_flags and not all(active_dodge_flags)
+    assert active_double_jump_flags and not all(active_double_jump_flags)
 
 
 def test_rust_header_exposes_match_guid_overtime_and_mutators():
@@ -147,6 +171,34 @@ def test_frames_expose_parser_event_carrier_lists():
     assert isinstance(frame["parser_demo_events"], list)
     assert isinstance(frame["parser_tickmarks"], list)
     assert isinstance(frame["parser_kickoff_markers"], list)
+
+
+def test_real_replay_emits_parser_tickmarks():
+    frames = _load_frames()
+    tickmarks = [
+        tickmark
+        for frame in frames
+        for tickmark in frame.get("parser_tickmarks", [])
+    ]
+
+    assert tickmarks, "expected parser tickmarks from fixture replay"
+    assert any(
+        isinstance(tickmark.get("kind"), str) and tickmark["kind"]
+        for tickmark in tickmarks
+    )
+
+
+def test_real_replay_emits_demo_attacker_authority():
+    frames = _load_frames()
+    demo_events = [
+        demo for frame in frames for demo in frame.get("parser_demo_events", [])
+    ]
+
+    assert demo_events, "expected parser demo events from fixture replay"
+    assert any(
+        isinstance(demo.get("attacker_id"), str) and demo["attacker_id"]
+        for demo in demo_events
+    ), "expected attacker attribution on at least one parser demo event"
 
 
 def test_parse_header_maps_extended_metadata(monkeypatch):

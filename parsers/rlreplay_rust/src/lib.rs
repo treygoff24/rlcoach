@@ -625,6 +625,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         // Touch detection state: tracks last touch time and position per car actor
         let mut last_touch_time: HashMap<i32, f64> = HashMap::new();
         let mut last_touch_pos: HashMap<i32, (f32, f32, f32)> = HashMap::new();
+        let mut tickmarks_by_frame: HashMap<i64, Vec<(String, i64)>> = HashMap::new();
 
         // Prepare per-team header order indices
         let mut team_zero: Vec<usize> = Vec::new();
@@ -638,6 +639,13 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         }
         next_by_team.insert(0, team_zero);
         next_by_team.insert(1, team_one);
+
+        for tickmark in &replay.tick_marks {
+            tickmarks_by_frame
+                .entry(tickmark.frame as i64)
+                .or_default()
+                .push((tickmark.description.clone(), tickmark.frame as i64));
+        }
 
         let frames_out = PyList::empty(py);
 
@@ -680,6 +688,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 let mut frame_jumping_actors: HashSet<i32> = HashSet::new();
                 let mut frame_dodging_actors: HashSet<i32> = HashSet::new();
                 let mut frame_double_jumping_actors: HashSet<i32> = HashSet::new();
+                let mut frame_demo_records: Vec<(i32, Option<i32>)> = Vec::new();
                 // Prune actors that were deleted before processing updates to avoid stale telemetry
                 for deleted in nf.deleted_actors {
                     let aid: i32 = deleted.into();
@@ -746,20 +755,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     let aid: i32 = upd.actor_id.into();
                     match upd.attribute {
                         Attribute::ActiveActor(active) => {
-                            if let Some(component) = component_kind.get(&aid) {
+                            if component_kind.contains_key(&aid) {
                                 let owner_id: i32 = active.actor.into();
                                 component_owner.insert(aid, owner_id);
-                                if active.active {
-                                    if component.is_jump {
-                                        frame_jumping_actors.insert(owner_id);
-                                    }
-                                    if component.is_dodge {
-                                        frame_dodging_actors.insert(owner_id);
-                                    }
-                                    if component.is_double_jump {
-                                        frame_double_jumping_actors.insert(owner_id);
-                                    }
-                                }
                             }
                         }
                         // Primary physics carrier observed across builds
@@ -881,11 +879,53 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             let target = component_owner.get(&aid).cloned().unwrap_or(aid);
                             car_boost.insert(target, amt.clamp(0, 100));
                         }
-                        // Demolition signals (varies by build)
-                        Attribute::Demolish(_)
-                        | Attribute::DemolishExtended(_)
-                        | Attribute::DemolishFx(_) => {
-                            car_demo.insert(aid, true);
+                        // Demolition signals carry attacker/victim attribution in some builds.
+                        Attribute::Demolish(demo) => {
+                            let victim_id: i32 = if demo.victim_flag {
+                                demo.victim.into()
+                            } else {
+                                aid
+                            };
+                            let attacker_id = if demo.attacker_flag {
+                                Some(i32::from(demo.attacker))
+                            } else {
+                                None
+                            };
+                            car_demo.insert(victim_id, true);
+                            frame_demo_records.push((victim_id, attacker_id));
+                        }
+                        Attribute::DemolishExtended(demo) => {
+                            let victim_id = if demo.victim.active {
+                                Some(i32::from(demo.victim.actor))
+                            } else {
+                                None
+                            };
+                            let attacker_id = if demo.attacker.active {
+                                Some(i32::from(demo.attacker.actor))
+                            } else {
+                                None
+                            };
+                            if let Some(victim_actor) = victim_id {
+                                car_demo.insert(victim_actor, true);
+                                frame_demo_records.push((victim_actor, attacker_id));
+                            } else {
+                                car_demo.insert(aid, true);
+                                frame_demo_records.push((aid, attacker_id));
+                            }
+                        }
+                        Attribute::DemolishFx(demo) => {
+                            let victim_id: i32 = if demo.victim_flag {
+                                demo.victim.into()
+                            } else {
+                                aid
+                            };
+                            let attacker_id = if demo.attacker_flag {
+                                Some(i32::from(demo.attacker))
+                            } else {
+                                None
+                            };
+                            car_demo.insert(victim_id, true);
+                            frame_demo_records.push((victim_id, attacker_id));
                         }
                         // Note: Jump/Dodge/Throttle/Steer/Handbrake attributes are not directly
                         // exposed by boxcars 0.10.7. These mechanics will be inferred in Python
@@ -939,6 +979,32 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
 
                 let mut players_map: BTreeMap<usize, PyObject> = BTreeMap::new();
                 let owned_actor_ids: HashSet<i32> = component_owner.values().copied().collect();
+                let mut owner_jump_state: HashMap<i32, bool> = HashMap::new();
+                let mut owner_dodge_state: HashMap<i32, bool> = HashMap::new();
+                let mut owner_double_jump_state: HashMap<i32, bool> = HashMap::new();
+                for (component_id, owner_id) in &component_owner {
+                    let Some(component) = component_kind.get(component_id) else {
+                        continue;
+                    };
+                    if component.is_jump {
+                        owner_jump_state.entry(*owner_id).or_insert(false);
+                    }
+                    if component.is_dodge {
+                        owner_dodge_state.entry(*owner_id).or_insert(false);
+                    }
+                    if component.is_double_jump {
+                        owner_double_jump_state.entry(*owner_id).or_insert(false);
+                    }
+                }
+                for actor_id in &frame_jumping_actors {
+                    owner_jump_state.insert(*actor_id, true);
+                }
+                for actor_id in &frame_dodging_actors {
+                    owner_dodge_state.insert(*actor_id, true);
+                }
+                for actor_id in &frame_double_jumping_actors {
+                    owner_double_jump_state.insert(*actor_id, true);
+                }
                 let mut frame_classification_source = "object_name";
                 for aid in actors {
                     let mut actor_classification_source = "fallback_unclassified";
@@ -1039,14 +1105,14 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         p.set_item("is_supersonic", speed > 2300.0)?;
                         p.set_item("is_on_ground", z <= 18.0)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
-                        if frame_jumping_actors.contains(&aid) {
-                            p.set_item("is_jumping", true)?;
+                        if let Some(active) = owner_jump_state.get(&aid) {
+                            p.set_item("is_jumping", *active)?;
                         }
-                        if frame_dodging_actors.contains(&aid) {
-                            p.set_item("is_dodging", true)?;
+                        if let Some(active) = owner_dodge_state.get(&aid) {
+                            p.set_item("is_dodging", *active)?;
                         }
-                        if frame_double_jumping_actors.contains(&aid) {
-                            p.set_item("is_double_jumping", true)?;
+                        if let Some(active) = owner_double_jump_state.get(&aid) {
+                            p.set_item("is_double_jumping", *active)?;
                         }
 
                         players_map.insert(idx, p.into_py(py));
@@ -1105,9 +1171,39 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 f.set_item("boost_pad_events", pad_list)?;
 
                 let parser_demo_events = PyList::empty(py);
+                let mut emitted_demo_victims: HashSet<i32> = HashSet::new();
+                for (victim_actor_id, attacker_actor_id) in &frame_demo_records {
+                    let Some(victim_index) = actor_to_player_index.get(victim_actor_id) else {
+                        continue;
+                    };
+                    let demo_dict = PyDict::new(py);
+                    demo_dict.set_item("timestamp", nf.time as f64)?;
+                    demo_dict.set_item("victim_id", format!("player_{}", victim_index))?;
+                    if let Some(team) = car_team.get(victim_actor_id) {
+                        demo_dict.set_item("victim_team", *team)?;
+                    }
+                    if let Some(attacker_actor_id) = attacker_actor_id {
+                        if let Some(attacker_index) = actor_to_player_index.get(attacker_actor_id) {
+                            demo_dict.set_item(
+                                "attacker_id",
+                                format!("player_{}", attacker_index),
+                            )?;
+                        }
+                        if let Some(team) = car_team.get(attacker_actor_id) {
+                            demo_dict.set_item("attacker_team", *team)?;
+                        }
+                    }
+                    demo_dict.set_item("frame_index", frame_index)?;
+                    demo_dict.set_item("source", "parser")?;
+                    parser_demo_events.append(demo_dict)?;
+                    emitted_demo_victims.insert(*victim_actor_id);
+                }
                 for (actor_id, is_demolished) in &car_demo {
                     let was_demolished = *prev_demo_state.get(actor_id).unwrap_or(&false);
                     if !was_demolished && *is_demolished {
+                        if emitted_demo_victims.contains(actor_id) {
+                            continue;
+                        }
                         if let Some(idx) = actor_to_player_index.get(actor_id) {
                             let demo_dict = PyDict::new(py);
                             demo_dict.set_item("timestamp", nf.time as f64)?;
@@ -1177,7 +1273,22 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
 
                 f.set_item("parser_touch_events", parser_touch_events)?;
                 f.set_item("parser_demo_events", parser_demo_events)?;
-                f.set_item("parser_tickmarks", PyList::empty(py))?;
+                let parser_tickmarks = PyList::empty(py);
+                if let Some(tickmarks) = tickmarks_by_frame.get(&frame_index) {
+                    for (description, tickmark_frame) in tickmarks {
+                        let tickmark_dict = PyDict::new(py);
+                        tickmark_dict.set_item("timestamp", nf.time as f64)?;
+                        tickmark_dict.set_item("kind", description.clone())?;
+                        tickmark_dict.set_item("frame_index", *tickmark_frame)?;
+                        let payload = PyDict::new(py);
+                        payload.set_item("description", description.clone())?;
+                        payload.set_item("frame", *tickmark_frame)?;
+                        tickmark_dict.set_item("payload", payload)?;
+                        tickmark_dict.set_item("source", "parser")?;
+                        parser_tickmarks.append(tickmark_dict)?;
+                    }
+                }
+                f.set_item("parser_tickmarks", parser_tickmarks)?;
 
                 let parser_kickoff_markers = PyList::empty(py);
                 let at_center = ball_pos.0.abs() <= KICKOFF_POSITION_TOLERANCE as f32
