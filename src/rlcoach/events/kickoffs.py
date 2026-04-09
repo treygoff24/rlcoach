@@ -112,15 +112,27 @@ def _kickoffs_from_parser_markers(frames: list[Frame]) -> list[KickoffEvent]:
             if key in seen:
                 continue
             seen.add(key)
+
+            # Build player states to infer roles from spawn positions
+            player_states: dict[str, dict[str, Any]] = {}
+            for p in frame.players:
+                player_states[p.player_id] = {
+                    "team": p.team,
+                    "start_pos": p.position,
+                }
+
+            # Infer kickoff roles (GO/CHEAT/WING/BACK) from positions
+            _assign_kickoff_roles(player_states)
+
             players = [
                 {
-                    "player_id": p.player_id,
-                    "role": "BACK",
+                    "player_id": pid,
+                    "role": state["role"],
                     "boost_used": 0.0,
                     "approach_type": "UNKNOWN",
                     "time_to_first_touch": None,
                 }
-                for p in frame.players
+                for pid, state in player_states.items()
             ]
             events.append(
                 KickoffEvent(

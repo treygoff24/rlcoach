@@ -1272,3 +1272,57 @@ class TestParserAuthorityPreference:
 
         assert len(kickoffs) == 1
         assert kickoffs[0].phase == "OT"
+
+    def test_parser_kickoff_markers_infer_roles_from_positions(self):
+        """Parser-only markers infer roles from positions, not hardcode BACK.
+
+        Regression: when parser markers exist without a heuristic match,
+        roles must be inferred (GO/CHEAT/WING/BACK) from spawn positions,
+        not assigned BACK for everyone.
+        """
+        # Ball away from center so no heuristic kickoff is detected,
+        # but parser still emits markers that need proper role inference.
+        frames = [
+            create_test_frame(
+                0.0,
+                Vec3(500.0, 1000.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    # Blue team (team 0) - 3 players at different depths
+                    create_test_player("blue_go", 0, Vec3(0.0, -200.0, 17.0)),
+                    create_test_player("blue_wing", 0, Vec3(-1800.0, -3000.0, 17.0)),
+                    create_test_player("blue_back", 0, Vec3(0.0, -4000.0, 17.0)),
+                    # Orange team (team 1) - 3 players
+                    create_test_player("orange_go", 1, Vec3(0.0, 200.0, 17.0)),
+                    create_test_player("orange_wing", 1, Vec3(1800.0, 3000.0, 17.0)),
+                    create_test_player("orange_back", 1, Vec3(0.0, 4000.0, 17.0)),
+                ],
+            ),
+        ]
+        frames[0] = Frame(
+            timestamp=frames[0].timestamp,
+            ball=frames[0].ball,
+            players=frames[0].players,
+            parser_kickoff_markers=[
+                ParserKickoffMarker(timestamp=0.0, phase="INITIAL")
+            ],
+        )
+
+        kickoffs = detect_kickoffs(frames)
+
+        assert len(kickoffs) == 1
+        kickoff = kickoffs[0]
+        assert kickoff.source == "parser"
+
+        player_roles = {p["player_id"]: p["role"] for p in kickoff.players}
+
+        # Verify roles are inferred, NOT all BACK
+        assert player_roles["blue_go"] == "GO"
+        assert player_roles["orange_go"] == "GO"
+        assert player_roles["blue_wing"] == "WING"
+        assert player_roles["orange_wing"] == "WING"
+        assert player_roles["blue_back"] == "BACK"
+        assert player_roles["orange_back"] == "BACK"
+
+        # Ensure roles vary (the original bug was all BACK)
+        assert len(set(player_roles.values())) > 1

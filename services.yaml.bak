@@ -1,0 +1,13 @@
+commands:
+  install: make install-dev
+  rust_dev: source .venv/bin/activate && cd parsers/rlreplay_rust && maturin develop
+  rust_test: source .venv/bin/activate && cd parsers/rlreplay_rust && cargo test
+  lint: source .venv/bin/activate && ruff check src/ tests/
+  format_check: source .venv/bin/activate && black --check src/ tests/
+  test: source .venv/bin/activate && PYTHONPATH=src pytest -q
+  parser_focused_test: source .venv/bin/activate && PYTHONPATH=src pytest -q tests/test_rust_adapter.py tests/parser/test_rust_adapter_smoke.py tests/test_parser_interface.py tests/test_normalize.py tests/test_events.py tests/test_events_calibration_synthetic.py tests/test_analysis_mechanics_contract.py tests/test_analysis_mechanics_advanced.py tests/test_schema_validation.py tests/test_schema_validation_hardening.py tests/test_docs_parser_contract.py tests/test_benchmarks.py
+  corpus_health: source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.py --roots replays,Replay_files --json
+  analyze_cli: source .venv/bin/activate && PYTHONPATH=src python -m rlcoach.cli analyze testing_replay.replay --adapter rust --out /tmp/rlcoach-mission-analyze --pretty
+  report_md_cli: source .venv/bin/activate && PYTHONPATH=src python -m rlcoach.cli report-md testing_replay.replay --adapter rust --out /tmp/rlcoach-mission-report --pretty
+
+services: {}
