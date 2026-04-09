@@ -91,9 +91,12 @@ def test_player_mechanics_fallback_surfaces_advanced_zero_keys():
     assert mechanics["fast_aerial_count"] == 0
     assert mechanics["flip_reset_count"] == 0
     assert mechanics["air_roll_count"] == 0
+    assert mechanics["air_roll_total_time_s"] == 0.0
     assert mechanics["dribble_count"] == 0
+    assert mechanics["dribble_total_time_s"] == 0.0
     assert mechanics["musty_flick_count"] == 0
     assert mechanics["power_slide_count"] == 0
+    assert mechanics["power_slide_total_time_s"] == 0.0
     assert mechanics["ground_pinch_count"] == 0
     assert mechanics["double_touch_count"] == 0
     assert mechanics["redirect_count"] == 0

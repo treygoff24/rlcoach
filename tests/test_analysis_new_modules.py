@@ -375,8 +375,8 @@ class TestMechanicsAnalysis:
         assert stats["jump_count"] == 1
         assert stats["double_jump_count"] == 1
 
-    def test_authoritative_dodge_emits_causal_jump_when_jump_flag_not_seen(self):
-        """A parser-authoritative dodge still implies the causal jump."""
+    def test_authoritative_dodge_emits_causal_jump_without_false_fast_aerial(self):
+        """A late-observed parser dodge should not fabricate fast-aerial timing."""
         frames = [
             create_test_frame(
                 0.0,
@@ -399,12 +399,45 @@ class TestMechanicsAnalysis:
                     create_authoritative_test_player(
                         "player1",
                         0,
-                        position=Vec3(0.0, 0.0, 90.0),
-                        velocity=Vec3(0.0, 0.0, 50.0),
+                        position=Vec3(0.0, 0.0, 120.0),
+                        velocity=Vec3(0.0, 0.0, 80.0),
+                        boost_amount=30,
                         is_on_ground=False,
                         is_jumping=False,
                         is_double_jumping=False,
                         is_dodging=True,
+                    )
+                ],
+            ),
+            create_test_frame(
+                0.2,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 260.0),
+                        velocity=Vec3(0.0, 0.0, 400.0),
+                        boost_amount=20,
+                        is_on_ground=False,
+                        is_jumping=False,
+                        is_double_jumping=False,
+                        is_dodging=False,
+                    )
+                ],
+            ),
+            create_test_frame(
+                0.3,
+                [
+                    create_authoritative_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 360.0),
+                        velocity=Vec3(0.0, 0.0, 420.0),
+                        boost_amount=10,
+                        is_on_ground=False,
+                        is_jumping=False,
+                        is_double_jumping=False,
+                        is_dodging=False,
                     )
                 ],
             ),
@@ -416,6 +449,7 @@ class TestMechanicsAnalysis:
         assert stats["jump_count"] == 1
         assert stats["flip_count"] == 1
         assert stats["total_mechanics"] == 2
+        assert stats["fast_aerial_count"] == 0
 
 
 class TestRecoveryAnalysis:

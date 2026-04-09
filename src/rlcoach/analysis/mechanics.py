@@ -550,9 +550,6 @@ def detect_mechanics_for_player(
                 ):
                     if not state.has_jumped:
                         state.has_jumped = True
-                        state.first_jump_time = timestamp
-                        state.boost_at_first_jump = player.boost_amount
-                        state.boost_used_since_jump = 0
                         events.append(
                             MechanicEvent(
                                 timestamp=timestamp,
@@ -583,9 +580,6 @@ def detect_mechanics_for_player(
                 ):
                     if not state.has_jumped:
                         state.has_jumped = True
-                        state.first_jump_time = timestamp
-                        state.boost_at_first_jump = player.boost_amount
-                        state.boost_used_since_jump = 0
                         events.append(
                             MechanicEvent(
                                 timestamp=timestamp,
