@@ -1,0 +1,21 @@
+{
+  "featureId": "fix-rust-touch-debounce-suppression",
+  "reviewedAt": "2026-04-09T17:07:43+0000",
+  "commitId": "ce14781",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The original failure in `fb77725` is addressed by the subsequent fix commit `c5d7360`: the Rust debounce branch now treats post-window touches as new touches and emits them, which restores repeated parser-authored touch carriers for downstream parser-first consumption. The added regression test exercises a real replay and asserts that touch events occur across multiple frames and that at least one player records multiple touches over time, directly covering the suppression bug described in the prior failing review. The handoff's recorded commitId (`ce14781`) is only the follow-up style cleanup for that regression test, so both the functional diff (`c5d7360`) and the style diff (`ce14781`) were reviewed to evaluate the full fix feature.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The fix feature's handoff points at the style-only commit `ce14781`, while the actual debounce repair lives in the immediately preceding commit `c5d7360`. Reviewers had to inspect both commits to reconstruct the true feature scope.",
+      "evidence": "Handoff `/Users/treygoff/.factory/missions/316e30d3-4db6-4f1d-aba2-07992a5608a9/handoffs/2026-04-09T16-57-55-931Z__fix-rust-touch-debounce-suppression__431f1b5a-0c31-4b12-8279-c092a3dd8d7f.json` records `commitId: ce14781`, but `git show ce14781` only reformats assertions in `tests/test_rust_adapter.py`; `git show c5d7360` contains the real `parsers/rlreplay_rust/src/lib.rs` debounce fix plus the new regression test."
+    }
+  ],
+  "addressesFailureFrom": "/Users/treygoff/Code/rlcoach/.factory/validation/parser-contract/scrutiny/reviews/emit-parser-authoritative-events-and-consistency-contract.json",
+  "summary": "Reviewed the prior failing feature report, the fix feature transcript skeleton and handoff, mission/shared-state guidance, and both relevant diffs: original broken touch-emission commit `fb77725` plus the fix feature commits `c5d7360` and `ce14781`. The fix adequately resolves the original debounce bug: repeated valid touches from the same actor are emitted again after the debounce window, downstream parser-first touch consumption remains intact via `src/rlcoach/events/touches.py`, and targeted regression coverage was added in `tests/test_rust_adapter.py`. Wrote the review report to the requested scrutiny path."
+}

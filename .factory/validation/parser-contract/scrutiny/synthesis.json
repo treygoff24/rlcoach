@@ -1,6 +1,6 @@
 {
   "milestone": "parser-contract",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -20,50 +20,38 @@
     }
   },
   "reviewsSummary": {
-    "total": 4,
-    "passed": 1,
-    "failed": 3,
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
     "failedFeatures": [
-      "freeze-parser-contract-foundation",
-      "complete-rust-cli-contract-and-runtime-modes",
-      "emit-parser-authoritative-events-and-consistency-contract"
+      "freeze-parser-contract-foundation"
     ]
   },
   "blockingIssues": [
     {
       "featureId": "freeze-parser-contract-foundation",
       "severity": "blocking",
-      "description": "The reviewed implementation commit `de16738` only introduces mission scaffolding files and makes no changes to the feature's scoped parser contract, schema, or test surfaces, so the handoff's implementation claim is unsupported by the diff."
-    },
-    {
-      "featureId": "complete-rust-cli-contract-and-runtime-modes",
-      "severity": "blocking",
-      "description": "`src/rlcoach/events/kickoffs.py:118` hardcodes parser-marker kickoff roles to `BACK`, which makes parser-only kickoff output schema-valid but semantically wrong whenever a parser kickoff marker is emitted without a heuristic merge match."
-    },
-    {
-      "featureId": "emit-parser-authoritative-events-and-consistency-contract",
-      "severity": "blocking",
-      "description": "`parsers/rlreplay_rust/src/lib.rs:1139` suppresses later valid touches from the same actor after the first emission, so the shipped parser-authored touch stream is incomplete and not stable enough for authoritative downstream consumption."
+      "description": "The reviewed implementation commit `de16738` only introduces mission scaffolding files and makes no changes to the feature's scoped parser contract, schema, or test surfaces, so the handoff's implementation claim remains unsupported by the diff. No follow-up fix feature in this rerun addressed that blocking review."
     }
   ],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
       "target": "skills",
-      "suggestion": "Tighten rust-parser-worker enforcement around test-first workflow and require reviewers/workers to call out when a feature is already pre-satisfied instead of attaching an unrelated commit to the feature handoff.",
-      "evidence": "`freeze-parser-contract-foundation` reported `followedProcedure: true` and linked commit `de16738`, but the diff only adds mission scaffolding and shows no parser/schema/test changes for the claimed feature implementation.",
+      "suggestion": "Tighten rust-parser-worker enforcement around test-first workflow and require workers to explicitly escalate when a feature appears pre-satisfied instead of attaching an unrelated commit to the handoff.",
+      "evidence": "`freeze-parser-contract-foundation` still fails because handoff commit `de16738` only adds mission scaffolding and does not touch parser/schema/test surfaces for the claimed feature implementation.",
       "isSystemic": true
     },
     {
       "target": "skills",
-      "suggestion": "Clarify rust-parser-worker scope guidance for parser-contract work that may require downstream event-shaping changes outside `parsers/rlreplay_rust/` and `src/rlcoach/parser/`, or explicitly require orchestrator escalation when the first failing surface is downstream.",
-      "evidence": "`complete-rust-cli-contract-and-runtime-modes` used the rust-parser-worker skill but fixed a failure in `src/rlcoach/events/kickoffs.py`, outside the skill's documented owned-file scope.",
-      "isSystemic": false
+      "suggestion": "Require handoff commit IDs to identify the functional fix commit(s), not only later style-only follow-ups, so scrutiny can trace the true implementation without reconstructing adjacent history.",
+      "evidence": "The passing review for `fix-rust-touch-debounce-suppression` had to inspect both `c5d7360` and the handoff's recorded `ce14781` because the handoff pointed at a style-only commit while the actual debounce repair lived in the prior commit.",
+      "isSystemic": true
     },
     {
       "target": "skills",
-      "suggestion": "Require targeted regression coverage for parser-contract bug fixes discovered via manual CLI validation, especially for authoritative event emission semantics and parser-marker role shaping.",
-      "evidence": "Both `complete-rust-cli-contract-and-runtime-modes` and `emit-parser-authoritative-events-and-consistency-contract` changed runtime behavior without adding focused regression tests for the exact bug surfaces later caught in scrutiny.",
+      "suggestion": "Enforce recording the required manual CLI sanity check whenever parser behavior changes are user-observable and verification steps call for an analyze/report run with inspection.",
+      "evidence": "`fix-parser-marker-kickoff-role-inference` passed code review, but the worker transcript and handoff did not record the feature's required CLI analyze/manual kickoff-role inspection despite changing observable parser output semantics.",
       "isSystemic": true
     }
   ],
@@ -71,7 +59,11 @@
     {
       "observation": "Add a standalone typecheck command to services.yaml for parser-contract scrutiny.",
       "reason": "ambiguous: this repo's milestone manifest currently defines test, lint, format, Rust build/test, corpus-health, and CLI checks, but no factual standalone typecheck command was established during this scrutiny run."
+    },
+    {
+      "observation": "Apply a guidance update for the unrelated `services.yaml.bak` file appearing in a fix commit.",
+      "reason": "rejected for now: the scope-creep observation is real but feature-specific, and a systemic process change was less justified than the higher-confidence guidance items above."
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/parser-contract/scrutiny/synthesis.round1.json"
 }
