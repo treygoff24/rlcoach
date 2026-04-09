@@ -65,5 +65,11 @@
       "reason": "rejected for now: the scope-creep observation is real but feature-specific, and a systemic process change was less justified than the higher-confidence guidance items above."
     }
   ],
-  "previousRound": ".factory/validation/parser-contract/scrutiny/synthesis.round1.json"
+  "previousRound": ".factory/validation/parser-contract/scrutiny/synthesis.round1.json",
+  "override": {
+    "applied": true,
+    "appliedBy": "orchestrator",
+    "reason": "Round-2 scrutiny's only remaining blocker is not a product-code defect. The flagged issue is that the pre-satisfied feature `freeze-parser-contract-foundation` cited mission scaffolding commit `de16738` rather than the historical parser/schema/test commits that had already satisfied the feature before the mission began. All validator gates pass, the two real product bugs identified in round 1 were fixed and re-reviewed successfully, and the worker guidance has been tightened to prevent this handoff/provenance mistake from recurring. Proceeding to user-testing is acceptable because no unfixed runtime, schema, or reliability defect remains for the parser-contract milestone.",
+    "deferredItems": []
+  }
 }
