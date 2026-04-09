@@ -118,10 +118,14 @@ def test_opening_frames_do_not_mark_every_player_as_actively_jumping():
     assert opening_players, "expected opening player snapshots from fixture replay"
 
     active_jump_flags = [
-        player.get("is_jumping") is True for player in opening_players if "is_jumping" in player
+        player.get("is_jumping") is True
+        for player in opening_players
+        if "is_jumping" in player
     ]
     active_dodge_flags = [
-        player.get("is_dodging") is True for player in opening_players if "is_dodging" in player
+        player.get("is_dodging") is True
+        for player in opening_players
+        if "is_dodging" in player
     ]
     active_double_jump_flags = [
         player.get("is_double_jumping") is True
@@ -176,9 +180,7 @@ def test_frames_expose_parser_event_carrier_lists():
 def test_real_replay_emits_parser_tickmarks():
     frames = _load_frames()
     tickmarks = [
-        tickmark
-        for frame in frames
-        for tickmark in frame.get("parser_tickmarks", [])
+        tickmark for frame in frames for tickmark in frame.get("parser_tickmarks", [])
     ]
 
     assert tickmarks, "expected parser tickmarks from fixture replay"

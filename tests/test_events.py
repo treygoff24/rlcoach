@@ -1215,7 +1215,12 @@ class TestParserAuthorityPreference:
                 Vec3(0.0, 0.0, 93.15),
                 Vec3(0.0, 0.0, 0.0),
                 [
-                    create_test_player("victim", 0, Vec3(500.0, 0.0, 17.0), demolished=True),
+                    create_test_player(
+                        "victim",
+                        0,
+                        Vec3(500.0, 0.0, 17.0),
+                        demolished=True,
+                    ),
                     create_test_player("attacker", 1, Vec3(540.0, 0.0, 17.0)),
                 ],
             ),
