@@ -9,7 +9,6 @@ This module transforms raw parser data into normalized structures with:
 
 from __future__ import annotations
 
-import math
 import statistics
 from dataclasses import replace
 from typing import Any
@@ -33,11 +32,6 @@ from .utils.identity import (
     build_player_identities,
     sanitize_display_name,
 )
-
-SUPERSONIC_ENTRY_UU_S = 2200.0
-SUPERSONIC_EXIT_UU_S = 2100.0
-SUPERSONIC_DERIVATIVE_ENTRY_UU_S = 2800.0
-MIN_FRAME_DT = 1e-3
 
 # Default frame rate when unable to measure from replay data
 DEFAULT_FRAME_RATE = 30.0
@@ -535,7 +529,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
     # Get player mapping
     players_index, alias_lookup = normalize_players(header, frames)
 
-    player_supersonic_state: dict[str, bool] = {}
     player_prev_position: dict[str, Vec3] = {}
     player_prev_timestamp: dict[str, float] = {}
 
@@ -677,44 +670,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     ):
                         is_demolished = bool(player_data["is_demolished"])
 
-                    linear_speed = math.sqrt(
-                        velocity.x * velocity.x
-                        + velocity.y * velocity.y
-                        + velocity.z * velocity.z
-                    )
-                    horizontal_speed = math.hypot(velocity.x, velocity.y)
-                    prev_pos = player_prev_position.get(canonical_id)
-                    prev_time = player_prev_timestamp.get(canonical_id)
-                    derivative_speed = 0.0
-                    if prev_pos is not None and prev_time is not None:
-                        dt = max(timestamp - prev_time, MIN_FRAME_DT)
-                        dx = position.x - prev_pos.x
-                        dy = position.y - prev_pos.y
-                        dz = position.z - prev_pos.z
-                        derivative_speed = math.sqrt(dx * dx + dy * dy + dz * dz) / dt
-
-                    state = player_supersonic_state.get(canonical_id, False)
-                    if raw_supersonic_flag:
-                        state = True
-                    elif (
-                        linear_speed >= SUPERSONIC_ENTRY_UU_S
-                        or horizontal_speed >= SUPERSONIC_ENTRY_UU_S
-                    ):
-                        state = True
-                    elif (
-                        state
-                        and derivative_speed >= SUPERSONIC_DERIVATIVE_ENTRY_UU_S
-                        and horizontal_speed >= SUPERSONIC_EXIT_UU_S
-                    ):
-                        state = True
-                    elif state and horizontal_speed >= SUPERSONIC_EXIT_UU_S:
-                        state = True
-                    else:
-                        state = False
-
-                    player_supersonic_state[canonical_id] = state
-                    is_supersonic = raw_supersonic_flag or state
-
                     player_frame = PlayerFrame(
                         player_id=canonical_id,
                         team=team,
@@ -722,7 +677,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         velocity=velocity,
                         rotation=rotation,
                         boost_amount=boost_amount,
-                        is_supersonic=is_supersonic,
+                        is_supersonic=raw_supersonic_flag,
                         is_on_ground=is_on_ground,
                         is_demolished=is_demolished,
                     )

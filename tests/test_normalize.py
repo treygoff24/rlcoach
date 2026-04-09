@@ -352,6 +352,39 @@ class TestTimelineBuilding:
         assert player_frame.boost_amount == 75
         assert player_frame.is_supersonic is True
 
+    def test_supersonic_flag_is_not_derived_from_velocity(self):
+        """Normalize preserves parser flags; movement analysis owns speed thresholds."""
+        header = Header(
+            players=[
+                PlayerInfo(name="TestPlayer", platform_ids={"steam": "123"}, team=0)
+            ]
+        )
+        frame_data = {
+            "timestamp": 1.0,
+            "ball": {
+                "position": {"x": 0, "y": 0, "z": 93.15},
+                "velocity": {"x": 0, "y": 0, "z": 0},
+                "angular_velocity": {"x": 0, "y": 0, "z": 0},
+            },
+            "players": [
+                {
+                    "player_id": "steam:123",
+                    "team": 0,
+                    "position": {"x": 0, "y": 0, "z": 17},
+                    "velocity": {"x": 2500, "y": 0, "z": 0},
+                    "rotation": {"x": 0, "y": 0, "z": 0},
+                    "boost_amount": 75,
+                    "is_supersonic": False,
+                    "is_on_ground": True,
+                    "is_demolished": False,
+                }
+            ],
+        }
+
+        timeline = build_timeline(header, [frame_data])
+
+        assert timeline[0].players[0].is_supersonic is False
+
     def test_normalize_preserves_component_state_flags_when_supported(
         self, monkeypatch
     ):

@@ -35,14 +35,54 @@ fn infer_kickoff_phase(timestamp: f64, overtime: bool, match_length: f64) -> &'s
 }
 
 /// Compute Euclidean distance between two 3D points
-fn distance_3d(
-    (ax, ay, az): (f32, f32, f32),
-    (bx, by, bz): (f32, f32, f32),
-) -> f32 {
+fn distance_3d((ax, ay, az): (f32, f32, f32), (bx, by, bz): (f32, f32, f32)) -> f32 {
     let dx = ax - bx;
     let dy = ay - by;
     let dz = az - bz;
     (dx * dx + dy * dy + dz * dz).sqrt()
+}
+
+fn bind_player_index(
+    actor_to_player_index: &mut HashMap<i32, usize>,
+    next_by_team: &mut HashMap<i64, Vec<usize>>,
+    actor_id: i32,
+    player_index: usize,
+) {
+    for queue in next_by_team.values_mut() {
+        queue.retain(|candidate| *candidate != player_index);
+    }
+    actor_to_player_index.retain(|existing_actor, existing_index| {
+        *existing_actor == actor_id || *existing_index != player_index
+    });
+    actor_to_player_index.insert(actor_id, player_index);
+}
+
+fn pop_available_player_index(
+    actor_to_player_index: &HashMap<i32, usize>,
+    next_by_team: &mut HashMap<i64, Vec<usize>>,
+    team: i64,
+) -> Option<usize> {
+    let assigned_indices: HashSet<usize> = actor_to_player_index.values().copied().collect();
+    let queue = next_by_team.get_mut(&team)?;
+    while !queue.is_empty() {
+        let candidate = queue.remove(0);
+        if !assigned_indices.contains(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn unique_header_index_by_name(
+    header_players: &[(String, i64)],
+    player_name: &str,
+) -> Option<usize> {
+    let mut matches = header_players
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, (name, _team))| (name == player_name).then_some(idx));
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
 }
 
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
@@ -608,6 +648,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut car_vel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_rot: HashMap<i32, (f32, f32, f32, f32)> = HashMap::new(); // quaternion (x,y,z,w)
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
+        let mut car_owner: HashMap<i32, i32> = HashMap::new();
         let mut component_owner: HashMap<i32, i32> = HashMap::new();
         let mut pad_registry = PadRegistry::new_with_arena(&map_name);
         let mut ball_actor: Option<i32> = None;
@@ -615,6 +656,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut ball_vel: (f32, f32, f32) = (0.0, 0.0, 0.0);
         let mut ball_angvel: (f32, f32, f32) = (0.0, 0.0, 0.0);
         let mut actor_to_player_index: HashMap<i32, usize> = HashMap::new();
+        let mut owner_to_player_index: HashMap<i32, usize> = HashMap::new();
         let mut next_by_team: HashMap<i64, Vec<usize>> = HashMap::new();
         let mut fallback_actor_index: HashMap<i32, usize> = HashMap::new();
         let mut next_fallback_index: usize = 0;
@@ -692,7 +734,20 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 // Prune actors that were deleted before processing updates to avoid stale telemetry
                 for deleted in nf.deleted_actors {
                     let aid: i32 = deleted.into();
-                    let team_for_return = car_team.get(&aid).copied();
+                    let team_for_return = car_team
+                        .get(&aid)
+                        .copied()
+                        .or_else(|| {
+                            actor_to_player_index
+                                .get(&aid)
+                                .and_then(|idx| header_players.get(*idx))
+                                .map(|(_, team)| *team)
+                        })
+                        .or_else(|| {
+                            car_pos
+                                .get(&aid)
+                                .map(|(_, y, _)| if *y > 0.0 { 1 } else { 0 })
+                        });
                     if ball_actor == Some(aid) {
                         ball_actor = None;
                         ball_pos = (0.0, 0.0, 93.15);
@@ -715,6 +770,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     car_vel.remove(&aid);
                     car_rot.remove(&aid);
                     car_demo.remove(&aid);
+                    car_owner.remove(&aid);
                     prev_demo_state.remove(&aid);
                     last_touch_time.remove(&aid);
                     last_touch_pos.remove(&aid);
@@ -759,6 +815,65 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                 let owner_id: i32 = active.actor.into();
                                 component_owner.insert(aid, owner_id);
                             }
+                            if active.active
+                                && actor_kind
+                                    .get(&aid)
+                                    .map(|kind| kind.is_car)
+                                    .unwrap_or(false)
+                            {
+                                let owner_id: i32 = active.actor.into();
+                                let owner_is_player = owner_to_player_index.contains_key(&owner_id)
+                                    || actor_object_name
+                                        .get(&owner_id)
+                                        .map(|object_name| object_name.contains("PRI_TA"))
+                                        .unwrap_or(false);
+                                if !owner_is_player {
+                                    continue;
+                                }
+                                car_owner.insert(aid, owner_id);
+                                if let Some(idx) = owner_to_player_index.get(&owner_id).copied() {
+                                    bind_player_index(
+                                        &mut actor_to_player_index,
+                                        &mut next_by_team,
+                                        aid,
+                                        idx,
+                                    );
+                                    if let Some((_, team)) = header_players.get(idx) {
+                                        car_team.insert(aid, *team);
+                                    }
+                                }
+                            }
+                        }
+                        Attribute::String(player_name) => {
+                            let is_player_replication_actor = actor_object_name
+                                .get(&aid)
+                                .map(|object_name| object_name.contains("PRI_TA"))
+                                .unwrap_or(false);
+                            if !is_player_replication_actor {
+                                continue;
+                            }
+                            if let Some(idx) =
+                                unique_header_index_by_name(&header_players, &player_name)
+                            {
+                                owner_to_player_index.insert(aid, idx);
+                                let owned_cars: Vec<i32> = car_owner
+                                    .iter()
+                                    .filter_map(|(car_actor, owner)| {
+                                        (*owner == aid).then_some(*car_actor)
+                                    })
+                                    .collect();
+                                for car_actor in owned_cars {
+                                    bind_player_index(
+                                        &mut actor_to_player_index,
+                                        &mut next_by_team,
+                                        car_actor,
+                                        idx,
+                                    );
+                                    if let Some((_, team)) = header_players.get(idx) {
+                                        car_team.insert(car_actor, *team);
+                                    }
+                                }
+                            }
                         }
                         // Primary physics carrier observed across builds
                         Attribute::RigidBody(rb) => {
@@ -775,7 +890,10 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             });
                             // Update ball or car state depending on classification and fallback
                             let is_ball = Some(aid) == ball_actor
-                                || actor_kind.get(&aid).map(|kind| kind.is_ball).unwrap_or(false);
+                                || actor_kind
+                                    .get(&aid)
+                                    .map(|kind| kind.is_ball)
+                                    .unwrap_or(false);
                             if is_ball {
                                 ball_actor = Some(aid);
                                 ball_pos = (loc.x, loc.y, loc.z);
@@ -861,14 +979,44 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                 continue;
                             }
                             // Register as car if not yet classified (TeamPaint implies car)
-                            if !actor_kind.contains_key(&target) {
-                                actor_kind.insert(target, ActorKind { is_ball: false, is_car: true });
+                            actor_kind.entry(target).or_insert(ActorKind {
+                                is_ball: false,
+                                is_car: true,
+                            });
+                            let mut assigned_idx = actor_to_player_index.get(&target).copied();
+                            if assigned_idx.is_none() {
+                                assigned_idx = car_owner
+                                    .get(&target)
+                                    .and_then(|owner| owner_to_player_index.get(owner))
+                                    .copied();
+                                if let Some(idx) = assigned_idx {
+                                    bind_player_index(
+                                        &mut actor_to_player_index,
+                                        &mut next_by_team,
+                                        target,
+                                        idx,
+                                    );
+                                }
                             }
-                            if !actor_to_player_index.contains_key(&target) {
-                                if let Some(v) = next_by_team.get_mut(&t) {
-                                    if let Some(idx) = v.first().cloned() {
-                                        v.remove(0);
-                                        actor_to_player_index.insert(target, idx);
+                            if assigned_idx.is_none() {
+                                assigned_idx = pop_available_player_index(
+                                    &actor_to_player_index,
+                                    &mut next_by_team,
+                                    t,
+                                );
+                                if let Some(idx) = assigned_idx {
+                                    bind_player_index(
+                                        &mut actor_to_player_index,
+                                        &mut next_by_team,
+                                        target,
+                                        idx,
+                                    );
+                                }
+                            }
+                            if let Some(idx) = assigned_idx {
+                                if car_owner.contains_key(&target) {
+                                    if let Some((_, team)) = header_players.get(idx) {
+                                        car_team.insert(target, *team);
                                     }
                                 }
                             }
@@ -1029,20 +1177,29 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     }
                     // Assign player index if not assigned and team known
                     if !actor_to_player_index.contains_key(&aid) && team >= 0 {
-                        if let Some(v) = next_by_team.get_mut(&team) {
-                            if let Some(idx) = v.first().cloned() {
-                                v.remove(0);
-                                actor_to_player_index.insert(aid, idx);
-                            } else if header_players.is_empty() {
-                                let fallback = *fallback_actor_index
-                                    .entry(aid)
-                                    .or_insert_with(|| {
-                                        let idx = next_fallback_index;
-                                        next_fallback_index += 1;
-                                        idx
-                                    });
-                                actor_to_player_index.insert(aid, fallback);
-                            }
+                        let mut assigned_idx = car_owner
+                            .get(&aid)
+                            .and_then(|owner| owner_to_player_index.get(owner))
+                            .copied();
+                        if let Some(idx) = assigned_idx {
+                            bind_player_index(
+                                &mut actor_to_player_index,
+                                &mut next_by_team,
+                                aid,
+                                idx,
+                            );
+                        } else if let Some(idx) = pop_available_player_index(
+                            &actor_to_player_index,
+                            &mut next_by_team,
+                            team,
+                        ) {
+                            bind_player_index(
+                                &mut actor_to_player_index,
+                                &mut next_by_team,
+                                aid,
+                                idx,
+                            );
+                            assigned_idx = Some(idx);
                         } else if header_players.is_empty() {
                             let fallback = *fallback_actor_index.entry(aid).or_insert_with(|| {
                                 let idx = next_fallback_index;
@@ -1050,6 +1207,14 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                 idx
                             });
                             actor_to_player_index.insert(aid, fallback);
+                            assigned_idx = Some(fallback);
+                        }
+                        if let Some(idx) = assigned_idx {
+                            if car_owner.contains_key(&aid) {
+                                if let Some((_, team)) = header_players.get(idx) {
+                                    car_team.insert(aid, *team);
+                                }
+                            }
                         }
                     }
                     if let Some(idx) = actor_to_player_index.get(&aid).cloned() {
@@ -1184,10 +1349,8 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     }
                     if let Some(attacker_actor_id) = attacker_actor_id {
                         if let Some(attacker_index) = actor_to_player_index.get(attacker_actor_id) {
-                            demo_dict.set_item(
-                                "attacker_id",
-                                format!("player_{}", attacker_index),
-                            )?;
+                            demo_dict
+                                .set_item("attacker_id", format!("player_{}", attacker_index))?;
                         }
                         if let Some(team) = car_team.get(attacker_actor_id) {
                             demo_dict.set_item("attacker_team", *team)?;
@@ -1241,7 +1404,8 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                         // If same area, skip (debounce on location too)
                         if let Some(last_p) = last_pos {
                             let loc_dist = distance_3d(*car_position, *last_p);
-                            if loc_dist <= TOUCH_LOCATION_EPS && delta_t < TOUCH_DEBOUNCE_TIME * 2.0 {
+                            if loc_dist <= TOUCH_LOCATION_EPS && delta_t < TOUCH_DEBOUNCE_TIME * 2.0
+                            {
                                 continue;
                             }
                         }
@@ -1305,11 +1469,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     marker.set_item("timestamp", nf.time as f64)?;
                     marker.set_item(
                         "phase",
-                        infer_kickoff_phase(
-                            nf.time as f64,
-                            header_overtime,
-                            header_match_length,
-                        ),
+                        infer_kickoff_phase(nf.time as f64, header_overtime, header_match_length),
                     )?;
                     marker.set_item("frame_index", frame_index)?;
                     marker.set_item("source", "parser")?;
@@ -1355,7 +1515,9 @@ fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
                 let mut fallback_frames_emitted: usize = 0;
 
                 match read_file_bytes(path) {
-                    Ok(data) => match ParserBuilder::new(&data).ignore_network_data_on_error().parse()
+                    Ok(data) => match ParserBuilder::new(&data)
+                        .ignore_network_data_on_error()
+                        .parse()
                     {
                         Ok(replay) => {
                             if let Some(net) = replay.network_frames {
@@ -1715,7 +1877,8 @@ pub fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> 
                                 }
                                 event.set_item("timestamp", nf.time as f64)?;
                                 event.set_item("raw_state", pickup_new.picked_up)?;
-                                event.set_item("state", pickup_state_label(pickup_new.picked_up))?;
+                                event
+                                    .set_item("state", pickup_state_label(pickup_new.picked_up))?;
                                 if let Some(instigator) = pickup_new.instigator {
                                     let raw_actor: i32 = instigator.into();
                                     event.set_item("instigator_actor_id", raw_actor)?;

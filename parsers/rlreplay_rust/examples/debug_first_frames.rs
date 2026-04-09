@@ -1,8 +1,8 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use rlreplay_rust::debug_first_frames;
 use std::env;
 use std::path::PathBuf;
-use rlreplay_rust::debug_first_frames;
 
 fn print_usage(program: &str) {
     eprintln!(
@@ -22,7 +22,11 @@ fn run() -> Result<(), String> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--help" | "-h" => {
-                print_usage(&env::args().next().unwrap_or_else(|| String::from("debug_first_frames")));
+                print_usage(
+                    &env::args()
+                        .next()
+                        .unwrap_or_else(|| String::from("debug_first_frames")),
+                );
                 return Ok(());
             }
             "--max-frames" => {
@@ -46,7 +50,11 @@ fn run() -> Result<(), String> {
     }
 
     if paths.is_empty() {
-        print_usage(&env::args().next().unwrap_or_else(|| String::from("debug_first_frames")));
+        print_usage(
+            &env::args()
+                .next()
+                .unwrap_or_else(|| String::from("debug_first_frames")),
+        );
         return Err("no replay files provided".into());
     }
 
@@ -55,8 +63,7 @@ fn run() -> Result<(), String> {
             .to_str()
             .ok_or_else(|| format!("non-UTF8 path: {:?}", path))?;
 
-        let frames = debug_first_frames(replay_path, max_frames)
-            .map_err(|err| err.to_string())?;
+        let frames = debug_first_frames(replay_path, max_frames).map_err(|err| err.to_string())?;
 
         Python::with_gil(|py| -> PyResult<()> {
             let frames_obj = frames.as_ref(py);

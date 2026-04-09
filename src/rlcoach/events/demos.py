@@ -10,6 +10,9 @@ from .constants import DEMO_POSITION_TOLERANCE
 from .types import DemoEvent
 from .utils import distance_3d
 
+PARSER_DEMO_ECHO_WINDOW_S = 2.5
+PARSER_DEMO_ECHO_LOCATION_TOLERANCE_UU = 200.0
+
 
 def detect_demos(frames: list[Frame]) -> list[DemoEvent]:
     """Detect demolition events from player state transitions.
@@ -83,6 +86,7 @@ def _demos_from_parser_events(frames: list[Frame]) -> list[DemoEvent]:
     """Convert parser-emitted demo lists into event-layer DemoEvent objects."""
     converted: list[DemoEvent] = []
     seen: set[tuple[float, str]] = set()
+    recent_by_victim: dict[str, tuple[int, DemoEvent]] = {}
     for frame in frames:
         for event in getattr(frame, "parser_demo_events", []) or []:
             victim = event.victim_id
@@ -108,16 +112,37 @@ def _demos_from_parser_events(frames: list[Frame]) -> list[DemoEvent]:
                 ),
                 None,
             )
-            converted.append(
-                DemoEvent(
-                    t=float(event.timestamp),
-                    victim=victim,
-                    attacker=event.attacker_id,
-                    team_attacker=team_attacker,
-                    team_victim=team_victim,
-                    location=victim_position,
-                    source=event.source or "parser",
-                )
+            demo = DemoEvent(
+                t=float(event.timestamp),
+                victim=victim,
+                attacker=event.attacker_id,
+                team_attacker=team_attacker,
+                team_victim=team_victim,
+                location=victim_position,
+                source=event.source or "parser",
             )
+            previous = recent_by_victim.get(victim)
+            if previous is not None:
+                previous_index, previous_demo = previous
+                if _is_parser_demo_echo(previous_demo, demo):
+                    if previous_demo.attacker is None and demo.attacker is not None:
+                        converted[previous_index] = demo
+                        recent_by_victim[victim] = (previous_index, demo)
+                    continue
+
+            recent_by_victim[victim] = (len(converted), demo)
+            converted.append(demo)
     converted.sort(key=lambda demo: demo.t)
     return converted
+
+
+def _is_parser_demo_echo(previous: DemoEvent, current: DemoEvent) -> bool:
+    """Return true when two parser events describe the same demolition."""
+    if current.t - previous.t > PARSER_DEMO_ECHO_WINDOW_S:
+        return False
+    if previous.location is None or current.location is None:
+        return True
+    return (
+        distance_3d(previous.location, current.location)
+        <= PARSER_DEMO_ECHO_LOCATION_TOLERANCE_UU
+    )

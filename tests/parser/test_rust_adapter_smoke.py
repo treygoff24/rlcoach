@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+PARITY_REPLAY_PATH = Path("Replay_files/0925.replay")
+
 
 def _has_rust_core():
     try:
@@ -67,3 +69,37 @@ def test_ltm_replay_reports_parse_reason_not_silent_none():
     assert hasattr(nf, "diagnostics")
     diagnostics = nf.diagnostics
     assert diagnostics is not None
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.skipif(
+    not PARITY_REPLAY_PATH.exists(), reason="0925 parity replay fixture missing"
+)
+def test_rust_network_preserves_header_player_frames_after_respawn():
+    from rlcoach.parser import get_adapter
+
+    adapter = get_adapter("rust")
+    network = adapter.parse_network(PARITY_REPLAY_PATH)
+
+    assert network is not None
+    assert network.frames
+
+    player_counts: dict[str, int] = {}
+    player_last_timestamp: dict[str, float] = {}
+    for frame in network.frames:
+        for player in frame.get("players", []):
+            player_id = player.get("player_id")
+            if not isinstance(player_id, str):
+                continue
+            player_counts[player_id] = player_counts.get(player_id, 0) + 1
+            player_last_timestamp[player_id] = float(frame["timestamp"])
+
+    expected_player_ids = {f"player_{idx}" for idx in range(4)}
+    assert expected_player_ids <= player_counts.keys()
+
+    total_frames = len(network.frames)
+    for player_id in expected_player_ids:
+        assert player_counts[player_id] / total_frames >= 0.95
+        assert player_last_timestamp[player_id] == pytest.approx(
+            network.frames[-1]["timestamp"]
+        )

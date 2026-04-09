@@ -367,6 +367,39 @@ class TestDemoDetection:
         assert len(demos) == 1
         assert demos[0].attacker is None
 
+    def test_parser_demo_events_dedupe_respawn_echoes(self):
+        """Parser demo variants for the same victim/location count once."""
+        victim_position = Vec3(1000.0, 500.0, 17.0)
+        frames = []
+        for timestamp in (10.0, 11.7):
+            frame = create_test_frame(
+                timestamp,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("victim", 0, victim_position, demolished=True),
+                    create_test_player("attacker", 1, Vec3(1050.0, 500.0, 17.0)),
+                ],
+            )
+            frame.parser_demo_events.append(
+                ParserDemoEvent(
+                    timestamp=timestamp,
+                    victim_id="victim",
+                    attacker_id="attacker",
+                    victim_team=0,
+                    attacker_team=1,
+                    frame_index=int(timestamp * 30),
+                )
+            )
+            frames.append(frame)
+
+        demos = detect_demos(frames)
+
+        assert len(demos) == 1
+        assert demos[0].t == 10.0
+        assert demos[0].victim == "victim"
+        assert demos[0].attacker == "attacker"
+
 
 class TestKickoffDetection:
     """Test kickoff event detection."""
@@ -579,6 +612,28 @@ class TestBoostPickupDetection:
         assert len(pickups) == 1
         assert pickups[0].stolen is True
         assert pickups[0].pad_id == 3
+
+    def test_far_legacy_pad_match_does_not_count_as_stolen(self):
+        """Low-confidence boost jumps should not inflate stolen boost."""
+        frames = [
+            create_test_frame(
+                3.0,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("blue_p", 0, Vec3(-3350.0, 50.0, 17.0), boost=7)],
+            ),
+            create_test_frame(
+                3.1,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [create_test_player("blue_p", 0, Vec3(-3350.0, 50.0, 17.0), boost=100)],
+            ),
+        ]
+
+        pickups = detect_boost_pickups(frames)
+        assert len(pickups) == 1
+        assert pickups[0].pad_type == "BIG"
+        assert pickups[0].stolen is False
 
     def test_center_pad_not_stolen(self):
         """Pads on the midfield line should not be marked stolen."""
@@ -1245,6 +1300,61 @@ class TestParserAuthorityPreference:
         assert demos[0].victim == "victim"
         assert demos[0].attacker is None
         assert demos[0].source == "parser"
+
+    def test_parser_demos_drop_same_victim_location_echoes(self):
+        frames = [
+            create_test_frame(
+                41.8,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("victim", 0, Vec3(500.0, 0.0, 17.0)),
+                    create_test_player("attacker", 1, Vec3(540.0, 0.0, 17.0)),
+                ],
+            ),
+            create_test_frame(
+                43.4,
+                Vec3(0.0, 0.0, 93.15),
+                Vec3(0.0, 0.0, 0.0),
+                [
+                    create_test_player("victim", 0, Vec3(500.0, 0.0, 17.0)),
+                    create_test_player("attacker", 1, Vec3(540.0, 0.0, 17.0)),
+                ],
+            ),
+        ]
+        frames[0] = Frame(
+            timestamp=frames[0].timestamp,
+            ball=frames[0].ball,
+            players=frames[0].players,
+            parser_demo_events=[
+                ParserDemoEvent(
+                    timestamp=41.8,
+                    victim_id="victim",
+                    attacker_id="attacker",
+                    victim_team=0,
+                    attacker_team=1,
+                )
+            ],
+        )
+        frames[1] = Frame(
+            timestamp=frames[1].timestamp,
+            ball=frames[1].ball,
+            players=frames[1].players,
+            parser_demo_events=[
+                ParserDemoEvent(
+                    timestamp=43.4,
+                    victim_id="victim",
+                    attacker_id=None,
+                    victim_team=0,
+                    attacker_team=None,
+                )
+            ],
+        )
+
+        demos = detect_demos(frames)
+        assert len(demos) == 1
+        assert demos[0].t == 41.8
+        assert demos[0].attacker == "attacker"
 
     def test_kickoffs_merge_parser_markers_with_heuristic_enrichment(self):
         frames = [

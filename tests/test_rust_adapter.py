@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from rlcoach.parser.rust_adapter import RustAdapter
 
 REPLAY_PATH = Path("Replay_files/4985385d-2a6a-4bea-a312-8e539c7fd098.replay")
+PARITY_REPLAY_PATH = Path("Replay_files/0925.replay")
 
 
 def _load_frames(limit: int = 1200):
@@ -246,6 +248,40 @@ def test_iter_frames_has_players():
         f"Only {frames_with_players}/{total} frames have players — "
         "actor-to-player mapping is broken"
     )
+
+
+def test_0925_replay_keeps_all_header_players_after_kickoff_resets():
+    """Regression: car respawns should preserve all header player slots.
+
+    Replay_files/0925.replay recreates one orange car actor around 148s. The
+    parser used to drop player_2 after that reset because the deleted actor no
+    longer had a decoded team when its player slot was reclaimed.
+    """
+    adapter = RustAdapter()
+    network = adapter.parse_network(PARITY_REPLAY_PATH)
+    assert network is not None, "Rust adapter failed to parse network frames"
+    frames = network.frames
+    assert frames, "Rust adapter returned no frames for parity replay"
+
+    player_counts: Counter[str] = Counter()
+    last_seen: dict[str, float] = {}
+    for frame in frames:
+        timestamp = float(frame.get("timestamp", 0.0))
+        for player in frame.get("players", []):
+            player_id = player.get("player_id")
+            if isinstance(player_id, str):
+                player_counts[player_id] += 1
+                last_seen[player_id] = timestamp
+
+    minimum_expected_frames = int(len(frames) * 0.9)
+    final_timestamp = float(frames[-1].get("timestamp", 0.0))
+    for idx in range(4):
+        player_id = f"player_{idx}"
+        assert player_counts[player_id] >= minimum_expected_frames, (
+            f"{player_id} only appeared in {player_counts[player_id]}/{len(frames)} "
+            "frames; actor-to-player mapping was lost after a respawn"
+        )
+        assert last_seen.get(player_id, 0.0) >= final_timestamp - 1.0
 
 
 def test_parser_touch_events_collected_across_replay():

@@ -317,11 +317,16 @@ def _detect_boost_pickups_legacy(frames: list[Frame]) -> list[BoostPickupEvent]:
                     matched_pad.is_big
                     or boost_increase <= (100.0 if matched_pad.is_big else 12.0) + 1.0
                 ):
+                    stolen = _is_stolen_pad(
+                        matched_pad, player.team, team_sides
+                    ) and _matched_pad_is_spatially_confident(
+                        matched_pad, decision_debug
+                    )
                     event = BoostPickupEvent(
                         t=frame_time,
                         player_id=player_id,
                         pad_type="BIG" if matched_pad.is_big else "SMALL",
-                        stolen=_is_stolen_pad(matched_pad, player.team, team_sides),
+                        stolen=stolen,
                         pad_id=matched_pad.pad_id,
                         location=matched_pad.position,
                         frame=frame_index,
@@ -558,6 +563,26 @@ def _fallback_nearest_pad(
         "score": best_score,
         "candidates": debug_candidates,
     }
+
+
+def _matched_pad_is_spatially_confident(
+    matched_pad: BoostPad,
+    decision_debug: dict[str, Any],
+) -> bool:
+    """Return True when the selected legacy pad was actually reachable."""
+    for candidate in decision_debug.get("candidates", []):
+        if candidate.get("pad_id") != matched_pad.pad_id:
+            continue
+        distance = candidate.get("distance")
+        max_distance = candidate.get("radius")
+        if "available_at" in candidate:
+            max_distance = PAD_ENVELOPES[matched_pad.pad_id].max_distance
+        if not isinstance(distance, (int, float)) or not isinstance(
+            max_distance, (int, float)
+        ):
+            return False
+        return float(distance) <= float(max_distance)
+    return False
 
 
 def _nearest_pad_distance(history: deque[tuple[float, Vec3]]) -> float:

@@ -46,6 +46,8 @@ MIN_AERIAL_DURATION = 0.5  # seconds
 # Frame duration fallbacks
 DEFAULT_FRAME_DT = 1.0 / 30.0  # conservative per-replay tick
 MIN_FRAME_DT = 1e-3
+MIN_POSITION_SPEED_UU_S = 1.0
+MAX_POSITION_SPEED_UU_S = 4000.0
 
 
 def _get_yaw(rotation: Rotation | Vec3) -> float:
@@ -157,6 +159,7 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     in_aerial = False
     aerial_start = 0.0
     supersonic_active = False
+    use_supersonic_flags = _player_has_supersonic_flags(frames, player_id)
 
     prev_dt = DEFAULT_FRAME_DT
 
@@ -166,8 +169,14 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
             continue
 
         # Calculate speed and height
-        speed = _calculate_speed(player_frame.velocity)
-        ground_speed = _horizontal_speed(player_frame.velocity)
+        linear_speed = _calculate_speed(player_frame.velocity)
+        linear_ground_speed = _horizontal_speed(player_frame.velocity)
+        position_speed, position_ground_speed = _estimate_frame_position_speeds(
+            frames, idx, player_id, player_frame
+        )
+        use_position_speed = _is_position_speed_reliable(position_ground_speed)
+        speed = position_speed if use_position_speed else linear_speed
+        bucket_speed = linear_speed
         height = player_frame.position.z
         frame_dt = frame_durations[idx]
         if prev_timestamp is not None:
@@ -187,27 +196,25 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
             )
 
         # Speed bucket classification using current frame's state
-        derivative_speed = 0.0
-        if prev_player_frame is not None and prev_dt > 0.0:
-            derivative_speed = _estimate_derivative_speed(
-                player_frame.position,
-                prev_player_frame.position,
-                prev_dt,
+        if use_supersonic_flags:
+            supersonic_active = player_frame.is_supersonic
+        else:
+            supersonic_linear_speed = 0.0 if use_position_speed else linear_speed
+            supersonic_ground_speed = 0.0 if use_position_speed else linear_ground_speed
+            supersonic_derivative_speed = 0.0 if use_position_speed else position_speed
+            supersonic_active = _update_supersonic_state(
+                supersonic_active,
+                supersonic_linear_speed,
+                supersonic_ground_speed,
+                supersonic_derivative_speed,
+                player_frame.is_supersonic,
             )
-
-        supersonic_active = _update_supersonic_state(
-            supersonic_active,
-            speed,
-            ground_speed,
-            derivative_speed,
-            player_frame.is_supersonic,
-        )
 
         if supersonic_active:
             time_supersonic += frame_dt
-        elif speed < SLOW_SPEED_MAX_UU_S:
+        elif bucket_speed < SLOW_SPEED_MAX_UU_S:
             time_slow += frame_dt
-        elif speed < BOOST_SPEED_MAX_UU_S:
+        elif bucket_speed < BOOST_SPEED_MAX_UU_S:
             time_boost_speed += frame_dt
         else:
             # When we cross BOOST_SPEED_MAX_UU_S without supersonic state,
@@ -357,6 +364,15 @@ def _find_player_in_frame(frame: Frame, player_id: str) -> PlayerFrame | None:
     return None
 
 
+def _player_has_supersonic_flags(frames: list[Frame], player_id: str) -> bool:
+    """Return True when the parser supplied any positive supersonic state."""
+    for frame in frames:
+        player = _find_player_in_frame(frame, player_id)
+        if player is not None and player.is_supersonic:
+            return True
+    return False
+
+
 def _calculate_speed(velocity: Vec3) -> float:
     """Calculate speed magnitude from velocity vector."""
     return math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
@@ -455,6 +471,67 @@ def _estimate_derivative_speed(
     dy = current_position.y - previous_position.y
     dz = current_position.z - previous_position.z
     return math.sqrt(dx * dx + dy * dy + dz * dz) / frame_dt
+
+
+def _estimate_derivative_horizontal_speed(
+    current_position: Vec3,
+    previous_position: Vec3,
+    frame_dt: float,
+) -> float:
+    """Approximate horizontal speed from positional delta."""
+    if frame_dt <= MIN_FRAME_DT:
+        return 0.0
+    dx = current_position.x - previous_position.x
+    dy = current_position.y - previous_position.y
+    return math.hypot(dx, dy) / frame_dt
+
+
+def _estimate_frame_position_speeds(
+    frames: list[Frame],
+    frame_index: int,
+    player_id: str,
+    current_player: PlayerFrame,
+) -> tuple[float, float]:
+    """Estimate current speed from adjacent frame positions."""
+    previous_player = None
+    previous_dt = 0.0
+    if frame_index > 0:
+        previous_frame = frames[frame_index - 1]
+        previous_player = _find_player_in_frame(previous_frame, player_id)
+        previous_dt = frames[frame_index].timestamp - previous_frame.timestamp
+
+    if previous_player is not None and previous_dt > MIN_FRAME_DT:
+        return (
+            _estimate_derivative_speed(
+                current_player.position, previous_player.position, previous_dt
+            ),
+            _estimate_derivative_horizontal_speed(
+                current_player.position, previous_player.position, previous_dt
+            ),
+        )
+
+    if frame_index < len(frames) - 1:
+        next_frame = frames[frame_index + 1]
+        next_player = _find_player_in_frame(next_frame, player_id)
+        next_dt = next_frame.timestamp - frames[frame_index].timestamp
+        if next_player is not None and next_dt > MIN_FRAME_DT:
+            return (
+                _estimate_derivative_speed(
+                    next_player.position, current_player.position, next_dt
+                ),
+                _estimate_derivative_horizontal_speed(
+                    next_player.position, current_player.position, next_dt
+                ),
+            )
+
+    return 0.0, 0.0
+
+
+def _is_position_speed_reliable(position_speed: float) -> bool:
+    """Return whether a positional horizontal speed sample is usable."""
+    if MIN_POSITION_SPEED_UU_S <= position_speed <= MAX_POSITION_SPEED_UU_S:
+        return True
+    return False
 
 
 def _uu_s_to_kph(speed_uu_s: float) -> float:

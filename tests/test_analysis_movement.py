@@ -133,6 +133,86 @@ class TestMovementAnalysis:
         expected_distance_km = round(_uu_to_km(2000.0), 2)
         assert result["distance_km"] == pytest.approx(expected_distance_km, rel=1e-3)
 
+    def test_position_delta_speed_preferred_when_velocity_disagrees(self):
+        """Real replay velocity can be noisy; movement speed follows position deltas."""
+        frames = [
+            create_test_frame(
+                0.0,
+                [
+                    create_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 17.0),
+                        velocity=Vec3(3000.0, 0.0, 0.0),
+                    )
+                ],
+            ),
+            create_test_frame(
+                1.0,
+                [
+                    create_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(1000.0, 0.0, 17.0),
+                        velocity=Vec3(3000.0, 0.0, 0.0),
+                    )
+                ],
+            ),
+            create_test_frame(
+                2.0,
+                [
+                    create_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(2000.0, 0.0, 17.0),
+                        velocity=Vec3(3000.0, 0.0, 0.0),
+                    )
+                ],
+            ),
+        ]
+
+        result = analyze_movement(frames, {}, player_id="player1")
+
+        assert result["avg_speed_kph"] == pytest.approx(
+            round(_uu_s_to_kph(1000.0), 2), rel=1e-3
+        )
+        assert result["time_boost_speed_s"] == pytest.approx(3.0, rel=1e-3)
+        assert result["time_supersonic_s"] == 0.0
+
+    def test_position_delta_speed_does_not_suppress_supersonic_flag(self):
+        """Position-derived average speed must not suppress replicated supersonic."""
+        frames = [
+            create_test_frame(
+                0.0,
+                [
+                    create_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(0.0, 0.0, 17.0),
+                        velocity=Vec3(3000.0, 0.0, 0.0),
+                        is_supersonic=True,
+                    )
+                ],
+            ),
+            create_test_frame(
+                1.0,
+                [
+                    create_test_player(
+                        "player1",
+                        0,
+                        position=Vec3(900.0, 0.0, 17.0),
+                        velocity=Vec3(3000.0, 0.0, 0.0),
+                        is_supersonic=True,
+                    )
+                ],
+            ),
+        ]
+
+        result = analyze_movement(frames, {}, player_id="player1")
+
+        assert result["time_supersonic_s"] == pytest.approx(2.0, rel=1e-3)
+        assert result["time_slow_s"] == 0.0
+
     def test_max_speed_tracking(self):
         """Max speed should reflect the highest observed speed."""
         players = [
