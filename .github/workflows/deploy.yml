@@ -39,7 +39,7 @@ jobs:
       # Backend image
       - name: Extract metadata (backend)
         id: meta-backend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend
           tags: |
@@ -61,7 +61,7 @@ jobs:
       # Worker image
       - name: Extract metadata (worker)
         id: meta-worker
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker
           tags: |
@@ -83,7 +83,7 @@ jobs:
       # Frontend image
       - name: Extract metadata (frontend)
         id: meta-frontend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend
           tags: |
