@@ -650,6 +650,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut car_owner: HashMap<i32, i32> = HashMap::new();
         let mut component_owner: HashMap<i32, i32> = HashMap::new();
+        let mut component_active_state: HashMap<i32, bool> = HashMap::new();
         let mut pad_registry = PadRegistry::new_with_arena(&map_name);
         let mut ball_actor: Option<i32> = None;
         let mut ball_pos: (f32, f32, f32) = (0.0, 0.0, 93.15);
@@ -764,6 +765,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     actor_object_name.remove(&aid);
                     actor_kind.remove(&aid);
                     component_kind.remove(&aid);
+                    component_active_state.remove(&aid);
                     car_team.remove(&aid);
                     car_boost.remove(&aid);
                     car_pos.remove(&aid);
@@ -775,6 +777,9 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     last_touch_time.remove(&aid);
                     last_touch_pos.remove(&aid);
                     component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
+                    let retained_components: HashSet<i32> =
+                        component_owner.keys().copied().collect();
+                    component_active_state.retain(|comp, _| retained_components.contains(comp));
                     pad_registry.remove_actor(aid);
                 }
 
@@ -930,6 +935,16 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             }
                             let events = pad_registry.update_position(aid, (loc.x, loc.y, loc.z));
                             frame_pad_events.extend(events);
+                        }
+                        Attribute::Byte(raw) => {
+                            if let Some(component) = component_kind.get(&aid) {
+                                if component.is_jump
+                                    || component.is_dodge
+                                    || component.is_double_jump
+                                {
+                                    component_active_state.insert(aid, raw % 2 == 1);
+                                }
+                            }
                         }
 
                         Attribute::PickupNew(pickup) => {
@@ -1134,14 +1149,18 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     let Some(component) = component_kind.get(component_id) else {
                         continue;
                     };
+                    let active = component_active_state
+                        .get(component_id)
+                        .copied()
+                        .unwrap_or(false);
                     if component.is_jump {
-                        owner_jump_state.entry(*owner_id).or_insert(false);
+                        owner_jump_state.insert(*owner_id, active);
                     }
                     if component.is_dodge {
-                        owner_dodge_state.entry(*owner_id).or_insert(false);
+                        owner_dodge_state.insert(*owner_id, active);
                     }
                     if component.is_double_jump {
-                        owner_double_jump_state.entry(*owner_id).or_insert(false);
+                        owner_double_jump_state.insert(*owner_id, active);
                     }
                 }
                 for actor_id in &frame_jumping_actors {

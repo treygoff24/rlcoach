@@ -112,6 +112,14 @@ def test_players_expose_explicit_false_component_states_when_parser_knows_them()
     assert any(player.get("is_double_jumping") is False for player in players)
 
 
+def test_real_replay_emits_authoritative_jump_states():
+    frames = _load_frames(limit=1200)
+    players = [player for frame in frames for player in frame.get("players", [])]
+    assert players, "no players detected in fixture frames"
+
+    assert any(player.get("is_jumping") is True for player in players)
+
+
 def test_opening_frames_do_not_mark_every_player_as_actively_jumping():
     frames = _load_frames(limit=5)
     opening_players = [
