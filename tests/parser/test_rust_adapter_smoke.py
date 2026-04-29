@@ -69,6 +69,8 @@ def test_ltm_replay_reports_parse_reason_not_silent_none():
     assert hasattr(nf, "diagnostics")
     diagnostics = nf.diagnostics
     assert diagnostics is not None
+    assert diagnostics.status == "degraded"
+    assert diagnostics.error_code == "boxcars_unknown_attribute_network_error"
 
 
 @pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")

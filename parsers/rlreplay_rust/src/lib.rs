@@ -537,7 +537,9 @@ fn map_network_error_code(message: &str) -> &'static str {
         || lower.contains("no such file")
     {
         "replay_io_error"
-    } else if lower.contains("unknown attributes for object") {
+    } else if lower.contains("unknown attributes for object")
+        || lower.contains("no known attributes found")
+    {
         "boxcars_unknown_attribute_network_error"
     } else {
         "boxcars_network_error"
@@ -546,7 +548,7 @@ fn map_network_error_code(message: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::infer_kickoff_phase;
+    use super::{infer_kickoff_phase, map_network_error_code};
 
     #[test]
     fn kickoff_phase_stays_initial_before_overtime() {
@@ -556,6 +558,20 @@ mod tests {
     #[test]
     fn kickoff_phase_uses_overtime_metadata() {
         assert_eq!(infer_kickoff_phase(301.0, true, 300.0), "OT");
+    }
+
+    #[test]
+    fn unknown_attribute_network_errors_are_classified_explicitly() {
+        assert_eq!(
+            map_network_error_code(
+                "Error decoding frame: no known attributes found for actor id / object id"
+            ),
+            "boxcars_unknown_attribute_network_error",
+        );
+        assert_eq!(
+            map_network_error_code("unknown attributes for object id 118"),
+            "boxcars_unknown_attribute_network_error",
+        );
     }
 }
 
