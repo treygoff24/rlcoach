@@ -184,25 +184,32 @@
 
 ### Mechanics
 
-| Metric               | Blue | Blue Rate | Orange | Orange Rate | Delta Blue-Orange |
-| -------------------- | ---- | --------- | ------ | ----------- | ----------------- |
-| Total Flips          | 0    | 0         | 0      | 0           | 0                 |
-| Total Aerials        | 0    | 0         | 0      | 0           | 0                 |
-| Total Wavedashes     | 0    | 0         | 0      | 0           | 0                 |
-| Total Half-Flips     | 0    | 0         | 0      | 0           | 0                 |
-| Total Speedflips     | 0    | 0         | 0      | 0           | 0                 |
-| Total Flip Cancels   | 0    | 0         | 0      | 0           | 0                 |
-| Total Fast Aerials   | 0    | 0         | 0      | 0           | 0                 |
-| Total Flip Resets    | 0    | 0         | 0      | 0           | 0                 |
-| Total Dribbles       | 0    | 0         | 0      | 0           | 0                 |
-| Total Flicks         | 0    | 0         | 0      | 0           | 0                 |
-| Total Ceiling Shots  | 0    | 0         | 0      | 0           | 0                 |
-| Total Ground Pinches | 0    | 0         | 0      | 0           | 0                 |
-| Total Double Touches | 0    | 0         | 0      | 0           | 0                 |
-| Total Redirects      | 0    | 0         | 0      | 0           | 0                 |
-| Total Stalls         | 0    | 0         | 0      | 0           | 0                 |
-| Total Skims          | 0    | 0         | 0      | 0           | 0                 |
-| Total Psychos        | 0    | 0         | 0      | 0           | 0                 |
+| Metric                     | Blue | Blue Rate | Orange | Orange Rate | Delta Blue-Orange |
+| -------------------------- | ---- | --------- | ------ | ----------- | ----------------- |
+| Total Flips                | 0    | 0         | 0      | 0           | 0                 |
+| Total Aerials              | 0    | 0         | 0      | 0           | 0                 |
+| Total Wavedashes           | 0    | 0         | 0      | 0           | 0                 |
+| Total Half-Flips           | 0    | 0         | 0      | 0           | 0                 |
+| Total Speedflips           | 0    | 0         | 0      | 0           | 0                 |
+| Total Flip Cancels         | 0    | 0         | 0      | 0           | 0                 |
+| Total Fast Aerials         | 0    | 0         | 0      | 0           | 0                 |
+| Total Flip Resets          | 0    | 0         | 0      | 0           | 0                 |
+| Total Air Rolls            | 0    | 0         | 0      | 0           | 0                 |
+| Total Air Roll Time (s)    | 0    | 0         | 0      | 0           | 0                 |
+| Total Dribbles             | 0    | 0         | 0      | 0           | 0                 |
+| Total Dribble Time (s)     | 0    | 0         | 0      | 0           | 0                 |
+| Total Flicks               | 0    | 0         | 0      | 0           | 0                 |
+| Total Musty Flicks         | 0    | 0         | 0      | 0           | 0                 |
+| Total Ceiling Shots        | 0    | 0         | 0      | 0           | 0                 |
+| Total Power Slides         | 0    | 0         | 0      | 0           | 0                 |
+| Total Power Slide Time (s) | 0    | 0         | 0      | 0           | 0                 |
+| Total Ground Pinches       | 0    | 0         | 0      | 0           | 0                 |
+| Total Double Touches       | 0    | 0         | 0      | 0           | 0                 |
+| Total Redirects            | 0    | 0         | 0      | 0           | 0                 |
+| Total Stalls               | 0    | 0         | 0      | 0           | 0                 |
+| Total Skims                | 0    | 0         | 0      | 0           | 0                 |
+| Total Psychos              | 0    | 0         | 0      | 0           | 0                 |
+| Total Mechanics            | 0    | 0         | 0      | 0           | 0                 |
 
 
 ## Player Metrics
@@ -294,10 +301,10 @@
 ## Event Timeline
 
 
-| Time (s) | Frame | Event   | Player | Details                                                     |
-| -------- | ----- | ------- | ------ | ----------------------------------------------------------- |
-| 0        | -     | KICKOFF | -      | outcome:NEUTRAL, phase:INITIAL, players:2 items             |
-| 1.10     | 2     | TOUCH   | A      | ball_speed_kph:61.56, location:0.0/160.0/17.0, outcome:PASS |
+| Time (s) | Frame | Event   | Player | Details                                                                      |
+| -------- | ----- | ------- | ------ | ---------------------------------------------------------------------------- |
+| 0        | -     | KICKOFF | -      | outcome:NEUTRAL, phase:INITIAL, players:2 items, source:inferred             |
+| 1.10     | 2     | TOUCH   | A      | ball_speed_kph:61.56, location:0.0/160.0/17.0, outcome:PASS, source:inferred |
 
 
 ### Goals
@@ -975,8 +982,11 @@
         },
         "mechanics": {
           "total_aerials": 0,
+          "total_air_roll_time_s": 0.0,
+          "total_air_rolls": 0,
           "total_ceiling_shots": 0,
           "total_double_touches": 0,
+          "total_dribble_time_s": 0.0,
           "total_dribbles": 0,
           "total_fast_aerials": 0,
           "total_flicks": 0,
@@ -985,6 +995,10 @@
           "total_flips": 0,
           "total_ground_pinches": 0,
           "total_halfflips": 0,
+          "total_mechanics": 0,
+          "total_musty_flicks": 0,
+          "total_power_slide_time_s": 0.0,
+          "total_power_slides": 0,
           "total_psychos": 0,
           "total_redirects": 0,
           "total_skims": 0,
@@ -1093,8 +1107,11 @@
         },
         "mechanics": {
           "total_aerials": 0,
+          "total_air_roll_time_s": 0.0,
+          "total_air_rolls": 0,
           "total_ceiling_shots": 0,
           "total_double_touches": 0,
+          "total_dribble_time_s": 0.0,
           "total_dribbles": 0,
           "total_fast_aerials": 0,
           "total_flicks": 0,
@@ -1103,6 +1120,10 @@
           "total_flips": 0,
           "total_ground_pinches": 0,
           "total_halfflips": 0,
+          "total_mechanics": 0,
+          "total_musty_flicks": 0,
+          "total_power_slide_time_s": 0.0,
+          "total_power_slides": 0,
           "total_psychos": 0,
           "total_redirects": 0,
           "total_skims": 0,
@@ -1201,7 +1222,8 @@
               "role": "GO",
               "time_to_first_touch": null
             }
-          ]
+          ],
+          "source": "inferred"
         },
         "t": 0.0,
         "type": "KICKOFF"
@@ -1214,7 +1236,8 @@
             "y": 160.0,
             "z": 17.0
           },
-          "outcome": "PASS"
+          "outcome": "PASS",
+          "source": "inferred"
         },
         "frame": 2,
         "player_id": "A",

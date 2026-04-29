@@ -56,7 +56,11 @@ def build_timeline(events_dict: dict[str, list[Any]]) -> list[TimelineEvent]:
                 type="DEMO",
                 player_id=demo.victim,
                 team=demo.team_victim,
-                data={"attacker": demo.attacker, "location": demo.location},
+                data={
+                    "attacker": demo.attacker,
+                    "location": demo.location,
+                    "source": getattr(demo, "source", "inferred"),
+                },
             )
         )
 
@@ -69,6 +73,7 @@ def build_timeline(events_dict: dict[str, list[Any]]) -> list[TimelineEvent]:
                     "phase": kickoff.phase,
                     "players": kickoff.players,
                     "outcome": kickoff.outcome,
+                    "source": getattr(kickoff, "source", "inferred"),
                 },
             )
         )
@@ -98,6 +103,7 @@ def build_timeline(events_dict: dict[str, list[Any]]) -> list[TimelineEvent]:
                     "location": touch.location,
                     "ball_speed_kph": touch.ball_speed_kph,
                     "outcome": touch.outcome,
+                    "source": getattr(touch, "source", "inferred"),
                 },
             )
         )
@@ -109,7 +115,10 @@ def build_timeline(events_dict: dict[str, list[Any]]) -> list[TimelineEvent]:
                     frame=touch.frame,
                     type="SHOT",
                     player_id=touch.player_id,
-                    data={"ball_speed_kph": touch.ball_speed_kph},
+                    data={
+                        "ball_speed_kph": touch.ball_speed_kph,
+                        "source": getattr(touch, "source", "inferred"),
+                    },
                 )
             )
 
@@ -120,7 +129,10 @@ def build_timeline(events_dict: dict[str, list[Any]]) -> list[TimelineEvent]:
                     frame=touch.frame,
                     type="SAVE",
                     player_id=touch.player_id,
-                    data={"ball_speed_kph": touch.ball_speed_kph},
+                    data={
+                        "ball_speed_kph": touch.ball_speed_kph,
+                        "source": getattr(touch, "source", "inferred"),
+                    },
                 )
             )
 

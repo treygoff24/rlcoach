@@ -32,7 +32,7 @@ This matrix maps every field in `schemas/replay_report.schema.json` to the plann
 | `analysis.per_team.*.passing.*` | Possession & passing table | Compute pass success %, turnovers per minute. |
 | `analysis.per_team.*.challenges.*` | Challenges table | Report win/loss counts, win rate, depth, risk index. |
 | `analysis.per_team.*.kickoffs.*` | Kickoff outcomes table | Include counts, goals for/against, approach type distribution, avg time to first touch. |
-| `analysis.per_team.*.mechanics.*` | Team mechanics table | Include legacy and advanced mechanic totals such as fast aerials, flip resets, dribbles, flicks, ceiling shots, pinches, redirects, stalls, skims, and psychos. |
+| `analysis.per_team.*.mechanics.*` | Team mechanics table | Include legacy and advanced mechanic totals such as fast aerials, flip resets, air rolls/time, dribbles/time, flicks, musty flicks, ceiling shots, power slides/time, pinches, redirects, stalls, skims, psychos, and total mechanics. |
 | `analysis.coaching_insights[]` | Team insights callout | Render as bullet insights with severity tags inside Team Metrics section. |
 
 ### Player Metrics
@@ -54,7 +54,7 @@ This matrix maps every field in `schemas/replay_report.schema.json` to the plann
 ### Event Timeline
 | JSON Path Pattern | Markdown Placement | Rendering Notes |
 | --- | --- | --- |
-| `events.timeline[]` | Chronological timeline | Render table containing timestamp, frame, event type, primary actor, summary payload. |
+| `events.timeline[]` | Chronological timeline | Render table containing timestamp, frame, event type, primary actor, summary payload, and parser/inferred provenance inside event data when available. |
 | `events.goals[]` | Goal log | Nested table under timeline with scorer, assister, frame, location. |
 | `events.demos[]` | Demo log | Table with attacker/victim, time, location. |
 | `events.kickoffs[]` | Kickoff log | Include phase, player roles, outcome, time-to-first-touch. |

@@ -11,6 +11,7 @@ from rlcoach.normalize import (
     measure_frame_rate,
     normalize_players,
     to_field_coords,
+    to_vec3,
 )
 from rlcoach.parser.types import GoalHeader, Header, PlayerInfo
 
@@ -163,6 +164,12 @@ class TestCoordinateTransformation:
         result = to_field_coords(bad_dict)
         assert result == Vec3(0.0, 0.0, 0.0)
 
+    def test_to_vec3_does_not_clamp_velocity_components(self):
+        """Velocity/angular vectors may exceed field bounds and remain meaningful."""
+        assert to_vec3({"x": 6000, "y": -7000, "z": -2000}) == Vec3(
+            6000.0, -7000.0, -2000.0
+        )
+
 
 class TestPlayerNormalization:
     """Test player identity mapping."""
@@ -287,6 +294,35 @@ class TestTimelineBuilding:
         assert frame.timestamp == 0.0
         assert frame.ball.position == Vec3(100.0, 200.0, 300.0)
         assert frame.ball.velocity == Vec3(10.0, 20.0, 30.0)
+
+    def test_velocity_and_angular_velocity_are_not_position_clamped(self):
+        """Mechanics depend on raw velocity magnitudes and negative z velocity."""
+        raw = [
+            {
+                "timestamp": 0.0,
+                "ball": {
+                    "position": {"x": 0, "y": 0, "z": 93.15},
+                    "velocity": {"x": 6000, "y": -7000, "z": -2000},
+                    "angular_velocity": {"x": 10_000, "y": -10_000, "z": -500},
+                },
+                "players": [
+                    {
+                        "player_id": "player_0",
+                        "team": 0,
+                        "position": {"x": 0, "y": 0, "z": 17},
+                        "velocity": {"x": -6000, "y": 7000, "z": -1500},
+                        "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
+                        "boost_amount": 33,
+                    }
+                ],
+            }
+        ]
+
+        frame = build_timeline(Header(players=[]), raw)[0]
+
+        assert frame.ball.velocity == Vec3(6000.0, -7000.0, -2000.0)
+        assert frame.ball.angular_velocity == Vec3(10_000.0, -10_000.0, -500.0)
+        assert frame.players[0].velocity == Vec3(-6000.0, 7000.0, -1500.0)
 
     def test_multiple_frames_sorted_by_timestamp(self):
         """Multiple frames sorted chronologically."""

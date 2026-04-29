@@ -14,7 +14,7 @@ rlcoach is designed to provide detailed analysis of Rocket League replays withou
   - optional `rust` adapter (pyo3 + boxcars) for richer header parsing and network frames
 - Rust parser behavior is diagnostics-first: degraded/unavailable network parses emit explicit machine-readable diagnostics and scorecard coverage instead of silent fallback.
 - Parser event streams are parser-first when present (`parser_touch_events`, `parser_demo_events`, `parser_tickmarks`, `parser_kickoff_markers`) with existing inference used only when parser authority is absent.
-- Corpus reliability gate (2026-04-09): on 202 local replays, header success was 100%, network success was 99.50%, usable network parse rate was 98.02%, and parser event/provenance coverage was fully parser-authored for observed parser event streams.
+- Corpus reliability gate (2026-04-29): on 202 local replays, header success was 100%, network success was 99.50%, usable network parse rate was 99.50%, and parser event/provenance coverage was fully parser-authored for observed parser event streams.
 - 14 analysis modules covering fundamentals, boost, movement, positioning, mechanics, defense, xG, and more.
 - Markdown dossier generator mirrors the JSON schema and ships with golden fixtures.
 - Offline CLI viewer renders summaries from previously generated JSON reports.

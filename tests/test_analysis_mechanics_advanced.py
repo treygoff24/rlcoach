@@ -7,7 +7,7 @@ import pytest
 from rlcoach.analysis import mechanics as mechanics_module
 from rlcoach.analysis.mechanics import MechanicEvent, MechanicType
 from rlcoach.field_constants import Vec3
-from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
+from rlcoach.parser.types import BallFrame, Frame, ParserTouchEvent, PlayerFrame
 
 
 def _player(player_id: str, team: int) -> PlayerFrame:
@@ -72,3 +72,153 @@ def test_advanced_mechanics_have_positive_and_negative_count_paths(
 
     assert result["per_player"]["player_0"][count_key] == 1
     assert result["per_player"]["player_1"][count_key] == 0
+
+
+def test_parser_touch_authority_drives_redirect_when_proximity_misses():
+    """Sparse parser touches should be authoritative for contact-sensitive mechanics."""
+    frames = [
+        Frame(
+            timestamp=0.0,
+            ball=BallFrame(
+                position=Vec3(0.0, 0.0, 500.0),
+                velocity=Vec3(1000.0, 0.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
+            players=[
+                PlayerFrame(
+                    player_id="player_0",
+                    team=0,
+                    position=Vec3(2000.0, 0.0, 500.0),
+                    velocity=Vec3(0.0, 0.0, 0.0),
+                    rotation=Vec3(0.0, 0.0, 0.0),
+                    boost_amount=33,
+                    is_on_ground=True,
+                )
+            ],
+        ),
+        Frame(
+            timestamp=0.1,
+            ball=BallFrame(
+                position=Vec3(0.0, 0.0, 500.0),
+                velocity=Vec3(1000.0, 0.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
+            players=[
+                PlayerFrame(
+                    player_id="player_0",
+                    team=0,
+                    position=Vec3(2000.0, 0.0, 500.0),
+                    velocity=Vec3(0.0, 0.0, 100.0),
+                    rotation=Vec3(0.0, 0.0, 0.0),
+                    boost_amount=33,
+                    is_on_ground=False,
+                )
+            ],
+        ),
+        Frame(
+            timestamp=0.2,
+            ball=BallFrame(
+                position=Vec3(0.0, 0.0, 500.0),
+                velocity=Vec3(0.0, 1200.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
+            players=[
+                PlayerFrame(
+                    player_id="player_0",
+                    team=0,
+                    position=Vec3(2000.0, 0.0, 500.0),
+                    velocity=Vec3(0.0, 0.0, 100.0),
+                    rotation=Vec3(0.0, 0.0, 0.0),
+                    boost_amount=33,
+                    is_on_ground=False,
+                )
+            ],
+            parser_touch_events=[
+                ParserTouchEvent(timestamp=0.2, player_id="player_0", team=0)
+            ],
+        ),
+    ]
+
+    events = mechanics_module.detect_mechanics_for_player(frames, "player_0")
+
+    assert any(event.mechanic_type == MechanicType.REDIRECT for event in events)
+
+
+def test_parser_touch_authority_suppresses_proximity_redirect_false_positive():
+    """When parser touch authority exists, no-touch frames must not infer contact."""
+    frames = [
+        Frame(
+            timestamp=0.0,
+            ball=BallFrame(
+                position=Vec3(0.0, 0.0, 500.0),
+                velocity=Vec3(1000.0, 0.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
+            players=[
+                PlayerFrame(
+                    player_id="player_0",
+                    team=0,
+                    position=Vec3(0.0, 0.0, 500.0),
+                    velocity=Vec3(0.0, 0.0, 0.0),
+                    rotation=Vec3(0.0, 0.0, 0.0),
+                    boost_amount=33,
+                    is_on_ground=True,
+                ),
+                PlayerFrame(
+                    player_id="player_1",
+                    team=1,
+                    position=Vec3(1000.0, 0.0, 500.0),
+                    velocity=Vec3(0.0, 0.0, 0.0),
+                    rotation=Vec3(0.0, 0.0, 0.0),
+                    boost_amount=33,
+                    is_on_ground=True,
+                ),
+            ],
+            parser_touch_events=[
+                ParserTouchEvent(timestamp=0.0, player_id="player_1", team=1)
+            ],
+        ),
+        Frame(
+            timestamp=0.1,
+            ball=BallFrame(
+                position=Vec3(0.0, 0.0, 500.0),
+                velocity=Vec3(1000.0, 0.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
+            players=[
+                PlayerFrame(
+                    player_id="player_0",
+                    team=0,
+                    position=Vec3(0.0, 0.0, 500.0),
+                    velocity=Vec3(0.0, 0.0, 100.0),
+                    rotation=Vec3(0.0, 0.0, 0.0),
+                    boost_amount=33,
+                    is_on_ground=False,
+                )
+            ],
+        ),
+        Frame(
+            timestamp=0.2,
+            ball=BallFrame(
+                position=Vec3(0.0, 0.0, 500.0),
+                velocity=Vec3(0.0, 1200.0, 0.0),
+                angular_velocity=Vec3(0.0, 0.0, 0.0),
+            ),
+            players=[
+                PlayerFrame(
+                    player_id="player_0",
+                    team=0,
+                    position=Vec3(0.0, 0.0, 500.0),
+                    velocity=Vec3(0.0, 0.0, 100.0),
+                    rotation=Vec3(0.0, 0.0, 0.0),
+                    boost_amount=33,
+                    is_on_ground=False,
+                )
+            ],
+            parser_touch_events=[],
+        ),
+    ]
+
+    events = mechanics_module.detect_mechanics_for_player(frames, "player_0")
+
+    assert not any(event.mechanic_type == MechanicType.REDIRECT for event in events)

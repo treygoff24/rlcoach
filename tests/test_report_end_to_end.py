@@ -254,6 +254,136 @@ def test_report_includes_parser_scorecard(tmp_path: Path, monkeypatch):
     validate_report(report)
 
 
+def test_report_surfaces_parser_event_provenance_without_duplicates(
+    tmp_path: Path, monkeypatch
+):
+    replay = tmp_path / "sample.replay"
+    _make_dummy_replay(replay)
+    monkeypatch.setattr(
+        "rlcoach.report.ingest_replay",
+        lambda _path: {
+            "sha256": "abc123",
+            "crc_check": {"message": "not yet implemented", "passed": False},
+        },
+    )
+    frames = [
+        {
+            "timestamp": 0.0,
+            "ball": {
+                "position": {"x": 0.0, "y": 0.0, "z": 93.15},
+                "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "angular_velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+            "players": [
+                {
+                    "player_id": "player_0",
+                    "team": 0,
+                    "position": {"x": 0.0, "y": -1000.0, "z": 17.0},
+                    "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    "rotation": {"pitch": 0.0, "yaw": 0.0, "roll": 0.0},
+                    "boost_amount": 33,
+                    "is_on_ground": True,
+                },
+                {
+                    "player_id": "player_1",
+                    "team": 1,
+                    "position": {"x": 0.0, "y": 1000.0, "z": 17.0},
+                    "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    "rotation": {"pitch": 0.0, "yaw": 3.14, "roll": 0.0},
+                    "boost_amount": 33,
+                    "is_on_ground": True,
+                },
+            ],
+            "parser_kickoff_markers": [
+                {"timestamp": 0.0, "phase": "INITIAL", "source": "parser"}
+            ],
+        },
+        {
+            "timestamp": 0.5,
+            "ball": {
+                "position": {"x": 0.0, "y": 0.0, "z": 93.15},
+                "velocity": {"x": 0.0, "y": 1000.0, "z": 0.0},
+                "angular_velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+            "players": [
+                {
+                    "player_id": "player_0",
+                    "team": 0,
+                    "position": {"x": 0.0, "y": -50.0, "z": 17.0},
+                    "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    "rotation": {"pitch": 0.0, "yaw": 0.0, "roll": 0.0},
+                    "boost_amount": 33,
+                    "is_on_ground": True,
+                },
+                {
+                    "player_id": "player_1",
+                    "team": 1,
+                    "position": {"x": 60.0, "y": 0.0, "z": 17.0},
+                    "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    "rotation": {"pitch": 0.0, "yaw": 3.14, "roll": 0.0},
+                    "boost_amount": 33,
+                    "is_on_ground": True,
+                },
+            ],
+            "parser_touch_events": [
+                {
+                    "timestamp": 0.5,
+                    "player_id": "player_0",
+                    "team": 0,
+                    "frame_index": 1,
+                    "source": "parser",
+                }
+            ],
+            "parser_demo_events": [
+                {
+                    "timestamp": 0.5,
+                    "victim_id": "player_1",
+                    "attacker_id": "player_0",
+                    "victim_team": 1,
+                    "attacker_team": 0,
+                    "frame_index": 1,
+                    "source": "parser",
+                }
+            ],
+        },
+    ]
+    network = NetworkFrames(
+        frame_count=len(frames),
+        sample_rate=30.0,
+        frames=frames,
+        diagnostics=NetworkDiagnostics(
+            status="ok",
+            frames_emitted=len(frames),
+            attempted_backends=["boxcars"],
+        ),
+    )
+    monkeypatch.setattr(
+        "rlcoach.report.get_adapter", lambda _name: _FakeNetworkAdapter(network)
+    )
+
+    report = generate_report(replay, header_only=False, adapter_name="rust")
+    repeated = generate_report(replay, header_only=False, adapter_name="rust")
+
+    assert [touch["source"] for touch in report["events"]["touches"]] == ["parser"]
+    assert [demo["source"] for demo in report["events"]["demos"]] == ["parser"]
+    assert [kickoff["source"] for kickoff in report["events"]["kickoffs"]] == ["parser"]
+    assert len(report["events"]["touches"]) == 1
+    assert len(report["events"]["demos"]) == 1
+    assert len(report["events"]["kickoffs"]) == 1
+    timeline_sources = {
+        event["type"]: event.get("data", {}).get("source")
+        for event in report["events"]["timeline"]
+        if event["type"] in {"TOUCH", "DEMO", "KICKOFF"}
+    }
+    assert timeline_sources == {
+        "TOUCH": "parser",
+        "DEMO": "parser",
+        "KICKOFF": "parser",
+    }
+    assert repeated["events"] == report["events"]
+    validate_report(report)
+
+
 def test_report_marks_unusable_network_parse_when_player_coverage_is_empty(
     tmp_path: Path, monkeypatch
 ):

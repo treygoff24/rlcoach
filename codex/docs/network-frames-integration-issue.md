@@ -15,22 +15,22 @@ Command:
 source .venv/bin/activate && PYTHONPATH=src python scripts/parser_corpus_health.py --roots replays,Replay_files --json
 ```
 
-Result on 2026-04-09:
+Result on 2026-04-29:
 
 - `total`: 202
 - `header_success_rate`: 1.0
 - `network_success_rate`: 0.995049504950495
-- `usable_network_parse_rate`: 0.9801980198019802
-- `avg_non_empty_player_frame_coverage`: 0.9798575609006099
+- `usable_network_parse_rate`: 0.995049504950495
+- `avg_non_empty_player_frame_coverage`: 0.9950478608526937
 - `avg_player_identity_coverage`: 0.995049504950495
-- `avg_parser_event_frame_coverage`: 0.014774534741432225
-- `scorecard_coverage`: usable_network_parse_rate=0.9801980198019802, avg_non_empty_player_frame_coverage=0.9798575609006099, avg_player_identity_coverage=0.995049504950495
+- `avg_parser_event_frame_coverage`: 0.017512643651812227
+- `scorecard_coverage`: usable_network_parse_rate=0.995049504950495, avg_non_empty_player_frame_coverage=0.9950478608526937, avg_player_identity_coverage=0.995049504950495
 - `parser_event_coverage`: touch_event_rate=0.995049504950495, demo_event_rate=0.8811881188118812, tickmark_event_rate=0.995049504950495, kickoff_marker_rate=0.9900990099009901
 - `event_provenance`: touch_parser_rate=1.0, demo_parser_rate=1.0, kickoff_parser_rate=1.0
 - `degraded_count`: 1
-- `top_error_codes`: `boxcars_network_error` (1)
-- `parser_event_totals`: touches=21178, demos=725, tickmarks=2142, kickoff_markers=2158
-- `parser_event_source_counts`: parser=26203, inferred=0, missing=0, other=0
+- `top_error_codes`: `boxcars_unknown_attribute_network_error` (1)
+- `parser_event_totals`: touches=26648, demos=859, tickmarks=2142, kickoff_markers=2158
+- `parser_event_source_counts`: parser=31807, inferred=0, missing=0, other=0
 - degraded replay: `replays/A181B28546BBD8AC71E63793B65BABAE.replay` (playlist bucket `tournament`)
 
 ## Decision Gate Outcome

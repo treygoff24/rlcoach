@@ -185,15 +185,22 @@ def _aggregate_team_mechanics(
     total_flip_cancels = 0
     total_fast_aerials = 0
     total_flip_resets = 0
+    total_air_rolls = 0
+    total_air_roll_time_s = 0.0
     total_dribbles = 0
+    total_dribble_time_s = 0.0
     total_flicks = 0
+    total_musty_flicks = 0
     total_ceiling_shots = 0
+    total_power_slides = 0
+    total_power_slide_time_s = 0.0
     total_ground_pinches = 0
     total_double_touches = 0
     total_redirects = 0
     total_stalls = 0
     total_skims = 0
     total_psychos = 0
+    total_mechanics = 0
 
     per_player = cached_mechanics.get("per_player", {})
     for player_id in team_player_ids:
@@ -206,15 +213,22 @@ def _aggregate_team_mechanics(
         total_flip_cancels += player_mech.get("flip_cancel_count", 0)
         total_fast_aerials += player_mech.get("fast_aerial_count", 0)
         total_flip_resets += player_mech.get("flip_reset_count", 0)
+        total_air_rolls += player_mech.get("air_roll_count", 0)
+        total_air_roll_time_s += player_mech.get("air_roll_total_time_s", 0.0)
         total_dribbles += player_mech.get("dribble_count", 0)
+        total_dribble_time_s += player_mech.get("dribble_total_time_s", 0.0)
         total_flicks += player_mech.get("flick_count", 0)
+        total_musty_flicks += player_mech.get("musty_flick_count", 0)
         total_ceiling_shots += player_mech.get("ceiling_shot_count", 0)
+        total_power_slides += player_mech.get("power_slide_count", 0)
+        total_power_slide_time_s += player_mech.get("power_slide_total_time_s", 0.0)
         total_ground_pinches += player_mech.get("ground_pinch_count", 0)
         total_double_touches += player_mech.get("double_touch_count", 0)
         total_redirects += player_mech.get("redirect_count", 0)
         total_stalls += player_mech.get("stall_count", 0)
         total_skims += player_mech.get("skim_count", 0)
         total_psychos += player_mech.get("psycho_count", 0)
+        total_mechanics += player_mech.get("total_mechanics", 0)
 
     return {
         "total_wavedashes": total_wavedashes,
@@ -225,15 +239,22 @@ def _aggregate_team_mechanics(
         "total_flip_cancels": total_flip_cancels,
         "total_fast_aerials": total_fast_aerials,
         "total_flip_resets": total_flip_resets,
+        "total_air_rolls": total_air_rolls,
+        "total_air_roll_time_s": round(total_air_roll_time_s, 2),
         "total_dribbles": total_dribbles,
+        "total_dribble_time_s": round(total_dribble_time_s, 2),
         "total_flicks": total_flicks,
+        "total_musty_flicks": total_musty_flicks,
         "total_ceiling_shots": total_ceiling_shots,
+        "total_power_slides": total_power_slides,
+        "total_power_slide_time_s": round(total_power_slide_time_s, 2),
         "total_ground_pinches": total_ground_pinches,
         "total_double_touches": total_double_touches,
         "total_redirects": total_redirects,
         "total_stalls": total_stalls,
         "total_skims": total_skims,
         "total_psychos": total_psychos,
+        "total_mechanics": total_mechanics,
     }
 
 

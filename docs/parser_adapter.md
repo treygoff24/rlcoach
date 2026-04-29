@@ -22,6 +22,9 @@ source .venv/bin/activate && cd parsers/rlreplay_rust && maturin develop
 - Network failures must produce structured diagnostics, never silent fallback.
 - JSON, Markdown, and corpus-health surfaces report parser scorecard coverage as current behavior.
 - JSON and Markdown reports surface parser diagnostics plus scorecard coverage for the selected backend.
+- Current corpus-health snapshot (2026-04-29): 202 replay files, 100% header success,
+  99.50% usable network parses, 31,807 parser-authored event carriers, and one known
+  degraded replay classified as `boxcars_unknown_attribute_network_error`.
 
 ## Header Contract
 
@@ -48,6 +51,10 @@ Each frame should carry:
 - `parser_tickmarks`
 - `parser_kickoff_markers`
 
+Positions are normalized through field-coordinate bounds. Velocity and angular-velocity
+vectors are not position-clamped; downstream mechanics depend on preserving magnitude,
+negative components, and sign flips.
+
 Player component-state flags are tri-state semantically:
 
 - `True`: parser explicitly observed active state
@@ -64,6 +71,14 @@ The parser-facing event carriers on each frame are:
 - `parser_kickoff_markers`
 
 Event detectors consume parser events first when present, then use existing inference fallbacks when absent.
+Touch and demo streams are event-type authoritative: once parser-authored touch/demo
+events exist for a replay, downstream detectors do not add duplicate proximity/demo
+heuristics for that event type.
+
+Contact-sensitive mechanics use the same parser-first posture. If a replay has a
+parser-authored touch stream, mechanics treat no-touch frames as authoritative no-contact
+frames instead of falling back to player-ball proximity. Proximity remains a fallback only
+for replay parses that do not expose parser touch authority.
 
 Corpus-health tracks parser event/provenance coverage across these carriers:
 
@@ -72,6 +87,8 @@ Corpus-health tracks parser event/provenance coverage across these carriers:
 - `parser_event_totals` and `parser_event_source_counts` preserve the raw aggregate event counts.
 
 Parser event `source` values preserve provenance. Parser-authored carriers should use `source="parser"`; inferred downstream events retain `source="inferred"` when parser authority is absent.
+Timeline entries carry the same provenance in their `data.source` field for parser-backed
+touch, demo, kickoff, shot, and save surfaces.
 
 ## Diagnostics And Degradation Semantics
 

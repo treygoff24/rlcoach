@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 mod arena_tables;
 mod pads;
 
@@ -25,9 +27,8 @@ const TOUCH_DEBOUNCE_TIME: f64 = 0.2; // Seconds between touches to count as new
 const TOUCH_LOCATION_EPS: f32 = 120.0; // Distance to consider same location
 
 fn infer_kickoff_phase(timestamp: f64, overtime: bool, match_length: f64) -> &'static str {
-    if overtime && timestamp >= f64::max(300.0, match_length) {
-        "OT"
-    } else if timestamp >= 300.0 {
+    let overtime_boundary = match_length.max(300.0);
+    if overtime && timestamp >= overtime_boundary {
         "OT"
     } else {
         "INITIAL"
@@ -174,10 +175,7 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         let mutators = PyDict::new(py);
 
         // Helper: get prop by key
-        fn find_prop<'a>(
-            props: &'a Vec<(String, HeaderProp)>,
-            key: &str,
-        ) -> Option<&'a HeaderProp> {
+        fn find_prop<'a>(props: &'a [(String, HeaderProp)], key: &str) -> Option<&'a HeaderProp> {
             props.iter().find(|(k, _)| k == key).map(|(_, v)| v)
         }
 
@@ -558,6 +556,17 @@ mod tests {
     #[test]
     fn kickoff_phase_uses_overtime_metadata() {
         assert_eq!(infer_kickoff_phase(301.0, true, 300.0), "OT");
+    }
+
+    #[test]
+    fn kickoff_phase_does_not_infer_overtime_without_metadata() {
+        assert_eq!(infer_kickoff_phase(301.0, false, 300.0), "INITIAL");
+    }
+
+    #[test]
+    fn kickoff_phase_respects_extended_match_length_boundary() {
+        assert_eq!(infer_kickoff_phase(350.0, true, 400.0), "INITIAL");
+        assert_eq!(infer_kickoff_phase(401.0, true, 400.0), "OT");
     }
 
     #[test]
@@ -987,7 +996,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             let events = pad_registry.handle_pickup(
                                 aid,
                                 pickup.picked_up,
-                                nf.time as f32,
+                                nf.time,
                                 raw_actor_opt,
                                 resolved_actor,
                                 resolved_actor.and_then(|actor| car_pos.get(&actor).copied()),
@@ -1151,10 +1160,7 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     actors.remove(&ball_id);
                 }
                 // Filter using classification when available; keep unclassified for fallback
-                actors = actors
-                    .into_iter()
-                    .filter(|aid| actor_kind.get(aid).map(|kind| kind.is_car).unwrap_or(true))
-                    .collect();
+                actors.retain(|aid| actor_kind.get(aid).map(|kind| kind.is_car).unwrap_or(true));
 
                 let mut players_map: BTreeMap<usize, PyObject> = BTreeMap::new();
                 let owned_actor_ids: HashSet<i32> = component_owner.values().copied().collect();
@@ -1657,7 +1663,7 @@ pub fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> 
         fn pickup_state_label(raw: u8) -> &'static str {
             match raw {
                 0 | 255 => "RESPAWNED",
-                1 | 2 | 3 => "COLLECTED",
+                1..=3 => "COLLECTED",
                 _ => "UNKNOWN",
             }
         }
@@ -1727,11 +1733,11 @@ pub fn debug_first_frames(path: &str, max_frames: usize) -> PyResult<Py<PyAny>> 
                         if let Some(roll) = rot.roll {
                             rot_dict.set_item("roll", roll)?;
                         }
-                        if rot_dict.len() > 0 {
+                        if !rot_dict.is_empty() {
                             trajectory_dict.set_item("rotation", rot_dict)?;
                         }
                     }
-                    if trajectory_dict.len() > 0 {
+                    if !trajectory_dict.is_empty() {
                         actor_dict.set_item("initial_trajectory", trajectory_dict)?;
                     }
 

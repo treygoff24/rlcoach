@@ -339,6 +339,34 @@ def _get_optional_authoritative_flag(
     return bool(raw_value)
 
 
+def _has_parser_touch_events(frame: Frame) -> bool:
+    return bool(getattr(frame, "parser_touch_events", None))
+
+
+def _has_parser_touch_for_player(frame: Frame, player_id: str) -> bool:
+    """Return whether parser authority says this player touched on this frame."""
+    return any(
+        touch.player_id == player_id
+        for touch in getattr(frame, "parser_touch_events", [])
+    )
+
+
+def _player_touched_ball(
+    frame: Frame,
+    player_id: str,
+    player_pos: Vec3,
+    proximity: float,
+    *,
+    parser_touch_authority_available: bool,
+) -> bool:
+    """Prefer parser-authored touches when the replay has a parser touch stream."""
+    if parser_touch_authority_available:
+        return _has_parser_touch_for_player(frame, player_id)
+    if frame.ball is None:
+        return False
+    return _distance(player_pos, frame.ball.position) < proximity
+
+
 def _normalize_angle(angle: float) -> float:
     """Normalize angle to [-pi, pi] range."""
     # Use modulo for efficiency - handles any magnitude angle
@@ -474,6 +502,10 @@ def detect_mechanics_for_player(
                 break
         if player_team is not None:
             break
+
+    parser_touch_authority_available = any(
+        _has_parser_touch_events(frame) for frame in frames
+    )
 
     for frame in frames:
         # Find player in this frame
@@ -1087,11 +1119,17 @@ def detect_mechanics_for_player(
 
                         # Check underside contact: ball below/behind car
                         dot_product = _dot(car_up, btc_norm)
-                        dist = _distance(pos, ball_pos)
-
                         if (
                             dot_product > FLIP_RESET_DOT_THRESHOLD
-                            and dist < FLIP_RESET_PROXIMITY
+                            and _player_touched_ball(
+                                frame,
+                                player_id,
+                                pos,
+                                FLIP_RESET_PROXIMITY,
+                                parser_touch_authority_available=(
+                                    parser_touch_authority_available
+                                ),
+                            )
                         ):
                             # Underside contact detected - refresh reset
                             state.flip_available_from_reset = True
@@ -1138,7 +1176,6 @@ def detect_mechanics_for_player(
                 # Underside ball contact + ball acceleration + toward opponent goal
                 if state.is_airborne and frame.ball is not None:
                     ball_pos = frame.ball.position
-                    ball_dist = _distance(pos, ball_pos)
                     car_up_for_skim = _rotation_to_up_vector(rot)
 
                     # Car-to-ball vector for underside check
@@ -1153,7 +1190,13 @@ def detect_mechanics_for_player(
                     dot_val = _dot(car_up_for_skim, car_to_ball_norm)
                     underside_contact = dot_val < SKIM_DOT_THRESHOLD
 
-                    if underside_contact and ball_dist < BALL_CONTACT_PROXIMITY:
+                    if underside_contact and _player_touched_ball(
+                        frame,
+                        player_id,
+                        pos,
+                        BALL_CONTACT_PROXIMITY,
+                        parser_touch_authority_available=parser_touch_authority_available,
+                    ):
                         current_speed = _magnitude(frame.ball.velocity)
                         if current_speed > state.prev_ball_speed:  # Ball accelerated
                             # Check toward opponent goal
@@ -1224,8 +1267,13 @@ def detect_mechanics_for_player(
                     )
 
                     if near_own_backboard and ball_toward_own_goal:
-                        ball_dist = _distance(pos, ball_pos)
-                        if ball_dist < BALL_CONTACT_PROXIMITY:
+                        if _player_touched_ball(
+                            frame,
+                            player_id,
+                            pos,
+                            BALL_CONTACT_PROXIMITY,
+                            parser_touch_authority_available=parser_touch_authority_available,
+                        ):
                             # Check if ball velocity toward own goal INCREASED
                             if state.prev_ball_velocity is not None:
                                 prev_toward = abs(state.prev_ball_velocity.y)
@@ -1413,7 +1461,6 @@ def detect_mechanics_for_player(
                 flip_elapsed = timestamp - state.flip_start_time
                 if flip_elapsed <= FLICK_DETECTION_WINDOW:
                     ball_pos = frame.ball.position
-                    ball_dist = _distance(pos, ball_pos)
                     current_ball_speed = _magnitude(frame.ball.velocity)
                     pre_speed = state.ball_speed_at_flip_start or 0
                     speed_delta = current_ball_speed - pre_speed
@@ -1422,7 +1469,13 @@ def detect_mechanics_for_player(
                     # Just needs: backward flip + ball proximity + ball acceleration
                     if (
                         state.flip_direction == "backward"
-                        and ball_dist < BALL_CONTACT_PROXIMITY
+                        and _player_touched_ball(
+                            frame,
+                            player_id,
+                            pos,
+                            BALL_CONTACT_PROXIMITY,
+                            parser_touch_authority_available=parser_touch_authority_available,
+                        )
                         and current_ball_speed > state.prev_ball_speed  # Any accel
                     ):
                         if not any(
@@ -1522,8 +1575,13 @@ def detect_mechanics_for_player(
                 and frame.ball is not None
                 and not state.had_surface_contact_since_ceiling
             ):
-                ball_dist = _distance(pos, frame.ball.position)
-                if ball_dist < BALL_CONTACT_PROXIMITY:
+                if _player_touched_ball(
+                    frame,
+                    player_id,
+                    pos,
+                    BALL_CONTACT_PROXIMITY,
+                    parser_touch_authority_available=parser_touch_authority_available,
+                ):
                     if not any(
                         e.mechanic_type == MechanicType.CEILING_SHOT
                         and e.player_id == player_id
@@ -1607,10 +1665,14 @@ def detect_mechanics_for_player(
             # Ball pinched with ground, velocity gain > 1500 UU/s
             if frame.ball is not None:
                 ball_pos = frame.ball.position
-                ball_dist = _distance(pos, ball_pos)
-
                 if (
-                    ball_dist < BALL_CONTACT_PROXIMITY
+                    _player_touched_ball(
+                        frame,
+                        player_id,
+                        pos,
+                        BALL_CONTACT_PROXIMITY,
+                        parser_touch_authority_available=parser_touch_authority_available,
+                    )
                     and ball_pos.z < GROUND_PINCH_HEIGHT_MAX
                 ):
                     current_ball_speed = _magnitude(frame.ball.velocity)
@@ -1644,7 +1706,6 @@ def detect_mechanics_for_player(
             if frame.ball is not None and state.is_airborne:
                 ball_pos = frame.ball.position
                 ball_vel = frame.ball.velocity
-                ball_dist = _distance(pos, ball_pos)
 
                 # Phase 9: Use velocity sign-flip to verify actual wall bounce
                 # Not just position near wall - actual velocity reversal
@@ -1674,7 +1735,13 @@ def detect_mechanics_for_player(
 
                 # Check for aerial touch (with debounce)
                 if (
-                    ball_dist < BALL_CONTACT_PROXIMITY
+                    _player_touched_ball(
+                        frame,
+                        player_id,
+                        pos,
+                        BALL_CONTACT_PROXIMITY,
+                        parser_touch_authority_available=parser_touch_authority_available,
+                    )
                     and pos.z > DOUBLE_TOUCH_HEIGHT_MIN
                 ):
                     # Only count as new touch if debounce time has passed
@@ -1725,9 +1792,13 @@ def detect_mechanics_for_player(
                 and pos.z > REDIRECT_HEIGHT_MIN
             ):
                 ball_pos = frame.ball.position
-                ball_dist = _distance(pos, ball_pos)
-
-                if ball_dist < BALL_CONTACT_PROXIMITY:
+                if _player_touched_ball(
+                    frame,
+                    player_id,
+                    pos,
+                    BALL_CONTACT_PROXIMITY,
+                    parser_touch_authority_available=parser_touch_authority_available,
+                ):
                     current_ball_speed = _magnitude(frame.ball.velocity)
 
                     if (

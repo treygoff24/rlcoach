@@ -139,6 +139,25 @@ class TestTypes:
         assert "parser_tickmarks" in fields
         assert "parser_kickoff_markers" in fields
 
+    def test_network_frames_raw_contract_includes_parser_event_carriers(self):
+        """Raw adapter frames keep stable parser-event carrier names."""
+        frame_payload = {
+            "timestamp": 0.0,
+            "ball": {},
+            "players": [],
+            "parser_touch_events": [],
+            "parser_demo_events": [],
+            "parser_tickmarks": [],
+            "parser_kickoff_markers": [],
+        }
+        frames = NetworkFrames(frame_count=1, sample_rate=30.0, frames=[frame_payload])
+
+        raw_frame = frames.frames[0]
+        assert "parser_touch_events" in raw_frame
+        assert "parser_demo_events" in raw_frame
+        assert "parser_tickmarks" in raw_frame
+        assert "parser_kickoff_markers" in raw_frame
+
 
 class TestParserInterface:
     """Tests for the abstract parser interface."""

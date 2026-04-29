@@ -129,6 +129,27 @@ def to_field_coords(vec: Any) -> Vec3:
         return Vec3(0.0, 0.0, 0.0)
 
 
+def to_vec3(vec: Any) -> Vec3:
+    """Convert parser vector data without applying field-position bounds."""
+    if isinstance(vec, Vec3):
+        return vec
+    elif hasattr(vec, "x") and hasattr(vec, "y") and hasattr(vec, "z"):
+        x, y, z = vec.x, vec.y, vec.z
+    elif isinstance(vec, (tuple, list)) and len(vec) >= 3:
+        x, y, z = vec[0], vec[1], vec[2]
+    elif isinstance(vec, dict):
+        x = vec.get("x", 0.0)
+        y = vec.get("y", 0.0)
+        z = vec.get("z", 0.0)
+    else:
+        return Vec3(0.0, 0.0, 0.0)
+
+    try:
+        return Vec3(float(x), float(y), float(z))
+    except (ValueError, TypeError):
+        return Vec3(0.0, 0.0, 0.0)
+
+
 def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
     """Parse rotation data from parser output.
 
@@ -555,15 +576,15 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
 
             if hasattr(frame_data, "ball"):
                 ball_pos = to_field_coords(frame_data.ball.position)
-                ball_vel = to_field_coords(frame_data.ball.velocity)
+                ball_vel = to_vec3(frame_data.ball.velocity)
                 if hasattr(frame_data.ball, "angular_velocity"):
-                    ball_ang_vel = to_field_coords(frame_data.ball.angular_velocity)
+                    ball_ang_vel = to_vec3(frame_data.ball.angular_velocity)
             elif isinstance(frame_data, dict) and "ball" in frame_data:
                 ball = frame_data["ball"]
                 if isinstance(ball, dict):
                     ball_pos = to_field_coords(ball.get("position", {}))
-                    ball_vel = to_field_coords(ball.get("velocity", {}))
-                    ball_ang_vel = to_field_coords(ball.get("angular_velocity", {}))
+                    ball_vel = to_vec3(ball.get("velocity", {}))
+                    ball_ang_vel = to_vec3(ball.get("angular_velocity", {}))
 
             ball_frame = BallFrame(
                 position=ball_pos, velocity=ball_vel, angular_velocity=ball_ang_vel
@@ -622,9 +643,9 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         position = to_field_coords(player_data["position"])
 
                     if hasattr(player_data, "velocity"):
-                        velocity = to_field_coords(player_data.velocity)
+                        velocity = to_vec3(player_data.velocity)
                     elif isinstance(player_data, dict) and "velocity" in player_data:
-                        velocity = to_field_coords(player_data["velocity"])
+                        velocity = to_vec3(player_data["velocity"])
 
                     # Extract rotation - handle both new format (pitch/yaw/roll
                     # + quaternion) and legacy format (x/y/z).

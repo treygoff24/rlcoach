@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rlreplay_rust::debug_first_frames;

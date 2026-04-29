@@ -4,6 +4,7 @@ from rlcoach.events import (
     GOAL_LINE_THRESHOLD,
     DemoEvent,
     GoalEvent,
+    KickoffEvent,
     TouchEvent,
     build_timeline,
     detect_boost_pickups,
@@ -1185,6 +1186,30 @@ class TestTimelineAggregation:
         assert timeline[0].type == "DEMO"
         assert timeline[1].type == "GOAL"
         assert timeline[2].type == "TOUCH"
+
+    def test_timeline_preserves_parser_event_sources(self):
+        """Timeline entries keep parser provenance visible."""
+        events = {
+            "touches": [
+                TouchEvent(
+                    t=1.0,
+                    player_id="p1",
+                    location=Vec3(0.0, 0.0, 93.15),
+                    source="parser",
+                )
+            ],
+            "demos": [DemoEvent(t=2.0, victim="p2", attacker="p1", source="parser")],
+            "kickoffs": [
+                KickoffEvent(t_start=0.0, phase="INITIAL", players=[], source="parser")
+            ],
+        }
+
+        timeline = build_timeline(events)
+        source_by_type = {event.type: event.data["source"] for event in timeline}
+
+        assert source_by_type["KICKOFF"] == "parser"
+        assert source_by_type["TOUCH"] == "parser"
+        assert source_by_type["DEMO"] == "parser"
 
 
 class TestParserAuthorityPreference:

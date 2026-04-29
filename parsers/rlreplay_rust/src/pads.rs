@@ -86,6 +86,7 @@ pub struct PadRegistry {
 }
 
 impl PadRegistry {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::new_with_arena("unknown")
     }

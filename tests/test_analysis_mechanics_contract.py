@@ -127,15 +127,15 @@ def test_team_mechanics_match_per_player_totals(monkeypatch):
                 "flip_cancel_count": 7,
                 "fast_aerial_count": 8,
                 "flip_reset_count": 9,
-                "air_roll_count": 0,
-                "air_roll_total_time_s": 0.0,
+                "air_roll_count": 19,
+                "air_roll_total_time_s": 1.5,
                 "dribble_count": 10,
-                "dribble_total_time_s": 0.0,
+                "dribble_total_time_s": 2.5,
                 "flick_count": 11,
-                "musty_flick_count": 0,
+                "musty_flick_count": 20,
                 "ceiling_shot_count": 12,
-                "power_slide_count": 0,
-                "power_slide_total_time_s": 0.0,
+                "power_slide_count": 21,
+                "power_slide_total_time_s": 3.5,
                 "ground_pinch_count": 13,
                 "double_touch_count": 14,
                 "redirect_count": 15,
@@ -204,14 +204,21 @@ def test_team_mechanics_match_per_player_totals(monkeypatch):
     assert blue["total_flip_cancels"] == 7
     assert blue["total_fast_aerials"] == 8
     assert blue["total_flip_resets"] == 9
+    assert blue["total_air_rolls"] == 19
+    assert blue["total_air_roll_time_s"] == 1.5
     assert blue["total_dribbles"] == 10
+    assert blue["total_dribble_time_s"] == 2.5
     assert blue["total_flicks"] == 11
+    assert blue["total_musty_flicks"] == 20
     assert blue["total_ceiling_shots"] == 12
+    assert blue["total_power_slides"] == 21
+    assert blue["total_power_slide_time_s"] == 3.5
     assert blue["total_ground_pinches"] == 13
     assert blue["total_double_touches"] == 14
     assert blue["total_redirects"] == 15
     assert blue["total_stalls"] == 16
     assert blue["total_skims"] == 17
     assert blue["total_psychos"] == 18
+    assert blue["total_mechanics"] == 152
     assert orange["total_wavedashes"] == 23
     assert orange["total_psychos"] == 38
