@@ -86,6 +86,65 @@ fn unique_header_index_by_name(
     matches.next().is_none().then_some(first)
 }
 
+#[derive(Clone, Default)]
+struct ActorKind {
+    is_ball: bool,
+    is_car: bool,
+}
+
+#[derive(Clone, Copy, Default)]
+struct ComponentKind {
+    is_jump: bool,
+    is_dodge: bool,
+    is_double_jump: bool,
+}
+
+fn is_car_state_actor(
+    actor_id: i32,
+    actor_kind: &HashMap<i32, ActorKind>,
+    car_team: &HashMap<i32, i64>,
+    car_owner: &HashMap<i32, i32>,
+    component_owner: &HashMap<i32, i32>,
+    actor_to_player_index: &HashMap<i32, usize>,
+) -> bool {
+    if actor_kind
+        .get(&actor_id)
+        .map(|kind| kind.is_ball)
+        .unwrap_or(false)
+    {
+        return false;
+    }
+
+    actor_kind
+        .get(&actor_id)
+        .map(|kind| kind.is_car)
+        .unwrap_or(false)
+        || car_team.contains_key(&actor_id)
+        || car_owner.contains_key(&actor_id)
+        || component_owner.values().any(|owner| *owner == actor_id)
+        || actor_to_player_index.contains_key(&actor_id)
+}
+
+fn resolve_component_owner(component_owner: &HashMap<i32, i32>, actor_id: i32) -> i32 {
+    let mut resolved = actor_id;
+    let mut guard = 0;
+    while let Some(owner) = component_owner.get(&resolved) {
+        if *owner == resolved {
+            break;
+        }
+        resolved = *owner;
+        guard += 1;
+        if guard > 8 {
+            break;
+        }
+    }
+    resolved
+}
+
+fn pickup_bool_raw_state(picked_up: bool) -> u8 {
+    u8::from(picked_up)
+}
+
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
     let mut file = File::open(path)
         .map_err(|e| PyIOError::new_err(format!("Failed to open replay file '{}': {}", path, e)))?;
@@ -546,7 +605,11 @@ fn map_network_error_code(message: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{infer_kickoff_phase, map_network_error_code};
+    use super::{
+        infer_kickoff_phase, is_car_state_actor, map_network_error_code, pickup_bool_raw_state,
+        resolve_component_owner, ActorKind,
+    };
+    use std::collections::HashMap;
 
     #[test]
     fn kickoff_phase_stays_initial_before_overtime() {
@@ -581,6 +644,102 @@ mod tests {
             map_network_error_code("unknown attributes for object id 118"),
             "boxcars_unknown_attribute_network_error",
         );
+    }
+
+    #[test]
+    fn car_state_actor_requires_positive_car_signal() {
+        let actor_kind = HashMap::new();
+        let car_team = HashMap::new();
+        let car_owner = HashMap::new();
+        let component_owner = HashMap::new();
+        let actor_to_player_index = HashMap::new();
+
+        assert!(!is_car_state_actor(
+            7,
+            &actor_kind,
+            &car_team,
+            &car_owner,
+            &component_owner,
+            &actor_to_player_index,
+        ));
+
+        let mut actor_kind = HashMap::new();
+        actor_kind.insert(
+            7,
+            ActorKind {
+                is_ball: false,
+                is_car: true,
+            },
+        );
+        assert!(is_car_state_actor(
+            7,
+            &actor_kind,
+            &car_team,
+            &car_owner,
+            &component_owner,
+            &actor_to_player_index,
+        ));
+
+        actor_kind.insert(
+            8,
+            ActorKind {
+                is_ball: true,
+                is_car: false,
+            },
+        );
+        let mut car_team = HashMap::new();
+        car_team.insert(8, 0);
+        assert!(!is_car_state_actor(
+            8,
+            &actor_kind,
+            &car_team,
+            &car_owner,
+            &component_owner,
+            &actor_to_player_index,
+        ));
+    }
+
+    #[test]
+    fn component_owner_binding_is_a_car_signal_for_owner() {
+        let actor_kind = HashMap::new();
+        let car_team = HashMap::new();
+        let car_owner = HashMap::new();
+        let mut component_owner = HashMap::new();
+        let actor_to_player_index = HashMap::new();
+        component_owner.insert(20, 7);
+
+        assert!(is_car_state_actor(
+            7,
+            &actor_kind,
+            &car_team,
+            &car_owner,
+            &component_owner,
+            &actor_to_player_index,
+        ));
+        assert!(!is_car_state_actor(
+            20,
+            &actor_kind,
+            &car_team,
+            &car_owner,
+            &component_owner,
+            &actor_to_player_index,
+        ));
+    }
+
+    #[test]
+    fn component_owner_resolution_follows_short_chains() {
+        let mut component_owner = HashMap::new();
+        component_owner.insert(30, 20);
+        component_owner.insert(20, 7);
+
+        assert_eq!(resolve_component_owner(&component_owner, 30), 7);
+        assert_eq!(resolve_component_owner(&component_owner, 9), 9);
+    }
+
+    #[test]
+    fn pickup_bool_raw_state_matches_legacy_pickup_state() {
+        assert_eq!(pickup_bool_raw_state(true), 1);
+        assert_eq!(pickup_bool_raw_state(false), 0);
     }
 }
 
@@ -654,17 +813,6 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         // Build mapping structures we maintain across frames
         let objects = &replay.objects;
         let mut actor_object_name: HashMap<i32, String> = HashMap::new();
-        #[derive(Clone, Default)]
-        struct ActorKind {
-            is_ball: bool,
-            is_car: bool,
-        }
-        #[derive(Clone, Copy, Default)]
-        struct ComponentKind {
-            is_jump: bool,
-            is_dodge: bool,
-            is_double_jump: bool,
-        }
         let mut actor_kind: HashMap<i32, ActorKind> = HashMap::new();
         let mut component_kind: HashMap<i32, ComponentKind> = HashMap::new();
         let mut car_team: HashMap<i32, i64> = HashMap::new();
@@ -929,7 +1077,14 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                 ball_pos = (loc.x, loc.y, loc.z);
                                 ball_vel = (vel.x, vel.y, vel.z);
                                 ball_angvel = (ang.x, ang.y, ang.z);
-                            } else {
+                            } else if is_car_state_actor(
+                                aid,
+                                &actor_kind,
+                                &car_team,
+                                &car_owner,
+                                &component_owner,
+                                &actor_to_player_index,
+                            ) {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                                 car_vel.insert(aid, (vel.x, vel.y, vel.z));
                                 // Extract quaternion rotation from RigidBody
@@ -953,9 +1108,22 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                                     frame_double_jumping_actors.insert(target);
                                 }
                             }
-                            if Some(aid) == ball_actor {
+                            let is_ball = Some(aid) == ball_actor
+                                || actor_kind
+                                    .get(&aid)
+                                    .map(|kind| kind.is_ball)
+                                    .unwrap_or(false);
+                            if is_ball {
+                                ball_actor = Some(aid);
                                 ball_pos = (loc.x, loc.y, loc.z);
-                            } else {
+                            } else if is_car_state_actor(
+                                aid,
+                                &actor_kind,
+                                &car_team,
+                                &car_owner,
+                                &component_owner,
+                                &actor_to_player_index,
+                            ) {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                             }
                             let events = pad_registry.update_position(aid, (loc.x, loc.y, loc.z));
@@ -972,25 +1140,35 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             }
                         }
 
+                        Attribute::Pickup(pickup) => {
+                            let mut raw_actor_opt: Option<i32> = None;
+                            let mut resolved_actor: Option<i32> = None;
+                            if let Some(instigator) = pickup.instigator {
+                                let raw_actor: i32 = instigator.into();
+                                raw_actor_opt = Some(raw_actor);
+                                resolved_actor =
+                                    Some(resolve_component_owner(&component_owner, raw_actor));
+                            }
+
+                            let events = pad_registry.handle_pickup(
+                                aid,
+                                pickup_bool_raw_state(pickup.picked_up),
+                                nf.time,
+                                raw_actor_opt,
+                                resolved_actor,
+                                resolved_actor.and_then(|actor| car_pos.get(&actor).copied()),
+                            );
+                            frame_pad_events.extend(events);
+                        }
+
                         Attribute::PickupNew(pickup) => {
                             let mut raw_actor_opt: Option<i32> = None;
                             let mut resolved_actor: Option<i32> = None;
                             if let Some(instigator) = pickup.instigator {
                                 let raw_actor: i32 = instigator.into();
                                 raw_actor_opt = Some(raw_actor);
-                                let mut resolved = raw_actor;
-                                let mut guard = 0;
-                                while let Some(owner) = component_owner.get(&resolved) {
-                                    if *owner == resolved {
-                                        break;
-                                    }
-                                    resolved = *owner;
-                                    guard += 1;
-                                    if guard > 8 {
-                                        break;
-                                    }
-                                }
-                                resolved_actor = Some(resolved);
+                                resolved_actor =
+                                    Some(resolve_component_owner(&component_owner, raw_actor));
                             }
 
                             let events = pad_registry.handle_pickup(
@@ -1159,8 +1337,18 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 if let Some(ball_id) = ball_actor {
                     actors.remove(&ball_id);
                 }
-                // Filter using classification when available; keep unclassified for fallback
-                actors.retain(|aid| actor_kind.get(aid).map(|kind| kind.is_car).unwrap_or(true));
+                // Emit only actors with a positive car signal. Component/boost actors can
+                // receive physics updates too, so unclassified physics alone is not enough.
+                actors.retain(|aid| {
+                    is_car_state_actor(
+                        *aid,
+                        &actor_kind,
+                        &car_team,
+                        &car_owner,
+                        &component_owner,
+                        &actor_to_player_index,
+                    )
+                });
 
                 let mut players_map: BTreeMap<usize, PyObject> = BTreeMap::new();
                 let owned_actor_ids: HashSet<i32> = component_owner.values().copied().collect();

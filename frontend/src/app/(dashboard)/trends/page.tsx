@@ -83,6 +83,9 @@ export default function TrendsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let isCurrent = true;
+
     async function fetchTrends() {
       if (!session?.accessToken) {
         setLoading(false);
@@ -99,8 +102,10 @@ export default function TrendsPage() {
             headers: {
               Authorization: `Bearer ${session.accessToken}`,
             },
+            signal: controller.signal,
           }
         );
+        if (!isCurrent) return;
 
         if (!res.ok) {
           if (res.status === 401) {
@@ -112,15 +117,25 @@ export default function TrendsPage() {
         }
 
         const data: TrendResponse = await res.json();
+        if (!isCurrent) return;
         setTrendData(data.values);
       } catch (err) {
+        if (!isCurrent || (err instanceof DOMException && err.name === 'AbortError')) {
+          return;
+        }
         setError('Unable to connect to server.');
       } finally {
-        setLoading(false);
+        if (isCurrent) {
+          setLoading(false);
+        }
       }
     }
 
     fetchTrends();
+    return () => {
+      isCurrent = false;
+      controller.abort();
+    };
   }, [session?.accessToken, selectedMetric, timeRange, axisType]);
 
   // Aggregate data into buckets for display (max 10 bars)

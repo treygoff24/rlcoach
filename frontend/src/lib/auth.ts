@@ -45,6 +45,7 @@ declare module 'next-auth/jwt' {
     userId: string;
     subscriptionTier: 'free' | 'pro';
     accessToken?: string;
+    bootstrapFailed?: boolean;
   }
 }
 
@@ -175,17 +176,18 @@ export const authConfig: NextAuthConfig = {
             // Use our database UUID, not the OAuth provider's ID
             token.userId = data.id;
             token.subscriptionTier = data.subscription_tier || 'free';
+            token.bootstrapFailed = false;
           } else {
-            // Fallback to OAuth ID if bootstrap fails
             console.error('User bootstrap failed:', await res.text());
-            token.userId = user.id!;
+            token.userId = '';
             token.subscriptionTier = 'free';
+            token.bootstrapFailed = true;
           }
         } catch (error) {
-          // Fallback to OAuth ID if bootstrap fails
           console.error('User bootstrap error:', error);
-          token.userId = user.id!;
+          token.userId = '';
           token.subscriptionTier = 'free';
+          token.bootstrapFailed = true;
         }
       }
 
@@ -198,7 +200,7 @@ export const authConfig: NextAuthConfig = {
       // Create a signed JWT for backend API calls
       // Backend expects JWT with userId/sub signed with NEXTAUTH_SECRET
       const secretStr = process.env.NEXTAUTH_SECRET;
-      if (secretStr) {
+      if (secretStr && token.userId && !token.bootstrapFailed) {
         const secret = new TextEncoder().encode(secretStr);
         const jwt = await new jose.SignJWT({
           userId: token.userId,

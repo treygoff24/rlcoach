@@ -93,6 +93,7 @@ function ResultBadge({ result, myScore, opponentScore }: { result: string | null
   }
 
   const isWin = result === 'WIN';
+  const isDraw = result === 'DRAW';
   const score = myScore != null && opponentScore != null 
     ? `${myScore} - ${opponentScore}` 
     : '-';
@@ -101,12 +102,14 @@ function ResultBadge({ result, myScore, opponentScore }: { result: string | null
     <div className="flex items-center gap-3">
       <span className={`
         inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold
-        ${isWin
+        ${isDraw
+          ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+          : isWin
           ? 'bg-victory/20 text-victory border border-victory/30'
           : 'bg-defeat/20 text-defeat border border-defeat/30'
         }
       `}>
-        {isWin ? 'W' : 'L'}
+        {isDraw ? 'D' : isWin ? 'W' : 'L'}
       </span>
       <span className="font-display text-lg text-white tracking-wide">{score}</span>
     </div>

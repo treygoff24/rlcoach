@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getComparison } from '../api/client';
 import { Card, CardHeader, CardContent, SkeletonChart, ErrorState, NoDataEmpty } from '../components';
+import { buildCompareChartData } from './dataTransforms';
 
 const RANK_OPTIONS = [
   'GC3', 'GC2', 'GC1',
@@ -31,14 +32,7 @@ export function Compare() {
     return <ErrorState message="Failed to load comparison" />;
   }
 
-  const chartData = data?.comparisons
-    .filter((c) => c.target_median !== null)
-    .map((c) => ({
-      metric: c.metric.toUpperCase(),
-      difference: c.difference_pct ?? 0,
-      myValue: c.my_value,
-      targetMedian: c.target_median,
-    })) ?? [];
+  const chartData = buildCompareChartData(data?.comparisons);
 
   return (
     <div className="space-y-6">

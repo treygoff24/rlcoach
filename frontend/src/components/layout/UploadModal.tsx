@@ -46,11 +46,12 @@ export function UploadModal({ isOpen, onClose, onUploadComplete }: UploadModalPr
     };
 
     // Prevent body scroll when modal is open
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);

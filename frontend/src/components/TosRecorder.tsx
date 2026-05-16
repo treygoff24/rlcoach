@@ -9,11 +9,21 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export function TosRecorder() {
   const { data: session, status } = useSession();
   const recordedRef = useRef(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Only run once per session when authenticated
@@ -41,13 +51,22 @@ export function TosRecorder() {
         if (res.ok) {
           // Clear storage on success
           sessionStorage.removeItem('tos_accepted_at');
+          return;
         }
+        recordedRef.current = false;
+        throw new Error('Failed to record ToS acceptance');
       })
       .catch((err) => {
-        // Log but don't fail - ToS was already accepted in UI
+        recordedRef.current = false;
+        if (!retryTimerRef.current) {
+          retryTimerRef.current = setTimeout(() => {
+            retryTimerRef.current = null;
+            setRetryToken((token) => token + 1);
+          }, 5000);
+        }
         console.error('Failed to record ToS acceptance:', err);
       });
-  }, [session, status]);
+  }, [session, status, retryToken]);
 
   // This component renders nothing
   return null;

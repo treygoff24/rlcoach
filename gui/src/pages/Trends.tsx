@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getTrends, getBenchmarks } from '../api/client';
 import { Card, CardHeader, CardContent, SkeletonChart, ErrorState, NoDataEmpty } from '../components';
+import { hasBenchmarkValue } from './dataTransforms';
 
 const METRIC_OPTIONS = [
   { value: 'bcpm', label: 'Boost/Min', category: 'Boost' },
@@ -41,11 +42,12 @@ export function Trends() {
   }
 
   const benchmarkValue = benchmarksData?.items?.[0]?.median_value;
+  const hasBenchmark = showBenchmark && hasBenchmarkValue(benchmarkValue);
 
   const chartData = data?.values.map((v) => ({
     date: new Date(v.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     value: v.value,
-    benchmark: benchmarkValue,
+    benchmark: hasBenchmark ? benchmarkValue : undefined,
   })) ?? [];
 
   const selectedMetric = METRIC_OPTIONS.find((m) => m.value === metric);
@@ -143,7 +145,7 @@ export function Trends() {
                     dot={false}
                     name={selectedMetric?.label}
                   />
-                  {showBenchmark && benchmarkValue && (
+                  {hasBenchmark && (
                     <Line
                       type="monotone"
                       dataKey="benchmark"

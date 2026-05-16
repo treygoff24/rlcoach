@@ -26,7 +26,7 @@ async function proxyRequest(
 
   // Preserve query parameters
   request.nextUrl.searchParams.forEach((value, key) => {
-    url.searchParams.set(key, value);
+    url.searchParams.append(key, value);
   });
 
   // Get session using NextAuth v5 auth() function

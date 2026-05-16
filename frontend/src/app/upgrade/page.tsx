@@ -8,20 +8,34 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 
 export default function UpgradePage() {
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleUpgrade = async () => {
+    setError(null);
+    setIsLoading(true);
     try {
       const res = await fetch('/api/stripe/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
+      if (!res.ok) {
+        throw new Error('Unable to start checkout. Please try again.');
+      }
       const { url } = await res.json();
       if (url) {
         window.location.href = url;
+        return;
       }
+      throw new Error('Checkout is unavailable. Please try again later.');
     } catch (error) {
       console.error('Failed to create checkout session:', error);
+      setError(error instanceof Error ? error.message : 'Unable to start checkout.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -82,10 +96,16 @@ export default function UpgradePage() {
 
           <button
             onClick={handleUpgrade}
-            className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg transition-colors"
+            disabled={isLoading}
+            className="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
           >
-            Upgrade to Pro
+            {isLoading ? 'Starting checkout...' : 'Upgrade to Pro'}
           </button>
+          {error && (
+            <p className="text-sm text-red-400 text-center" role="alert">
+              {error}
+            </p>
+          )}
         </div>
 
         {/* Free Tier Reminder */}

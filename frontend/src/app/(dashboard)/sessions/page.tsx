@@ -20,7 +20,10 @@ interface SessionsResponse {
 }
 
 function formatDate(dateStr: string) {
-  const date = new Date(dateStr);
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(dateStr);
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'short',

@@ -73,10 +73,18 @@ function formatDuration(seconds: number | null) {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+type TeamColor = 'blue' | 'orange';
+
+function normalizeTeam(team: string | null | undefined): TeamColor | null {
+  const normalized = team?.toLowerCase();
+  return normalized === 'blue' || normalized === 'orange' ? normalized : null;
+}
+
 function OverviewTab({ replay }: { replay: ReplayData }) {
   const myPlayer = replay.players.find((p) => p.is_me);
-  const blueTeam = replay.players.filter((p) => p.team === 'blue');
-  const orangeTeam = replay.players.filter((p) => p.team === 'orange');
+  const myTeam = normalizeTeam(myPlayer?.team);
+  const blueScore = myTeam === 'orange' ? replay.opponent_score : replay.my_score;
+  const orangeScore = myTeam === 'orange' ? replay.my_score : replay.opponent_score;
 
   return (
     <div className="space-y-6">
@@ -85,14 +93,14 @@ function OverviewTab({ replay }: { replay: ReplayData }) {
         <div className="flex items-center justify-between">
           <div className="text-center flex-1">
             <p className="text-sm text-blue-400 font-medium mb-2">Blue Team</p>
-            <p className="text-4xl font-bold text-white">{replay.my_score ?? '-'}</p>
+            <p className="text-4xl font-bold text-white">{blueScore ?? '-'}</p>
           </div>
           <div className="px-6">
             <p className="text-gray-500 text-lg">vs</p>
           </div>
           <div className="text-center flex-1">
             <p className="text-sm text-orange-400 font-medium mb-2">Orange Team</p>
-            <p className="text-4xl font-bold text-white">{replay.opponent_score ?? '-'}</p>
+            <p className="text-4xl font-bold text-white">{orangeScore ?? '-'}</p>
           </div>
         </div>
         {replay.overtime && (
@@ -123,7 +131,7 @@ function OverviewTab({ replay }: { replay: ReplayData }) {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`w-2 h-2 rounded-full ${player.team === 'blue' ? 'bg-blue-500' : 'bg-orange-500'}`}
+                      className={`w-2 h-2 rounded-full ${normalizeTeam(player.team) === 'blue' ? 'bg-blue-500' : 'bg-orange-500'}`}
                       aria-hidden="true"
                     />
                     <span className={`font-medium ${player.is_me ? 'text-orange-400' : 'text-white'}`}>
@@ -556,7 +564,13 @@ export default function ReplayDetailPage() {
               ? 'bg-red-500/20 text-red-400'
               : 'bg-gray-500/20 text-gray-400'
           }`}>
-            {replay.result === 'WIN' ? 'Victory' : replay.result === 'LOSS' ? 'Defeat' : 'Unknown'}
+            {replay.result === 'WIN'
+              ? 'Victory'
+              : replay.result === 'LOSS'
+              ? 'Defeat'
+              : replay.result === 'DRAW'
+              ? 'Draw'
+              : 'Unknown'}
           </div>
         </div>
       </div>

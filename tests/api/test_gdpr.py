@@ -155,3 +155,34 @@ class TestRemovalRequestValidation:
         assert "<" not in req.player_identifier
         assert ">" not in req.player_identifier
         assert "'" not in req.player_identifier
+
+
+class TestRemovalRequestResponseContract:
+    """Tests for the public GDPR response shape."""
+
+    def test_submit_response_does_not_disclose_affected_replay_count(self):
+        """Unauthenticated submit responses should not expose match counts."""
+        from rlcoach.api.routers.gdpr import RemovalRequestResponse
+
+        response = RemovalRequestResponse(
+            status="submitted",
+            request_id="gdpr_abc123",
+            message="Request submitted. You will be notified by email.",
+        )
+
+        payload = response.model_dump()
+        assert "affected_replays" not in payload
+        assert "found" not in payload["message"].lower()
+
+    def test_status_response_does_not_disclose_affected_replay_count(self):
+        """Public request status responses should not expose match counts."""
+        from rlcoach.api.routers.gdpr import RemovalRequestStatus
+
+        response = RemovalRequestStatus(
+            request_id="gdpr_abc123",
+            status="pending",
+            submitted_at="2026-01-01T00:00:00+00:00",
+            processed_at=None,
+        )
+
+        assert "affected_replays" not in response.model_dump()

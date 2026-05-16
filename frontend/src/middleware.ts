@@ -41,7 +41,7 @@ export default auth((req) => {
   // Redirect unauthenticated users to login
   if (isProtectedRoute && !isLoggedIn) {
     const loginUrl = new URL('/login', nextUrl.origin);
-    loginUrl.searchParams.set('callbackUrl', nextUrl.pathname);
+    loginUrl.searchParams.set('callbackUrl', `${nextUrl.pathname}${nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
   }
 

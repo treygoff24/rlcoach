@@ -1,9 +1,18 @@
-.PHONY: test test-cov fmt lint clean help install-dev rust-dev rust-build
+.PHONY: test test-cov fmt lint clean help install-dev rust-dev rust-build require-venv
 
-# Virtual environment activation helper
-# If .venv exists, run commands within it
-# Use absolute path so it works from subdirectories (e.g., cd parsers/...)
-VENV_BIN := $(if $(wildcard .venv/bin/python),$(CURDIR)/.venv/bin/,)
+VENV_BIN := $(CURDIR)/.venv/bin
+VENV_PY := $(VENV_BIN)/python
+PIP := $(VENV_PY) -m pip
+PYTEST := $(VENV_PY) -m pytest
+BLACK := $(VENV_PY) -m black
+RUFF := $(VENV_PY) -m ruff
+MATURIN := $(VENV_PY) -m maturin
+
+require-venv:
+	@test -x "$(VENV_PY)" || { \
+		echo "error: .venv is required for Python targets. Create it and install deps before running make." >&2; \
+		exit 1; \
+	}
 
 # Default target
 help:
@@ -18,26 +27,26 @@ help:
 	@echo "  rust-build - Build Rust wheel (release)"
 
 # Install development dependencies
-install-dev:
-	$(VENV_BIN)pip install -e ".[dev]"
+install-dev: require-venv
+	$(PIP) install -e ".[dev]"
 	@echo "Tip: run 'make rust-dev' to build the Rust parser extension."
 
 # Run tests
-test:
-	PYTHONPATH=src $(VENV_BIN)pytest -q
+test: require-venv
+	PYTHONPATH=src $(PYTEST) -q
 
 # Run tests with coverage (overall + per-category threshold gate)
-test-cov:
-	PYTHONPATH=src $(VENV_BIN)pytest -q --cov=src/rlcoach --cov-report=term-missing --cov-report=json:coverage.json --cov-report=xml:coverage.xml
-	$(VENV_BIN)python scripts/check_coverage_categories.py --json coverage.json --threshold 50
+test-cov: require-venv
+	PYTHONPATH=src $(PYTEST) -q --cov=src/rlcoach --cov-report=term-missing --cov-report=json:coverage.json --cov-report=xml:coverage.xml
+	$(VENV_PY) scripts/check_coverage_categories.py --json coverage.json --threshold 50
 
 # Format code
-fmt:
-	$(VENV_BIN)black src/ tests/
+fmt: require-venv
+	$(BLACK) src/ tests/
 
 # Lint code
-lint:
-	$(VENV_BIN)ruff check src/ tests/
+lint: require-venv
+	$(RUFF) check src/ tests/
 
 # Clean build artifacts
 clean:
@@ -52,15 +61,28 @@ clean:
 	rm -rf htmlcov/
 
 # Build/install the Rust extension locally for development
-rust-dev:
-	$(VENV_BIN)python -m pip install --upgrade pip
-	$(VENV_BIN)pip install maturin
+rust-dev: require-venv
+	$(PIP) install --upgrade pip
+	$(PIP) install maturin
 	# Prefer maturin develop (editable install). If unavailable, build a wheel and pip install it.
-	cd parsers/rlreplay_rust && ($(VENV_BIN)maturin develop || ($(VENV_BIN)maturin build -r && $(VENV_BIN)python -m pip install target/wheels/*.whl))
-	$(VENV_BIN)python -c "import rlreplay_rust as m; print('RUST_CORE loaded:', getattr(m, 'RUST_CORE', False))"
+	cd parsers/rlreplay_rust && ( \
+		$(MATURIN) develop || { \
+			rm -rf target/rlcoach-wheels && \
+			mkdir -p target/rlcoach-wheels && \
+			$(MATURIN) build -r --out target/rlcoach-wheels && \
+			wheel_count=$$(find target/rlcoach-wheels -maxdepth 1 -type f -name '*.whl' | wc -l | tr -d ' ') && \
+			if [ "$$wheel_count" != "1" ]; then \
+				echo "error: expected exactly one wheel in target/rlcoach-wheels, found $$wheel_count" >&2; \
+				exit 1; \
+			fi && \
+			wheel=$$(find target/rlcoach-wheels -maxdepth 1 -type f -name '*.whl' -print -quit) && \
+			$(PIP) install "$$wheel"; \
+		} \
+	)
+	$(VENV_PY) -c "import rlreplay_rust as m; print('RUST_CORE loaded:', getattr(m, 'RUST_CORE', False))"
 
 # Build a release wheel for the Rust extension
-rust-build:
-	$(VENV_BIN)python -m pip install --upgrade pip
-	$(VENV_BIN)pip install maturin
-	cd parsers/rlreplay_rust && $(VENV_BIN)maturin build -r
+rust-build: require-venv
+	$(PIP) install --upgrade pip
+	$(PIP) install maturin
+	cd parsers/rlreplay_rust && $(MATURIN) build -r

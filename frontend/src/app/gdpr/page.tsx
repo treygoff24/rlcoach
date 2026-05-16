@@ -24,7 +24,6 @@ interface SubmitResult {
   status: string;
   request_id: string;
   message: string;
-  affected_replays: number;
 }
 
 export default function GDPRRemovalPage() {
@@ -54,8 +53,12 @@ export default function GDPRRemovalPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to submit request');
+        const errorData = await response.json().catch(() => null);
+        const message =
+          errorData && typeof errorData.detail === 'string'
+            ? errorData.detail
+            : 'Failed to submit request';
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -96,9 +99,7 @@ export default function GDPRRemovalPage() {
               <p>
                 <strong>Request ID:</strong> {result.request_id}
               </p>
-              <p>
-                <strong>Affected Replays:</strong> {result.affected_replays}
-              </p>
+              <p>We will verify the request and email you with the outcome.</p>
             </div>
           </div>
         )}

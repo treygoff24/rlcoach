@@ -140,8 +140,12 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-400">Connected</p>
                 </div>
               </div>
-              <button className="text-sm text-gray-400 hover:text-white focus:outline-none focus:text-orange-400 focus:underline">
-                Disconnect
+              <button
+                disabled
+                className="text-sm text-gray-500 cursor-not-allowed"
+                title="Account unlinking is not available yet"
+              >
+                Disconnect unavailable
               </button>
             </div>
 
@@ -158,8 +162,12 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-400">Not connected</p>
                 </div>
               </div>
-              <button className="text-sm text-orange-400 hover:text-orange-300 focus:outline-none focus:underline">
-                Connect
+              <button
+                disabled
+                className="text-sm text-gray-500 cursor-not-allowed"
+                title="Steam linking is not available yet"
+              >
+                Coming soon
               </button>
             </div>
 
@@ -179,8 +187,12 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-400">Not connected</p>
                 </div>
               </div>
-              <button className="text-sm text-orange-400 hover:text-orange-300 focus:outline-none focus:underline">
-                Connect
+              <button
+                disabled
+                className="text-sm text-gray-500 cursor-not-allowed"
+                title="Google account linking is not available yet"
+              >
+                Coming soon
               </button>
             </div>
           </div>
@@ -204,9 +216,11 @@ export default function SettingsPage() {
                 onChange={(e) => setSessionGap(Number(e.target.value))}
                 min={5}
                 max={120}
+                disabled
                 aria-describedby="session-gap-hint"
-                className="w-24 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-24 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-500 cursor-not-allowed"
               />
+              <p className="text-xs text-gray-500 mt-2">Preference saving is coming soon.</p>
             </div>
           </div>
         </section>
@@ -220,8 +234,12 @@ export default function SettingsPage() {
                 <p className="text-white font-medium">Export Data</p>
                 <p className="text-sm text-gray-400">Download all your replay data</p>
               </div>
-              <button className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-900">
-                Export
+              <button
+                disabled
+                className="px-4 py-2 bg-gray-800 text-gray-500 rounded-lg cursor-not-allowed"
+                title="Data export is not available yet"
+              >
+                Export unavailable
               </button>
             </div>
             <div className="flex items-center justify-between pt-4 border-t border-gray-800">
@@ -229,8 +247,12 @@ export default function SettingsPage() {
                 <p className="text-red-400 font-medium">Delete Account</p>
                 <p className="text-sm text-gray-400">Permanently delete your account and data</p>
               </div>
-              <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900">
-                Delete
+              <button
+                disabled
+                className="px-4 py-2 bg-red-500/10 text-red-500/60 rounded-lg cursor-not-allowed"
+                title="Account deletion is not available yet"
+              >
+                Delete unavailable
               </button>
             </div>
           </div>

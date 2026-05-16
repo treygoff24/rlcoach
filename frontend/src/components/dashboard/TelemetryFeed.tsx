@@ -3,10 +3,10 @@
 import { motion } from "framer-motion";
 
 const MOCK_LOGS = [
-	{ id: 1, type: "info", msg: "System initialized. Waiting for input." },
-	{ id: 2, type: "success", msg: "Connection to local backend established." },
-	{ id: 3, type: "warning", msg: "Boost efficiency below optimal levels." },
-	{ id: 4, type: "info", msg: "Analysing replay: 2v2_stadium_final.replay" },
+	{ id: 1, time: "00:00:01", type: "info", msg: "System initialized. Waiting for input." },
+	{ id: 2, time: "00:00:03", type: "success", msg: "Connection to local backend established." },
+	{ id: 3, time: "00:00:07", type: "warning", msg: "Boost efficiency below optimal levels." },
+	{ id: 4, time: "00:00:12", type: "info", msg: "Analysing replay: 2v2_stadium_final.replay" },
 ];
 
 export function TelemetryFeed() {
@@ -24,9 +24,9 @@ export function TelemetryFeed() {
 						transition={{ delay: 1 + i * 0.1 }}
 						className="flex items-center gap-2"
 					>
-						<span className="text-white/20">
-							[{new Date().toLocaleTimeString()}]
-						</span>
+							<span className="text-white/20">
+								[{log.time}]
+							</span>
 						<span
 							className={`
                         ${log.type === "success" ? "text-victory" : ""}

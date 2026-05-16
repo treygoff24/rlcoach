@@ -69,6 +69,9 @@ export default function ComparePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let isCurrent = true;
+
     async function fetchData() {
       if (!session?.accessToken) {
         setLoading(false);
@@ -84,7 +87,9 @@ export default function ComparePage() {
             headers: {
               Authorization: `Bearer ${session.accessToken}`,
             },
+            signal: controller.signal,
           });
+          if (!isCurrent) return;
 
           if (!res.ok) {
             if (res.status === 401) {
@@ -96,13 +101,16 @@ export default function ComparePage() {
           }
 
           const data: BenchmarkResponse = await res.json();
+          if (!isCurrent) return;
           setRankData(data);
         } else {
           const res = await fetch('/api/v1/users/me/compare/self?period=7d', {
             headers: {
               Authorization: `Bearer ${session.accessToken}`,
             },
+            signal: controller.signal,
           });
+          if (!isCurrent) return;
 
           if (!res.ok) {
             if (res.status === 401) {
@@ -114,16 +122,26 @@ export default function ComparePage() {
           }
 
           const data: SelfComparisonResponse = await res.json();
+          if (!isCurrent) return;
           setSelfData(data);
         }
       } catch (err) {
+        if (!isCurrent || (err instanceof DOMException && err.name === 'AbortError')) {
+          return;
+        }
         setError('Unable to connect to server.');
       } finally {
-        setLoading(false);
+        if (isCurrent) {
+          setLoading(false);
+        }
       }
     }
 
     fetchData();
+    return () => {
+      isCurrent = false;
+      controller.abort();
+    };
   }, [session?.accessToken, mode]);
 
   if (loading) {

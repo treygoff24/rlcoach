@@ -1,7 +1,7 @@
 // frontend/src/components/Toast.tsx
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
 export interface Toast {
   id: string;
@@ -82,12 +82,18 @@ function ToastItem({
   toast: Toast;
   onDismiss: () => void;
 }) {
+  const onDismissRef = useRef(onDismiss);
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
   useEffect(() => {
     if (toast.duration && toast.duration > 0) {
-      const timer = setTimeout(onDismiss, toast.duration);
+      const timer = setTimeout(() => onDismissRef.current(), toast.duration);
       return () => clearTimeout(timer);
     }
-  }, [toast.duration, onDismiss]);
+  }, [toast.id, toast.duration]);
 
   const icons = {
     success: (

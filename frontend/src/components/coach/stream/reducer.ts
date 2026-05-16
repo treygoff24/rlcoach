@@ -55,7 +55,7 @@ export function reducer(
     return { ...state, toolStatus: null };
   }
   if (event.type === "error") {
-    return { ...state, error: event.message };
+    return { ...state, error: event.message, toolStatus: null };
   }
   if (event.type === "message_stop") {
     return { ...state, toolStatus: null };

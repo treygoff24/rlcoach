@@ -25,7 +25,11 @@ function LoginForm() {
       return; // Button is disabled anyway, but extra safety
     }
     // Store ToS acceptance in sessionStorage so we can record it after OAuth callback
-    sessionStorage.setItem('tos_accepted_at', new Date().toISOString());
+    try {
+      sessionStorage.setItem('tos_accepted_at', new Date().toISOString());
+    } catch (error) {
+      console.warn('Unable to persist ToS acceptance before sign-in:', error);
+    }
     signIn(provider, { callbackUrl });
   };
 
@@ -84,8 +88,13 @@ function LoginForm() {
           {/* Dev Login - only in development */}
           {process.env.NODE_ENV === 'development' && (
             <button
-              onClick={() => signIn('dev-login', { callbackUrl })}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-orange-600 hover:bg-orange-500 text-white font-medium rounded-lg transition-colors"
+              onClick={() => handleSignIn('dev-login')}
+              disabled={!tosAccepted}
+              className={`w-full flex items-center justify-center gap-3 px-4 py-3 font-medium rounded-lg transition-colors ${
+                tosAccepted
+                  ? 'bg-orange-600 hover:bg-orange-500 text-white'
+                  : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+              }`}
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />

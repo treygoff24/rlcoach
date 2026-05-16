@@ -81,7 +81,7 @@ export function BoostGauge({
 						transition={{ delay: delay * 0.1 + 0.5 }}
 						className="text-2xl font-bold font-display text-white tracking-wider"
 					>
-						{value.toFixed(0)}
+							{progress.toFixed(0)}
 					</motion.span>
 				</div>
 			</div>

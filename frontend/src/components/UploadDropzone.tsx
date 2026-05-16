@@ -14,7 +14,7 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Link from 'next/link';
 import { parseApiError, formatError } from '@/lib/errors';
@@ -46,9 +46,57 @@ const POLL_INTERVALS = [2000, 5000, 10000, 30000];
 
 export function UploadDropzone({ onUploadComplete, className }: UploadDropzoneProps) {
   const [files, setFiles] = useState<UploadFile[]>([]);
+  const activeRequestsRef = useRef<Set<AbortController>>(new Set());
+  const isMountedRef = useRef(true);
+  const pollTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const { addToast } = useToast();
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+  useEffect(() => {
+    const activeRequests = activeRequestsRef.current;
+    const pollTimers = pollTimersRef.current;
+
+    return () => {
+      isMountedRef.current = false;
+      activeRequests.forEach((controller) => controller.abort());
+      activeRequests.clear();
+      pollTimers.forEach((timer) => clearTimeout(timer));
+      pollTimers.clear();
+    };
+  }, []);
+
+  const schedulePoll = (callback: () => void, interval: number) => {
+    if (!isMountedRef.current) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      pollTimersRef.current.delete(timer);
+      if (!isMountedRef.current) {
+        return;
+      }
+      callback();
+    }, interval);
+    pollTimersRef.current.add(timer);
+  };
+
+  const createRequestController = () => {
+    const controller = new AbortController();
+    activeRequestsRef.current.add(controller);
+    return controller;
+  };
+
+  const fetchWithLifecycleSignal = async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const controller = createRequestController();
+    try {
+      return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+      activeRequestsRef.current.delete(controller);
+    }
+  };
+
+  const onDrop = async (acceptedFiles: File[]) => {
     // Filter for .replay files
     const replayFiles = acceptedFiles.filter((file) =>
       file.name.toLowerCase().endsWith('.replay')
@@ -72,7 +120,7 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
     for (const uploadFile of newFiles) {
       await uploadSingleFile(uploadFile);
     }
-  }, []);
+  };
 
   const uploadSingleFile = async (uploadFile: UploadFile) => {
     // Update status to uploading
@@ -86,10 +134,13 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
       const formData = new FormData();
       formData.append('file', uploadFile.file);
 
-      const response = await fetch('/api/v1/replays/upload', {
+      const response = await fetchWithLifecycleSignal('/api/v1/replays/upload', {
         method: 'POST',
         body: formData,
       });
+      if (!isMountedRef.current) {
+        return;
+      }
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -98,6 +149,9 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
       }
 
       const result = await response.json();
+      if (!isMountedRef.current) {
+        return;
+      }
 
       // Update status based on result
       setFiles((prev) =>
@@ -121,6 +175,9 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         onUploadComplete(result.upload_id, result.replay_id);
       }
     } catch (error) {
+      if (!isMountedRef.current) {
+        return;
+      }
       const message = formatError(error);
       setFiles((prev) =>
         prev.map((f) =>
@@ -143,6 +200,9 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
     let pollIndex = 0;
 
     const poll = async () => {
+      if (!isMountedRef.current) {
+        return;
+      }
       const elapsed = Date.now() - startTime;
       if (elapsed >= maxDuration) {
         setFiles((prev) =>
@@ -160,12 +220,20 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
       }
 
       try {
-        const response = await fetch(`/api/v1/replays/uploads/${uploadId}`);
+        const response = await fetchWithLifecycleSignal(
+          `/api/v1/replays/uploads/${uploadId}`,
+        );
+        if (!isMountedRef.current) {
+          return;
+        }
         if (!response.ok) {
           throw new Error('Failed to get status');
         }
 
         const result = await response.json();
+        if (!isMountedRef.current) {
+          return;
+        }
 
         if (result.status === 'completed') {
           setFiles((prev) => {
@@ -212,12 +280,15 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         // Continue polling with exponential backoff
         const interval = POLL_INTERVALS[Math.min(pollIndex, POLL_INTERVALS.length - 1)];
         pollIndex++;
-        setTimeout(poll, interval);
+        schedulePoll(poll, interval);
       } catch (error) {
+        if (!isMountedRef.current) {
+          return;
+        }
         // On network error, retry with backoff
         const interval = POLL_INTERVALS[Math.min(pollIndex, POLL_INTERVALS.length - 1)];
         pollIndex++;
-        setTimeout(poll, interval);
+        schedulePoll(poll, interval);
       }
     };
 

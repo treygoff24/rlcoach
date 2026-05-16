@@ -460,10 +460,9 @@ Submit a data removal request (public endpoint).
 **Response:**
 ```json
 {
-  "status": "pending",
+  "status": "submitted",
   "request_id": "gdpr_abc123",
-  "message": "Request submitted. You will be notified at requester@example.com",
-  "affected_replays": 5
+  "message": "Request submitted. You will be notified at requester@example.com"
 }
 ```
 

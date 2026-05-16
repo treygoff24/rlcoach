@@ -74,7 +74,6 @@ class RemovalRequestResponse(BaseModel):
     status: str
     request_id: str
     message: str
-    affected_replays: int
 
 
 class RemovalRequestStatus(BaseModel):
@@ -84,7 +83,6 @@ class RemovalRequestStatus(BaseModel):
     status: str  # "pending", "approved", "completed", "rejected"
     submitted_at: str
     processed_at: str | None
-    affected_replays: int
 
 
 # In-memory storage for removal requests (in production, use Redis or database)
@@ -174,12 +172,10 @@ async def submit_removal_request(
         status="submitted",
         request_id=request_id,
         message=(
-            f"Your removal request has been submitted. "
-            f"We found {affected_count} replay(s) containing your data. "
+            "Your removal request has been submitted. "
             f"You will receive a confirmation email at {request.email} "
             f"once your request is processed (within 30 days)."
         ),
-        affected_replays=affected_count,
     )
 
 
@@ -200,7 +196,6 @@ async def get_removal_request_status(
         status=req["status"],
         submitted_at=req["submitted_at"],
         processed_at=req["processed_at"],
-        affected_replays=req["affected_count"],
     )
 
 

@@ -13,13 +13,17 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const MAX_STEPS = Number(process.env.COACH_MAX_STEPS || 10);
-const DEFAULT_THINKING_BUDGET = 32_000;
+const MAX_OUTPUT_TOKENS = 8192;
+const MAX_THINKING_BUDGET = MAX_OUTPUT_TOKENS - 1024;
+const DEFAULT_THINKING_BUDGET = 4096;
 
 const resolveThinkingBudget = () => {
   const raw = process.env.EXTENDED_THINKING_BUDGET;
   if (!raw) return DEFAULT_THINKING_BUDGET;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_THINKING_BUDGET;
+  const requested =
+    Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_THINKING_BUDGET;
+  return Math.min(requested, MAX_THINKING_BUDGET);
 };
 
 async function resolveAccessToken(request: Request): Promise<string | null> {
@@ -108,8 +112,8 @@ export async function POST(request: Request) {
 
         const streamResponse = anthropicClient.messages.stream(
           {
-            model: modelId,
-          max_tokens: 8192,
+          model: modelId,
+          max_tokens: MAX_OUTPUT_TOKENS,
           system: preflight.system_message,
           messages,
           tools,
@@ -117,9 +121,6 @@ export async function POST(request: Request) {
           },
           { signal: request.signal },
         );
-
-        const toolCalls: { id: string; name: string; input: Record<string, unknown> }[] =
-          [];
 
         for await (const event of streamResponse) {
           for (const aspEvent of mapSdkEvent(event)) {
@@ -134,16 +135,22 @@ export async function POST(request: Request) {
               iterationThinking += aspEvent.text;
             }
             if (aspEvent.type === "tool") {
-              toolCalls.push({
-                id: aspEvent.tool_use_id,
-                name: aspEvent.name,
-                input: aspEvent.input,
-              });
+              continue;
             }
           }
         }
 
         const finalMessage = await streamResponse.finalMessage();
+        const toolCalls = finalMessage.content.flatMap((block) => {
+          if (block.type !== "tool_use") {
+            return [];
+          }
+          const input =
+            typeof block.input === "object" && block.input !== null
+              ? (block.input as Record<string, unknown>)
+              : {};
+          return [{ id: block.id, name: block.name, input }];
+        });
         totalTokens += finalMessage.usage.input_tokens + finalMessage.usage.output_tokens;
         if (iterationThinking.length > 0) {
           totalThinkingTokens += Math.ceil(iterationThinking.length / 4);
@@ -255,6 +262,11 @@ export async function POST(request: Request) {
         ];
       }
 
+      await chatAbort(token, {
+        session_id: preflight.session_id,
+        reservation_id: preflight.reservation_id,
+        partial_messages: recordMessages,
+      });
       await sendEvent({ type: "error", message: "Tool loop exceeded MAX_STEPS" });
       await writer.close();
     } catch (error) {

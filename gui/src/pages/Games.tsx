@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getGames } from '../api/client';
 import { Card, CardHeader, CardContent, SkeletonTable, ErrorState, NoGamesEmpty } from '../components';
+import { buildGamesParams, type GameFilters, type GameResult } from './dataTransforms';
 
 export function Games() {
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<GameFilters>({
     playlist: '',
     result: '',
     limit: 20,
@@ -14,12 +15,7 @@ export function Games() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['games', filters],
-    queryFn: () => getGames({
-      playlist: filters.playlist || undefined,
-      result: filters.result as 'WIN' | 'LOSS' | 'DRAW' | undefined,
-      limit: filters.limit,
-      offset: filters.offset,
-    }),
+    queryFn: () => getGames(buildGamesParams(filters)),
   });
 
   if (error) {
@@ -51,7 +47,7 @@ export function Games() {
           </select>
           <select
             value={filters.result}
-            onChange={(e) => setFilters({ ...filters, result: e.target.value, offset: 0 })}
+            onChange={(e) => setFilters({ ...filters, result: e.target.value as GameResult | '', offset: 0 })}
             className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text)]"
           >
             <option value="">All Results</option>

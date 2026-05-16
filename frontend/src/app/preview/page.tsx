@@ -3,6 +3,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { SessionProvider } from 'next-auth/react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Navbar } from '@/components/layout/Navbar';
@@ -80,41 +81,64 @@ function QuickActionCard({
   title,
   description,
   variant = 'default',
+  onClick,
+  href,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
   variant?: 'primary' | 'default';
+  onClick?: () => void;
+  href?: string;
 }) {
+  const className = `
+    group relative overflow-hidden rounded-2xl p-5 text-left
+    transition-all duration-300 hover:scale-[1.02]
+    ${variant === 'primary'
+      ? 'bg-gradient-to-br from-fire/20 to-fire/5 border border-fire/30 hover:border-fire/50'
+      : 'bg-white/[0.03] border border-white/5 hover:border-white/10 hover:bg-white/[0.05]'
+    }
+  `;
+  const content = (
+    <div className="flex items-start gap-4">
+      <div
+        className={`
+          w-12 h-12 rounded-xl flex items-center justify-center
+          ${variant === 'primary'
+            ? 'bg-fire/20 text-fire'
+            : 'bg-white/5 text-white/60 group-hover:text-white'
+          }
+          transition-colors duration-200
+        `}
+      >
+        {icon}
+      </div>
+      <div>
+        <h3 className="font-semibold text-white mb-1">{title}</h3>
+        <p className="text-sm text-white/50">{description}</p>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
   return (
     <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
       className={`
-        group relative overflow-hidden rounded-2xl p-5 text-left
-        transition-all duration-300 hover:scale-[1.02]
-        ${variant === 'primary'
-          ? 'bg-gradient-to-br from-fire/20 to-fire/5 border border-fire/30 hover:border-fire/50'
-          : 'bg-white/[0.03] border border-white/5 hover:border-white/10 hover:bg-white/[0.05]'
-        }
+        ${className}
+        disabled:cursor-not-allowed disabled:opacity-60
       `}
     >
-      <div className="flex items-start gap-4">
-        <div
-          className={`
-            w-12 h-12 rounded-xl flex items-center justify-center
-            ${variant === 'primary'
-              ? 'bg-fire/20 text-fire'
-              : 'bg-white/5 text-white/60 group-hover:text-white'
-            }
-            transition-colors duration-200
-          `}
-        >
-          {icon}
-        </div>
-        <div>
-          <h3 className="font-semibold text-white mb-1">{title}</h3>
-          <p className="text-sm text-white/50">{description}</p>
-        </div>
-      </div>
+      {content}
     </button>
   );
 }
@@ -122,6 +146,19 @@ function QuickActionCard({
 export default function PreviewPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      <div className="min-h-screen bg-void flex items-center justify-center p-6">
+        <div className="max-w-md rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+          <h1 className="text-xl font-semibold text-white">Preview unavailable</h1>
+          <p className="mt-2 text-sm text-white/50">
+            The dashboard preview route is disabled in production.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SessionProvider>
@@ -185,6 +222,7 @@ export default function PreviewPage() {
                       }
                       title="Upload Replay"
                       description="Drop your .replay files for instant analysis"
+                      onClick={() => setUploadModalOpen(true)}
                     />
                     <QuickActionCard
                       icon={
@@ -194,6 +232,7 @@ export default function PreviewPage() {
                       }
                       title="View Trends"
                       description="Track your improvement over time"
+                      href="/trends"
                     />
                     <QuickActionCard
                       icon={
@@ -203,6 +242,7 @@ export default function PreviewPage() {
                       }
                       title="AI Coach"
                       description="Get personalized coaching insights"
+                      href="/coach"
                     />
                   </div>
                 </section>

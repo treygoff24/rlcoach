@@ -124,7 +124,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           glass-elevated
           transform transition-all duration-300 ease-out
           lg:translate-x-0 lg:static lg:z-auto
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${isOpen ? 'translate-x-0 visible' : '-translate-x-full invisible lg:visible'}
         `}
         aria-label="Main navigation"
       >
