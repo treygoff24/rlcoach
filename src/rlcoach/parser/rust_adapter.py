@@ -339,7 +339,9 @@ class RustAdapter(ParserAdapter):
             if diagnostics.frames_emitted is None:
                 diagnostics = replace(diagnostics, frames_emitted=len(frames))
 
-            network = self._build_network_frames(frames)
+            network = self._build_network_frames(
+                frames, self._normalize_player_metadata(parsed.get("player_metadata"))
+            )
             object.__setattr__(network, "diagnostics", diagnostics)
 
             if diagnostics.status == "ok":
@@ -493,7 +495,27 @@ class RustAdapter(ParserAdapter):
             frame["players"] = [unique_by_key[k] for k in order]
 
     @staticmethod
-    def _build_network_frames(frames: list[dict[str, Any]]) -> NetworkFrames:
+    def _normalize_player_metadata(raw: Any) -> dict[int, dict[str, Any]]:
+        # Rust emits player_metadata keyed by header player index. Coerce keys
+        # to int (pyo3 dict keys survive as int, but stay defensive) and drop
+        # any malformed entries.
+        if not isinstance(raw, dict):
+            return {}
+        out: dict[int, dict[str, Any]] = {}
+        for key, value in raw.items():
+            try:
+                idx = int(key)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(value, dict):
+                out[idx] = value
+        return out
+
+    @staticmethod
+    def _build_network_frames(
+        frames: list[dict[str, Any]],
+        player_metadata: dict[int, dict[str, Any]] | None = None,
+    ) -> NetworkFrames:
         # Measure sample rate from timestamps if available.
         try:
             from ..normalize import measure_frame_rate
@@ -501,4 +523,9 @@ class RustAdapter(ParserAdapter):
             hz = float(measure_frame_rate(frames))
         except Exception:
             hz = 30.0
-        return NetworkFrames(frame_count=len(frames), sample_rate=hz, frames=frames)
+        return NetworkFrames(
+            frame_count=len(frames),
+            sample_rate=hz,
+            frames=frames,
+            player_metadata=player_metadata or {},
+        )

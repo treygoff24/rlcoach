@@ -76,10 +76,16 @@ def aggregate_analysis(
     # Generate per-team analysis using cached results
     per_team = {
         "blue": _analyze_team(
-            frames, events, "BLUE", header, cached_defense, cached_mechanics
+            frames, events, "BLUE", header, cached_defense, cached_mechanics, cached_xg
         ),
         "orange": _analyze_team(
-            frames, events, "ORANGE", header, cached_defense, cached_mechanics
+            frames,
+            events,
+            "ORANGE",
+            header,
+            cached_defense,
+            cached_mechanics,
+            cached_xg,
         ),
     }
 
@@ -124,6 +130,7 @@ def _analyze_team(
     header: Header | None,
     cached_defense: dict[str, Any] | None = None,
     cached_mechanics: dict[str, Any] | None = None,
+    cached_xg: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate complete analysis for a team."""
 
@@ -149,6 +156,15 @@ def _analyze_team(
         cached_mechanics = analyze_mechanics(frames)
     team_mechanics = _aggregate_team_mechanics(frames, team, cached_mechanics)
 
+    # Surface team-level xG totals from cached results
+    if cached_xg is None:
+        cached_xg = analyze_shots_xg(frames, events.get("touches", []))
+    xg_team_raw = cached_xg.get("per_team", {}).get(team_key, {})
+    xg_team = {
+        "total_xg": xg_team_raw.get("total_xg", 0.0),
+        "total_shots": xg_team_raw.get("total_shots", 0),
+    }
+
     return {
         "fundamentals": fundamentals,
         "boost": boost,
@@ -159,6 +175,7 @@ def _analyze_team(
         "kickoffs": kickoffs,
         "defense": defense_team,
         "mechanics": team_mechanics,
+        "xg": xg_team,
     }
 
 
@@ -349,6 +366,7 @@ def _analyze_player(
         {
             "total_shots": 0,
             "total_xg": 0.0,
+            "shots": [],
         },
     )
 

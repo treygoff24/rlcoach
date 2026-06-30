@@ -141,15 +141,17 @@ class NetworkDiagnostics:
 class NetworkFrames:
     """Network frame data extracted from replay files.
 
-    This is a stub implementation for future network frame parsing.
-    The actual implementation will contain frame-by-frame data for
-    ball and player positions, boost pickups, etc.
+    Carries the raw per-frame ball/player snapshots plus diagnostics and
+    per-player profile metadata (camera + loadout) decoded from the stream.
     """
 
     frame_count: int = 0
     sample_rate: float = 30.0  # Expected FPS
     frames: list = field(default_factory=list)  # Will be list[Frame] when implemented
     diagnostics: NetworkDiagnostics | None = None
+    # Per-player profile metadata (camera + loadout) keyed by header player
+    # index. Empty dict when the parser could not decode any.
+    player_metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate network frame data."""

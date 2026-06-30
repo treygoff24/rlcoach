@@ -1,7 +1,7 @@
 """Tests for kickoff analysis."""
 
 from rlcoach.analysis.kickoffs import APPROACH_KEYS, analyze_kickoffs
-from rlcoach.events import KickoffEvent
+from rlcoach.events import GoalEvent, KickoffEvent
 from rlcoach.field_constants import Vec3
 from rlcoach.parser.types import BallFrame, Frame, PlayerFrame
 
@@ -168,6 +168,218 @@ class TestKickoffAnalysis:
         assert res["neutral"] == 0
         assert abs(res["avg_time_to_first_touch_s"] - 1.2) < 1e-6
         assert res["approach_types"]["UNKNOWN"] == 1
+
+
+class TestKickoffGoalAttribution:
+    """Tests for goals_for / goals_against window attribution."""
+
+    def _setup(self):
+        p1 = make_player("b1", 0)
+        p2 = make_player("o1", 1)
+        frames = [make_frame(0.0, [p1, p2])]
+        k1 = KickoffEvent(
+            phase="INITIAL",
+            t_start=0.0,
+            players=[
+                {
+                    "player_id": "b1",
+                    "role": "GO",
+                    "approach_type": "SPEEDFLIP",
+                    "time_to_first_touch": 1.4,
+                },
+                {
+                    "player_id": "o1",
+                    "role": "GO",
+                    "approach_type": "STANDARD",
+                    "time_to_first_touch": 1.6,
+                },
+            ],
+            outcome="FIRST_POSSESSION_BLUE",
+            first_touch_player="b1",
+        )
+        k2 = KickoffEvent(
+            phase="INITIAL",
+            t_start=60.0,
+            players=[
+                {"player_id": "b1", "role": "GO", "approach_type": "STANDARD"},
+                {"player_id": "o1", "role": "GO", "approach_type": "STANDARD"},
+            ],
+            outcome="NEUTRAL",
+        )
+        return frames, [k1, k2]
+
+    def test_goal_after_won_kickoff_team_scope(self):
+        frames, kickoffs = self._setup()
+        # BLUE scores at t=10, inside the first kickoff's window [0, 60).
+        events = {
+            "kickoffs": kickoffs,
+            "goals": [GoalEvent(t=10.0, team="BLUE", scorer="b1")],
+        }
+
+        blue = analyze_kickoffs(frames, events, team="BLUE")
+        assert blue["goals_for"] == 1
+        assert blue["goals_against"] == 0
+
+        orange = analyze_kickoffs(frames, events, team="ORANGE")
+        assert orange["goals_for"] == 0
+        assert orange["goals_against"] == 1
+
+    def test_goal_after_won_kickoff_player_scope(self):
+        frames, kickoffs = self._setup()
+        events = {
+            "kickoffs": kickoffs,
+            "goals": [GoalEvent(t=10.0, team="BLUE", scorer="b1")],
+        }
+
+        b1 = analyze_kickoffs(frames, events, player_id="b1")
+        assert b1["goals_for"] == 1
+        assert b1["goals_against"] == 0
+
+        o1 = analyze_kickoffs(frames, events, player_id="o1")
+        assert o1["goals_for"] == 0
+        assert o1["goals_against"] == 1
+
+    def test_goal_attributed_to_correct_window(self):
+        frames, kickoffs = self._setup()
+        # One goal per window, each within the kickoff window (<=10s): BLUE off
+        # k1 (t_start 0), ORANGE off k2 (t_start 60).
+        events = {
+            "kickoffs": kickoffs,
+            "goals": [
+                GoalEvent(t=5.0, team="BLUE"),  # 5s after k1
+                GoalEvent(t=65.0, team="ORANGE"),  # 5s after k2
+            ],
+        }
+        blue = analyze_kickoffs(frames, events, team="BLUE")
+        assert blue["goals_for"] == 1
+        assert blue["goals_against"] == 1
+
+    def test_goal_outside_kickoff_window_not_counted(self):
+        frames, kickoffs = self._setup()
+        # Goal 30s after the kickoff is normal-play, not a kickoff goal.
+        events = {
+            "kickoffs": kickoffs,
+            "goals": [GoalEvent(t=30.0, team="BLUE")],
+        }
+        blue = analyze_kickoffs(frames, events, team="BLUE")
+        assert blue["goals_for"] == 0
+        assert blue["goals_against"] == 0
+        orange = analyze_kickoffs(frames, events, team="ORANGE")
+        assert orange["goals_against"] == 0
+
+    def test_player_scope_ignores_nonparticipated_kickoff_goals(self):
+        # b1 is on k1 (t=0) but sits out k2 (t=5); a goal at t=7 is off k2. Even
+        # though it falls within 10s of b1's k1, it must NOT count for b1 because
+        # its true owning kickoff (k2) is one b1 sat out. o1 is on k2 and concedes.
+        # This exercises the full-list windowing (not the participated subset).
+        p1 = make_player("b1", 0)
+        p2 = make_player("o1", 1)
+        frames = [make_frame(0.0, [p1, p2])]
+        k1 = KickoffEvent(
+            phase="INITIAL",
+            t_start=0.0,
+            players=[{"player_id": "b1", "approach_type": "STANDARD"}],
+            outcome="NEUTRAL",
+        )
+        k2 = KickoffEvent(
+            phase="INITIAL",
+            t_start=5.0,
+            players=[{"player_id": "o1", "approach_type": "STANDARD"}],
+            outcome="NEUTRAL",
+        )
+        events = {
+            "kickoffs": [k1, k2],
+            "goals": [GoalEvent(t=7.0, team="BLUE")],  # off k2, within window
+        }
+        b1 = analyze_kickoffs(frames, events, player_id="b1")
+        assert b1["goals_for"] == 0  # owning kickoff k2 is one b1 sat out
+        o1 = analyze_kickoffs(frames, events, player_id="o1")
+        assert o1["goals_against"] == 1  # o1 was on k2, conceded to BLUE
+
+    def test_goal_before_first_kickoff_ignored(self):
+        frames, kickoffs = self._setup()
+        events = {
+            "kickoffs": kickoffs,
+            "goals": [GoalEvent(t=-5.0, team="BLUE")],
+        }
+        blue = analyze_kickoffs(frames, events, team="BLUE")
+        assert blue["goals_for"] == 0
+        assert blue["goals_against"] == 0
+
+    def test_no_goals_key_stays_zero(self):
+        frames, kickoffs = self._setup()
+        events = {"kickoffs": kickoffs}
+        blue = analyze_kickoffs(frames, events, team="BLUE")
+        assert blue["goals_for"] == 0
+        assert blue["goals_against"] == 0
+
+
+class TestKickoffPlayerFirstPossession:
+    """Tests for player-scope first_possession attribution."""
+
+    def test_first_touch_player_on_won_kickoff_increments(self):
+        p1 = make_player("b1", 0)
+        p2 = make_player("o1", 1)
+        frames = [make_frame(0.0, [p1, p2])]
+        k = KickoffEvent(
+            phase="INITIAL",
+            t_start=0.0,
+            players=[
+                {"player_id": "b1", "role": "GO", "approach_type": "SPEEDFLIP"},
+                {"player_id": "o1", "role": "GO", "approach_type": "STANDARD"},
+            ],
+            outcome="FIRST_POSSESSION_BLUE",
+            first_touch_player="b1",
+        )
+        events = {"kickoffs": [k]}
+
+        b1 = analyze_kickoffs(frames, events, player_id="b1")
+        assert b1["first_possession"] == 1
+
+        # Opponent did not win first possession.
+        o1 = analyze_kickoffs(frames, events, player_id="o1")
+        assert o1["first_possession"] == 0
+
+    def test_first_touch_player_but_not_their_possession(self):
+        # b1 took first touch, but outcome credits ORANGE: no credit for b1.
+        p1 = make_player("b1", 0)
+        p2 = make_player("o1", 1)
+        frames = [make_frame(0.0, [p1, p2])]
+        k = KickoffEvent(
+            phase="INITIAL",
+            t_start=0.0,
+            players=[
+                {"player_id": "b1", "role": "GO", "approach_type": "SPEEDFLIP"},
+                {"player_id": "o1", "role": "GO", "approach_type": "STANDARD"},
+            ],
+            outcome="FIRST_POSSESSION_ORANGE",
+            first_touch_player="b1",
+        )
+        events = {"kickoffs": [k]}
+
+        b1 = analyze_kickoffs(frames, events, player_id="b1")
+        assert b1["first_possession"] == 0
+
+    def test_non_first_touch_player_no_credit(self):
+        # o1 is on the winning team but did not take the first touch.
+        p1 = make_player("b1", 0)
+        p2 = make_player("o1", 1)
+        p3 = make_player("o2", 1)
+        frames = [make_frame(0.0, [p1, p2, p3])]
+        k = KickoffEvent(
+            phase="INITIAL",
+            t_start=0.0,
+            players=[
+                {"player_id": "o1", "role": "GO", "approach_type": "STANDARD"},
+                {"player_id": "o2", "role": "BACK", "approach_type": "DELAY"},
+            ],
+            outcome="FIRST_POSSESSION_ORANGE",
+            first_touch_player="o1",
+        )
+        events = {"kickoffs": [k]}
+
+        o2 = analyze_kickoffs(frames, events, player_id="o2")
+        assert o2["first_possession"] == 0
 
 
 class TestKickoffApproachTypeVariants:

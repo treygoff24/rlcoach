@@ -86,6 +86,63 @@ fn unique_header_index_by_name(
     matches.next().is_none().then_some(first)
 }
 
+/// Flatten a boxcars `CamSettings` into ordered (key, value) pairs for emission.
+///
+/// The `swivel`/`transition` fields are surfaced under the more descriptive
+/// `swivel_speed`/`transition_speed` keys to match the Python-facing contract.
+/// `transition` is optional in the network stream and defaults to `0.0`.
+fn cam_settings_pairs(cam: &boxcars::CamSettings) -> [(&'static str, f64); 7] {
+    [
+        ("fov", cam.fov as f64),
+        ("height", cam.height as f64),
+        ("angle", cam.angle as f64),
+        ("distance", cam.distance as f64),
+        ("stiffness", cam.stiffness as f64),
+        ("swivel_speed", cam.swivel as f64),
+        ("transition_speed", cam.transition.unwrap_or(0.0) as f64),
+    ]
+}
+
+/// Flatten a boxcars `Loadout` into ordered (slot, product_id) pairs.
+///
+/// The six mandatory cosmetic slots are always present; the optional slots are
+/// only emitted when the network stream carried a value for them.
+fn loadout_pairs(loadout: &boxcars::Loadout) -> Vec<(&'static str, u32)> {
+    let mut pairs = vec![
+        ("body", loadout.body),
+        ("decal", loadout.decal),
+        ("wheels", loadout.wheels),
+        ("rocket_trail", loadout.rocket_trail),
+        ("antenna", loadout.antenna),
+        ("topper", loadout.topper),
+    ];
+    if let Some(value) = loadout.engine_audio {
+        pairs.push(("engine_audio", value));
+    }
+    if let Some(value) = loadout.trail {
+        pairs.push(("trail", value));
+    }
+    if let Some(value) = loadout.goal_explosion {
+        pairs.push(("goal_explosion", value));
+    }
+    if let Some(value) = loadout.banner {
+        pairs.push(("banner", value));
+    }
+    if let Some(value) = loadout.product_id {
+        pairs.push(("product_id", value));
+    }
+    pairs
+}
+
+/// Choose the player's own loadout from a `TeamLoadout`, preferring the team the
+/// player is bound to. Team `1` is orange; everything else falls back to blue.
+fn team_loadout_for(team: Option<i64>, team_loadout: &boxcars::TeamLoadout) -> boxcars::Loadout {
+    match team {
+        Some(1) => team_loadout.orange,
+        _ => team_loadout.blue,
+    }
+}
+
 #[derive(Clone, Default)]
 struct ActorKind {
     is_ball: bool,
@@ -606,8 +663,9 @@ fn map_network_error_code(message: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        infer_kickoff_phase, is_car_state_actor, map_network_error_code, pickup_bool_raw_state,
-        resolve_component_owner, ActorKind,
+        cam_settings_pairs, infer_kickoff_phase, is_car_state_actor, loadout_pairs,
+        map_network_error_code, pickup_bool_raw_state, resolve_component_owner, team_loadout_for,
+        ActorKind,
     };
     use std::collections::HashMap;
 
@@ -741,10 +799,74 @@ mod tests {
         assert_eq!(pickup_bool_raw_state(true), 1);
         assert_eq!(pickup_bool_raw_state(false), 0);
     }
+
+    #[test]
+    fn cam_settings_pairs_renames_swivel_and_defaults_transition() {
+        let cam = boxcars::CamSettings {
+            fov: 110.0,
+            height: 100.0,
+            angle: -3.0,
+            distance: 270.0,
+            stiffness: 0.45,
+            swivel: 2.5,
+            transition: None,
+        };
+        let pairs = cam_settings_pairs(&cam);
+        assert_eq!(pairs[0], ("fov", 110.0));
+        assert_eq!(pairs[3], ("distance", 270.0));
+        assert_eq!(pairs[5], ("swivel_speed", 2.5));
+        // Missing transition is surfaced as 0.0 rather than dropped.
+        assert_eq!(pairs[6], ("transition_speed", 0.0));
+    }
+
+    fn sample_loadout(body: u32) -> boxcars::Loadout {
+        boxcars::Loadout {
+            version: 23,
+            body,
+            decal: 2,
+            wheels: 3,
+            rocket_trail: 4,
+            antenna: 5,
+            topper: 6,
+            unknown1: 0,
+            unknown2: None,
+            engine_audio: Some(7),
+            trail: None,
+            goal_explosion: Some(9),
+            banner: None,
+            product_id: None,
+        }
+    }
+
+    #[test]
+    fn loadout_pairs_emits_mandatory_slots_and_present_optionals() {
+        let pairs = loadout_pairs(&sample_loadout(1));
+        assert!(pairs.contains(&("body", 1)));
+        assert!(pairs.contains(&("topper", 6)));
+        // Present optionals are included, absent ones are skipped.
+        assert!(pairs.contains(&("engine_audio", 7)));
+        assert!(pairs.contains(&("goal_explosion", 9)));
+        assert!(!pairs.iter().any(|(slot, _)| *slot == "trail"));
+        assert!(!pairs.iter().any(|(slot, _)| *slot == "banner"));
+    }
+
+    #[test]
+    fn team_loadout_for_prefers_player_team() {
+        let team_loadout = boxcars::TeamLoadout {
+            blue: sample_loadout(100),
+            orange: sample_loadout(200),
+        };
+        assert_eq!(team_loadout_for(Some(0), &team_loadout).body, 100);
+        assert_eq!(team_loadout_for(Some(1), &team_loadout).body, 200);
+        // Unknown team falls back to blue.
+        assert_eq!(team_loadout_for(None, &team_loadout).body, 100);
+    }
 }
 
-#[pyfunction]
-fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
+/// Parse a replay's network stream into per-frame telemetry plus per-player
+/// profile metadata (camera + loadout). Returns `(frames, player_metadata)` so
+/// callers can expose frames alone or the richer payload as needed.
+fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
     Python::with_gil(|py| {
         let data = read_file_bytes(path)?;
         // Parse with network data enabled
@@ -832,6 +954,18 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
         let mut actor_to_player_index: HashMap<i32, usize> = HashMap::new();
         let mut owner_to_player_index: HashMap<i32, usize> = HashMap::new();
         let mut next_by_team: HashMap<i64, Vec<usize>> = HashMap::new();
+        // Per-player profile metadata (camera + loadout), captured from the network
+        // stream and keyed by PRI actor id. These persist for the whole replay even
+        // across actor deletion/respawn, then resolve to header indices at the end.
+        let mut camera_actor_to_pri: HashMap<i32, i32> = HashMap::new();
+        let mut camera_by_pri: HashMap<i32, boxcars::CamSettings> = HashMap::new();
+        // CamSettings observed on a CameraSettingsActor before its PRI link was seen.
+        let mut camera_pending: HashMap<i32, boxcars::CamSettings> = HashMap::new();
+        let mut loadout_by_pri: HashMap<i32, boxcars::Loadout> = HashMap::new();
+        // Raw team loadouts kept unresolved until the final pass, where the
+        // player's team is reliably known (the PRI->index binding may not exist
+        // yet when ClientLoadouts is first replicated).
+        let mut team_loadout_by_pri: HashMap<i32, boxcars::TeamLoadout> = HashMap::new();
         let mut fallback_actor_index: HashMap<i32, usize> = HashMap::new();
         let mut next_fallback_index: usize = 0;
         let mut prev_demo_state: HashMap<i32, bool> = HashMap::new();
@@ -949,6 +1083,12 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                     prev_demo_state.remove(&aid);
                     last_touch_time.remove(&aid);
                     last_touch_pos.remove(&aid);
+                    // Drop transient camera-actor links keyed by this (ephemeral)
+                    // actor id so a reused id can't bind a later CamSettings to a
+                    // stale PRI. The persistent camera_by_pri/loadout_by_pri are
+                    // keyed by PRI and intentionally survive (respawn persistence).
+                    camera_actor_to_pri.remove(&aid);
+                    camera_pending.remove(&aid);
                     component_owner.retain(|comp, owner| *comp != aid && *owner != aid);
                     let retained_components: HashSet<i32> =
                         component_owner.keys().copied().collect();
@@ -987,8 +1127,25 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                 // Process updates
                 for upd in nf.updated_actors {
                     let aid: i32 = upd.actor_id.into();
+                    let upd_object_id: usize = upd.object_id.into();
                     match upd.attribute {
                         Attribute::ActiveActor(active) => {
+                            // Link a CameraSettingsActor to the PRI it belongs to so a
+                            // later ProfileSettings update can be attributed to a player.
+                            // Only trust the reference when active; an inactive update
+                            // carries a stale/invalid actor id (matches car-owner binding).
+                            if active.active
+                                && objects
+                                    .get(upd_object_id)
+                                    .map(|name| name == "TAGame.CameraSettingsActor_TA:PRI")
+                                    .unwrap_or(false)
+                            {
+                                let pri: i32 = active.actor.into();
+                                camera_actor_to_pri.insert(aid, pri);
+                                if let Some(cam) = camera_pending.remove(&aid) {
+                                    camera_by_pri.insert(pri, cam);
+                                }
+                            }
                             if component_kind.contains_key(&aid) {
                                 let owner_id: i32 = active.actor.into();
                                 component_owner.insert(aid, owner_id);
@@ -1292,6 +1449,32 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
                             };
                             car_demo.insert(victim_id, true);
                             frame_demo_records.push((victim_id, attacker_id));
+                        }
+                        // Per-player camera profile. Arrives either directly on the PRI
+                        // (PRI_TA:CameraSettings) or on a linked CameraSettingsActor
+                        // (CameraSettingsActor_TA:ProfileSettings).
+                        Attribute::CamSettings(cam) => {
+                            let on_pri = objects
+                                .get(upd_object_id)
+                                .map(|name| name == "TAGame.PRI_TA:CameraSettings")
+                                .unwrap_or(false);
+                            if on_pri {
+                                camera_by_pri.insert(aid, *cam);
+                            } else if let Some(pri) = camera_actor_to_pri.get(&aid).copied() {
+                                camera_by_pri.insert(pri, *cam);
+                            } else {
+                                // PRI link not seen yet; buffer until the link arrives.
+                                camera_pending.insert(aid, *cam);
+                            }
+                        }
+                        // Per-player loadout. Replicated on the PRI_TA actor itself.
+                        Attribute::Loadout(loadout) => {
+                            loadout_by_pri.insert(aid, *loadout);
+                        }
+                        Attribute::TeamLoadout(team_loadout) => {
+                            // Defer blue/orange selection to the final pass; the
+                            // player's team may not be bound yet at this point.
+                            team_loadout_by_pri.insert(aid, *team_loadout);
                         }
                         // Note: Jump/Dodge/Throttle/Steer/Handbrake attributes are not directly
                         // exposed by boxcars 0.10.7. These mechanics will be inferred in Python
@@ -1714,8 +1897,85 @@ fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
             }
         }
 
-        Ok(frames_out.into())
+        // Resolve per-PRI camera/loadout buffers to header player indices. PRI->index
+        // bindings accumulate across the whole replay (PRI name decode), so a player's
+        // profile survives respawns even though their actor ids may have churned.
+        // Iterate PRIs in a deterministic order so that, in the rare case two PRIs
+        // resolve to the same header index (e.g. reconnect on a fresh channel), the
+        // highest PRI id wins rather than HashMap iteration order. Camera and direct
+        // loadout sort ascending and overwrite (highest is inserted last); the
+        // team-loadout fallback sorts descending so its `or_insert_with` (first
+        // write wins) also lands on the highest PRI.
+        let mut camera_by_index: HashMap<usize, boxcars::CamSettings> = HashMap::new();
+        let mut camera_entries: Vec<_> = camera_by_pri.iter().collect();
+        camera_entries.sort_by_key(|(pri, _)| **pri);
+        for (pri, cam) in camera_entries {
+            if let Some(idx) = owner_to_player_index.get(pri) {
+                camera_by_index.insert(*idx, *cam);
+            }
+        }
+        let mut loadout_by_index: HashMap<usize, boxcars::Loadout> = HashMap::new();
+        let mut loadout_entries: Vec<_> = loadout_by_pri.iter().collect();
+        loadout_entries.sort_by_key(|(pri, _)| **pri);
+        for (pri, loadout) in loadout_entries {
+            if let Some(idx) = owner_to_player_index.get(pri) {
+                loadout_by_index.insert(*idx, *loadout);
+            }
+        }
+        // Fill in team loadouts for players who only had ClientLoadouts (not a
+        // direct ClientLoadout). The player's team is known here, so blue/orange
+        // resolves correctly. A direct Loadout, if present, takes priority.
+        let mut team_loadout_entries: Vec<_> = team_loadout_by_pri.iter().collect();
+        team_loadout_entries.sort_by_key(|(pri, _)| std::cmp::Reverse(**pri));
+        for (pri, team_loadout) in team_loadout_entries {
+            if let Some(idx) = owner_to_player_index.get(pri) {
+                loadout_by_index.entry(*idx).or_insert_with(|| {
+                    let team = header_players.get(*idx).map(|(_, team)| *team);
+                    team_loadout_for(team, team_loadout)
+                });
+            }
+        }
+
+        let player_metadata = PyDict::new(py);
+        let mut metadata_indices: BTreeSet<usize> = BTreeSet::new();
+        metadata_indices.extend(camera_by_index.keys().copied());
+        metadata_indices.extend(loadout_by_index.keys().copied());
+        for idx in metadata_indices {
+            let entry = PyDict::new(py);
+            entry.set_item(
+                "name",
+                header_players.get(idx).map(|(name, _)| name.clone()),
+            )?;
+            match camera_by_index.get(&idx) {
+                Some(cam) => {
+                    let camera = PyDict::new(py);
+                    for (key, value) in cam_settings_pairs(cam) {
+                        camera.set_item(key, value)?;
+                    }
+                    entry.set_item("camera", camera)?;
+                }
+                None => entry.set_item("camera", py.None())?,
+            }
+            match loadout_by_index.get(&idx) {
+                Some(loadout) => {
+                    let loadout_dict = PyDict::new(py);
+                    for (key, value) in loadout_pairs(loadout) {
+                        loadout_dict.set_item(key, value)?;
+                    }
+                    entry.set_item("loadout", loadout_dict)?;
+                }
+                None => entry.set_item("loadout", py.None())?,
+            }
+            player_metadata.set_item(idx as i64, entry)?;
+        }
+
+        Ok((frames_out.into(), player_metadata.into()))
     })
+}
+
+#[pyfunction]
+fn iter_frames(path: &str) -> PyResult<Py<PyAny>> {
+    Ok(run_iter_frames(path)?.0)
 }
 
 #[pyfunction]
@@ -1725,14 +1985,15 @@ fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
         let diagnostics = PyDict::new(py);
         diagnostics.set_item("attempted_backends", vec!["boxcars"])?;
 
-        match iter_frames(path) {
-            Ok(frames_any) => {
+        match run_iter_frames(path) {
+            Ok((frames_any, player_metadata)) => {
                 let frames_len = frames_any.as_ref(py).len().unwrap_or(0);
                 diagnostics.set_item("status", "ok")?;
                 diagnostics.set_item("error_code", py.None())?;
                 diagnostics.set_item("error_detail", py.None())?;
                 diagnostics.set_item("frames_emitted", frames_len as i64)?;
                 result.set_item("frames", frames_any)?;
+                result.set_item("player_metadata", player_metadata)?;
                 result.set_item("diagnostics", diagnostics)?;
                 Ok(result.to_object(py))
             }
@@ -1806,6 +2067,7 @@ fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
                 diagnostics.set_item("error_detail", detail)?;
                 diagnostics.set_item("frames_emitted", fallback_frames_emitted as i64)?;
                 result.set_item("frames", fallback_frames)?;
+                result.set_item("player_metadata", PyDict::new(py))?;
                 result.set_item("diagnostics", diagnostics)?;
                 Ok(result.to_object(py))
             }

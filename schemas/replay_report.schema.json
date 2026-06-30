@@ -348,7 +348,16 @@
         "challenges": { "$ref": "#/definitions/challenges" },
         "kickoffs": { "$ref": "#/definitions/kickoffs" },
         "defense": { "$ref": "#/definitions/teamDefense" },
-        "mechanics": { "$ref": "#/definitions/teamMechanics" }
+        "mechanics": { "$ref": "#/definitions/teamMechanics" },
+        "xg": { "$ref": "#/definitions/teamXG" }
+      }
+    },
+
+    "teamXG": {
+      "type": "object",
+      "properties": {
+        "total_xg": { "type": "number" },
+        "total_shots": { "type": "integer", "minimum": 0 }
       }
     },
 
@@ -647,7 +656,24 @@
       "properties": {
         "total_shots": { "type": "integer", "minimum": 0 },
         "total_xg": { "type": "number" },
-        "shots": { "type": "array", "items": { "type": "object" } }
+        "shots": { "type": "array", "items": { "$ref": "#/definitions/xgShot" } }
+      }
+    },
+
+    "xgShot": {
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "number" },
+        "player_id": { "type": "string" },
+        "xg": { "type": "number" },
+        "shot_type": { "type": "string" },
+        "distance_m": { "type": "number" },
+        "angle_degrees": { "type": "number" },
+        "ball_speed_kph": { "type": "number" },
+        "is_open_net": { "type": "boolean" },
+        "defender_coverage": { "type": "number" },
+        "factors": { "type": "object", "additionalProperties": true },
+        "outcome": { "type": "string" }
       }
     },
 

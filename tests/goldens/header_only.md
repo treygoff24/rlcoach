@@ -476,6 +476,10 @@
           "time_middle_third_s": 0.0,
           "time_offensive_half_s": 0.0,
           "time_offensive_third_s": 0.0
+        },
+        "xg": {
+          "total_shots": 0,
+          "total_xg": 0.0
         }
       },
       "orange": {
@@ -600,6 +604,10 @@
           "time_middle_third_s": 0.0,
           "time_offensive_half_s": 0.0,
           "time_offensive_third_s": 0.0
+        },
+        "xg": {
+          "total_shots": 0,
+          "total_xg": 0.0
         }
       }
     }

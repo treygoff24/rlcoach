@@ -636,6 +636,7 @@
           "score_0_to_100": 100.0
         },
         "xg": {
+          "shots": [],
           "total_shots": 0,
           "total_xg": 0.0
         }
@@ -913,6 +914,7 @@
           "score_0_to_100": 100.0
         },
         "xg": {
+          "shots": [],
           "total_shots": 0,
           "total_xg": 0.0
         }
@@ -1042,6 +1044,10 @@
           "time_middle_third_s": 1.2,
           "time_offensive_half_s": 0.1,
           "time_offensive_third_s": 0.0
+        },
+        "xg": {
+          "total_shots": 0,
+          "total_xg": 0.0
         }
       },
       "orange": {
@@ -1167,6 +1173,10 @@
           "time_middle_third_s": 1.2,
           "time_offensive_half_s": 0.0,
           "time_offensive_third_s": 0.0
+        },
+        "xg": {
+          "total_shots": 0,
+          "total_xg": 0.0
         }
       }
     }

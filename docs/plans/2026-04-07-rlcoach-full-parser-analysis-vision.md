@@ -1,5 +1,14 @@
 # RLCoach Full Parser And Analysis Vision Implementation Plan
 
+> **Status:** This is the canonical vision doc — the `feat/full-parser-analysis-vision`
+> branch was built from it. The live, as-built parser contract is documented separately in
+> `codex/docs/parser_adapter.md`, which is the source of truth where the two disagree (in
+> particular, see the note there on the `AuthoritativeEvents` design from Task 0 below, which
+> was not built as specified). The camera/loadout surfacing, kickoff-goals, and xG-surfacing
+> gaps this plan tracked are now closed. Five sibling drafts dated 2026-04-07 that described
+> overlapping visions were archived to `docs/plans/archive/` to remove ambiguity about which
+> doc is authoritative.
+
 **Goal:** Deliver the full RLCoach parser and coaching-analysis vision by extending the Rust parser into a richer authoritative replay source, wiring those authoritative signals through normalization, events, mechanics, and reporting, and locking the result down with unit, corpus, and end-to-end verification.
 
 **Architecture:** Keep the current diagnostics-first `boxcars` + `pyo3` Rust core as the authoritative replay-state source, but expand its contract in two directions: richer header extraction and richer network semantics. Continue to normalize everything into typed Python dataclasses, prefer authoritative parser data whenever available, and preserve heuristic fallbacks only where the parser contract is intentionally nullable or unavailable.

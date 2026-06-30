@@ -405,10 +405,17 @@ def generate_report(
         team_players: dict[str, list[str]] = {"BLUE": [], "ORANGE": []}
         players_block: list[dict[str, Any]] = []
 
+        # Camera/loadout are decoded from the network stream (absent from the
+        # header), keyed by header player index. Prefer them over the (empty)
+        # header values.
+        network_player_metadata = getattr(raw_frames, "player_metadata", None) or {}
         identities = build_player_identities(getattr(header, "players", []))
         if identities:
             for identity in identities:
                 player_info = header.players[identity.header_index]
+                player_meta = network_player_metadata.get(identity.header_index, {})
+                if not isinstance(player_meta, dict):
+                    player_meta = {}
                 implied_team_index = (
                     player_info.team if player_info.team is not None else 0
                 )
@@ -421,8 +428,16 @@ def generate_report(
                 team_players[team_name].append(identity.canonical_id)
 
                 platform_ids = dict(identity.platform_ids)
-                camera_payload = getattr(player_info, "camera_settings", None) or {}
-                loadout_payload = getattr(player_info, "loadout", None) or {}
+                camera_payload = (
+                    player_meta.get("camera")
+                    or getattr(player_info, "camera_settings", None)
+                    or {}
+                )
+                loadout_payload = (
+                    player_meta.get("loadout")
+                    or getattr(player_info, "loadout", None)
+                    or {}
+                )
 
                 players_block.append(
                     {

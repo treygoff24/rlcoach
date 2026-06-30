@@ -525,6 +525,62 @@ class TestXGAnalysis:
         result = analyze_shots_xg(frames, [])
         assert result["total_shots"] == 0
 
+    def test_per_player_carries_shot_list(self):
+        """A SHOT touch should populate the per-player shots list and team totals."""
+        from rlcoach.events.types import TouchContext, TouchEvent
+
+        shooter = create_test_player("player1", 0, position=Vec3(0.0, -4600.0, 17.0))
+        frames = [
+            create_test_frame(
+                1.0,
+                [shooter],
+                ball_pos=Vec3(0.0, -4500.0, 100.0),
+                ball_vel=Vec3(0.0, -1500.0, 0.0),
+            ),
+        ]
+        touches = [
+            TouchEvent(
+                t=1.0,
+                player_id="player1",
+                location=Vec3(0.0, -4500.0, 100.0),
+                outcome="SHOT",
+                touch_context=TouchContext.GROUND,
+            ),
+        ]
+
+        result = analyze_shots_xg(frames, touches)
+
+        assert result["total_shots"] == 1
+
+        # Per-player xg must carry the full per-shot list, not just totals
+        player_xg = result["per_player"]["player1"]
+        assert player_xg["total_shots"] == 1
+        assert player_xg["total_xg"] > 0.0
+        assert len(player_xg["shots"]) == 1
+        shot = player_xg["shots"][0]
+        for key in (
+            "timestamp",
+            "player_id",
+            "xg",
+            "shot_type",
+            "distance_m",
+            "angle_degrees",
+            "ball_speed_kph",
+            "is_open_net",
+            "defender_coverage",
+            "factors",
+            "outcome",
+        ):
+            assert key in shot
+
+        # Per-team xg must expose total_xg and total_shots for blue/orange
+        blue = result["per_team"]["blue"]
+        orange = result["per_team"]["orange"]
+        assert blue["total_shots"] == 1
+        assert blue["total_xg"] > 0.0
+        assert orange["total_shots"] == 0
+        assert orange["total_xg"] == 0.0
+
 
 class TestDefenseAnalysis:
     """Test defensive positioning analysis."""
@@ -685,3 +741,15 @@ class TestIntegrationWithAggregator:
         # Defense should be in team analysis
         if "defense" in per_team["blue"]:
             assert isinstance(per_team["blue"]["defense"], dict)
+
+        # xG totals must surface per team with both keys
+        for team_key in ("blue", "orange"):
+            assert "xg" in per_team[team_key]
+            assert "total_xg" in per_team[team_key]["xg"]
+            assert "total_shots" in per_team[team_key]["xg"]
+
+        # Per-player xg must carry a shots list (empty here since no touches)
+        for player in per_player:
+            assert "xg" in player
+            assert "shots" in player["xg"]
+            assert isinstance(player["xg"]["shots"], list)

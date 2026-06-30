@@ -546,16 +546,28 @@ def analyze_shots_xg(
 
     # Calculate team totals
     team_xg = {0: 0.0, 1: 0.0}
+    team_shots = {0: 0, 1: 0}
     for player_id, data in per_player.items():
         team = player_teams.get(player_id, 0)
+        if team not in (0, 1):
+            # Spectators / unknown teams never belong to blue or orange; skip
+            # rather than miscounting them into a side (or raising KeyError).
+            continue
         team_xg[team] += data["total_xg"]
+        team_shots[team] += data["total_shots"]
 
     return {
         "shots": shots_xg,
         "per_player": per_player,
         "per_team": {
-            "blue": {"total_xg": round(team_xg.get(0, 0.0), 3)},
-            "orange": {"total_xg": round(team_xg.get(1, 0.0), 3)},
+            "blue": {
+                "total_xg": round(team_xg.get(0, 0.0), 3),
+                "total_shots": team_shots.get(0, 0),
+            },
+            "orange": {
+                "total_xg": round(team_xg.get(1, 0.0), 3),
+                "total_shots": team_shots.get(1, 0),
+            },
         },
         "total_shots": len(shots_xg),
     }
