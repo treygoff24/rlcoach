@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 PARITY_REPLAY_PATH = Path("Replay_files/0925.replay")
+LTM_REPLAY_PATH = Path("replays/A181B28546BBD8AC71E63793B65BABAE.replay")
 
 
 def _has_rust_core():
@@ -58,12 +59,12 @@ def test_rust_network_parse_returns_diagnostics_shape():
 
 
 @pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.skipif(not LTM_REPLAY_PATH.exists(), reason="LTM replay fixture missing")
 def test_ltm_replay_reports_parse_reason_not_silent_none():
     from rlcoach.parser import get_adapter
 
-    path = Path("replays/A181B28546BBD8AC71E63793B65BABAE.replay")
     adapter = get_adapter("rust")
-    nf = adapter.parse_network(path)
+    nf = adapter.parse_network(LTM_REPLAY_PATH)
 
     assert nf is not None
     assert hasattr(nf, "diagnostics")
