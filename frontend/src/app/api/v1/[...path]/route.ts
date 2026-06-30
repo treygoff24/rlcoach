@@ -17,9 +17,12 @@ import { auth } from '@/lib/auth';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
+type RouteParams = { path: string[] };
+type RouteContext = { params: Promise<RouteParams> };
+
 async function proxyRequest(
   request: NextRequest,
-  params: { path: string[] }
+  params: RouteParams
 ): Promise<NextResponse> {
   const path = params.path.join('/');
   const url = new URL(`/api/v1/${path}`, BACKEND_URL);
@@ -106,38 +109,27 @@ async function proxyRequest(
   }
 }
 
+async function proxyRoute(request: NextRequest, { params }: RouteContext) {
+  return proxyRequest(request, await params);
+}
+
 // Export handlers for all HTTP methods
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  return proxyRequest(request, params);
+export async function GET(request: NextRequest, context: RouteContext) {
+  return proxyRoute(request, context);
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  return proxyRequest(request, params);
+export async function POST(request: NextRequest, context: RouteContext) {
+  return proxyRoute(request, context);
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  return proxyRequest(request, params);
+export async function PUT(request: NextRequest, context: RouteContext) {
+  return proxyRoute(request, context);
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  return proxyRequest(request, params);
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  return proxyRoute(request, context);
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  return proxyRequest(request, params);
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  return proxyRoute(request, context);
 }
