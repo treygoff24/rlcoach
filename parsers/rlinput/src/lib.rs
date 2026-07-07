@@ -8,6 +8,7 @@ pub mod fit;
 pub mod lattice;
 pub mod model;
 pub mod segment;
+pub mod solver;
 pub mod timeline;
 pub mod tracker;
 
