@@ -23,12 +23,14 @@ impl PortableEngine {
         self.update_double_jump_or_flip(state, controls, events, forward_speed, first_jump_started);
         self.update_boost(state, controls, &mut accel);
 
-        state.ang_vel = add(state.ang_vel, mul(ang_accel, AIR_DT));
-        state.ang_vel = clamp_norm(state.ang_vel, consts::CAR_MAX_ANG_SPEED);
-        state.vel = add(state.vel, mul(accel, AIR_DT));
-        state.vel = clamp_norm(state.vel, consts::CAR_MAX_SPEED);
-        state.pos = add(state.pos, mul(state.vel, AIR_DT));
-        state.rot = integrate_rot(state.rot, state.ang_vel);
+        let unclamped_ang_vel = add(state.ang_vel, mul(ang_accel, AIR_DT));
+        let unclamped_vel = add(state.vel, mul(accel, AIR_DT));
+        // Arena.cpp:718-722 steps Bullet, snapshots `rotMat` in `_PostTickUpdate`,
+        // then clamps velocities in `Car::_FinishPhysicsTick` (`Car.cpp:178-203`).
+        state.pos = add(state.pos, mul(unclamped_vel, AIR_DT));
+        state.rot = integrate_rot(state.rot, unclamped_ang_vel);
+        state.ang_vel = clamp_norm(unclamped_ang_vel, consts::CAR_MAX_ANG_SPEED);
+        state.vel = clamp_norm(unclamped_vel, consts::CAR_MAX_SPEED);
         state.boost = state.boost.clamp(0.0, consts::BOOST_MAX);
     }
 
