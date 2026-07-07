@@ -23,7 +23,7 @@ help:
 	@echo "  lint       - Lint code with ruff"
 	@echo "  clean      - Remove build artifacts and caches"
 	@echo "  install-dev - Install development dependencies"
-	@echo "  rust-dev   - Build/install Rust parser extension (maturin develop)"
+	@echo "  rust-dev   - Build/install Rust parser + input extensions"
 	@echo "  rust-build - Build Rust wheel (release)"
 
 # Install development dependencies
@@ -60,7 +60,7 @@ clean:
 	rm -rf .coverage
 	rm -rf htmlcov/
 
-# Build/install the Rust extension locally for development
+# Build/install the Rust extensions locally for development
 rust-dev: require-venv
 	$(PIP) install --upgrade pip
 	$(PIP) install maturin
@@ -80,6 +80,21 @@ rust-dev: require-venv
 		} \
 	)
 	$(VENV_PY) -c "import rlreplay_rust as m; print('RUST_CORE loaded:', getattr(m, 'RUST_CORE', False))"
+	cd parsers/rlinput_py && ( \
+		$(MATURIN) develop || { \
+			rm -rf target/rlcoach-wheels && \
+			mkdir -p target/rlcoach-wheels && \
+			$(MATURIN) build -r --out target/rlcoach-wheels && \
+			wheel_count=$$(find target/rlcoach-wheels -maxdepth 1 -type f -name '*.whl' | wc -l | tr -d ' ') && \
+			if [ "$$wheel_count" != "1" ]; then \
+				echo "error: expected exactly one wheel in target/rlcoach-wheels, found $$wheel_count" >&2; \
+				exit 1; \
+			fi && \
+			wheel=$$(find target/rlcoach-wheels -maxdepth 1 -type f -name '*.whl' -print -quit) && \
+			$(PIP) install "$$wheel"; \
+		} \
+	)
+	$(VENV_PY) -c "import rlinput_py as m; print('RLINPUT_CORE loaded:', getattr(m, 'RUST_CORE', False))"
 
 # Build a release wheel for the Rust extension
 rust-build: require-venv

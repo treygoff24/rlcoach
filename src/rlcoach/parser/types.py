@@ -1,4 +1,9 @@
-"""Core data types for the parser layer."""
+"""Core data types for the parser layer.
+
+S2 input reconstruction consumers should use ``rlcoach.input_timeline``.
+Those dataclasses are intentionally not fields on parser ``Frame`` objects and
+are not report/schema output until S4.0 externalizes the contract.
+"""
 
 from __future__ import annotations
 

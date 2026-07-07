@@ -6,8 +6,10 @@ point for generating complete analysis results that conform to the JSON schema.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
+from ..input_timeline import InputTimeline, solve_input_timelines
 from ..parser.types import Frame, Header
 from .ball_prediction import analyze_ball_prediction
 from .boost import analyze_boost
@@ -72,6 +74,7 @@ def aggregate_analysis(
     cached_defense = analyze_defense(frames)
     cached_ball_prediction = analyze_ball_prediction(frames)
     cached_xg = analyze_shots_xg(frames, touches)
+    input_timeline_for = _make_input_timeline_cache(frames, header)
 
     # Generate per-team analysis using cached results
     per_team = {
@@ -104,6 +107,7 @@ def aggregate_analysis(
             cached_defense,
             cached_ball_prediction,
             cached_xg,
+            input_timeline_for,
         )
         per_player.append(player_analysis)
         per_player_map[player_id] = player_analysis
@@ -286,6 +290,7 @@ def _analyze_player(
     cached_defense: dict[str, Any] | None = None,
     cached_ball_prediction: dict[str, Any] | None = None,
     cached_xg: dict[str, Any] | None = None,
+    input_timeline_for: Callable[[str], InputTimeline | None] | None = None,
 ) -> dict[str, Any]:
     """Generate complete analysis for a player."""
 
@@ -450,3 +455,17 @@ def _extract_players_from_frames(frames: list[Frame]) -> dict[str, str]:
                 players[player.player_id] = team_name
 
     return players
+
+
+def _make_input_timeline_cache(
+    frames: list[Frame], header: Header | None
+) -> Callable[[str], InputTimeline | None]:
+    cached: dict[str, InputTimeline] | None = None
+
+    def get(player_id: str) -> InputTimeline | None:
+        nonlocal cached
+        if cached is None:
+            cached = solve_input_timelines(frames, header) or {}
+        return cached.get(player_id)
+
+    return get

@@ -82,6 +82,9 @@ jobs:
           pip install maturin
           maturin build --release
           pip install ../../target/wheels/*.whl
+          cd ../rlinput_py
+          maturin build --release
+          pip install ../../target/wheels/*.whl
 
       - name: Run linting
         run: |

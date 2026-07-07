@@ -1,0 +1,21 @@
+[package]
+name = "rlinput_py"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[lib]
+name = "rlinput_py"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+sim = ["rlinput/sim"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module", "abi3-py38"] }
+rlinput = { path = "../rlinput" }
+
+[package.metadata.maturin]
+name = "rlinput_py"
