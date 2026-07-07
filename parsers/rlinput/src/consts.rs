@@ -83,6 +83,8 @@ pub const GROUND_MAX_CURVATURE_PIECES: [(f32, f32, f32); 5] = [
 // `source /Users/treygoff/Code/rlcoach/.venv/bin/activate && python scripts/export_series_json.py`,
 // measured 2026-07-07 via
 // `RLINPUT_DEV_SERIES_DIR=/tmp/rlinput-dev-series-wp6b cargo test -p rlinput --features sim noise_floor_measurement -- --ignored --nocapture`.
+// WP6b verification found these first-measurement values are phase-contaminated;
+// see `codex/docs/2026-07-07-s1-wp6b-noise-floor.md` before gate-facing use.
 pub const FIT_SIGMA_POS_MEASURED: f32 = 73.697_41;
 pub const FIT_SIGMA_VEL_MEASURED: f32 = 21.666_748;
 pub const FIT_SIGMA_ROT_MEASURED: f32 = 0.013_785;

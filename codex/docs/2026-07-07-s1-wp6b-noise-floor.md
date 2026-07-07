@@ -2,6 +2,20 @@
 
 Date: 2026-07-07
 
+## Verification verdict
+
+**STOPPED: solver-affecting replay-frame convention found.** The first WP6b
+measurement below reproduced, but phase probes show the dominant position and
+velocity residuals are not genuine noise floors. They carry a systematic
+timebase signature: most high-velocity residual buckets have position residuals
+strongly proportional to `|v_k| * Δt`, and the largest bucket has velocity p68
+exactly equal to one 30 Hz gravity interval.
+
+Do not merge the first-measurement σ values as gate-facing constants until the
+solver lane decides how teacher-forced frame pairing should handle stale or
+phase-shifted replay kinematics. The harness now includes
+`noise_floor_phase_probes` to reproduce the evidence.
+
 ## Method
 
 Measured null-hypothesis residuals on the frozen S1 dev set in
@@ -61,7 +75,7 @@ Pooled quiet intervals: **1,047**.
 | testing_replay | 93 | 67.456 | 71.533 | 88.104 | 89.685 | 125.034 | 21.667 | 21.667 | 27.113 | 37.843 | 37.953 | 0.012430 | 0.014794 | 0.025560 | 0.029452 | 0.032589 | 0.034036 | 0.043982 | 0.095736 | 0.118445 | 0.138661 |
 | **pooled** | **1,047** | **66.273** | **73.697** | **94.325** | **112.488** | **133.328** | **21.667** | **21.667** | **27.120** | **37.843** | **43.253** | **0.009239** | **0.013785** | **0.022011** | **0.027527** | **0.036349** | **0.024353** | **0.038623** | **0.074733** | **0.107891** | **0.144585** |
 
-## Chosen σ values
+## First-measurement σ values (not merge-ready)
 
 | term | provisional | measured p68 σ | ratio | flag |
 | --- | ---: | ---: | ---: | --- |
@@ -101,3 +115,63 @@ sub-tick signal weaker. This is a discriminability conclusion change; criterion
 2's interval-level 30 Hz branch remains the meaningful gate-facing claim, and
 WP9's oracle should report this explicitly rather than treating sub-tick
 double-jump placement as reliable.
+
+## Phase verification probes
+
+Command:
+
+```bash
+RLINPUT_DEV_SERIES_DIR=/tmp/rlinput-dev-series-wp6b \
+  cargo test -p rlinput --features sim noise_floor_phase_probes -- --ignored --nocapture
+```
+
+The harness also emits per-interval
+`(pos_residual, vel_residual, |v_k|, N_ticks)` records when
+`RLINPUT_NOISE_FLOOR_DUMP_POINTS=1` is set.
+
+### Residual vs speed
+
+```text
+phase_correlation,count=1047,slope=0.705293,intercept=14.695380,pearson_r=0.518694
+residual_bucket,name=near_zero_vel,count=16,slope=0.000138,pearson_r=0.244341,pos_p68=0.019992,vel_p68=0.016602,speed_dt_p68=79.089119
+residual_bucket,name=low_vel,count=218,slope=0.314450,pearson_r=0.462657,pos_p68=38.359707,vel_p68=16.190002,speed_dt_p68=76.929733
+residual_bucket,name=gravity_interval_vel,count=531,slope=0.863022,pearson_r=0.950905,pos_p68=71.576164,vel_p68=21.666687,speed_dt_p68=74.402992
+residual_bucket,name=above_gravity_vel,count=282,slope=0.919519,pearson_r=0.697083,pos_p68=95.904358,vel_p68=32.426758,speed_dt_p68=76.045456
+```
+
+This is not a flat residual cloud. The largest bucket has a near-linear
+position residual with slope `0.86` and `r=0.95` against `|v_k| * Δt`, while its
+velocity p68 is exactly `21.6667 uu/s = 650 / 30`.
+
+### Tick and pairing probes
+
+```text
+tick_probe,offset=-1,count=1047,pos_p50=53.459011,pos_p68=57.552464,pos_p90=107.116470,vel_p50=16.250008,vel_p68=21.666626,vel_p90=32.529938,rot_p68=0.011901,ang_vel_p68=0.033098
+tick_probe,offset=0,count=1047,pos_p50=66.272842,pos_p68=73.697411,pos_p90=94.324684,vel_p50=21.666672,vel_p68=21.666748,vel_p90=27.120056,rot_p68=0.013785,ang_vel_p68=0.038623
+tick_probe,offset=1,count=1047,pos_p50=73.506447,pos_p68=89.000923,pos_p90=100.686584,vel_p50=27.083282,vel_p68=27.083374,vel_p90=32.500000,rot_p68=0.015656,ang_vel_p68=0.044111
+tick_probe,ticks=0,count=1047,pos_p50=0.000244,pos_p68=60.200722,pos_p90=165.981705,vel_p50=0.000122,vel_p68=27.099976,vel_p90=48.780003,rot_p68=0.006000,ang_vel_p68=0.014800
+pairing_probe,kind=prev_to_frame,count=1047,pos_p50=66.272842,pos_p68=73.697411,pos_p90=94.324684,vel_p50=21.666672,vel_p68=21.666748,vel_p90=27.120056,rot_p68=0.013785,ang_vel_p68=0.038623
+pairing_probe,kind=frame_to_next,count=1046,pos_p50=71.249367,pos_p68=76.695099,pos_p90=115.086266,vel_p50=21.666687,vel_p68=27.023376,vel_p90=37.893333,rot_p68=0.016486,ang_vel_p68=0.051292
+pairing_probe,kind=prev_to_next,count=1046,pos_p50=28.085039,pos_p68=52.904987,pos_p90=128.058105,vel_p50=10.866730,vel_p68=16.296539,vel_p90=43.333374,rot_p68=0.009568,ang_vel_p68=0.031142
+```
+
+`N-1` improves position but does not collapse velocity; `N+1` worsens both.
+`N=0` shows some frames are effectively sample-held (`pos_p50` and `vel_p50`
+near zero), but p68 remains large, so this is a mixed replay-frame convention
+rather than a single harness off-by-one tick. The lattice contract says
+`frame_index` is the terminating observation; the baseline prev-to-frame
+measurement follows that contract. The remaining issue is how replay kinematics
+are sampled relative to physics and therefore affects solver scoring, not only
+the measurement harness.
+
+### Near-static subset
+
+```text
+static_subset,max_speed=100,count=0,pos_p50=NaN,pos_p68=NaN,pos_p90=NaN,vel_p50=NaN,vel_p68=NaN,vel_p90=NaN,rot_p68=NaN,ang_vel_p68=NaN
+static_subset,max_speed=500,count=13,pos_p50=10.802691,pos_p68=12.039071,pos_p90=14.968403,vel_p50=21.666641,vel_p68=27.083282,vel_p90=32.499939,rot_p68=0.021295,ang_vel_p68=0.057793
+```
+
+There are no `<100 uu/s` quiet aerial intervals. The `<500 uu/s` subset is tiny
+but its position p68 drops from `73.7 uu` to `12.0 uu`, matching the phase-error
+prediction. Velocity does not collapse, reinforcing that the convention is not
+just a position-only measurement artifact.

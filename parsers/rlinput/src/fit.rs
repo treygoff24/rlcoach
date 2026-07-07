@@ -750,32 +750,8 @@ mod noise_floor {
     #[test]
     #[ignore = "local dev-set measurement; run: RLINPUT_DEV_SERIES_DIR=/path/to/series cargo test -p rlinput --features sim noise_floor_measurement -- --ignored --nocapture"]
     fn noise_floor_measurement() {
-        use crate::engine::{rocketsim::RocketSimEngine, AirEngine};
-
-        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
-            .expect("set RLINPUT_DEV_SERIES_DIR to the 10 exported dev-set JSON files");
-        let mut paths: Vec<_> = std::fs::read_dir(&dir)
-            .expect("read RLINPUT_DEV_SERIES_DIR")
-            .map(|entry| entry.expect("read dir entry").path())
-            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
-            .collect();
-        paths.sort();
-        assert_eq!(
-            paths.len(),
-            10,
-            "expected exactly the frozen 10 dev-set exports in {dir}"
-        );
-
         let mut pooled = ResidualStats::default();
-        for path in paths {
-            let name = path
-                .file_stem()
-                .and_then(|stem| stem.to_str())
-                .unwrap_or("unknown")
-                .to_string();
-            let json = std::fs::read_to_string(&path).expect("read exported ReplaySeries JSON");
-            let series: ReplaySeries =
-                serde_json::from_str(&json).expect("parse exported ReplaySeries JSON");
+        for (name, series) in dev_series() {
             let stats = measure_series(&series);
             println!("{}", stats.line(&name));
             pooled.extend(stats);
@@ -794,51 +770,392 @@ mod noise_floor {
             "pooled quiet interval count below acceptance floor: {}",
             pooled.len()
         );
+    }
 
-        fn measure_series(series: &ReplaySeries) -> ResidualStats {
-            let segmented = segment_replay(series);
-            let mut engine = RocketSimEngine::new();
-            let mut stats = ResidualStats::default();
-            for segmented_player in &segmented.players {
-                let Some(player) = series
-                    .players
-                    .iter()
-                    .find(|player| player.player_id == segmented_player.player_id)
-                else {
-                    continue;
-                };
-                let component_edge_frames = component_edge_frames(player);
-                for segment in segmented_player
-                    .segments
-                    .iter()
-                    .filter(|segment| segment.kind == SegmentKind::Air)
-                {
-                    for interval in &segment.lattice.intervals {
-                        if !quiet_interval(
-                            series,
-                            player,
-                            segmented_player,
-                            &component_edge_frames,
-                            interval,
-                        ) {
-                            continue;
-                        }
-                        let frame = interval.frame_index as usize;
-                        let Some(prev) = frame.checked_sub(1) else {
-                            continue;
-                        };
-                        let ticks = (interval.tick_range.1 - interval.tick_range.0)
-                            .min(u64::from(u32::MAX)) as u32;
-                        let start = observed_state(player, prev);
-                        let observed = observed_state(player, frame);
-                        let simulated =
-                            engine.rollout(&start, &TickPlan::constant(Controls::default()), ticks);
-                        stats.push(&simulated, &observed);
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "local dev-set phase probes; run: RLINPUT_DEV_SERIES_DIR=/path/to/series cargo test -p rlinput --features sim noise_floor_phase_probes -- --ignored --nocapture"]
+    fn noise_floor_phase_probes() {
+        let mut samples = Vec::new();
+        for (name, series) in dev_series() {
+            let series_samples = collect_samples(&name, &series);
+            println!("phase_probe_series,{name},count={}", series_samples.len());
+            samples.extend(series_samples);
+        }
+        assert!(
+            samples.len() >= 1_000,
+            "pooled quiet interval count below acceptance floor: {}",
+            samples.len()
+        );
+
+        println!("{}", correlation_line(&samples));
+        for bucket in [
+            ResidualBucket::new("near_zero_vel", 0.0, 1.0),
+            ResidualBucket::new("low_vel", 1.0, 20.0),
+            ResidualBucket::new("gravity_interval_vel", 20.0, 23.0),
+            ResidualBucket::new("above_gravity_vel", 23.0, f32::INFINITY),
+        ] {
+            println!("{}", bucket_line(&samples, bucket));
+        }
+
+        for tick_offset in [-1, 0, 1] {
+            println!("{}", tick_offset_line(&samples, tick_offset));
+        }
+        println!("{}", explicit_tick_line(&samples, 0));
+
+        for pair in [
+            Pairing::PrevToFrame,
+            Pairing::FrameToNext,
+            Pairing::PrevToNext,
+        ] {
+            println!("{}", pairing_line(&samples, pair));
+        }
+
+        for max_speed in [100.0, 500.0] {
+            println!("{}", subset_line(&samples, max_speed));
+        }
+
+        if std::env::var_os("RLINPUT_NOISE_FLOOR_DUMP_POINTS").is_some() {
+            for sample in &samples {
+                let residual = sample.residual(sample.ticks);
+                println!(
+                    "phase_point,{},{},ticks={},dt={:.6},speed={:.6},speed_dt={:.6},pos={:.6},vel={:.6}",
+                    sample.name,
+                    sample.frame,
+                    sample.ticks,
+                    sample.dt,
+                    sample.speed,
+                    sample.speed_dt(),
+                    residual.pos,
+                    residual.vel
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn measure_series(series: &ReplaySeries) -> ResidualStats {
+        let mut stats = ResidualStats::default();
+        for sample in collect_samples("", series) {
+            let residual = sample.residual(sample.ticks);
+            stats.push_residual(residual);
+        }
+        stats
+    }
+
+    #[cfg(feature = "sim")]
+    fn dev_series() -> Vec<(String, ReplaySeries)> {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("set RLINPUT_DEV_SERIES_DIR to the 10 exported dev-set JSON files");
+        let mut paths: Vec<_> = std::fs::read_dir(&dir)
+            .expect("read RLINPUT_DEV_SERIES_DIR")
+            .map(|entry| entry.expect("read dir entry").path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .collect();
+        paths.sort();
+        assert_eq!(
+            paths.len(),
+            10,
+            "expected exactly the frozen 10 dev-set exports in {dir}"
+        );
+
+        paths
+            .into_iter()
+            .map(|path| {
+                let name = path
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let json = std::fs::read_to_string(&path).expect("read exported ReplaySeries JSON");
+                let series: ReplaySeries =
+                    serde_json::from_str(&json).expect("parse exported ReplaySeries JSON");
+                (name, series)
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn collect_samples(name: &str, series: &ReplaySeries) -> Vec<ProbeSample> {
+        let segmented = segment_replay(series);
+        let mut samples = Vec::new();
+        for segmented_player in &segmented.players {
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let component_edge_frames = component_edge_frames(player);
+            for segment in segmented_player
+                .segments
+                .iter()
+                .filter(|segment| segment.kind == SegmentKind::Air)
+            {
+                for interval in &segment.lattice.intervals {
+                    if !quiet_interval(
+                        series,
+                        player,
+                        segmented_player,
+                        &component_edge_frames,
+                        interval,
+                    ) {
+                        continue;
                     }
+                    let frame = interval.frame_index as usize;
+                    let Some(prev) = frame.checked_sub(1) else {
+                        continue;
+                    };
+                    let ticks = (interval.tick_range.1 - interval.tick_range.0)
+                        .min(u64::from(u32::MAX)) as u32;
+                    let start = observed_state(player, prev);
+                    let observed = observed_state(player, frame);
+                    samples.push(ProbeSample {
+                        name: name.to_string(),
+                        frame,
+                        dt: delta_for(series, frame),
+                        ticks,
+                        speed: distance([0.0; 3], start.vel),
+                        start,
+                        observed,
+                        next: player
+                            .frames
+                            .pos
+                            .get(frame + 1)
+                            .map(|_| observed_state(player, frame + 1)),
+                        next_ticks: ticks_for(series, frame + 1),
+                    });
                 }
             }
-            stats
         }
+        samples
+    }
+
+    #[cfg(feature = "sim")]
+    fn ticks_for(series: &ReplaySeries, frame: usize) -> u32 {
+        (delta_for(series, frame) * series.tick_rate as f32)
+            .round()
+            .clamp(0.0, u32::MAX as f32) as u32
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Copy)]
+    struct ProbeResidual {
+        pos: f32,
+        vel: f32,
+        rot: f32,
+        ang_vel: f32,
+    }
+
+    #[cfg(feature = "sim")]
+    struct ProbeSample {
+        name: String,
+        frame: usize,
+        dt: f32,
+        ticks: u32,
+        speed: f32,
+        start: CarPhysState,
+        observed: CarPhysState,
+        next: Option<CarPhysState>,
+        next_ticks: u32,
+    }
+
+    #[cfg(feature = "sim")]
+    impl ProbeSample {
+        fn speed_dt(&self) -> f32 {
+            self.speed * self.dt
+        }
+
+        fn residual(&self, ticks: u32) -> ProbeResidual {
+            residual(self.start, self.observed, ticks)
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn residual(start: CarPhysState, observed: CarPhysState, ticks: u32) -> ProbeResidual {
+        use crate::engine::{rocketsim::RocketSimEngine, AirEngine};
+
+        let mut engine = RocketSimEngine::new();
+        let simulated = engine.rollout(&start, &TickPlan::constant(Controls::default()), ticks);
+        ProbeResidual {
+            pos: distance(simulated.pos, observed.pos),
+            vel: distance(simulated.vel, observed.vel),
+            rot: rotation_distance_rad(simulated.rot, observed.rot) as f32,
+            ang_vel: distance(simulated.ang_vel, observed.ang_vel),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Copy)]
+    enum Pairing {
+        PrevToFrame,
+        FrameToNext,
+        PrevToNext,
+    }
+
+    #[cfg(feature = "sim")]
+    impl Pairing {
+        fn name(self) -> &'static str {
+            match self {
+                Self::PrevToFrame => "prev_to_frame",
+                Self::FrameToNext => "frame_to_next",
+                Self::PrevToNext => "prev_to_next",
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Copy)]
+    struct ResidualBucket {
+        name: &'static str,
+        min_vel: f32,
+        max_vel: f32,
+    }
+
+    #[cfg(feature = "sim")]
+    impl ResidualBucket {
+        fn new(name: &'static str, min_vel: f32, max_vel: f32) -> Self {
+            Self {
+                name,
+                min_vel,
+                max_vel,
+            }
+        }
+
+        fn contains(self, residual: ProbeResidual) -> bool {
+            residual.vel >= self.min_vel && residual.vel < self.max_vel
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn bucket_line(samples: &[ProbeSample], bucket: ResidualBucket) -> String {
+        let pairs: Vec<_> = samples
+            .iter()
+            .filter_map(|sample| {
+                let residual = sample.residual(sample.ticks);
+                bucket.contains(residual).then_some((
+                    f64::from(sample.speed_dt()),
+                    f64::from(residual.pos),
+                    residual.vel,
+                ))
+            })
+            .collect();
+        let slope = slope_and_r(&pairs);
+        let mut pos = Distribution::default();
+        let mut vel = Distribution::default();
+        let mut speed_dt = Distribution::default();
+        for (x, y, v) in &pairs {
+            speed_dt.push(*x as f32);
+            pos.push(*y as f32);
+            vel.push(*v);
+        }
+        let (slope, r) = slope.unwrap_or((f64::NAN, f64::NAN));
+        format!(
+            "residual_bucket,name={},count={},slope={slope:.6},pearson_r={r:.6},pos_p68={:.6},vel_p68={:.6},speed_dt_p68={:.6}",
+            bucket.name,
+            pairs.len(),
+            pos.percentile(0.68),
+            vel.percentile(0.68),
+            speed_dt.percentile(0.68),
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn correlation_line(samples: &[ProbeSample]) -> String {
+        let pairs: Vec<_> = samples
+            .iter()
+            .map(|sample| {
+                let residual = sample.residual(sample.ticks);
+                (
+                    f64::from(sample.speed_dt()),
+                    f64::from(residual.pos),
+                    residual.vel,
+                )
+            })
+            .collect();
+        let (slope, r) = slope_and_r(&pairs).expect("phase probe should have samples");
+        let n = pairs.len() as f64;
+        let mean_x = pairs.iter().map(|(x, _, _)| *x).sum::<f64>() / n;
+        let mean_y = pairs.iter().map(|(_, y, _)| *y).sum::<f64>() / n;
+        let intercept = mean_y - slope * mean_x;
+        format!(
+            "phase_correlation,count={},slope={slope:.6},intercept={intercept:.6},pearson_r={r:.6}",
+            pairs.len()
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn slope_and_r(pairs: &[(f64, f64, f32)]) -> Option<(f64, f64)> {
+        if pairs.len() < 2 {
+            return None;
+        }
+        let n = pairs.len() as f64;
+        let mean_x = pairs.iter().map(|(x, _, _)| *x).sum::<f64>() / n;
+        let mean_y = pairs.iter().map(|(_, y, _)| *y).sum::<f64>() / n;
+        let (cov, var_x, var_y) = pairs.iter().fold((0.0, 0.0, 0.0), |acc, (x, y, _)| {
+            let dx = x - mean_x;
+            let dy = y - mean_y;
+            (acc.0 + dx * dy, acc.1 + dx * dx, acc.2 + dy * dy)
+        });
+        Some((cov / var_x, cov / (var_x * var_y).sqrt()))
+    }
+
+    #[cfg(feature = "sim")]
+    fn tick_offset_line(samples: &[ProbeSample], offset: i32) -> String {
+        let mut stats = ResidualStats::default();
+        for sample in samples {
+            let Some(ticks) = sample.ticks.checked_add_signed(offset) else {
+                continue;
+            };
+            stats.push_residual(sample.residual(ticks));
+        }
+        format!("tick_probe,offset={offset},{}", stats.short_line())
+    }
+
+    #[cfg(feature = "sim")]
+    fn explicit_tick_line(samples: &[ProbeSample], ticks: u32) -> String {
+        let mut stats = ResidualStats::default();
+        for sample in samples {
+            stats.push_residual(sample.residual(ticks));
+        }
+        format!("tick_probe,ticks={ticks},{}", stats.short_line())
+    }
+
+    #[cfg(feature = "sim")]
+    fn pairing_line(samples: &[ProbeSample], pair: Pairing) -> String {
+        let mut stats = ResidualStats::default();
+        for sample in samples {
+            let residual = match pair {
+                Pairing::PrevToFrame => Some(sample.residual(sample.ticks)),
+                Pairing::FrameToNext => sample
+                    .next
+                    .map(|next| residual(sample.observed, next, sample.next_ticks)),
+                Pairing::PrevToNext => sample.next.map(|next| {
+                    residual(
+                        sample.start,
+                        next,
+                        sample.ticks.saturating_add(sample.next_ticks),
+                    )
+                }),
+            };
+            if let Some(residual) = residual {
+                stats.push_residual(residual);
+            }
+        }
+        format!("pairing_probe,kind={},{}", pair.name(), stats.short_line())
+    }
+
+    #[cfg(feature = "sim")]
+    fn subset_line(samples: &[ProbeSample], max_speed: f32) -> String {
+        let mut stats = ResidualStats::default();
+        for sample in samples.iter().filter(|sample| sample.speed < max_speed) {
+            stats.push_residual(sample.residual(sample.ticks));
+        }
+        format!(
+            "static_subset,max_speed={max_speed:.0},{}",
+            stats.short_line()
+        )
     }
 
     #[cfg(feature = "sim")]
@@ -852,13 +1169,11 @@ mod noise_floor {
 
     #[cfg(feature = "sim")]
     impl ResidualStats {
-        fn push(&mut self, simulated: &CarPhysState, observed: &CarPhysState) {
-            self.pos.push(distance(simulated.pos, observed.pos));
-            self.vel.push(distance(simulated.vel, observed.vel));
-            self.rot
-                .push(rotation_distance_rad(simulated.rot, observed.rot) as f32);
-            self.ang_vel
-                .push(distance(simulated.ang_vel, observed.ang_vel));
+        fn push_residual(&mut self, residual: ProbeResidual) {
+            self.pos.push(residual.pos);
+            self.vel.push(residual.vel);
+            self.rot.push(residual.rot);
+            self.ang_vel.push(residual.ang_vel);
         }
 
         fn extend(&mut self, other: Self) {
@@ -896,6 +1211,21 @@ mod noise_floor {
                 self.ang_vel.percentile(0.90),
                 self.ang_vel.percentile(0.95),
                 self.ang_vel.percentile(0.99),
+            )
+        }
+
+        fn short_line(&self) -> String {
+            format!(
+                "count={},pos_p50={:.6},pos_p68={:.6},pos_p90={:.6},vel_p50={:.6},vel_p68={:.6},vel_p90={:.6},rot_p68={:.6},ang_vel_p68={:.6}",
+                self.len(),
+                self.pos.percentile(0.50),
+                self.pos.percentile(0.68),
+                self.pos.percentile(0.90),
+                self.vel.percentile(0.50),
+                self.vel.percentile(0.68),
+                self.vel.percentile(0.90),
+                self.rot.percentile(0.68),
+                self.ang_vel.percentile(0.68),
             )
         }
     }
