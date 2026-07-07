@@ -4,7 +4,7 @@
 
 **Status:** REVISED r1 — dual adversarial review complete (opus plan-reviewer + codex safe, both FIX-THEN-EXECUTE); all P1/P2 findings folded in below
 **Date:** 2026-07-07
-**Prereq reading:** `MECHANICS_DETECTION.md` (esp. 30Hz analysis), research findings summarized in §1.
+**Prereq reading:** `codex/docs/MECHANICS_DETECTION.md` (esp. 30Hz analysis), research findings summarized in §1.
 
 ---
 
@@ -190,7 +190,7 @@ Outcomes: **FULL** (detectors consume InputTimeline as primary), **HYBRID** (com
 
 Rebuild `analysis/mechanics.py` detection *primitives*; keep the 26-type taxonomy and public output keys stable.
 
-- Primitives first (per `MECHANICS_DETECTION.md` expert review): car-local transforms everywhere; jump/flip/double-jump from component events (not z-vel spikes); rotation rates from replicated angular velocity (kill Euler-diffing at `mechanics.py:544-546`).
+- Primitives first (per `codex/docs/MECHANICS_DETECTION.md` expert review): car-local transforms everywhere; jump/flip/double-jump from component events (not z-vel spikes); rotation rates from replicated angular velocity (kill Euler-diffing at `mechanics.py:544-546`).
 - Each detector consumes, in priority order: InputTimeline (per gate) → component events → kinematics. The kinematic tier is retained as fallback for degraded/old replays; every emitted mechanic carries `confidence` + `signal_source`.
 - Cross-wire kickoffs: `events/kickoffs.py:415` `_is_speedflip_kickoff` heuristic replaced by the real speedflip detector output.
 - Consolidate duplicated threshold constants (`physics_constants.py` vs `mechanics.py` local copies) into one module with documented provenance.
@@ -281,6 +281,6 @@ Deliverable: `docs/validation.md` with per-mechanic precision/recall and solver 
 - **rocketsim-rs integration friction** (version drift vs RL patches; arena collision-mesh assets: sourcing/size/licensing/CI) → S1.0 discovery pre-task resolves before S1.2; pin version; simplified air-phase integrator as fallback objective; sim dependency feature-gated.
 - **Physics-patch drift contaminating V1 metrics** → segment all resim error distributions by replay build; document the build↔rocketsim mapping (S1.0).
 - **Gate-threshold rationalization** (solo adjudicator, self-graded gate) → threshold freeze protocol in §4: numbers frozen in-doc before results are viewed; post-hoc changes recorded in writing.
-- **30Hz ambiguity irreducible for some events** → confidence + ambiguity flags are first-class outputs; buckets not razors (already doctrine in `MECHANICS_DETECTION.md`); high-FPS replays (R6) may relax this for new recordings.
+- **30Hz ambiguity irreducible for some events** → confidence + ambiguity flags are first-class outputs; buckets not razors (already doctrine in `codex/docs/MECHANICS_DETECTION.md`); high-FPS replays (R6) may relax this for new recordings.
 - **Detector rebuild churns counts** → pinned pre-rebuild goldens + justified diff report (S2).
 - **Scope creep in S3** (whiff detection is unbounded) → conservative thresholds, `near_miss` bucket, taxonomy frozen at Trey's sign-off.

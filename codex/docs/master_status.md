@@ -38,7 +38,7 @@
 - **SaaS build plan:** `IMPLEMENTATION_PLAN.md`
 - **Critical SaaS fixes:** `SAAS_FIXES_PLAN.md`
 - **UX polish plan:** `UX_IMPLEMENTATION_PLAN.md`
-- **Advanced mechanics plan:** `MECHANICS_IMPLEMENTATION_PLAN_v2.md`
+- **Advanced mechanics plan:** `codex/docs/MECHANICS_IMPLEMENTATION_PLAN_v2.md`
 - **SaaS spec:** `docs/plans/2026-01-03-rlcoach-saas-design.md`
 - **UX spec:** `docs/plans/2026-01-04-ux-polish-spec.md`
 
@@ -203,7 +203,7 @@
 
 ---
 
-### 4.4 `MECHANICS_IMPLEMENTATION_PLAN_v2.md`
+### 4.4 `codex/docs/MECHANICS_IMPLEMENTATION_PLAN_v2.md`
 
 - Most mechanics appear implemented in `src/rlcoach/analysis/mechanics.py`:
   - wavedash, speedflip, musty, ceiling shot, double touch, dribble, skim, psycho, etc.

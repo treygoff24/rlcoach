@@ -1,6 +1,6 @@
 # Mechanics Detection Implementation Plan v2
 
-Based on: `MECHANICS_DETECTION.md` comprehensive spec with player feedback and technical review.
+Based on: `codex/docs/MECHANICS_DETECTION.md` comprehensive spec with player feedback and technical review.
 
 ---
 
@@ -864,4 +864,4 @@ These are marked as deferred and not part of this implementation plan.
 
 ---
 
-*Plan created based on MECHANICS_DETECTION.md spec with player feedback and technical review. Revised based on Codex review feedback.*
+*Plan created based on codex/docs/MECHANICS_DETECTION.md spec with player feedback and technical review. Revised based on Codex review feedback.*

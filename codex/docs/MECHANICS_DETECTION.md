@@ -911,6 +911,8 @@ This means:
 - Physics reality: cancel must happen within ~100ms (12 ticks)
 - Replay reality: we see ~3 frames, so score in buckets (great/ok/late), not exact timing
 
+> **Addendum (2026-07-07):** `RecordFPS` is a header property, not a universal constant — boxcars' own fixtures include 60/120 Hz recordings, so this must not be hardcoded. A 2026-07-07 scan of the local 202-replay corpus (2025-09 to 2026-01) found 202/202 declared exactly `RecordFPS: 30.0`, with measured rate ≤30.007 Hz and zero replays above 30fps. 30Hz therefore remains the operative assumption for this corpus. The parser now surfaces both `declared_record_fps` (header) and `recorded_frame_hz` (measured) per replay, so downstream code can branch on the measured value instead of assuming.
+
 ### Reality #2: Limited Input Data in Replays
 
 **Replays do NOT contain full controller state.**

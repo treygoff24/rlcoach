@@ -37,8 +37,8 @@ The mission definition of done was synthesized from these sources:
 - `docs/plans/2026-04-07-rlcoach-full-parser-analysis-implementation.md`
 - `codex/Plans/2026-02-10-parser-refactor-update-plan.md`
 - `codex/Plans/rlcoach_implementation_plan.md`
-- `MECHANICS_SPEC.md`
-- `MECHANICS_IMPLEMENTATION_PLAN_v2.md`
+- `codex/docs/MECHANICS_SPEC.md`
+- `codex/docs/MECHANICS_IMPLEMENTATION_PLAN_v2.md`
 
 The synthesized completion target is:
 1. Complete the Rust parser contract for healthy, degraded, null-adapter, and unreadable-input modes.

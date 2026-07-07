@@ -1,6 +1,6 @@
 # Implementation Plan: Extended Mechanics Detection
 
-> Based on `MECHANICS_SPEC.md`. Extends `src/rlcoach/analysis/mechanics.py` with 12 new mechanics.
+> Based on `codex/docs/MECHANICS_SPEC.md`. Extends `src/rlcoach/analysis/mechanics.py` with 12 new mechanics.
 
 ---
 
