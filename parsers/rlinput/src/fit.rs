@@ -451,20 +451,46 @@ mod tests {
 #[cfg(all(test, feature = "sim"))]
 mod sim_tests {
     use super::*;
-    use crate::{convert::identity_rot_mat, engine::rocketsim::RocketSimEngine};
+    use crate::{
+        convert::identity_rot_mat,
+        engine::{portable::PortableEngine, rocketsim::RocketSimEngine},
+    };
 
     const TICKS: u32 = 4;
+    const PROBE_SAMPLES: usize = 256;
+    const BENCH_ITERATIONS: usize = 2_000;
 
     #[test]
+    #[ignore = "expensive RocketSim probe; run: cargo test -p rlinput --features sim \
+                discriminability_probe_dodges_and_double_jumps -- --ignored --nocapture"]
     fn discriminability_probe_dodges_and_double_jumps() {
-        let dodge = probe(HypothesisEvent::Dodge { dir: [1.0, 0.0] }, 0xD0D6E);
-        let double_jump = probe(HypothesisEvent::DoubleJump, 0xD00B1E);
+        let dodge = probe(ProbeKind::Dodge, 0xD0D6E);
+        let double_jump = probe(ProbeKind::DoubleJump, 0xD00B1E);
         println!("{}", dodge.line("dodge"));
         println!("{}", double_jump.line("double_jump"));
         assert!(dodge.clean_accuracy >= 0.95);
         assert!(dodge.noisy_accuracy >= 0.45);
         assert!(double_jump.clean_accuracy >= 0.90);
         assert!(double_jump.noisy_accuracy >= 0.35);
+    }
+
+    #[test]
+    #[ignore = "local throughput benchmark; run: cargo test -p rlinput --features sim \
+                benchmark_reference_and_portable_fit_cycles -- --ignored --nocapture"]
+    fn benchmark_reference_and_portable_fit_cycles() {
+        let reference = benchmark_engine("RocketSimEngine", RocketSimEngine::new);
+        let portable = benchmark_engine("PortableEngine", PortableEngine::new);
+        println!("{}", reference.line());
+        println!("{}", portable.line());
+        assert!(reference.null_sims_per_sec > 1_000.0);
+        assert!(reference.event_sims_per_sec > 1_000.0);
+        assert!(portable.event_sims_per_sec > reference.event_sims_per_sec);
+    }
+
+    #[derive(Clone, Copy)]
+    enum ProbeKind {
+        Dodge,
+        DoubleJump,
     }
 
     struct ProbeStats {
@@ -477,43 +503,70 @@ mod sim_tests {
     impl ProbeStats {
         fn line(&self, name: &str) -> String {
             format!(
-                "probe,{name},clean_accuracy={:.3},noisy_accuracy={:.3},margin_p50={:.3},margin_p95={:.3},uu_shift_p50={:.3},uu_shift_p95={:.3}",
+                "probe,{name},samples={PROBE_SAMPLES},clean_accuracy={:.3},noisy_accuracy={:.3},margin_p10={:.3},margin_p50={:.3},margin_p90={:.3},uu_shift_p10={:.3},uu_shift_p50={:.3},uu_shift_p90={:.3}",
                 self.clean_accuracy,
                 self.noisy_accuracy,
+                percentile_f64(self.margins.clone(), 0.10),
                 percentile_f64(self.margins.clone(), 0.50),
-                percentile_f64(self.margins.clone(), 0.95),
+                percentile_f64(self.margins.clone(), 0.90),
+                percentile_f32(self.shift_deltas.clone(), 0.10),
                 percentile_f32(self.shift_deltas.clone(), 0.50),
-                percentile_f32(self.shift_deltas.clone(), 0.95)
+                percentile_f32(self.shift_deltas.clone(), 0.90)
             )
         }
     }
 
-    fn probe(event: HypothesisEvent, seed: u64) -> ProbeStats {
+    struct BenchStats {
+        name: &'static str,
+        null_sims_per_sec: f64,
+        event_sims_per_sec: f64,
+    }
+
+    impl BenchStats {
+        fn line(&self) -> String {
+            let ten_k_seconds = 10_000.0 / self.event_sims_per_sec;
+            let six_player_seconds = ten_k_seconds * 6.0;
+            let k_one_second_player = (self.event_sims_per_sec / 200.0).floor();
+            let k_ten_second_replay = (self.event_sims_per_sec * 10.0 / (6.0 * 200.0)).floor();
+            format!(
+                "benchmark,engine={},null_sims_per_sec={:.0},event_sims_per_sec={:.0},seconds_per_10k_player={:.3},seconds_per_6p_replay={:.3},affordable_k_1s_player={:.0},affordable_k_10s_6p_replay={:.0}",
+                self.name,
+                self.null_sims_per_sec,
+                self.event_sims_per_sec,
+                ten_k_seconds,
+                six_player_seconds,
+                k_one_second_player,
+                k_ten_second_replay
+            )
+        }
+    }
+
+    fn probe(kind: ProbeKind, seed: u64) -> ProbeStats {
         let weights = provisional_fit_weights();
         let controls = vec![Controls::default(); TICKS as usize];
-        let hypotheses = placement_hypotheses(event, TICKS, controls.clone());
         let mut rng = Lcg::new(seed);
+        let mut engine = RocketSimEngine::new();
         let mut clean_hits = 0;
         let mut noisy_hits = 0;
         let mut margins = Vec::new();
         let mut shift_deltas = Vec::new();
 
-        for _ in 0..200 {
+        for _ in 0..PROBE_SAMPLES {
             let start = random_state(&mut rng);
             let truth = rng.u32(0, TICKS);
-            let observed = RocketSimEngine::new().rollout(
+            let event = match kind {
+                ProbeKind::Dodge => HypothesisEvent::Dodge {
+                    dir: random_dodge_dir(&mut rng),
+                },
+                ProbeKind::DoubleJump => HypothesisEvent::DoubleJump,
+            };
+            let hypotheses = placement_hypotheses(event, TICKS, controls.clone());
+            let observed = engine.rollout(
                 &start,
                 &FitHypothesis::event(event, truth, controls.clone()).to_tick_plan(),
                 TICKS,
             );
-            let clean = fit_interval(
-                &mut RocketSimEngine::new(),
-                &start,
-                &hypotheses,
-                &observed,
-                &weights,
-                TICKS,
-            );
+            let clean = fit_interval(&mut engine, &start, &hypotheses, &observed, &weights, TICKS);
             if clean[0].hypothesis.tick_offset == truth {
                 clean_hits += 1;
             }
@@ -521,7 +574,7 @@ mod sim_tests {
 
             let noisy_observed = add_noise(observed, &weights, &mut rng);
             let noisy = fit_interval(
-                &mut RocketSimEngine::new(),
+                &mut engine,
                 &start,
                 &hypotheses,
                 &noisy_observed,
@@ -534,9 +587,7 @@ mod sim_tests {
 
             let ends: Vec<_> = hypotheses
                 .iter()
-                .map(|hypothesis| {
-                    RocketSimEngine::new().rollout(&start, &hypothesis.to_tick_plan(), TICKS)
-                })
+                .map(|hypothesis| engine.rollout(&start, &hypothesis.to_tick_plan(), TICKS))
                 .collect();
             for pair in ends.windows(2) {
                 shift_deltas.push(dist(pair[0].pos, pair[1].pos));
@@ -544,11 +595,76 @@ mod sim_tests {
         }
 
         ProbeStats {
-            clean_accuracy: clean_hits as f32 / 200.0,
-            noisy_accuracy: noisy_hits as f32 / 200.0,
+            clean_accuracy: clean_hits as f32 / PROBE_SAMPLES as f32,
+            noisy_accuracy: noisy_hits as f32 / PROBE_SAMPLES as f32,
             margins,
             shift_deltas,
         }
+    }
+
+    fn benchmark_engine<E, F>(name: &'static str, make_engine: F) -> BenchStats
+    where
+        E: AirEngine,
+        F: Fn() -> E,
+    {
+        let weights = provisional_fit_weights();
+        let start = random_state(&mut Lcg::new(0xBEEFCACE));
+        let controls = vec![Controls::default(); TICKS as usize];
+        let null = FitHypothesis::null(controls.clone());
+        let null_hypotheses = vec![
+            null.clone(),
+            FitHypothesis::event(HypothesisEvent::DoubleJump, 0, controls.clone()),
+        ];
+        let event_hypotheses = event_benchmark_hypotheses(controls);
+
+        let mut engine = make_engine();
+        let observed_null = engine.rollout(&start, &null.to_tick_plan(), TICKS);
+        let started = std::time::Instant::now();
+        for _ in 0..BENCH_ITERATIONS {
+            let _ = fit_interval(
+                &mut engine,
+                &start,
+                &null_hypotheses,
+                &observed_null,
+                &weights,
+                TICKS,
+            );
+        }
+        let null_sims_per_sec = BENCH_ITERATIONS as f64 / started.elapsed().as_secs_f64();
+
+        let observed_event = engine.rollout(&start, &event_hypotheses[17].to_tick_plan(), TICKS);
+        let started = std::time::Instant::now();
+        for _ in 0..BENCH_ITERATIONS {
+            let _ = fit_interval(
+                &mut engine,
+                &start,
+                &event_hypotheses,
+                &observed_event,
+                &weights,
+                TICKS,
+            );
+        }
+        let event_sims_per_sec =
+            (BENCH_ITERATIONS * event_hypotheses.len()) as f64 / started.elapsed().as_secs_f64();
+
+        BenchStats {
+            name,
+            null_sims_per_sec,
+            event_sims_per_sec,
+        }
+    }
+
+    fn event_benchmark_hypotheses(controls: Vec<Controls>) -> Vec<FitHypothesis> {
+        (0..12)
+            .flat_map(|dir_idx| {
+                let angle = dir_idx as f32 * std::f32::consts::TAU / 12.0;
+                let event = HypothesisEvent::Dodge {
+                    dir: [angle.cos(), angle.sin()],
+                };
+                let controls = controls.clone();
+                (0..TICKS).map(move |tick| FitHypothesis::event(event, tick, controls.clone()))
+            })
+            .collect()
     }
 
     fn random_state(rng: &mut Lcg) -> CarPhysState {
@@ -593,6 +709,11 @@ mod sim_tests {
             state.rot,
         );
         state
+    }
+
+    fn random_dodge_dir(rng: &mut Lcg) -> [f32; 2] {
+        let angle = rng.range(-std::f32::consts::PI, std::f32::consts::PI);
+        [angle.cos(), angle.sin()]
     }
 
     fn random_rot(rng: &mut Lcg) -> [[f32; 3]; 3] {
