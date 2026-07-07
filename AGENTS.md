@@ -28,7 +28,7 @@ Do not use system Python for repo work here.
 | --- | --- | --- |
 | Core Python logic | `src/rlcoach` and matching `tests/` files | `README.md` for operator-facing behavior |
 | Replay parser / Rust bridge | `parsers/rlreplay_rust` | Rust/build docs only if the bridge changes |
-| Scope or roadmap changes | current plan in `codex/Plans/rlcoach_implementation_plan.md` | related ticket/docs only if the task expands scope |
+| Scope or roadmap changes | current plan in `codex/Plans/2026-07-07-max-extraction-input-reconstruction-plan.md` | related ticket/docs only if the task expands scope |
 | Design notes or tickets | `codex/docs/`, `codex/tickets/` | only the touched note/ticket |
 | Replay fixtures | `assets/replays/` | Git LFS workflow as needed |
 | Schemas | `schemas/` | matching tests/fixtures |

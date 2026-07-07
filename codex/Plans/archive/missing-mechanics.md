@@ -1,3 +1,5 @@
+**ARCHIVED 2026-07-07 — fully implemented; superseded by the max-extraction plan.**
+
 # Missing Mechanics Detection
 
 Mechanics we should add to `src/rlcoach/analysis/mechanics.py`.
