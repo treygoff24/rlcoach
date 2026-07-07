@@ -254,7 +254,8 @@ impl PortableEngine {
         }
 
         let forward_speed_ratio = (forward_speed.abs() / consts::CAR_MAX_SPEED).min(1.0);
-        let should_dodge_backwards = if forward_speed.abs() < consts::DODGE_BACKWARD_SPEED_THRESHOLD {
+        let should_dodge_backwards = if forward_speed.abs() < consts::DODGE_BACKWARD_SPEED_THRESHOLD
+        {
             dodge_dir[0] < 0.0
         } else {
             (dodge_dir[0] >= 0.0) != (forward_speed >= 0.0)
