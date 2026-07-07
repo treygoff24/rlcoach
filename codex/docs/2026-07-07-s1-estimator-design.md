@@ -10,10 +10,10 @@ All constants and mechanics below were read directly from the vendored RocketSim
 
 - Gravity `-650` uu/s²; car speed cap `2300`; angular speed cap `5.5` rad/s.
 - Boost accel: ground `2975/3 ≈ 991.67`, air `3175/3 ≈ 1058.33` uu/s²; drain `100/3` /s. Air throttle accel `200/3 ≈ 66.67` uu/s².
-- Jump: immediate impulse `875/3 ≈ 291.67` uu/s along car-up; hold accel `4375/3 ≈ 1458.33` uu/s² for `0.025 ≤ t ≤ 0.2` s. Double jump: another `291.67` up-impulse, no torque. Second action (dodge/double-jump) allowed until `air_time_since_jump < 1.25` s.
+- Jump (`Car.cpp:548-596`): immediate impulse `875/3 ≈ 291.67` uu/s along car-up; hold accel `4375/3 ≈ 1458.33` uu/s², scaled by `JUMP_PRE_MIN_ACCEL_SCALE = 0.62` (≈ `904.17` uu/s²) while `jump_time < 0.025` s (`Car.cpp:583-587`). `is_jumping` cannot end before `0.025` s regardless of release (`Car.cpp:562`) and persists while held up to `0.2` s. Double jump: another `291.67` up-impulse, no torque. `air_time_since_jump` accrues only once `has_jumped && !is_jumping` (`Car.cpp:698`) — the `1.25` s second-action window is anchored to jump END (`clamp(release, press+0.025 s, press+0.2 s)`), not to release.
 - Dodge (from `Car.cpp:704-775`): direction `dodgeDir = normalize(-pitch, yaw+roll)` (car-local 2D, deadzone `0.5` on `|yaw|+|pitch|+|roll|`, per-component `0.1` zeroing); `flipRelTorque = (-dodgeDir.y, dodgeDir.x, 0)`; torque scale `(X=260, Y=224)` applied while `flip_time < 0.65` s; initial velocity impulse `500` uu/s in the dodge direction with speed-ratio scaling (side ×1.9 max, backward ×2.5 max ×16/15, forward ×1.0).
 - Flip z-damp signature: while flipping and `0.15 ≤ flip_time ≤ 0.65` and (`vz < 0` or `flip_time < 0.21`): `vz *= (1-0.35)^(tick/120)` per tick.
-- Flip cancel (`Car.cpp:616-628`): pitch input with the SAME sign as `flipRelTorque.y` scales pitch flip torque by `(1 - |pitch|)` — **partial cancels are native**; a full cancel is `|pitch| = 1`. Cancelling also re-enables the air-control block.
+- Flip cancel (`Car.cpp:616-628`): pitch input with the SAME sign as `flipRelTorque.y` scales pitch flip torque by `(1 - |pitch|)` — **partial cancels are native**; a full cancel is `|pitch| = 1`. Cancelling also re-enables the air-control block. The cancel branch requires `flipRelTorque.y ≠ 0` (`Car.cpp:616`) — **pure side flips are never pitch-cancellable** and get no air control or angular damping for the whole torque phase.
 - Air control (`Car.cpp:597-680`): active only when zero wheels have contact, and during a flip only if cancelling (or stalling). Effective angular acceleration (after `CAR_TORQUE_SCALE = 2π/65536·1000 ≈ 0.0958738` and the inertia-normalizing `applyTorque`):
   - torque `T = (pitch 12.464, yaw 9.108, roll 38.350)` rad/s² (`(130, 95, 400) × scale`)
   - damping `D = (pitch 2.876, yaw 1.917, roll 4.794)` s⁻¹ (`(30, 20, 50) × scale`), pitch/yaw damping scaled by `(1 - |input|)`, roll damping unconditional.
@@ -124,13 +124,25 @@ bitflags! pub struct AmbiguityFlags: u32 {
 pub struct Channel<T> { pub value: T, pub source: Source, pub confidence: f32, pub flags: AmbiguityFlags }
 pub struct InputSample {                    // one per recorded interval [k, k+1)
     pub frame_index: u32,
+    pub tick_range: (u64, u64),             // segment-lattice ticks [start, end)
+    pub time_range: (f64, f64),             // absolute replay seconds for the same bounds
     pub throttle: Channel<f32>, pub steer: Channel<f32>,
     pub pitch: Channel<f32>,    pub yaw: Channel<f32>,   pub roll: Channel<f32>,
     pub jump: Channel<bool>,    pub boost: Channel<bool>, pub handbrake: Channel<bool>,
 }
-pub enum SolvedEventKind { JumpPress, JumpRelease, DoubleJump, Dodge { dir: [f32; 2] }, Stall }
-pub struct SolvedEvent { pub kind: SolvedEventKind, pub tick: u64, pub frame_index: u32,
-                         pub confidence: f32, pub flags: AmbiguityFlags }
+pub struct CancelSummary {                  // S2 needs cancel timing, not just presence
+    pub onset_tick: Option<u64>,            // first tick with same-signed pitch ≥ 0.1; None = never cancelled
+    pub peak_pitch: f32,                    // max |pitch| during the torque phase (1.0 = full cancel)
+    pub full_cancel: bool,                  // peak_pitch ≥ 0.95 within the torque window
+}
+pub enum SolvedEventKind {
+    JumpPress, JumpRelease, DoubleJump,
+    Dodge { dir: [f32; 2], cancel: CancelSummary },
+    Stall,
+    Liftoff, Landing,                       // contact transitions, kinematic-sourced, for S2 windows
+}
+pub struct SolvedEvent { pub kind: SolvedEventKind, pub tick: u64, pub t: f64,  // segment-lattice tick + absolute replay seconds
+                         pub frame_index: u32, pub confidence: f32, pub flags: AmbiguityFlags }
 pub struct InputTimeline { pub player_id: String, pub samples: Vec<InputSample>,
                            pub events: Vec<SolvedEvent>, pub segments: Vec<SegmentSummary> }
 pub struct SolveOutput { pub timelines: Vec<InputTimeline>, pub coverage: CoverageReport,
@@ -189,7 +201,7 @@ Emitted per replay by `segment.rs`, aggregated by V1:
 coverage = |{AIR segments with segment_confidence ≥ 0.7}| / |{AIR segments}|
 ```
 
-Also reported (informational, not gate): duration-weighted coverage, and the share of player-seconds excluded by each boundary cause (so conservative exclusion can't game the denominator — plan §4 requirement). **Frozen definitions, recorded before any solver results are viewed**: an AIR segment is as defined in §2.3; `segment_confidence` is the minimum over the segment's intervals of the winning joint-hypothesis confidence (§5.4). Orchestrator should ratify both definitions at dispatch (open decision #3, §10).
+Also reported (informational, not gate): duration-weighted coverage, and the share of player-seconds excluded by each boundary cause (so conservative exclusion can't game the denominator — plan §4 requirement). **Adjudication guard (non-gate)**: if excluded airborne player-seconds — all exclusion causes combined, measured against total not-on-ground player-seconds — exceed **10%** on the holdout, the gate writeup MUST include the exclusion-cause breakdown and an explicit argument that the exclusions are physically warranted before criterion 5 is adjudicated. **Frozen definitions, recorded before any solver results are viewed**: an AIR segment is as defined in §2.3; `segment_confidence` is the minimum over the segment's intervals of the winning joint-hypothesis confidence (§5.4). Orchestrator should ratify both definitions at dispatch (open decision #3, §10).
 
 ## 3. Stateful per-player tracker
 
@@ -199,7 +211,7 @@ A product state, not a flat FSM:
 pub struct CarTracker {
     contact: ContactState,   // Grounded { since_tick } | Airborne { liftoff_tick } | Demolished { until }
     jump: JumpState,         // Idle | Holding { press_tick } | Released { press_tick, release_tick }
-    second: SecondAction,    // Available { deadline_tick }         // = release + 1.25 s
+    second: SecondAction,    // Available { deadline_tick }         // = jump_end + 1.25 s; jump_end = clamp(release, press+0.025 s, press+0.2 s)
                              // | UsedDodge(FlipPhase) | UsedDoubleJump { tick } | Expired
     boost: BoostTracker,     // active: bool, amount_estimate: f32
 }
@@ -212,14 +224,14 @@ pub struct FlipPhase {
 }
 ```
 
-Legality rules enforced (mirroring `Car.cpp`): a dodge or double jump requires `Airborne`, `second == Available`, and `now < deadline`; dodge requires flip input magnitude ≥ deadzone (0.5) — below it the same press is a double jump; a dodge with per-component inputs under 0.1 that normalize to zero is a **stall** (torque-free flip: z-damp fires, no angular step). Jump hold is capped at 0.2 s; `Available` opens at jump release (or at the 0.2 s cap).
+Legality rules enforced (mirroring `Car.cpp`): a dodge or double jump requires `Airborne`, `second == Available`, and `now < deadline`; dodge requires flip input magnitude ≥ deadzone (0.5) — below it the same press is a double jump; a dodge with per-component inputs under 0.1 that normalize to zero is a **stall** (torque-free flip: z-damp fires, no angular step). Jump hold: `is_jumping` runs a minimum of 0.025 s — early release does not end it (`Car.cpp:562`) — and a maximum of 0.2 s; hold accel is 0.62-scaled before 0.025 s and full 1458.33 uu/s² after. The `Available` deadline clock (`DOUBLEJUMP_MAX_DELAY = 1.25` s) starts when `is_jumping` ends: `jump_end = clamp(release, press+0.025 s, press+0.2 s)`. A second press edge is accepted while airborne even before `jump_end` — RocketSim gates on `airTimeSinceJump < 1.25`, which is held at 0 while jumping (`Car.cpp:698-704`).
 
 Transition evidence by mode:
 
 | Transition | Seeded evidence | Unseeded evidence |
 |---|---|---|
 | Grounded→Airborne (jump) | jump raw-counter delta (mod 256) at interval; `is_on_ground` drop | `is_on_ground` drop + car-up Δv ≥ ~250 uu/s (30Hz-decayed 291.67 impulse) |
-| JumpRelease | jump counter parity/delta | up-accel residual drops below hold accel (1458 uu/s² signature ends); else assumed at 0.2 s cap with flag |
+| JumpRelease | jump counter parity/delta | up-accel residual profile: ~904 uu/s² (0.62×) before 0.025 s then 1458 uu/s² while held; release = interval where the hold signature ends, never placed before press+0.025 s; else assumed at 0.2 s cap with flag |
 | Dodge | dodge counter delta + `dodge_torque` vector (direction!) | ang-vel step on flip axis + z-damp signature + 500 uu/s planar Δv; adjudicated by forward-fit |
 | DoubleJump | double-jump counter delta + `double_jump_impulse` vector | up Δv ≈ 291.67 with **no** angular step |
 | Stall | dodge counter delta with near-zero `dodge_torque` | z-damp signature without torque step |
@@ -255,12 +267,14 @@ for each frame k in segment[1..]:
 
 For an interval spanning ticks `[t_k, t_{k+1})`, `N = t_{k+1} − t_k` (typically 4): discrete events legal per the tracker (at most: one jump press OR one second-action, plus one jump release) may be placed at any of the `N` ticks. Everything else — direction, cancel profile, analog channels — is **continuous** and solved by inverse models inside a fixed discrete skeleton, so the discrete space never explodes.
 
+**`LONG_GAP` intervals are the exception**: a ~23-tick gap can legally contain a composite sequence (press → release → second action) that the one-event skeleton forbids. Policy: composite skeletons are **allowed** on `LONG_GAP` intervals — bounded to one press + one release + one second action, legality-ordered per §3, enumerated with signature pruning (endpoint Δv decomposition, z-damp presence) and hard-capped at 256 hypotheses; past the cap the interval is emitted `Inferred` + `LONG_GAP`. Solved composites carry a confidence ceiling of 0.5. These intervals are **not excluded from gate criteria 1–2**: flip-presence signatures (z-damp, impulse) span the gap and "correct recorded interval" remains well-defined, so exclusion would be an unnecessary post-freeze reinterpretation of the gate; the 0.5 ceiling instead makes them count honestly against criterion 5. Rationale for allowing rather than excluding: gaps are rare (≤ 0.08% of frames on 0925.replay), but a forbidden-by-construction skeleton would silently mis-solve real composite actions into single events.
+
 ### 4.3 Hypothesis-space size and pruning
 
 - **Null-hypothesis fast path**: if the interval shows no kinematic anomaly (angular velocity change explained by damping alone; Δv explained by gravity + current boost/throttle estimate; no z-damp signature), no event hypotheses are generated at all. The null hypothesis is scored once. This covers the overwhelming majority of intervals.
 - **Event intervals**: ≤ N placements × ≤ 2 legal event kinds = ≤ 8 discrete hypotheses. For dodges, direction warm-starts from evidence: seeded = replicated `dodge_torque`; unseeded = the observed Δω axis (flip torque dominates the angular step, so the axis estimate is strong). Continuous refinement (direction ± cancel onset) uses ≤ 6 forward-sim evaluations per surviving placement (coordinate descent, converges in ≤ 3 rounds because the objective is near-quadratic in direction angle).
 - **Bound**: ≤ 8 × 6 = 48 short sims (≤ interval length) per event interval, plus one verification sim per ordinary interval. A generous 200 event intervals per player per replay ⇒ ~10k sims of ≤ 78 ticks ≈ 8×10⁵ car-ticks/player — sub-second in either engine, ~seconds per replay for 6 players.
-- **Timing discriminability** (why placement is solvable at all): shifting a dodge by one tick shifts the 500 uu/s impulse by 8.33 ms ⇒ ~4.2 uu of end-of-interval position difference, plus torque-integration differences in ω and the z-damp onset. Replay state quantization is far below 4 uu. WP6 includes a synthetic discriminability probe that measures this margin empirically before any real-replay claims are made.
+- **Timing discriminability** (why placement is solvable at all): shifting a dodge by one tick shifts the 500 uu/s impulse by 8.33 ms ⇒ ~4.2 uu of end-of-interval position difference, plus torque-integration differences in ω and the z-damp onset. boxcars decodes positions at 0.01 uu resolution (`Vector3f::decode` divides raw ints by 100, boxcars `src/network/models.rs:15-17`) — three orders of magnitude below the 4.2 uu margin. WP6 includes a synthetic discriminability probe that measures this margin empirically before any real-replay claims are made.
 
 ---
 
@@ -277,7 +291,7 @@ pub trait AirEngine {
 
 Two implementations:
 
-- **`PortableEngine`** (always-on, no C++): semi-implicit Euler at 120Hz implementing the *airborne subset* of the physics model in the doc header: gravity; boost accel along nose + tank drain; air throttle; jump hold force; jump/double-jump/dodge impulses; flip torque with cancel scaling, pitchlock, z-damp; air-control torque + damping with the exact gating (no torque & no damping during non-cancelled flips); 2300 and 5.5 clamps. Integration order copied from RocketSim's update sequence.
+- **`PortableEngine`** (always-on, no C++): semi-implicit Euler at 120Hz implementing the *airborne subset* of the physics model in the doc header: gravity; boost accel along nose + tank drain; air throttle; jump hold force (0.62× before 0.025 s, full 1458.33 uu/s² after; 0.025 s minimum / 0.2 s maximum jump duration); jump/double-jump/dodge impulses; flip torque with cancel scaling, pitchlock, z-damp; air-control torque + damping with the exact gating (no torque & no damping during non-cancelled flips); 2300 and 5.5 clamps. Integration order copied from RocketSim's update sequence.
 - **`RocketSimEngine`** (`feature = "sim"`): `GameMode::TheVoid` arena at 120Hz per the verified `parsers/rlinput/src/sim.rs` pattern — `init_from_mem(&[], &[])`, `Arena::new(TheVoid, default, 120)`, one persistent arena, `set_car(id, CarState)` per hypothesis (full mid-air state injection incl. `is_flipping`, `flip_rel_torque`, `flip_time`, `air_time_since_jump`), `set_car_controls` per tick via the tick-by-tick `step(1)` loop, `get_car` per observation tick. Ball parked at a fixed far position with zero velocity on every reset so it can never interact. AIR segments are contact-free by construction, so meshlessness is immaterial.
 
 DEVIATION (engine roles): the plan names rocketsim-rs as the forward-fit engine with a simplified integrator as *fallback*. This design promotes the portable integrator to the **default inner-loop engine** with RocketSim TheVoid as the **reference engine**: `EnginePreference::PreferReference` re-scores each winning hypothesis on TheVoid and is used for all gate-facing numbers (locally and in `sim`-featured CI); `PortableOnly` is what a meshless/toolchain-light environment gets. Rationale: (a) CI is meshless anyway and the wheel should not require a C++ toolchain for OSS consumers; (b) the inner loop wants thousands of cheap rollouts; (c) correctness is protected by a mandatory cross-check suite — random air states + control sequences stepped through both engines; acceptance p99 position divergence < 1 uu and ang-vel divergence < 0.02 rad/s over 0.5 s rollouts. If the cross-check can't reach tolerance, the reference engine becomes mandatory for scoring (the trait makes this a config change, not a redesign) and the gate is unaffected.
@@ -348,19 +362,20 @@ u < 0:  α = u(T − Dω) − Dω   ⇒  u = (α + Dω) / (T − Dω)
 roll:                            u = (α + Dω) / T
 ```
 
-Compute both branches, keep sign-consistent roots, clamp to `[−1, 1]`. Both-consistent (rare) ⇒ smaller `|u|` + `LOW_MARGIN`; neither ⇒ clamp to the nearer boundary + flag. **Degeneracy is real**: `T + Dω` crosses zero at `ω = −T/D ≈ −4.33 rad/s` for pitch (within the 5.5 cap) — near-degenerate denominators (`|T ± Dω| < 2`) fall back to forward-fit refinement on that axis, flagged.
+Compute both branches, keep sign-consistent roots, clamp to `[−1, 1]`. Both-consistent ⇒ smaller `|u|` + `LOW_MARGIN`; neither ⇒ clamp to the nearer boundary + flag. **Degeneracy is real and symmetric per branch**: the `u ≥ 0` denominator `T + Dω` crosses zero at `ω = −T/D` and the `u < 0` denominator `T − Dω` at `ω = +T/D` — pitch `±4.33 rad/s`, yaw `±4.75 rad/s`, both inside the 5.5 cap (roll damping is not input-scaled, so roll is always well-conditioned). Near-degenerate denominators (`|T ± Dω| < 2`) fall back to forward-fit refinement on that axis, flagged.
 
-Multi-tick composition: over an interval, `u` is assumed constant (the 30Hz resolution limit — per-tick input variation inside an interval is unobservable; stated as a documented contract, "buckets not razors"). The exact discrete map `ω_{t+1} = clamp_{5.5}(ω_t + α(u, ω_t)/120)` composed N times is monotone in `u` away from clamps, so `u` is recovered by bisection/Newton (≤ 20 iterations) with the single-step closed form as initializer. `ANGVEL_SATURATED` intervals (clamp engaged) are ill-posed ⇒ inverse skipped, forward-fit only, confidence haircut.
+Multi-tick composition: over an interval, `u` is assumed constant (the 30Hz resolution limit — per-tick input variation inside an interval is unobservable; stated as a documented contract, "buckets not razors"). The exact discrete map `ω_{t+1} = clamp_{5.5}(ω_t + α(u, ω_t)/120)` composed N times is **not globally monotone in `u`**: `∂α/∂u = T ± Dω` flips sign when `ω` crosses `∓T/D` (pitch ±4.33, yaw ±4.75 rad/s), and the composed trajectory can cross that line mid-interval. Recovery is therefore **branch-wise and orientation-aware**: solve `u ∈ [0, 1]` and `u ∈ [−1, 0]` independently; within each branch, evaluate the end-of-interval residual on a coarse grid (9 points) to bracket every sign change, then bisect each bracket (≤ 20 iterations, single-step closed form as initializer). Multiple roots ⇒ smallest `|u|` + `LOW_MARGIN`; no root in either branch ⇒ nearer boundary + flag. `ANGVEL_SATURATED` intervals (clamp engaged) are ill-posed ⇒ inverse skipped, forward-fit only, confidence haircut.
 
 ### 6.2 Observability windows (from the verified gating in `Car.cpp`)
 
 | phase | pitch | yaw / roll |
 |---|---|---|
 | free air | invertible | invertible |
-| flip, no cancel | only via cancel scaling (none) — flip torque only | **no physical effect** (`doAirControl == false`) ⇒ `Inferred`, conf 0, `FLIP_TORQUE_ACTIVE` |
-| flip, cancelling | recovered from torque scaling `(1−|pitch|)` on the flip-pitch axis ⇒ **partial cancels measurable** (`POSSIBLE_PARTIAL_CANCEL` when 0 < |pitch| < 1) | invertible (air control re-enabled) |
-| pitchlock tail (0.65–0.95 s) | **no physical effect** ⇒ `Inferred`, conf 0, `PITCHLOCK_ACTIVE` | invertible |
-| stall (torque-free flip) | invertible (air control active) | invertible |
+| flip, `flipRelTorque.y ≠ 0`, no cancel input | only via cancel scaling (none active) — flip torque only | **no physical effect** (`doAirControl == false`) ⇒ `Inferred`, conf 0, `FLIP_TORQUE_ACTIVE` |
+| flip, `flipRelTorque.y ≠ 0`, cancelling | recovered from flip-torque scaling `(1−|pitch|)` on the flip-pitch axis ⇒ **partial cancels measurable** (`POSSIBLE_PARTIAL_CANCEL` when 0 < |pitch| < 1). Air-control pitch torque stays zero (`pitchTorqueScale = 0` while flipping) — pitch is observable ONLY through cancel scaling | invertible (air control re-enabled) |
+| pure side flip (`flipRelTorque.y == 0`) | **never cancellable** — the cancel branch requires `relDodgeTorque.y() != 0` (`Car.cpp:616`); `doAirControl` stays false ⇒ `Inferred`, conf 0, `FLIP_TORQUE_ACTIVE` | **no physical effect** for the whole torque phase ⇒ `Inferred`, conf 0, `FLIP_TORQUE_ACTIVE` |
+| pitchlock tail (0.65–0.95 s, all flips incl. stalls) | **no physical effect** (`pitchTorqueScale = 0`, `Car.cpp:651-654`) ⇒ `Inferred`, conf 0, `PITCHLOCK_ACTIVE` | invertible |
+| stall (torque-free flip, 0–0.65 s) | **no physical effect** — `doAirControl == true` but `pitchTorqueScale = 0` while `isFlipping` (`Car.cpp:649-650`), and pitch damping is input-independent at scale 0 ⇒ `Inferred`, conf 0, `PITCHLOCK_ACTIVE` | invertible (air control active) |
 
 Honest unobservability is a first-class output: channels the physics cannot expose are emitted as `Inferred` with zero confidence, never guessed with false precision.
 
@@ -416,7 +431,7 @@ The oracle produces, per channel: reliability data (predicted confidence vs empi
 
 ### 8.2 Frozen dev set and baselines
 
-Dev set = 10 replays: the 6 committed `Replay_files/*.replay` fixtures (already de facto development data; they cover buckets 250811 and 250909) + 4 from the 251202 bucket selected by seeded deterministic draw (seed and resulting GUIDs recorded in the WP9 PR and appended to the plan's frozen block). Baseline medians/p95s (`E_zero` distributions) are computed on the dev set once, committed as a JSON artifact, and never recomputed — criterion 4 compares holdout `E_solved` medians against these frozen numbers (median ≤ 0.25×, p95 ≤ 0.5×, no bucket worse than 2× corpus median). The ≥15-replay holdout is drawn by the orchestrator at gate time from replays untouched during S1.
+Dev set = 10 replays: the 6 committed `Replay_files/*.replay` fixtures (already de facto development data; they cover buckets 250811 and 250909) + 4 from the 251202 bucket selected by seeded deterministic draw. **Sequencing is load-bearing**: the seed and resulting GUIDs are committed as a manifest in WP1 (`assets/s1_dev_set.json`) and appended to the plan's frozen block BEFORE any σ, threshold, or confidence-map tuning exists anywhere in the codebase — the dev set must not be chosen with tuning knowledge in hand. **Per-fixture thresholds are forbidden**: every tunable lives in the global `SolverThresholds`/`FitWeights` config; nothing may key on replay identity. Baseline medians/p95s (`E_zero` distributions) are computed on the dev set once, committed as a JSON artifact, and never recomputed — criterion 4 compares holdout `E_solved` medians against these frozen numbers (median ≤ 0.25×, p95 ≤ 0.5×, no bucket worse than 2× corpus median). The ≥15-replay holdout is drawn by the orchestrator **only after all tuning is locked** (final thresholds committed and declared frozen), from replays untouched during S1.
 
 ### 8.3 CI variant
 
@@ -430,18 +445,18 @@ Every WP: rust-engineer skill mandated; gate = `ruff` + `black --check` + `pytes
 
 | # | Scope | Owned files | Acceptance criteria | Proves | Size |
 |---|---|---|---|---|---|
-| **WP1** | Model + output types, conversions, lattice | `rlinput/src/{model,timeline,convert,lattice,consts}.rs` | serde round-trips; quat→RotMat golden tests on known orientations; lattice unit tests: delta-zero merge, 0.19 s gap, f64 accumulation (9000-frame synthetic drifts < 0.5 tick within segments), cadence guard | foundations for all criteria | S |
+| **WP1** | Model + output types, conversions, lattice, dev-set freeze | `rlinput/src/{model,timeline,convert,lattice,consts}.rs`, `assets/s1_dev_set.json` | serde round-trips; quat→RotMat golden tests on known orientations; lattice unit tests: delta-zero merge, 0.19 s gap, f64 accumulation (9000-frame synthetic drifts < 0.5 tick within segments), cadence guard; **dev-set manifest committed** (6 fixtures + 4 seeded-draw 251202 GUIDs per §8.2) before any σ/threshold tuning exists anywhere | foundations for all criteria | S |
 | **WP2** | Segmentation + coverage | `rlinput/src/segment.rs` | synthetic boundary tests per §2.1 cause; Hermite car-car min-distance tests; coverage stats emitted; pinned segment/coverage counts on 0925 fixture | criterion 5 denominator | M |
 | **WP3** | Tracker + edge reconstruction | `rlinput/src/tracker.rs` | mod-256 delta edge recovery incl. wrap (254→2) and even-delta sub-frame cases; legality property tests (no dodge without window etc.); on 0925: reconstructed dodge edges consistent with 378 vector events, double-jump with 119; `dodge_torque` axis/magnitude convention verified empirically here | criterion 1 ground-truth side | M |
 | **WP4** | Portable air engine | `rlinput/src/engine/{mod,portable}.rs` | implements full §5.1 airborne subset; unit tests per mechanic (z-damp window, cancel scaling, pitchlock, impulse scaling vs speed); update order documented against `Car.cpp` | criterion 4 machinery | M |
-| **WP5** | Channel solvers | `rlinput/src/channels/{aerial,ground,boost}.rs` | inverse-aerial round-trip vs portable engine (`solve(rollout(u)) ≈ u`, p99 < 0.02 input units, degenerate zones excluded+flagged); ground-model unit tests; boost-edge synthetic tests | criteria 3, 6 cross-val | M |
-| **WP6** | Forward-fit + confidence + RocketSim engine | `rlinput/src/{fit,solver}.rs`, `engine/rocketsim.rs` | engine cross-check suite (§5.1 tolerances); **synthetic discriminability probe**: dodges injected at known ticks in TheVoid, re-solved, tick-placement accuracy + margin distribution reported; noise-floor measurement on dev set replaces provisional σ; null-hypothesis fast path benchmarked | criteria 1, 2, 4 | **L** |
-| **WP7** | Unseeded candidate generation + mode plumbing | `rlinput/src/solver.rs` (extend), `tracker.rs` (branches) | seeded/unseeded single-code-path assertion; unseeded flip detection on synthetic + fixture data; beam-width bound tests | criteria 1, 2 | M |
+| **WP5** | Channel solvers | `rlinput/src/channels/{aerial,ground,boost}.rs` | inverse-aerial round-trip vs portable engine (`solve(rollout(u)) ≈ u`, p99 < 0.02 input units, degenerate zones excluded+flagged) with dense cases at `ω ∈ {±4.33, ±4.75, ±5.5}` rad/s and both `u` signs (non-monotone + saturated regimes per §6.1); branch-wise bracketing recovers all roots on constructed multi-root cases; ground-model unit tests; boost-edge synthetic tests | criteria 3, 6 cross-val | M |
+| **WP6** | Forward-fit + confidence + RocketSim engine | `rlinput/src/fit.rs`, `rlinput/src/engine/rocketsim.rs` | engine cross-check suite (§5.1 tolerances); **synthetic discriminability probe** (built on fit primitives over synthetic single intervals — no `solver.rs` dependency): dodges injected at known ticks in TheVoid, re-solved, tick-placement accuracy + margin distribution reported; noise-floor measurement on the WP1-frozen dev set replaces provisional σ; null-hypothesis fast path benchmarked | criteria 1, 2, 4 | **L** |
+| **WP7** | Solver orchestration + unseeded candidates + mode plumbing | `rlinput/src/solver.rs` (sole owner — WP6 does not touch it), `tracker.rs` (branch extensions; ownership handed off from WP3, which completes first) | segments→tracker→fit pipeline assembled; seeded/unseeded single-code-path assertion; unseeded flip detection on synthetic + fixture data; beam-width bound tests | criteria 1, 2 | M |
 | **WP8** | pyo3 boundary + Python attachment | `parsers/rlinput_py/*`, `src/rlcoach/input_timeline.py`, `parser/types.py` docs, `Makefile`, `.github/workflows/ci.yml`, `tests/input_timeline/*` | wheel builds via maturin from workspace (CI path per S1.0 note); adapter degrades to `None` without wheel; aggregator cache wiring; perf: full 0925 solve ≤ 2 s portable | integration surface | M |
-| **WP9** | Calibration oracle + V1 harness | `rlinput/src/calib.rs`, `scripts/v1_resim.py`, baseline artifact, CI `resim_smoke` | withholding config honored (tautology guard test: withheld channel never read — enforced by type-level masking); oracle metrics per §7.2 emitted; dev-set selection seeded + GUIDs recorded; frozen baseline JSON committed; bucket-segmented reports | criteria 3, 4, 5 | M |
+| **WP9** | Calibration oracle + V1 harness | `rlinput/src/calib.rs`, `scripts/v1_resim.py`, baseline artifact, CI `resim_smoke` | withholding config honored (tautology guard test: withheld channel never read — enforced by type-level masking); oracle metrics per §7.2 emitted; consumes the WP1-frozen dev-set manifest (no reselection permitted); frozen baseline JSON committed; bucket-segmented reports | criteria 3, 4, 5 | M |
 | **WP10** | Gate evaluation tooling + docs | `scripts/s1_gate_eval.py`, `docs/validation.md` skeleton, `rlinput/NOTICE.md` | one command produces the criterion-by-criterion holdout report (holdout list as input, chosen by orchestrator); attribution notices land; no thresholds embedded that disagree with the plan's frozen block | gate adjudication | S |
 
-Dependency order is as numbered; WP4/WP5 can run in parallel after WP1 (disjoint files), WP8 can start once WP1's contracts stabilize. Everything else is sequential.
+Dependencies: after WP1, WP2/WP3/WP4 may run in parallel (disjoint files). WP5 requires WP4 — its round-trip acceptance runs against the portable engine. WP6 requires WP4+WP5 (engines + channel fills) and WP2 (segmentation for the dev-set noise-floor measurement). WP7 requires WP3+WP6. WP8 can start once WP1's contracts stabilize. WP9 requires WP7+WP8; WP10 last.
 
 **Riskiest package: WP6.** It carries the three ways the whole sprint can fail at once: (a) 30Hz tick-placement discriminability could sit below the real noise floor — the synthetic probe is sequenced *first inside the WP* so this is known before any real-data claims; (b) portable-vs-RocketSim divergence could exceed tolerance, forcing the reference engine into the scoring path; (c) the σ/confidence calibration feeds gate criteria 1, 2, 4 and 5 simultaneously, so an error here contaminates every number the decision gate reads. It gets the full 3-iteration cross-family review loop and a mid-WP orchestrator checkpoint after the discriminability probe, before the solver touches any corpus replay.
 
@@ -478,3 +493,12 @@ Dependency order is as numbered; WP4/WP5 can run in parallel after WP1 (disjoint
 - **Open decision 3 (criterion-5 definitions): RATIFIED** — recorded in the plan's frozen block same-day.
 - **Open decisions 4–6: noted;** mesh dump requested from Trey (not an S1 dependency); steer all-frames stands; dodge_torque semantics land in WP3.
 - **WP6 mid-package checkpoint** (after discriminability probe, before corpus contact) is a standing orchestration requirement.
+
+### Fix-pass ratification (2026-07-07, iteration 2)
+
+Cross-family review findings P0-1..3, P1-1..3, P2-1..3 fixed via designer deltas; all 9 verified against the vendored RocketSim source, none contested. Orchestrator ratifies the two designer judgment calls made where the findings offered options:
+
+- **LONG_GAP composite skeletons: ALLOWED** (§4.2) — bounded composite enumeration (one press + one release + one second action), 256-hypothesis cap, 0.5 confidence ceiling; intervals remain in gate criteria 1–2. Freeze-safe: adds constraints before any solver results exist.
+- **Excluded-airborne adjudication guard: 10%** (§2.4) — non-gate procedural guard requiring an exclusion-cause breakdown + physical justification before criterion 5 is adjudicated if combined airborne exclusions exceed 10% on the holdout.
+
+Verification bonuses folded in beyond the findings: pure side flips are never pitch-cancellable (cancel branch gated on `relDodgeTorque.y() != 0`, `Car.cpp:616`); a second press edge is accepted while `is_jumping` is still true (the 1.25 s window reads `airTimeSinceJump`, pinned at 0 during the jump) — availability START is airborne + distinct press edge, deadline anchors to jump end.
