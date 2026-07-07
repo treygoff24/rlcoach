@@ -175,6 +175,7 @@ class PlayerFrame:
     )  # Rotation with quaternion or legacy Vec3 (pitch, yaw, roll)
     boost_amount: int  # 0-100
     angular_velocity: Vec3 | None = None
+    sleeping: bool = False
     is_supersonic: bool = False
     is_on_ground: bool = True
     is_demolished: bool = False
@@ -192,6 +193,7 @@ class BallFrame:
     position: Vec3
     velocity: Vec3
     angular_velocity: Vec3
+    sleeping: bool = False
 
 
 @dataclass(frozen=True)

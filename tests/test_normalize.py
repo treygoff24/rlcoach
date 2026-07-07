@@ -304,6 +304,7 @@ class TestTimelineBuilding:
                     "position": {"x": 0, "y": 0, "z": 93.15},
                     "velocity": {"x": 6000, "y": -7000, "z": -2000},
                     "angular_velocity": {"x": 10_000, "y": -10_000, "z": -500},
+                    "sleeping": True,
                 },
                 "players": [
                     {
@@ -314,6 +315,8 @@ class TestTimelineBuilding:
                         "angular_velocity": {"x": 1.0, "y": 2.0, "z": 3.0},
                         "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
                         "boost_amount": 33,
+                        "sleeping": True,
+                        "is_on_ground": False,
                     }
                 ],
             }
@@ -323,8 +326,11 @@ class TestTimelineBuilding:
 
         assert frame.ball.velocity == Vec3(6000.0, -7000.0, -2000.0)
         assert frame.ball.angular_velocity == Vec3(10_000.0, -10_000.0, -500.0)
+        assert frame.ball.sleeping is True
         assert frame.players[0].velocity == Vec3(-6000.0, 7000.0, -1500.0)
         assert frame.players[0].angular_velocity == Vec3(1.0, 2.0, 3.0)
+        assert frame.players[0].sleeping is True
+        assert frame.players[0].is_on_ground is True
 
     def test_multiple_frames_sorted_by_timestamp(self):
         """Multiple frames sorted chronologically."""

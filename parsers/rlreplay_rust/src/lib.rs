@@ -946,6 +946,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
         let mut car_pos: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_vel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_angvel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
+        let mut car_sleeping: HashMap<i32, bool> = HashMap::new();
         let mut car_rot: HashMap<i32, (f32, f32, f32, f32)> = HashMap::new(); // quaternion (x,y,z,w)
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut car_owner: HashMap<i32, i32> = HashMap::new();
@@ -956,6 +957,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
         let mut ball_pos: (f32, f32, f32) = (0.0, 0.0, 93.15);
         let mut ball_vel: (f32, f32, f32) = (0.0, 0.0, 0.0);
         let mut ball_angvel: (f32, f32, f32) = (0.0, 0.0, 0.0);
+        let mut ball_sleeping = false;
         let mut actor_to_player_index: HashMap<i32, usize> = HashMap::new();
         let mut owner_to_player_index: HashMap<i32, usize> = HashMap::new();
         let mut next_by_team: HashMap<i64, Vec<usize>> = HashMap::new();
@@ -1066,6 +1068,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         ball_pos = (0.0, 0.0, 93.15);
                         ball_vel = (0.0, 0.0, 0.0);
                         ball_angvel = (0.0, 0.0, 0.0);
+                        ball_sleeping = false;
                     }
                     if let Some(idx) = actor_to_player_index.remove(&aid) {
                         if let Some(team) = team_for_return {
@@ -1083,6 +1086,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                     car_pos.remove(&aid);
                     car_vel.remove(&aid);
                     car_angvel.remove(&aid);
+                    car_sleeping.remove(&aid);
                     car_rot.remove(&aid);
                     car_demo.remove(&aid);
                     car_owner.remove(&aid);
@@ -1120,6 +1124,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         ball_pos = (0.0, 0.0, 93.15);
                         ball_vel = (0.0, 0.0, 0.0);
                         ball_angvel = (0.0, 0.0, 0.0);
+                        ball_sleeping = false;
                     }
                     if kind.is_ball || kind.is_car {
                         actor_kind.insert(aid, kind);
@@ -1240,6 +1245,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                 ball_pos = (loc.x, loc.y, loc.z);
                                 ball_vel = (vel.x, vel.y, vel.z);
                                 ball_angvel = angular_velocity_to_radians(ang);
+                                ball_sleeping = rb.sleeping;
                             } else if is_car_state_actor(
                                 aid,
                                 &actor_kind,
@@ -1251,6 +1257,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                                 car_vel.insert(aid, (vel.x, vel.y, vel.z));
                                 car_angvel.insert(aid, angular_velocity_to_radians(ang));
+                                car_sleeping.insert(aid, rb.sleeping);
                                 // Extract quaternion rotation from RigidBody
                                 let rot = rb.rotation;
                                 car_rot.insert(aid, (rot.x, rot.y, rot.z, rot.w));
@@ -1506,6 +1513,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                 bvel.set_item("z", ball_vel.2)?;
                 ball.set_item("position", bpos)?;
                 ball.set_item("velocity", bvel)?;
+                ball.set_item("sleeping", ball_sleeping)?;
                 let ang = PyDict::new(py);
                 ang.set_item("x", ball_angvel.0)?;
                 ang.set_item("y", ball_angvel.1)?;
@@ -1693,7 +1701,9 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         // Calculate speed for supersonic check
                         let speed = (v.0 * v.0 + v.1 * v.1 + v.2 * v.2).sqrt();
                         p.set_item("is_supersonic", speed > 2300.0)?;
-                        p.set_item("is_on_ground", z <= 18.0)?;
+                        let sleeping = *car_sleeping.get(&aid).unwrap_or(&false);
+                        p.set_item("sleeping", sleeping)?;
+                        p.set_item("is_on_ground", z <= 18.0 || sleeping)?;
                         p.set_item("is_demolished", *car_demo.get(&aid).unwrap_or(&false))?;
                         if let Some(active) = owner_jump_state.get(&aid) {
                             p.set_item("is_jumping", *active)?;
@@ -2044,6 +2054,7 @@ fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
                                     ball.set_item("position", bpos)?;
                                     ball.set_item("velocity", bvel)?;
                                     ball.set_item("angular_velocity", bang)?;
+                                    ball.set_item("sleeping", false)?;
                                     f.set_item("ball", ball)?;
                                     f.set_item("players", PyList::empty(py))?;
                                     f.set_item("boost_pad_events", PyList::empty(py))?;

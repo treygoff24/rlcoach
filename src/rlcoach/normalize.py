@@ -573,21 +573,28 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             ball_pos = Vec3(0.0, 0.0, 93.15)
             ball_vel = Vec3(0.0, 0.0, 0.0)
             ball_ang_vel = Vec3(0.0, 0.0, 0.0)
+            ball_sleeping = False
 
             if hasattr(frame_data, "ball"):
                 ball_pos = to_field_coords(frame_data.ball.position)
                 ball_vel = to_vec3(frame_data.ball.velocity)
                 if hasattr(frame_data.ball, "angular_velocity"):
                     ball_ang_vel = to_vec3(frame_data.ball.angular_velocity)
+                if hasattr(frame_data.ball, "sleeping"):
+                    ball_sleeping = bool(frame_data.ball.sleeping)
             elif isinstance(frame_data, dict) and "ball" in frame_data:
                 ball = frame_data["ball"]
                 if isinstance(ball, dict):
                     ball_pos = to_field_coords(ball.get("position", {}))
                     ball_vel = to_vec3(ball.get("velocity", {}))
                     ball_ang_vel = to_vec3(ball.get("angular_velocity", {}))
+                    ball_sleeping = bool(ball.get("sleeping", False))
 
             ball_frame = BallFrame(
-                position=ball_pos, velocity=ball_vel, angular_velocity=ball_ang_vel
+                position=ball_pos,
+                velocity=ball_vel,
+                angular_velocity=ball_ang_vel,
+                sleeping=ball_sleeping,
             )
 
             # Extract player states
@@ -676,8 +683,14 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
 
                     # Extract boolean flags with proper handling
                     raw_supersonic_flag = False
+                    sleeping = False
                     is_on_ground = True
                     is_demolished = False
+
+                    if hasattr(player_data, "sleeping"):
+                        sleeping = bool(player_data.sleeping)
+                    elif isinstance(player_data, dict) and "sleeping" in player_data:
+                        sleeping = bool(player_data["sleeping"])
 
                     if hasattr(player_data, "is_supersonic"):
                         raw_supersonic_flag = bool(player_data.is_supersonic)
@@ -708,8 +721,9 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         rotation=rotation,
                         boost_amount=boost_amount,
                         angular_velocity=angular_velocity,
+                        sleeping=sleeping,
                         is_supersonic=raw_supersonic_flag,
-                        is_on_ground=is_on_ground,
+                        is_on_ground=is_on_ground or sleeping,
                         is_demolished=is_demolished,
                     )
                     player_frame = _apply_component_state_flags(

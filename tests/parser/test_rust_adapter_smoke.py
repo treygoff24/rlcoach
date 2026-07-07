@@ -135,3 +135,29 @@ def test_0925_replay_exposes_car_angular_velocity():
 
     assert any(magnitude > 0.01 for magnitude in magnitudes)
     assert max(magnitudes) <= 5.6
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.skipif(
+    not PARITY_REPLAY_PATH.exists(), reason="0925 parity replay fixture missing"
+)
+def test_0925_replay_exposes_rigid_body_sleeping_flags():
+    from rlcoach.parser import get_adapter
+
+    adapter = get_adapter("rust")
+    network = adapter.parse_network(PARITY_REPLAY_PATH)
+
+    assert network is not None
+    assert network.frames
+
+    ball_sleeping = [frame.get("ball", {}).get("sleeping") for frame in network.frames]
+    car_sleeping = [
+        player.get("sleeping")
+        for frame in network.frames
+        for player in frame.get("players", [])
+    ]
+
+    assert any(value is True for value in ball_sleeping)
+    assert any(value is False for value in ball_sleeping)
+    assert any(value is True for value in car_sleeping)
+    assert any(value is False for value in car_sleeping)
