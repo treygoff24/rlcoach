@@ -928,6 +928,14 @@
     "overtime": false,
     "playlist": "UNKNOWN",
     "recorded_frame_hz": 1.8181818181818181,
+    "signal_provenance": {
+      "component_events": "parser:CarComponent replicated fields",
+      "declared_record_fps": "header:RecordFPS",
+      "driving_inputs": "parser:Vehicle_TA replicated input fields",
+      "frame_delta": "parser:boxcars.Frame.delta",
+      "recorded_frame_hz": "measured:network_frame_timestamps",
+      "rigid_body_sleeping": "parser:ReplicatedRBState.sleeping"
+    },
     "team_size": 1,
     "total_frames": 3
   },

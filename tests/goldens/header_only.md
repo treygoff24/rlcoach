@@ -21,16 +21,17 @@
 
 ### Match Overview
 
-| Map               | unknown               |
-| Playlist          | UNKNOWN               |
-| Team Size         | 1                     |
-| Duration (s)      | 0                     |
-| Recorded Frame Hz | 30                    |
-| Total Frames      | 1                     |
-| Overtime          | No                    |
-| Engine Build      | synthetic             |
-| Match GUID        | synthetic-header-only |
-| Mutators          | None                  |
+| Map                 | unknown               |
+| Playlist            | UNKNOWN               |
+| Team Size           | 1                     |
+| Duration (s)        | 0                     |
+| Declared Record FPS | unknown               |
+| Measured Frame Hz   | 30                    |
+| Total Frames        | 1                     |
+| Overtime            | No                    |
+| Engine Build        | synthetic             |
+| Match GUID          | synthetic-header-only |
+| Mutators            | None                  |
 
 
 ### Parser Quality
@@ -635,6 +636,14 @@
     "overtime": false,
     "playlist": "UNKNOWN",
     "recorded_frame_hz": 30.0,
+    "signal_provenance": {
+      "component_events": "parser:CarComponent replicated fields",
+      "declared_record_fps": "header:RecordFPS",
+      "driving_inputs": "parser:Vehicle_TA replicated input fields",
+      "frame_delta": "parser:boxcars.Frame.delta",
+      "recorded_frame_hz": "measured:network_frame_timestamps",
+      "rigid_body_sleeping": "parser:ReplicatedRBState.sleeping"
+    },
     "team_size": 1,
     "total_frames": 1
   },
