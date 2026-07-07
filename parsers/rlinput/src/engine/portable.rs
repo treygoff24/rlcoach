@@ -309,16 +309,46 @@ impl AirEngine for PortableEngine {
     fn rollout(&mut self, state: &CarPhysState, plan: &TickPlan, ticks: u32) -> CarPhysState {
         let mut state = *state;
         for tick in 0..ticks {
-            let controls = plan.controls_at(tick);
+            let mut controls = plan.controls_at(tick);
             let events: Vec<_> = plan
                 .events
                 .iter()
                 .copied()
                 .filter(|event| event.tick_offset == tick)
                 .collect();
+            for event in &events {
+                apply_event_controls(&mut controls, *event);
+            }
             self.step(&mut state, controls, &events);
         }
         state
+    }
+}
+
+fn apply_event_controls(controls: &mut Controls, event: TickEvent) {
+    match event.kind {
+        TickEventKind::JumpPress => controls.jump = true,
+        TickEventKind::JumpRelease => controls.jump = false,
+        TickEventKind::DoubleJump => {
+            controls.jump = true;
+            controls.pitch = 0.0;
+            controls.yaw = 0.0;
+            controls.roll = 0.0;
+        }
+        TickEventKind::Dodge { dir } => {
+            controls.jump = true;
+            if dir[0].abs() <= f32::EPSILON && dir[1].abs() <= f32::EPSILON {
+                // RocketSim stalls use yaw+roll inside the component deadzone so
+                // the edge is a flip input but `Car.cpp:731-737` zeroes dodgeDir.
+                controls.pitch = 0.0;
+                controls.yaw = 0.3;
+                controls.roll = -0.3;
+            } else {
+                controls.pitch = -dir[0];
+                controls.yaw = dir[1];
+                controls.roll = 0.0;
+            }
+        }
     }
 }
 
