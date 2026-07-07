@@ -2,6 +2,8 @@ use crate::convert::RotationMatrix;
 use serde::{Deserialize, Serialize};
 
 pub mod portable;
+#[cfg(feature = "sim")]
+pub mod rocketsim;
 
 pub const AIR_TICK_RATE_HZ: f32 = 120.0;
 pub const AIR_DT: f32 = 1.0 / AIR_TICK_RATE_HZ;
