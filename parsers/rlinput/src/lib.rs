@@ -4,6 +4,7 @@ pub mod consts;
 pub mod convert;
 pub mod lattice;
 pub mod model;
+pub mod segment;
 pub mod timeline;
 
 #[cfg(feature = "sim")]
