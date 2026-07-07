@@ -4,6 +4,7 @@ pub mod channels;
 pub mod consts;
 pub mod convert;
 pub mod engine;
+pub mod fit;
 pub mod lattice;
 pub mod model;
 pub mod segment;
