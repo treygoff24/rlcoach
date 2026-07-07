@@ -1439,6 +1439,8 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                             // `active` is the per-frame parity sample, not a
                                             // debounced activation edge; sub-frame double-toggles
                                             // leave parity unchanged and are invisible here.
+                                            // `raw` is a u8 counter: consumers computing deltas
+                                            // must do so modulo 256 (254 -> 2 means +4, not -252).
                                             let active = raw % 2 == 1;
                                             let target =
                                                 resolve_component_owner(&component_owner, aid);

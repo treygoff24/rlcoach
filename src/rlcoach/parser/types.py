@@ -265,7 +265,9 @@ class ParserComponentEvent:
 
     Reconstruct activation edges from ``raw_value`` deltas: any change means
     at least one toggle, odd deltas mean a net state flip, and nonzero even
-    deltas mean at least two sub-frame toggles. Prefer per-activation vector
+    deltas mean at least two sub-frame toggles. ``raw_value`` is a u8 counter
+    (0-255): compute deltas modulo 256 or a wrap (e.g. 254 -> 2) reads as a
+    large negative step instead of +4. Prefer per-activation vector
     events (``dodge_torque``, ``double_jump_impulse``) when present; they fire
     once per activation. ``dodge_impulse`` extraction is unverified against
     real replay data (absent from all committed fixtures); do not build on
