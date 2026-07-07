@@ -253,7 +253,24 @@ class ParserDemoEvent:
 
 @dataclass(frozen=True)
 class ParserComponentEvent:
-    """Parser-emitted car component event payload."""
+    """Parser-emitted car component event payload.
+
+    ``active`` is an instantaneous per-frame parity sample
+    (``raw_value % 2 == 1``), not a debounced activation edge. If a
+    component activates and deactivates between recorded frames, the raw
+    counter advances by an even amount, parity is unchanged, and the
+    activation is invisible in ``active``. On ``Replay_files/0925.replay``,
+    there are 119 ``double_jump_impulse`` vectors but only 43 ``active:true``
+    edges; dodge has 378 vector activations vs 268 active edges.
+
+    Reconstruct activation edges from ``raw_value`` deltas: any change means
+    at least one toggle, odd deltas mean a net state flip, and nonzero even
+    deltas mean at least two sub-frame toggles. Prefer per-activation vector
+    events (``dodge_torque``, ``double_jump_impulse``) when present; they fire
+    once per activation. ``dodge_impulse`` extraction is unverified against
+    real replay data (absent from all committed fixtures); do not build on
+    this signal until a fixture containing it is found.
+    """
 
     timestamp: float
     kind: str

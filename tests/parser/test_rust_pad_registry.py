@@ -46,6 +46,8 @@ def test_rust_pad_registry_event_completeness():
 
     collected_events = [event for event in pad_events if event["status"] == "COLLECTED"]
     assert collected_events, "expected collected pad events"
+    # Pin catches Location-arm dispatch regressions that drop pickup routing.
+    assert len(collected_events) == 35
 
     for event in collected_events:
         assert "actor_id" in event, f"missing actor_id on collected event: {event}"

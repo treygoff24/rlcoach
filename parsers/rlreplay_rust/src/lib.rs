@@ -1362,7 +1362,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         Attribute::Location(loc) => {
                             let update_name = objects.get(upd_object_id).map(String::as_str);
                             if let Some(component) = component_kind.get(&aid) {
-                                let target = component_owner.get(&aid).cloned().unwrap_or(aid);
+                                let target = resolve_component_owner(&component_owner, aid);
                                 if component.is_jump {
                                     frame_jumping_actors.insert(target);
                                 }
@@ -1376,6 +1376,9 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                     Some("TAGame.CarComponent_Dodge_TA:DodgeTorque") => {
                                         Some(("dodge_torque", "dodge"))
                                     }
+                                    // Unverified against real replay data (absent from all
+                                    // committed fixtures); do not build on this signal until
+                                    // a fixture containing it is found.
                                     Some("TAGame.CarComponent_Dodge_TA:DodgeImpulse") => {
                                         Some(("dodge_impulse", "dodge"))
                                     }
@@ -1433,6 +1436,9 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                 Some("TAGame.CarComponent_TA:ReplicatedActive") => {
                                     if let Some(component) = component_kind.get(&aid) {
                                         if let Some(label) = component_label(component) {
+                                            // `active` is the per-frame parity sample, not a
+                                            // debounced activation edge; sub-frame double-toggles
+                                            // leave parity unchanged and are invisible here.
                                             let active = raw % 2 == 1;
                                             let target =
                                                 resolve_component_owner(&component_owner, aid);
