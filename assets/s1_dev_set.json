@@ -1,0 +1,106 @@
+{
+  "_comment": "Frozen S1 dev-set manifest. Append-only after this commit: do not reorder, reseed, replace, or remove entries; future additions must be appended with dated justification.",
+  "schema_version": 1,
+  "frozen_at": "2026-07-07",
+  "method": {
+    "fixtures": "all committed Replay_files/*.replay fixtures, sorted lexicographically by filename",
+    "sample": "Python random.Random(seed).sample over lexicographically sorted replays/*.replay candidates whose BuildVersion equals bucket; sampled without replacement; order is PRNG draw order",
+    "seed": 20260707,
+    "bucket": "251202.62834.504897",
+    "candidate_count": 196
+  },
+  "fixtures": [
+    {
+      "filename": "Replay_files/0925.replay",
+      "guid": "74F7F8D011F09A56208CB2BC736BCBEC",
+      "build_bucket": "250909.54128.495700",
+      "build_id": -1459478734,
+      "changelist": 495700,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "Replay_files/4985385d-2a6a-4bea-a312-8e539c7fd098.replay",
+      "guid": "AEE1890411F09000D67A1F9278296A08",
+      "build_bucket": "250811.43331.492665",
+      "build_id": 151471783,
+      "changelist": 492665,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "Replay_files/6804bd43-5415-49f4-b7d0-31b168c871ed.replay",
+      "guid": "F207566811F09001396D058468244BC6",
+      "build_bucket": "250811.43331.492665",
+      "build_id": 151471783,
+      "changelist": 492665,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "Replay_files/70c0e78e-ea32-4722-a951-937baa40efc9.replay",
+      "guid": "47A5788E11F08FDF208C84BE736BCBEC",
+      "build_bucket": "250811.43331.492665",
+      "build_id": 151471783,
+      "changelist": 492665,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "Replay_files/77253f53-0654-4565-b18e-e77ddbb84282.replay",
+      "guid": "894FD8A811F08FBA7ABAA0A2E3DA7507",
+      "build_bucket": "250811.43331.492665",
+      "build_id": 151471783,
+      "changelist": 492665,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "Replay_files/testing_replay.replay",
+      "guid": "54E794FA11F08C334351ED92459FE61A",
+      "build_bucket": "250811.43331.492665",
+      "build_id": 151471783,
+      "changelist": 492665,
+      "game_version": 30,
+      "record_fps": 30.0
+    }
+  ],
+  "seeded_draw": [
+    {
+      "filename": "replays/7A51ECF34B1E94EFE3B049B1DC0A8F7E.replay",
+      "guid": "0565456811F0E470889BBEBAF4BC8AE2",
+      "build_bucket": "251202.62834.504897",
+      "build_id": -680142666,
+      "changelist": 504897,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "replays/769971A8447DB11ABD813990572B53B1.replay",
+      "guid": "7B90AFE011F0E41E4EA44F9895DACF62",
+      "build_bucket": "251202.62834.504897",
+      "build_id": -680142666,
+      "changelist": 504897,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "replays/F5BB1FF44EB9B29EE9EF9C9ACA51BA7C.replay",
+      "guid": "9CACC06E11F0E41FD67A0E8F78296A08",
+      "build_bucket": "251202.62834.504897",
+      "build_id": -680142666,
+      "changelist": 504897,
+      "game_version": 30,
+      "record_fps": 30.0
+    },
+    {
+      "filename": "replays/3D6CDD7F418048C2AA2A11ACC588094D.replay",
+      "guid": "0E0FF68611F0E420D67A709178296A08",
+      "build_bucket": "251202.62834.504897",
+      "build_id": -680142666,
+      "changelist": 504897,
+      "game_version": 30,
+      "record_fps": 30.0
+    }
+  ]
+}
