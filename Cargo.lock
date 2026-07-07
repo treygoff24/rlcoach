@@ -494,6 +494,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rlinput_py"
+version = "0.1.0"
+dependencies = [
+ "pyo3",
+ "rlinput",
+]
+
+[[package]]
 name = "rlreplay_rust"
 version = "0.1.0"
 dependencies = [
