@@ -144,6 +144,127 @@ pub enum TrackerError {
     JumpNotHolding,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TrackerBranch {
+    pub tracker: CarTracker,
+    pub score: f64,
+    pub open_intervals: u8,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BranchingTracker {
+    branches: Vec<TrackerBranch>,
+    beam_width: usize,
+}
+
+impl BranchingTracker {
+    pub const DEFAULT_BEAM_WIDTH: usize = 4;
+    pub const MAX_OPEN_INTERVALS: u8 = 2;
+
+    pub fn new(tracker: CarTracker) -> Self {
+        Self {
+            branches: vec![TrackerBranch {
+                tracker,
+                score: 0.0,
+                open_intervals: 0,
+            }],
+            beam_width: Self::DEFAULT_BEAM_WIDTH,
+        }
+    }
+
+    pub fn branches(&self) -> &[TrackerBranch] {
+        &self.branches
+    }
+
+    pub fn best_tracker(&self) -> &CarTracker {
+        &self
+            .branches
+            .iter()
+            .min_by(|a, b| a.score.total_cmp(&b.score))
+            .expect("BranchingTracker always keeps at least one branch")
+            .tracker
+    }
+
+    pub fn len(&self) -> usize {
+        self.branches.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.branches.is_empty()
+    }
+
+    pub fn expand<I, F>(&mut self, scored_transitions: I, mut apply: F)
+    where
+        I: IntoIterator<Item = f64>,
+        F: FnMut(&CarTracker, usize) -> Option<CarTracker>,
+    {
+        let scored_transitions: Vec<_> = scored_transitions.into_iter().collect();
+        let ambiguous = scored_transitions.len() > 1;
+        let mut next = Vec::new();
+        for branch in &self.branches {
+            for (transition_index, score_delta) in scored_transitions.iter().copied().enumerate() {
+                if let Some(tracker) = apply(&branch.tracker, transition_index) {
+                    next.push(TrackerBranch {
+                        tracker,
+                        score: branch.score + score_delta,
+                        open_intervals: if ambiguous {
+                            branch.open_intervals.saturating_add(1)
+                        } else {
+                            0
+                        },
+                    });
+                }
+            }
+        }
+        next.sort_by(|a, b| a.score.total_cmp(&b.score));
+        next.truncate(self.beam_width);
+        self.branches = next;
+        if self
+            .branches
+            .iter()
+            .any(|branch| branch.open_intervals > Self::MAX_OPEN_INTERVALS)
+        {
+            self.collapse_to_best();
+        }
+    }
+
+    pub fn advance_unresolved(&mut self) {
+        for branch in &mut self.branches {
+            branch.open_intervals = branch.open_intervals.saturating_add(1);
+        }
+        if self
+            .branches
+            .iter()
+            .any(|branch| branch.open_intervals > Self::MAX_OPEN_INTERVALS)
+        {
+            self.collapse_to_best();
+        }
+    }
+
+    pub fn collapse_to_best(&mut self) {
+        if let Some(best) = self
+            .branches
+            .iter()
+            .min_by(|a, b| a.score.total_cmp(&b.score))
+            .cloned()
+        {
+            self.branches = vec![TrackerBranch {
+                open_intervals: 0,
+                ..best
+            }];
+        }
+    }
+
+    pub fn into_best(mut self) -> CarTracker {
+        self.collapse_to_best();
+        self.branches
+            .into_iter()
+            .next()
+            .expect("BranchingTracker always keeps at least one branch")
+            .tracker
+    }
+}
+
 impl CarTracker {
     pub fn new_grounded(since_tick: u64) -> Self {
         Self::new_grounded_with_tick_rate(since_tick, 120.0)
@@ -640,6 +761,30 @@ mod tests {
         assert_eq!(phase.torque_end_tick(), 88);
         assert_eq!(phase.pitchlock_end_tick(), 124);
         assert_eq!(phase.z_damp_tick_range(), (28, 88));
+    }
+
+    #[test]
+    fn branching_tracker_caps_ambiguous_candidates_to_beam_width() {
+        let tracker = CarTracker::new_grounded(0);
+        let mut branches = BranchingTracker::new(tracker);
+        branches.expand([4.0, 3.0, 2.0, 1.0, 0.0], |tracker, _idx| {
+            Some(tracker.clone())
+        });
+        assert_eq!(branches.len(), BranchingTracker::DEFAULT_BEAM_WIDTH);
+        assert_eq!(branches.branches()[0].score, 0.0);
+    }
+
+    #[test]
+    fn branching_tracker_collapses_unresolved_ties_within_two_intervals() {
+        let tracker = CarTracker::new_grounded(0);
+        let mut branches = BranchingTracker::new(tracker);
+        branches.expand([0.0, 0.1, 0.2, 0.3], |tracker, _idx| Some(tracker.clone()));
+        assert_eq!(branches.len(), 4);
+        branches.advance_unresolved();
+        assert_eq!(branches.len(), 4);
+        branches.advance_unresolved();
+        assert_eq!(branches.len(), 1);
+        assert_eq!(branches.branches()[0].open_intervals, 0);
     }
 
     #[test]
