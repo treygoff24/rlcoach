@@ -491,6 +491,20 @@ class TestTimelineBuilding:
             velocity: Vec3
             rotation: object
             boost_amount: int
+            angular_velocity: Vec3 | None = None
+            sleeping: bool = False
+            throttle: float | None = None
+            steer: float | None = None
+            handbrake: bool | None = None
+            throttle_raw: int | None = None
+            steer_raw: int | None = None
+            boost_active: bool | None = None
+            boost_active_raw: int | None = None
+            boost_amount_raw: int | None = None
+            boost_grant_count: int | None = None
+            jump_active_raw: int | None = None
+            dodge_active_raw: int | None = None
+            double_jump_active_raw: int | None = None
             is_supersonic: bool = False
             is_on_ground: bool = True
             is_demolished: bool = False
