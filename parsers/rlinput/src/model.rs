@@ -1,6 +1,8 @@
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
+use crate::consts;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReplaySeries {
     pub tick_rate: f64,
@@ -138,6 +140,19 @@ pub struct FitWeights {
     pub rotation_sigma: f32,
     pub reject_threshold: f32,
     pub low_margin_threshold: f32,
+}
+
+impl Default for FitWeights {
+    fn default() -> Self {
+        Self {
+            position_sigma: consts::FIT_SIGMA_POS_MEASURED,
+            velocity_sigma: consts::FIT_SIGMA_VEL_MEASURED,
+            angular_velocity_sigma: consts::FIT_SIGMA_ANG_VEL_MEASURED,
+            rotation_sigma: consts::FIT_SIGMA_ROT_MEASURED,
+            reject_threshold: 25.0,
+            low_margin_threshold: 0.6,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
