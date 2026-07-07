@@ -135,6 +135,8 @@ fn parse_fit_weights(dict: &PyDict, default: FitWeights) -> PyResult<FitWeights>
             .unwrap_or(default.reject_threshold),
         low_margin_threshold: optional_extract(dict, "low_margin_threshold")?
             .unwrap_or(default.low_margin_threshold),
+        null_event_accept_margin: optional_extract(dict, "null_event_accept_margin")?
+            .unwrap_or(default.null_event_accept_margin),
     })
 }
 

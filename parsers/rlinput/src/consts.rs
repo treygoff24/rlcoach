@@ -90,3 +90,9 @@ pub const FIT_SIGMA_POS_MEASURED: f32 = 36.285_175;
 pub const FIT_SIGMA_VEL_MEASURED: f32 = 10.880_035;
 pub const FIT_SIGMA_ROT_MEASURED: f32 = 0.006_366;
 pub const FIT_SIGMA_ANG_VEL_MEASURED: f32 = 0.020_347;
+
+// WP7b null-vs-event acceptance margin. Calibrated 2026-07-07 on the frozen
+// dev-set exports at `/tmp/rlinput-dev-series-wp6b` after preserving null in
+// reference re-score. Selected margin 256.0: quiet hallucinations 2456→1923
+// versus margin 0, with one coalesced known-flip retention loss (1119→1118).
+pub const FIT_NULL_EVENT_ACCEPT_MARGIN: f32 = 256.0;

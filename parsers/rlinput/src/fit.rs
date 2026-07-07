@@ -100,7 +100,13 @@ pub fn fit_interval<E: AirEngine>(
 
     if let Some(null) = hypotheses.iter().find(|hypothesis| hypothesis.is_null()) {
         let null_result = evaluate(engine, state_k, null, observed_end, weights, ticks);
-        if null_result.energy <= f64::from(weights.reject_threshold) {
+        if null_result.energy
+            <= f64::from(
+                weights
+                    .reject_threshold
+                    .max(weights.null_event_accept_margin),
+            )
+        {
             return rank_results(vec![null_result], weights);
         }
     }
@@ -179,8 +185,39 @@ fn rank_results(mut results: Vec<FitResult>, weights: &FitWeights) -> Vec<FitRes
         }
     }
 
-    results.sort_by(|a, b| a.energy.total_cmp(&b.energy));
+    let null_energy = results
+        .iter()
+        .find(|result| result.hypothesis.is_null())
+        .map(|result| result.energy);
+    results.sort_by(|a, b| {
+        adjusted_event_energy(a.energy, !a.hypothesis.is_null(), null_energy, weights).total_cmp(
+            &adjusted_event_energy(b.energy, !b.hypothesis.is_null(), null_energy, weights),
+        )
+    });
+    if results
+        .first()
+        .is_some_and(|result| result.hypothesis.is_null())
+    {
+        for result in &mut results {
+            if !result.hypothesis.is_null() {
+                result.flags |= AmbiguityFlags::LOW_MARGIN;
+            }
+        }
+    }
     results
+}
+
+fn adjusted_event_energy(
+    energy: f64,
+    is_event: bool,
+    null_energy: Option<f64>,
+    weights: &FitWeights,
+) -> f64 {
+    if is_event && null_energy.is_some() {
+        energy + f64::from(weights.null_event_accept_margin.max(0.0))
+    } else {
+        energy
+    }
 }
 
 fn event(tick_offset: u32, kind: TickEventKind) -> TickEvent {
@@ -254,6 +291,31 @@ mod tests {
         );
         assert!(low_margin[0].probability < 0.6);
         assert!(low_margin[0].flags.contains(AmbiguityFlags::LOW_MARGIN));
+    }
+
+    #[test]
+    fn null_event_margin_requires_event_to_beat_null_by_margin() {
+        let weights = FitWeights {
+            null_event_accept_margin: 2.0,
+            ..provisional_fit_weights()
+        };
+        let close = rank_results(
+            vec![
+                fake_result(10.0, HypothesisEvent::Null),
+                fake_result(9.0, HypothesisEvent::DoubleJump),
+            ],
+            &weights,
+        );
+        assert!(close[0].hypothesis.is_null());
+
+        let clear = rank_results(
+            vec![
+                fake_result(10.0, HypothesisEvent::Null),
+                fake_result(7.9, HypothesisEvent::DoubleJump),
+            ],
+            &weights,
+        );
+        assert_eq!(clear[0].hypothesis.event, HypothesisEvent::DoubleJump);
     }
 
     #[test]

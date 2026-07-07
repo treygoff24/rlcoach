@@ -206,6 +206,7 @@ pub struct FitWeights {
     pub rotation_sigma: f32,
     pub reject_threshold: f32,
     pub low_margin_threshold: f32,
+    pub null_event_accept_margin: f32,
 }
 
 impl Default for FitWeights {
@@ -217,6 +218,7 @@ impl Default for FitWeights {
             rotation_sigma: consts::FIT_SIGMA_ROT_MEASURED,
             reject_threshold: 25.0,
             low_margin_threshold: 0.6,
+            null_event_accept_margin: consts::FIT_NULL_EVENT_ACCEPT_MARGIN,
         }
     }
 }
@@ -315,6 +317,7 @@ mod tests {
                 rotation_sigma: 0.01,
                 reject_threshold: 6.0,
                 low_margin_threshold: 0.05,
+                null_event_accept_margin: 2.0,
             },
             thresholds: SolverThresholds {
                 long_gap_seconds: 0.15,

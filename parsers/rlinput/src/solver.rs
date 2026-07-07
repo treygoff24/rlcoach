@@ -76,7 +76,7 @@ struct ScoringInterval {
 #[derive(Clone, Debug)]
 struct TimedSeededEdge {
     edge: ReconstructedEdge,
-    tick_offset: u32,
+    tick_range: (u32, u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -526,10 +526,15 @@ fn solve_interval(
     }
     prefer_event_when_null_is_rejected(&mut scored, &config.fit);
     prefer_long_gap_stall_z_damp(&mut scored, interval, &observed_end);
+    let branch_width = if scored.first().is_some_and(|item| item.candidate.is_null()) {
+        1
+    } else {
+        BranchingTracker::DEFAULT_BEAM_WIDTH
+    };
     let branch_options = scored
         .iter()
         .enumerate()
-        .take(BranchingTracker::DEFAULT_BEAM_WIDTH)
+        .take(branch_width)
         .map(|(rank, item)| BranchOption {
             candidate: item.candidate.clone(),
             score: rank as f64,
@@ -588,7 +593,13 @@ fn generate_candidates(
     let ticks = interval_ticks(interval);
     let null = Candidate::null(base_controls.clone(), interval.flags);
     let null_energy = score_null(state_k, observed_end, ticks, &null, &config.fit);
-    if null_energy <= f64::from(config.fit.reject_threshold)
+    if null_energy
+        <= f64::from(
+            config
+                .fit
+                .reject_threshold
+                .max(config.fit.null_event_accept_margin),
+        )
         && seeded_edges.is_empty()
         && !interval.flags.contains(AmbiguityFlags::LONG_GAP)
     {
@@ -598,13 +609,15 @@ fn generate_candidates(
     }
 
     let mut candidates = vec![null];
-    let seeded = seeded_candidate_actions(&seeded_edges);
+    let seeded = seeded_candidate_action_sets(&seeded_edges);
     if !seeded.is_empty() {
-        if let Some(candidate) =
-            candidate_from_actions(seeded, base_controls.clone(), interval.flags)
-        {
-            if candidate_legal(tracker, &candidate, interval.tick_range.0) {
-                candidates.push(candidate);
+        for actions in seeded {
+            if let Some(candidate) =
+                candidate_from_actions(actions, base_controls.clone(), interval.flags)
+            {
+                if candidate_legal(tracker, &candidate, interval.tick_range.0) {
+                    candidates.push(candidate);
+                }
             }
         }
     } else {
@@ -752,8 +765,8 @@ fn add_long_gap_composites(
     }
 }
 
-fn seeded_candidate_actions(edges: &[TimedSeededEdge]) -> Vec<CandidateAction> {
-    let mut out = Vec::new();
+fn seeded_candidate_action_sets(edges: &[TimedSeededEdge]) -> Vec<Vec<CandidateAction>> {
+    let mut specs = Vec::new();
     for edge in edges {
         let event = match edge.edge.component {
             ComponentKind::Jump => {
@@ -782,17 +795,38 @@ fn seeded_candidate_actions(edges: &[TimedSeededEdge]) -> Vec<CandidateAction> {
             ComponentKind::Boost => None,
         };
         if let Some(event) = event {
-            let action = CandidateAction {
-                tick_offset: edge.tick_offset,
-                event,
-                frame_index: Some(edge.edge.frame_index),
-            };
-            if !out.contains(&action) {
-                out.push(action);
-            }
+            specs.push((event, edge.edge.frame_index, edge.tick_range));
         }
     }
-    out
+    if specs.is_empty() {
+        return Vec::new();
+    }
+
+    let mut sets = vec![Vec::new()];
+    for (idx, (event, frame_index, tick_range)) in specs.into_iter().enumerate() {
+        let offsets: Vec<u32> = if idx < 2 && tick_range.0 < tick_range.1 {
+            (tick_range.0..tick_range.1).collect()
+        } else {
+            vec![tick_range.0]
+        };
+        let mut next = Vec::new();
+        for existing in &sets {
+            for tick_offset in &offsets {
+                let mut actions = existing.clone();
+                let action = CandidateAction {
+                    tick_offset: *tick_offset,
+                    event,
+                    frame_index: Some(frame_index),
+                };
+                if !actions.contains(&action) {
+                    actions.push(action);
+                }
+                next.push(actions);
+            }
+        }
+        sets = next;
+    }
+    sets
 }
 
 fn kinematic_candidate_events(
@@ -915,11 +949,29 @@ fn score_candidates(
     scored = rank_scored(scored, &config.fit);
 
     if config.engine == EnginePreference::PreferReference
-        && scored.iter().any(|item| !item.candidate.is_null())
+        && best_event_beats_null_margin(&scored, &config.fit)
     {
         scored = reference.rescore(state_k, observed_end, ticks, scored, &config.fit);
     }
     scored
+}
+
+fn best_event_beats_null_margin(scored: &[ScoredCandidate], weights: &FitWeights) -> bool {
+    let Some(null_energy) = scored
+        .iter()
+        .find(|item| item.candidate.is_null())
+        .map(|item| item.energy)
+    else {
+        return scored.iter().any(|item| !item.candidate.is_null());
+    };
+    scored
+        .iter()
+        .filter(|item| !item.candidate.is_null())
+        .map(|item| item.energy)
+        .min_by(|a, b| a.total_cmp(b))
+        .is_some_and(|event_energy| {
+            null_energy - event_energy > f64::from(weights.null_event_accept_margin)
+        })
 }
 
 fn score_one<E: AirEngine>(
@@ -970,15 +1022,46 @@ fn rank_scored(mut scored: Vec<ScoredCandidate>, weights: &FitWeights) -> Vec<Sc
             item.flags |= AmbiguityFlags::LOW_MARGIN;
         }
     }
-    scored.sort_by(|a, b| a.energy.total_cmp(&b.energy));
+    let null_energy = scored
+        .iter()
+        .find(|item| item.candidate.is_null())
+        .map(|item| item.energy);
+    scored.sort_by(|a, b| {
+        adjusted_event_energy(a.energy, !a.candidate.is_null(), null_energy, weights).total_cmp(
+            &adjusted_event_energy(b.energy, !b.candidate.is_null(), null_energy, weights),
+        )
+    });
+    if scored.first().is_some_and(|item| item.candidate.is_null()) {
+        for item in &mut scored {
+            if !item.candidate.is_null() {
+                item.flags |= AmbiguityFlags::LOW_MARGIN;
+            }
+        }
+    }
     scored
+}
+
+fn adjusted_event_energy(
+    energy: f64,
+    is_event: bool,
+    null_energy: Option<f64>,
+    weights: &FitWeights,
+) -> f64 {
+    if is_event && null_energy.is_some() {
+        energy + f64::from(weights.null_event_accept_margin.max(0.0))
+    } else {
+        energy
+    }
 }
 
 fn prefer_event_when_null_is_rejected(scored: &mut [ScoredCandidate], weights: &FitWeights) {
     if scored.first().is_some_and(|item| {
         item.candidate.is_null() && item.energy > f64::from(weights.reject_threshold)
     }) {
-        if let Some(event_index) = scored.iter().position(|item| !item.candidate.is_null()) {
+        if let Some(event_index) = scored.iter().position(|item| {
+            !item.candidate.is_null()
+                && scored[0].energy - item.energy > f64::from(weights.null_event_accept_margin)
+        }) {
             scored.swap(0, event_index);
             scored[0].confidence = scored[0].confidence.min(0.3);
             scored[0].flags |= AmbiguityFlags::LOW_MARGIN;
@@ -1033,9 +1116,21 @@ impl ReferenceScorer {
         scored: Vec<ScoredCandidate>,
         weights: &FitWeights,
     ) -> Vec<ScoredCandidate> {
-        let rescored: Vec<_> = scored
+        let mut selected = Vec::new();
+        if let Some(null) = scored.iter().find(|item| item.candidate.is_null()) {
+            selected.push(null.clone());
+        }
+        for item in scored {
+            if selected.len() >= REFERENCE_SURVIVORS {
+                break;
+            }
+            if !item.candidate.is_null() {
+                selected.push(item);
+            }
+        }
+
+        let rescored: Vec<_> = selected
             .into_iter()
-            .take(REFERENCE_SURVIVORS)
             .map(|item| {
                 score_one(
                     &mut self.engine,
@@ -1490,17 +1585,24 @@ impl SeededHints {
             if frame <= start_frame || frame > end_frame {
                 continue;
             }
-            let tick_offset = interval
-                .tick_range
-                .1
-                .saturating_sub(tick_start)
-                .min(u64::from(u32::MAX)) as u32;
+            let tick_range = (
+                interval
+                    .tick_range
+                    .0
+                    .saturating_sub(tick_start)
+                    .min(u64::from(u32::MAX)) as u32,
+                interval
+                    .tick_range
+                    .1
+                    .saturating_sub(tick_start)
+                    .min(u64::from(u32::MAX)) as u32,
+            );
             if let Some(edges) = self.edges.get(&frame) {
                 out.extend(
                     edges
                         .iter()
                         .cloned()
-                        .map(|edge| TimedSeededEdge { edge, tick_offset }),
+                        .map(|edge| TimedSeededEdge { edge, tick_range }),
                 );
             }
         }
@@ -1725,7 +1827,7 @@ mod tests {
     use crate::{
         convert::identity_rot_mat,
         engine::{TickEvent, TickEventKind},
-        model::{BallSeries, Kinematics, ReplicatedChannels},
+        model::{BallSeries, ComponentEventIn, Kinematics, ReplicatedChannels},
     };
 
     #[test]
@@ -1913,6 +2015,35 @@ mod tests {
     }
 
     #[test]
+    fn seeded_edge_tick_search_recovers_mid_window_tick() {
+        let mut series = two_frame_rollout(
+            true,
+            4,
+            vec![TickEvent {
+                tick_offset: 2,
+                kind: TickEventKind::Dodge { dir: [1.0, 0.0] },
+            }],
+        );
+        series.players[0].component.events.push(ComponentEventIn {
+            t: 1.0 / 30.0,
+            frame_index: 1,
+            component: ComponentKind::DodgeTorque,
+            vector: Some([0.0, 2.24, 0.0]),
+            raw_value: None,
+        });
+
+        let output = solve_series(&series, &default_estimator_config());
+        let event = output.timelines[0]
+            .events
+            .iter()
+            .find(|event| matches!(event.kind, SolvedEventKind::Dodge { .. }))
+            .expect("seeded dodge should be solved");
+
+        assert_eq!(event.tick, 2);
+        assert_eq!(event.frame_index, 1);
+    }
+
+    #[test]
     fn long_gap_composite_press_release_dodge_is_solved_with_confidence_cap() {
         let series = two_frame_rollout(
             false,
@@ -1965,6 +2096,7 @@ mod tests {
         let file = std::fs::File::open(path).expect("fixture should open");
         let series: ReplaySeries = serde_json::from_reader(file).expect("fixture should parse");
         let seeded_edges = seeded_flip_intervals(&series);
+        let coalesced_seeded = coalesced_seeded_flip_intervals(&series);
         let mut config = default_estimator_config();
         config.mode = Mode::Unseeded;
         config.engine = if cfg!(feature = "sim") {
@@ -1972,22 +2104,167 @@ mod tests {
         } else {
             EnginePreference::PortableOnly
         };
+        if let Ok(margin) = std::env::var("RLINPUT_MARGIN_ONLY") {
+            config.fit.null_event_accept_margin =
+                margin.parse().expect("RLINPUT_MARGIN_ONLY should be f32");
+        }
         let started = std::time::Instant::now();
         let output = solve_series(&series, &config);
         let elapsed = started.elapsed();
         let unseeded = solved_flip_intervals(&output);
-        let agreement = if seeded_edges.is_empty() {
-            0.0
-        } else {
-            seeded_edges.intersection(&unseeded).count() as f32 / seeded_edges.len() as f32
-        };
+        let raw_hits = seeded_edges.intersection(&unseeded).count();
+        let coalesced_hits = coalesced_seeded.intersection(&unseeded).count();
+        let agreement = recall(raw_hits, seeded_edges.len());
+        let coalesced_agreement = recall(coalesced_hits, coalesced_seeded.len());
         println!(
-            "0925_unseeded,seeded_flip_intervals={},unseeded_flip_intervals={},agreement={agreement:.3},wall_time_seconds={:.3}",
+            "0925_unseeded,seeded_flip_intervals={},coalesced_seeded_flip_intervals={},unseeded_flip_intervals={},agreement={agreement:.3},coalesced_agreement={coalesced_agreement:.3},raw_jaccard={:.3},coalesced_jaccard={:.3},wall_time_seconds={:.3}",
             seeded_edges.len(),
+            coalesced_seeded.len(),
             unseeded.len(),
+            jaccard(raw_hits, seeded_edges.len(), unseeded.len()),
+            jaccard(coalesced_hits, coalesced_seeded.len(), unseeded.len()),
             elapsed.as_secs_f64()
         );
         assert!(!unseeded.is_empty());
+    }
+
+    #[test]
+    #[ignore = "set RLINPUT_SERIES_JSON to an exported ReplaySeries for Replay_files/0925.replay"]
+    fn exported_0925_agreement_ruler_diagnostics() {
+        let path = std::env::var("RLINPUT_SERIES_JSON")
+            .expect("RLINPUT_SERIES_JSON should point to exported ReplaySeries JSON");
+        let file = std::fs::File::open(path).expect("fixture should open");
+        let series: ReplaySeries = serde_json::from_reader(file).expect("fixture should parse");
+        let raw_seeded = seeded_flip_intervals(&series);
+        let coalesced_seeded = coalesced_seeded_flip_intervals(&series);
+        let mut config = default_estimator_config();
+        config.mode = Mode::Unseeded;
+        config.engine = if cfg!(feature = "sim") {
+            EnginePreference::PreferReference
+        } else {
+            EnginePreference::PortableOnly
+        };
+        let output = solve_series(&series, &config);
+        let unseeded = solved_flip_intervals(&output);
+        let raw_hits = raw_seeded.intersection(&unseeded).count();
+        let coalesced_hits = coalesced_seeded.intersection(&unseeded).count();
+        println!(
+            "ruler,raw_seeded={},coalesced_seeded={},unseeded={},raw_hits={},raw_recall={:.3},raw_jaccard={:.3},coalesced_hits={},coalesced_recall={:.3},coalesced_jaccard={:.3}",
+            raw_seeded.len(),
+            coalesced_seeded.len(),
+            unseeded.len(),
+            raw_hits,
+            recall(raw_hits, raw_seeded.len()),
+            jaccard(raw_hits, raw_seeded.len(), unseeded.len()),
+            coalesced_hits,
+            recall(coalesced_hits, coalesced_seeded.len()),
+            jaccard(coalesced_hits, coalesced_seeded.len(), unseeded.len()),
+        );
+    }
+
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_null_margin_calibration() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
+        let margins = std::env::var("RLINPUT_MARGIN_ONLY")
+            .ok()
+            .and_then(|value| value.parse::<f32>().ok())
+            .map_or_else(
+                || {
+                    vec![
+                        0.0_f32, 4.0, 8.0, 12.0, 16.0, 20.0, 24.0, 32.0, 64.0, 128.0, 256.0,
+                    ]
+                },
+                |margin| vec![margin],
+            );
+        for margin in margins {
+            let mut seeded_total = 0usize;
+            let mut retained_total = 0usize;
+            let mut hallucinated_total = 0usize;
+            let mut solved_total = 0usize;
+            for entry in std::fs::read_dir(&dir).expect("dev series dir should read") {
+                let path = entry.expect("entry should read").path();
+                if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                    continue;
+                }
+                let file = std::fs::File::open(&path).expect("fixture should open");
+                let series: ReplaySeries =
+                    serde_json::from_reader(file).expect("fixture should parse");
+                let seeded = coalesced_seeded_flip_intervals(&series);
+                let mut config = default_estimator_config();
+                config.mode = Mode::Unseeded;
+                config.engine = if cfg!(feature = "sim") {
+                    EnginePreference::PreferReference
+                } else {
+                    EnginePreference::PortableOnly
+                };
+                config.fit.null_event_accept_margin = margin;
+                let solved = solved_flip_intervals(&solve_series(&series, &config));
+                let retained = seeded.intersection(&solved).count();
+                seeded_total += seeded.len();
+                retained_total += retained;
+                hallucinated_total += solved.difference(&seeded).count();
+                solved_total += solved.len();
+            }
+            println!(
+                "margin_calibration,margin={margin:.1},seeded_known_flips={seeded_total},retained={retained_total},retention={:.3},solved_flips={solved_total},quiet_hallucinations={hallucinated_total}",
+                recall(retained_total, seeded_total),
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "set RLINPUT_SERIES_JSON to an exported ReplaySeries for Replay_files/0925.replay"]
+    fn exported_0925_quiet_flip_disagreement_diagnostics() {
+        let path = std::env::var("RLINPUT_SERIES_JSON")
+            .expect("RLINPUT_SERIES_JSON should point to exported ReplaySeries JSON");
+        let file = std::fs::File::open(path).expect("fixture should open");
+        let series: ReplaySeries = serde_json::from_reader(file).expect("fixture should parse");
+        let diags = quiet_flip_disagreement_diags(&series);
+        let low64 = diags.iter().filter(|diag| diag.margin <= 64.0).count();
+        let after_prior = diags.iter().filter(|diag| diag.after_prior).count();
+        let first_half = diags.iter().filter(|diag| diag.segment_frac < 0.5).count();
+        let second_half = diags.len().saturating_sub(first_half);
+        let low_kinematic = diags
+            .iter()
+            .filter(|diag| {
+                diag.planar_delta <= crate::consts::FIT_SIGMA_VEL_MEASURED
+                    && diag.ang_delta <= crate::consts::FIT_SIGMA_ANG_VEL_MEASURED
+            })
+            .count();
+        println!(
+            "quiet_disagreement_summary,count={},margin_p50={:.3},margin_p68={:.3},margin_p90={:.3},margin_le_64={},after_prior_same_segment={},first_half={},second_half={},low_kinematic_floor={}",
+            diags.len(),
+            percentile(diags.iter().map(|diag| diag.margin).collect(), 0.50),
+            percentile(diags.iter().map(|diag| diag.margin).collect(), 0.68),
+            percentile(diags.iter().map(|diag| diag.margin).collect(), 0.90),
+            low64,
+            after_prior,
+            first_half,
+            second_half,
+            low_kinematic,
+        );
+        for diag in diags.iter().take(12) {
+            println!(
+                "quiet_disagreement,player={},segment={},frames={}..{},ticks={:?},null={:.3},flip={:.3},margin={:.3},flags={:?},portable={},reference={},planar_delta={:.3},vertical_delta={:.3},ang_delta={:.3},after_prior={}",
+                diag.player_id,
+                diag.segment_id,
+                diag.start_frame,
+                diag.end_frame,
+                diag.tick_range,
+                diag.null_energy,
+                diag.flip_energy,
+                diag.margin,
+                diag.flags,
+                diag.portable_best,
+                diag.reference_best,
+                diag.planar_delta,
+                diag.vertical_delta,
+                diag.ang_delta,
+                diag.after_prior,
+            );
+        }
     }
 
     fn quiet_series(frames: usize) -> ReplaySeries {
@@ -2128,5 +2405,337 @@ mod tests {
             }
         }
         out
+    }
+
+    fn coalesced_seeded_flip_intervals(series: &ReplaySeries) -> HashSet<(String, u32)> {
+        let segmentation = crate::segment::segment_replay(series);
+        let mut out = HashSet::new();
+        for segmented_player in &segmentation.players {
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let seeded_frames: HashSet<_> =
+                crate::tracker::reconstruct_seeded_edges(&player.component)
+                    .into_iter()
+                    .filter(|edge| {
+                        matches!(
+                            edge.component,
+                            ComponentKind::DodgeTorque | ComponentKind::DoubleJumpImpulse
+                        )
+                    })
+                    .map(|edge| edge.frame_index)
+                    .collect();
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+                for scoring in fresh_scoring_intervals(segment, &freshness) {
+                    if seeded_frames.iter().any(|frame| {
+                        *frame > scoring.start_frame && *frame <= scoring.interval.frame_index
+                    }) {
+                        out.insert((player.player_id.clone(), scoring.interval.frame_index));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    #[derive(Clone, Debug)]
+    struct QuietFlipDiag {
+        player_id: String,
+        segment_id: u32,
+        start_frame: u32,
+        end_frame: u32,
+        tick_range: (u64, u64),
+        null_energy: f64,
+        flip_energy: f64,
+        margin: f64,
+        flags: AmbiguityFlags,
+        portable_best: &'static str,
+        reference_best: &'static str,
+        planar_delta: f32,
+        vertical_delta: f32,
+        ang_delta: f32,
+        segment_frac: f32,
+        after_prior: bool,
+    }
+
+    fn quiet_flip_disagreement_diags(series: &ReplaySeries) -> Vec<QuietFlipDiag> {
+        let mut config = default_estimator_config();
+        config.mode = Mode::Unseeded;
+        config.engine = if cfg!(feature = "sim") {
+            EnginePreference::PreferReference
+        } else {
+            EnginePreference::PortableOnly
+        };
+        let masked = masked_series_for_solving(series, &config);
+        let segmentation = segment_replay_with_splits_and_confidences(
+            &masked,
+            &[],
+            CONFIDENT_SEGMENT_THRESHOLD,
+            |_player_id, _segment| None,
+        );
+        let mut out = Vec::new();
+
+        for segmented_player in &segmentation.players {
+            let Some(player_index) = masked
+                .players
+                .iter()
+                .position(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let player = &masked.players[player_index];
+            let original_player = &series.players[player_index];
+            let seeded_frames: HashSet<_> =
+                crate::tracker::reconstruct_seeded_edges(&original_player.component)
+                    .into_iter()
+                    .filter(|edge| {
+                        matches!(
+                            edge.component,
+                            ComponentKind::DodgeTorque | ComponentKind::DoubleJumpImpulse
+                        )
+                    })
+                    .map(|edge| edge.frame_index)
+                    .collect();
+            let hints = SeededHints::new(&player.component);
+            let mut reference = ReferenceScorer::new();
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+            }
+
+            for segment in &segmented_player.segments {
+                let tracker = tracker_for_segment(player, segment, masked.tick_rate);
+                let mut branching = BranchingTracker::new(tracker.clone());
+                let intervals = fresh_scoring_intervals(segment, &freshness);
+                let mut prior_quiet_flip = false;
+                for (idx, scoring) in intervals.iter().enumerate() {
+                    let start_frame = scoring.start_frame;
+                    let interval = &scoring.interval;
+                    let end_frame = interval.frame_index;
+                    if frame_out_of_bounds(player, start_frame)
+                        || frame_out_of_bounds(player, end_frame)
+                    {
+                        continue;
+                    }
+                    let interval_tracker = branching.best_tracker().clone();
+                    let ticks = interval_ticks(interval);
+                    let state_k = car_state(player, start_frame, &interval_tracker);
+                    let observed_end = car_state(player, end_frame, &interval_tracker);
+                    let base_controls = solve_controls(
+                        player,
+                        start_frame,
+                        end_frame,
+                        interval,
+                        &interval_tracker,
+                        &config,
+                    );
+                    let candidates = generate_candidates(
+                        &state_k,
+                        &observed_end,
+                        &interval_tracker,
+                        interval,
+                        base_controls,
+                        hints.edges_for_interval(
+                            segment,
+                            start_frame,
+                            end_frame,
+                            interval.tick_range.0,
+                        ),
+                        &config,
+                        segment.kind,
+                    );
+                    let (mut scored, portable_best, reference_best) = score_candidates_for_diag(
+                        &state_k,
+                        &observed_end,
+                        ticks,
+                        &candidates.candidates,
+                        &config,
+                        &mut reference,
+                    );
+                    if scored.is_empty() {
+                        scored.push(score_one(
+                            &mut PortableEngine::new(),
+                            &state_k,
+                            &observed_end,
+                            ticks,
+                            Candidate::null(
+                                vec![Controls::default(); ticks as usize],
+                                interval.flags,
+                            ),
+                            &config.fit,
+                        ));
+                    }
+                    prefer_event_when_null_is_rejected(&mut scored, &config.fit);
+                    prefer_long_gap_stall_z_damp(&mut scored, interval, &observed_end);
+
+                    let quiet_seeded = !seeded_frames
+                        .iter()
+                        .any(|frame| *frame > start_frame && *frame <= end_frame);
+                    let null_energy = scored
+                        .iter()
+                        .find(|item| item.candidate.is_null())
+                        .map(|item| item.energy)
+                        .unwrap_or(f64::NAN);
+                    let best_flip = scored
+                        .iter()
+                        .filter(|item| candidate_has_flip(&item.candidate))
+                        .min_by(|a, b| a.energy.total_cmp(&b.energy));
+                    if quiet_seeded
+                        && scored
+                            .first()
+                            .is_some_and(|item| candidate_has_flip(&item.candidate))
+                    {
+                        if let Some(best_flip) = best_flip {
+                            let delta_v = diff(observed_end.vel, state_k.vel);
+                            out.push(QuietFlipDiag {
+                                player_id: player.player_id.clone(),
+                                segment_id: segment.summary.id,
+                                start_frame,
+                                end_frame,
+                                tick_range: interval.tick_range,
+                                null_energy,
+                                flip_energy: best_flip.energy,
+                                margin: null_energy - best_flip.energy,
+                                flags: scored[0].flags,
+                                portable_best,
+                                reference_best,
+                                planar_delta: norm2([delta_v[0], delta_v[1]]),
+                                vertical_delta: delta_v[2],
+                                ang_delta: norm(diff(observed_end.ang_vel, state_k.ang_vel)),
+                                segment_frac: idx as f32 / intervals.len().max(1) as f32,
+                                after_prior: prior_quiet_flip,
+                            });
+                            prior_quiet_flip = true;
+                        }
+                    }
+                    let branch_width =
+                        if scored.first().is_some_and(|item| item.candidate.is_null()) {
+                            1
+                        } else {
+                            BranchingTracker::DEFAULT_BEAM_WIDTH
+                        };
+                    let branch_options: Vec<_> = scored
+                        .iter()
+                        .enumerate()
+                        .take(branch_width)
+                        .map(|(rank, item)| BranchOption {
+                            candidate: item.candidate.clone(),
+                            score: rank as f64,
+                        })
+                        .collect();
+                    apply_branch_options(&mut branching, &branch_options, interval.tick_range.0);
+                }
+            }
+        }
+        out
+    }
+
+    fn score_candidates_for_diag(
+        state_k: &CarPhysState,
+        observed_end: &CarPhysState,
+        ticks: u32,
+        candidates: &[Candidate],
+        config: &EstimatorConfig,
+        reference: &mut ReferenceScorer,
+    ) -> (Vec<ScoredCandidate>, &'static str, &'static str) {
+        let mut portable = PortableEngine::new();
+        let portable_scored = rank_scored(
+            candidates
+                .iter()
+                .cloned()
+                .map(|candidate| {
+                    score_one(
+                        &mut portable,
+                        state_k,
+                        observed_end,
+                        ticks,
+                        candidate,
+                        &config.fit,
+                    )
+                })
+                .collect(),
+            &config.fit,
+        );
+        let portable_best = portable_scored
+            .first()
+            .map_or("none", |item| candidate_name(&item.candidate));
+        let scored = if config.engine == EnginePreference::PreferReference
+            && best_event_beats_null_margin(&portable_scored, &config.fit)
+        {
+            reference.rescore(state_k, observed_end, ticks, portable_scored, &config.fit)
+        } else {
+            portable_scored
+        };
+        let reference_best = scored
+            .first()
+            .map_or("none", |item| candidate_name(&item.candidate));
+        (scored, portable_best, reference_best)
+    }
+
+    fn candidate_has_flip(candidate: &Candidate) -> bool {
+        candidate.actions.iter().any(|action| {
+            matches!(
+                action.event,
+                CandidateEvent::DoubleJump | CandidateEvent::Dodge { .. } | CandidateEvent::Stall
+            )
+        })
+    }
+
+    fn candidate_name(candidate: &Candidate) -> &'static str {
+        if candidate.is_null() {
+            "Null"
+        } else if candidate
+            .actions
+            .iter()
+            .any(|action| matches!(action.event, CandidateEvent::Dodge { .. }))
+        {
+            "Dodge"
+        } else if candidate
+            .actions
+            .iter()
+            .any(|action| action.event == CandidateEvent::DoubleJump)
+        {
+            "DoubleJump"
+        } else if candidate
+            .actions
+            .iter()
+            .any(|action| action.event == CandidateEvent::Stall)
+        {
+            "Stall"
+        } else {
+            "Other"
+        }
+    }
+
+    fn percentile(mut values: Vec<f64>, q: f64) -> f64 {
+        values.sort_by(|a, b| a.total_cmp(b));
+        if values.is_empty() {
+            return f64::NAN;
+        }
+        let idx = ((values.len() - 1) as f64 * q).round() as usize;
+        values[idx]
+    }
+
+    fn recall(hits: usize, expected: usize) -> f32 {
+        if expected == 0 {
+            0.0
+        } else {
+            hits as f32 / expected as f32
+        }
+    }
+
+    fn jaccard(hits: usize, left: usize, right: usize) -> f32 {
+        let union = left + right - hits;
+        if union == 0 {
+            0.0
+        } else {
+            hits as f32 / union as f32
+        }
     }
 }
