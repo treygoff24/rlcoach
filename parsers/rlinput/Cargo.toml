@@ -1,0 +1,13 @@
+[package]
+name = "rlinput"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[features]
+default = []
+sim = ["dep:rocketsim_rs"]
+
+[dependencies]
+rocketsim_rs = { version = "=0.37.0", default-features = false, optional = true }

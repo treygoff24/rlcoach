@@ -66,7 +66,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: parsers/rlreplay_rust
+          workspaces: .
 
       - name: Install dependencies
         run: |
@@ -81,7 +81,7 @@ jobs:
           cd parsers/rlreplay_rust
           pip install maturin
           maturin build --release
-          pip install target/wheels/*.whl
+          pip install ../../target/wheels/*.whl
 
       - name: Run linting
         run: |

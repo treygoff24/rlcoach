@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "parsers/rlinput",
+    "parsers/rlreplay_rust",
+]
+resolver = "2"
