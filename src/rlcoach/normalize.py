@@ -634,6 +634,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     # Extract position and other data
                     position = Vec3(0.0, 0.0, 17.0)  # Car height
                     velocity = Vec3(0.0, 0.0, 0.0)
+                    angular_velocity: Vec3 | None = None
                     rotation: Rotation | Vec3 = Rotation(0.0, 0.0, 0.0)
                     boost_amount = 33  # Starting boost
 
@@ -646,6 +647,14 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         velocity = to_vec3(player_data.velocity)
                     elif isinstance(player_data, dict) and "velocity" in player_data:
                         velocity = to_vec3(player_data["velocity"])
+
+                    if hasattr(player_data, "angular_velocity"):
+                        angular_velocity = to_vec3(player_data.angular_velocity)
+                    elif (
+                        isinstance(player_data, dict)
+                        and "angular_velocity" in player_data
+                    ):
+                        angular_velocity = to_vec3(player_data["angular_velocity"])
 
                     # Extract rotation - handle both new format (pitch/yaw/roll
                     # + quaternion) and legacy format (x/y/z).
@@ -698,6 +707,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         velocity=velocity,
                         rotation=rotation,
                         boost_amount=boost_amount,
+                        angular_velocity=angular_velocity,
                         is_supersonic=raw_supersonic_flag,
                         is_on_ground=is_on_ground,
                         is_demolished=is_demolished,

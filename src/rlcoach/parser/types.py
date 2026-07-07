@@ -174,6 +174,7 @@ class PlayerFrame:
         Rotation | Vec3
     )  # Rotation with quaternion or legacy Vec3 (pitch, yaw, roll)
     boost_amount: int  # 0-100
+    angular_velocity: Vec3 | None = None
     is_supersonic: bool = False
     is_on_ground: bool = True
     is_demolished: bool = False

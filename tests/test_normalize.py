@@ -311,6 +311,7 @@ class TestTimelineBuilding:
                         "team": 0,
                         "position": {"x": 0, "y": 0, "z": 17},
                         "velocity": {"x": -6000, "y": 7000, "z": -1500},
+                        "angular_velocity": {"x": 1.0, "y": 2.0, "z": 3.0},
                         "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
                         "boost_amount": 33,
                     }
@@ -323,6 +324,7 @@ class TestTimelineBuilding:
         assert frame.ball.velocity == Vec3(6000.0, -7000.0, -2000.0)
         assert frame.ball.angular_velocity == Vec3(10_000.0, -10_000.0, -500.0)
         assert frame.players[0].velocity == Vec3(-6000.0, 7000.0, -1500.0)
+        assert frame.players[0].angular_velocity == Vec3(1.0, 2.0, 3.0)
 
     def test_multiple_frames_sorted_by_timestamp(self):
         """Multiple frames sorted chronologically."""

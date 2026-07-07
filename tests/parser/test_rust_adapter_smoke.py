@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import pytest
@@ -106,3 +107,31 @@ def test_rust_network_preserves_header_player_frames_after_respawn():
         assert player_last_timestamp[player_id] == pytest.approx(
             network.frames[-1]["timestamp"]
         )
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.skipif(
+    not PARITY_REPLAY_PATH.exists(), reason="0925 parity replay fixture missing"
+)
+def test_0925_replay_exposes_car_angular_velocity():
+    from rlcoach.parser import get_adapter
+
+    adapter = get_adapter("rust")
+    network = adapter.parse_network(PARITY_REPLAY_PATH)
+
+    assert network is not None
+    assert network.frames
+
+    magnitudes = []
+    for frame in network.frames:
+        for player in frame.get("players", []):
+            angular_velocity = player.get("angular_velocity")
+            if not isinstance(angular_velocity, dict):
+                continue
+            magnitude = math.sqrt(
+                sum(float(angular_velocity.get(axis, 0.0)) ** 2 for axis in "xyz")
+            )
+            magnitudes.append(magnitude)
+
+    assert any(magnitude > 0.01 for magnitude in magnitudes)
+    assert max(magnitudes) <= 5.6

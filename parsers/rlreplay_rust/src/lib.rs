@@ -202,6 +202,10 @@ fn pickup_bool_raw_state(picked_up: bool) -> u8 {
     u8::from(picked_up)
 }
 
+fn angular_velocity_to_radians(ang: Vector3f) -> (f32, f32, f32) {
+    (ang.x / 100.0, ang.y / 100.0, ang.z / 100.0)
+}
+
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
     let mut file = File::open(path)
         .map_err(|e| PyIOError::new_err(format!("Failed to open replay file '{}': {}", path, e)))?;
@@ -941,6 +945,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
         let mut car_boost: HashMap<i32, i64> = HashMap::new(); // 0-100
         let mut car_pos: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_vel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
+        let mut car_angvel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_rot: HashMap<i32, (f32, f32, f32, f32)> = HashMap::new(); // quaternion (x,y,z,w)
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut car_owner: HashMap<i32, i32> = HashMap::new();
@@ -1077,6 +1082,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                     car_boost.remove(&aid);
                     car_pos.remove(&aid);
                     car_vel.remove(&aid);
+                    car_angvel.remove(&aid);
                     car_rot.remove(&aid);
                     car_demo.remove(&aid);
                     car_owner.remove(&aid);
@@ -1233,7 +1239,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                 ball_actor = Some(aid);
                                 ball_pos = (loc.x, loc.y, loc.z);
                                 ball_vel = (vel.x, vel.y, vel.z);
-                                ball_angvel = (ang.x, ang.y, ang.z);
+                                ball_angvel = angular_velocity_to_radians(ang);
                             } else if is_car_state_actor(
                                 aid,
                                 &actor_kind,
@@ -1244,6 +1250,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                             ) {
                                 car_pos.insert(aid, (loc.x, loc.y, loc.z));
                                 car_vel.insert(aid, (vel.x, vel.y, vel.z));
+                                car_angvel.insert(aid, angular_velocity_to_radians(ang));
                                 // Extract quaternion rotation from RigidBody
                                 let rot = rb.rotation;
                                 car_rot.insert(aid, (rot.x, rot.y, rot.z, rot.w));
@@ -1642,6 +1649,11 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         pvel.set_item("x", v.0)?;
                         pvel.set_item("y", v.1)?;
                         pvel.set_item("z", v.2)?;
+                        let av = car_angvel.get(&aid).cloned().unwrap_or((0.0, 0.0, 0.0));
+                        let pang = PyDict::new(py);
+                        pang.set_item("x", av.0)?;
+                        pang.set_item("y", av.1)?;
+                        pang.set_item("z", av.2)?;
 
                         // Use true quaternion rotation if available, else fallback to velocity approximation
                         let prot = PyDict::new(py);
@@ -1674,6 +1686,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         }
                         p.set_item("position", ppos)?;
                         p.set_item("velocity", pvel)?;
+                        p.set_item("angular_velocity", pang)?;
                         p.set_item("rotation", prot)?;
                         let boost = *car_boost.get(&aid).unwrap_or(&33);
                         p.set_item("boost_amount", boost)?;
