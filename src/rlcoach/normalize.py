@@ -293,6 +293,30 @@ def _extract_optional_bool_flag(source: Any, field: str) -> tuple[bool, bool | N
     return (False, None)
 
 
+def _extract_optional_float(source: Any, field: str) -> float | None:
+    raw = (
+        source.get(field) if isinstance(source, dict) else getattr(source, field, None)
+    )
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_optional_int(source: Any, field: str) -> int | None:
+    raw = (
+        source.get(field) if isinstance(source, dict) else getattr(source, field, None)
+    )
+    if isinstance(raw, bool) or raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _extract_event_field(item: Any, field: str) -> Any:
     if isinstance(item, dict):
         return item.get(field)
@@ -686,6 +710,11 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     sleeping = False
                     is_on_ground = True
                     is_demolished = False
+                    throttle = _extract_optional_float(player_data, "throttle")
+                    steer = _extract_optional_float(player_data, "steer")
+                    throttle_raw = _extract_optional_int(player_data, "throttle_raw")
+                    steer_raw = _extract_optional_int(player_data, "steer_raw")
+                    _, handbrake = _extract_optional_bool_flag(player_data, "handbrake")
 
                     if hasattr(player_data, "sleeping"):
                         sleeping = bool(player_data.sleeping)
@@ -722,6 +751,11 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         boost_amount=boost_amount,
                         angular_velocity=angular_velocity,
                         sleeping=sleeping,
+                        throttle=throttle,
+                        steer=steer,
+                        handbrake=handbrake,
+                        throttle_raw=throttle_raw,
+                        steer_raw=steer_raw,
                         is_supersonic=raw_supersonic_flag,
                         is_on_ground=is_on_ground or sleeping,
                         is_demolished=is_demolished,

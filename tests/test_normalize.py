@@ -317,6 +317,11 @@ class TestTimelineBuilding:
                         "boost_amount": 33,
                         "sleeping": True,
                         "is_on_ground": False,
+                        "throttle": 0.5,
+                        "steer": -0.25,
+                        "handbrake": True,
+                        "throttle_raw": 192,
+                        "steer_raw": 96,
                     }
                 ],
             }
@@ -331,6 +336,11 @@ class TestTimelineBuilding:
         assert frame.players[0].angular_velocity == Vec3(1.0, 2.0, 3.0)
         assert frame.players[0].sleeping is True
         assert frame.players[0].is_on_ground is True
+        assert frame.players[0].throttle == 0.5
+        assert frame.players[0].steer == -0.25
+        assert frame.players[0].handbrake is True
+        assert frame.players[0].throttle_raw == 192
+        assert frame.players[0].steer_raw == 96
 
     def test_multiple_frames_sorted_by_timestamp(self):
         """Multiple frames sorted chronologically."""

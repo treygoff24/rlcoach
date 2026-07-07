@@ -176,6 +176,11 @@ class PlayerFrame:
     boost_amount: int  # 0-100
     angular_velocity: Vec3 | None = None
     sleeping: bool = False
+    throttle: float | None = None
+    steer: float | None = None
+    handbrake: bool | None = None
+    throttle_raw: int | None = None
+    steer_raw: int | None = None
     is_supersonic: bool = False
     is_on_ground: bool = True
     is_demolished: bool = False

@@ -206,6 +206,10 @@ fn angular_velocity_to_radians(ang: Vector3f) -> (f32, f32, f32) {
     (ang.x / 100.0, ang.y / 100.0, ang.z / 100.0)
 }
 
+fn normalize_input_byte(raw: u8) -> f64 {
+    (((raw as f64) - 128.0) / 127.0).clamp(-1.0, 1.0)
+}
+
 fn read_file_bytes(path: &str) -> PyResult<Vec<u8>> {
     let mut file = File::open(path)
         .map_err(|e| PyIOError::new_err(format!("Failed to open replay file '{}': {}", path, e)))?;
@@ -668,8 +672,8 @@ fn map_network_error_code(message: &str) -> &'static str {
 mod tests {
     use super::{
         cam_settings_pairs, infer_kickoff_phase, is_car_state_actor, loadout_pairs,
-        map_network_error_code, pickup_bool_raw_state, resolve_component_owner, team_loadout_for,
-        ActorKind,
+        map_network_error_code, normalize_input_byte, pickup_bool_raw_state,
+        resolve_component_owner, team_loadout_for, ActorKind,
     };
     use std::collections::HashMap;
 
@@ -802,6 +806,13 @@ mod tests {
     fn pickup_bool_raw_state_matches_legacy_pickup_state() {
         assert_eq!(pickup_bool_raw_state(true), 1);
         assert_eq!(pickup_bool_raw_state(false), 0);
+    }
+
+    #[test]
+    fn normalize_input_byte_uses_centered_signed_range() {
+        assert_eq!(normalize_input_byte(128), 0.0);
+        assert_eq!(normalize_input_byte(255), 1.0);
+        assert_eq!(normalize_input_byte(0), -1.0);
     }
 
     #[test]
@@ -947,6 +958,9 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
         let mut car_vel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_angvel: HashMap<i32, (f32, f32, f32)> = HashMap::new();
         let mut car_sleeping: HashMap<i32, bool> = HashMap::new();
+        let mut car_throttle_raw: HashMap<i32, u8> = HashMap::new();
+        let mut car_steer_raw: HashMap<i32, u8> = HashMap::new();
+        let mut car_handbrake: HashMap<i32, bool> = HashMap::new();
         let mut car_rot: HashMap<i32, (f32, f32, f32, f32)> = HashMap::new(); // quaternion (x,y,z,w)
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut car_owner: HashMap<i32, i32> = HashMap::new();
@@ -1087,6 +1101,9 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                     car_vel.remove(&aid);
                     car_angvel.remove(&aid);
                     car_sleeping.remove(&aid);
+                    car_throttle_raw.remove(&aid);
+                    car_steer_raw.remove(&aid);
+                    car_handbrake.remove(&aid);
                     car_rot.remove(&aid);
                     car_demo.remove(&aid);
                     car_owner.remove(&aid);
@@ -1301,13 +1318,32 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                             frame_pad_events.extend(events);
                         }
                         Attribute::Byte(raw) => {
-                            if let Some(component) = component_kind.get(&aid) {
-                                if component.is_jump
-                                    || component.is_dodge
-                                    || component.is_double_jump
-                                {
-                                    component_active_state.insert(aid, raw % 2 == 1);
+                            match objects.get(upd_object_id).map(String::as_str) {
+                                Some("TAGame.Vehicle_TA:ReplicatedThrottle") => {
+                                    car_throttle_raw.insert(aid, raw);
                                 }
+                                Some("TAGame.Vehicle_TA:ReplicatedSteer") => {
+                                    car_steer_raw.insert(aid, raw);
+                                }
+                                _ => {
+                                    if let Some(component) = component_kind.get(&aid) {
+                                        if component.is_jump
+                                            || component.is_dodge
+                                            || component.is_double_jump
+                                        {
+                                            component_active_state.insert(aid, raw % 2 == 1);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Attribute::Boolean(value) => {
+                            if objects
+                                .get(upd_object_id)
+                                .map(|name| name == "TAGame.Vehicle_TA:bReplicatedHandbrake")
+                                .unwrap_or(false)
+                            {
+                                car_handbrake.insert(aid, value);
                             }
                         }
 
@@ -1490,9 +1526,6 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                             // player's team may not be bound yet at this point.
                             team_loadout_by_pri.insert(aid, *team_loadout);
                         }
-                        // Note: Jump/Dodge/Throttle/Steer/Handbrake attributes are not directly
-                        // exposed by boxcars 0.10.7. These mechanics will be inferred in Python
-                        // from physics state changes and position/velocity derivatives.
                         _ => {}
                     }
                 }
@@ -1698,6 +1731,17 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         p.set_item("rotation", prot)?;
                         let boost = *car_boost.get(&aid).unwrap_or(&33);
                         p.set_item("boost_amount", boost)?;
+                        if let Some(raw) = car_throttle_raw.get(&aid) {
+                            p.set_item("throttle_raw", *raw)?;
+                            p.set_item("throttle", normalize_input_byte(*raw))?;
+                        }
+                        if let Some(raw) = car_steer_raw.get(&aid) {
+                            p.set_item("steer_raw", *raw)?;
+                            p.set_item("steer", normalize_input_byte(*raw))?;
+                        }
+                        if let Some(value) = car_handbrake.get(&aid) {
+                            p.set_item("handbrake", *value)?;
+                        }
                         // Calculate speed for supersonic check
                         let speed = (v.0 * v.0 + v.1 * v.1 + v.2 * v.2).sqrt();
                         p.set_item("is_supersonic", speed > 2300.0)?;

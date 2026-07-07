@@ -161,3 +161,37 @@ def test_0925_replay_exposes_rigid_body_sleeping_flags():
     assert any(value is False for value in ball_sleeping)
     assert any(value is True for value in car_sleeping)
     assert any(value is False for value in car_sleeping)
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.skipif(
+    not PARITY_REPLAY_PATH.exists(), reason="0925 parity replay fixture missing"
+)
+def test_0925_replay_exposes_driving_inputs():
+    from rlcoach.parser import get_adapter
+
+    adapter = get_adapter("rust")
+    network = adapter.parse_network(PARITY_REPLAY_PATH)
+
+    assert network is not None
+    assert network.frames
+
+    players = [
+        player for frame in network.frames for player in frame.get("players", [])
+    ]
+    assert any("throttle" in player for player in players)
+    assert any("steer" in player for player in players)
+    assert any("handbrake" in player for player in players)
+    assert any(player.get("throttle_raw") not in (None, 128) for player in players)
+    assert any(player.get("steer_raw") not in (None, 128) for player in players)
+    assert any(player.get("handbrake") is True for player in players)
+
+    for player in players:
+        if "throttle_raw" in player:
+            assert 0 <= player["throttle_raw"] <= 255
+            assert -1.0 <= player["throttle"] <= 1.0
+        if "steer_raw" in player:
+            assert 0 <= player["steer_raw"] <= 255
+            assert -1.0 <= player["steer"] <= 1.0
+        if "handbrake" in player:
+            assert isinstance(player["handbrake"], bool)
