@@ -5,6 +5,7 @@ pub mod convert;
 pub mod lattice;
 pub mod model;
 pub mod timeline;
+pub mod tracker;
 
 #[cfg(feature = "sim")]
 pub mod sim;
