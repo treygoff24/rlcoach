@@ -30,6 +30,8 @@ pub struct SegmentLattice {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LatticeInterval {
+    /// Frame that TERMINATES the interval (the observation at `tick_range.1`).
+    /// After a `DUPLICATE_FRAME` merge this is the later of the merged frames.
     pub frame_index: u32,
     pub tick_range: (u64, u64),
     pub time_range: (f64, f64),
