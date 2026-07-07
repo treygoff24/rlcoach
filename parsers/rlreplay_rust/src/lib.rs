@@ -154,6 +154,41 @@ struct ComponentKind {
     is_jump: bool,
     is_dodge: bool,
     is_double_jump: bool,
+    is_boost: bool,
+    is_air_activate: bool,
+}
+
+#[derive(Clone)]
+struct ComponentEvent {
+    owner_actor_id: i32,
+    kind: &'static str,
+    component: &'static str,
+    vector: Option<(f32, f32, f32)>,
+    raw_value: Option<i64>,
+    active: Option<bool>,
+}
+
+#[derive(Clone)]
+struct ParserStatEvent {
+    object_id: i32,
+    object_name: Option<String>,
+    unknown1: bool,
+}
+
+fn component_label(component: &ComponentKind) -> Option<&'static str> {
+    if component.is_jump {
+        Some("jump")
+    } else if component.is_dodge {
+        Some("dodge")
+    } else if component.is_double_jump {
+        Some("double_jump")
+    } else if component.is_boost {
+        Some("boost")
+    } else if component.is_air_activate {
+        Some("air_activate")
+    } else {
+        None
+    }
 }
 
 fn is_car_state_actor(
@@ -961,11 +996,14 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
         let mut car_throttle_raw: HashMap<i32, u8> = HashMap::new();
         let mut car_steer_raw: HashMap<i32, u8> = HashMap::new();
         let mut car_handbrake: HashMap<i32, bool> = HashMap::new();
+        let mut car_boost_raw: HashMap<i32, u8> = HashMap::new();
+        let mut car_boost_grant_count: HashMap<i32, u8> = HashMap::new();
         let mut car_rot: HashMap<i32, (f32, f32, f32, f32)> = HashMap::new(); // quaternion (x,y,z,w)
         let mut car_demo: HashMap<i32, bool> = HashMap::new();
         let mut car_owner: HashMap<i32, i32> = HashMap::new();
         let mut component_owner: HashMap<i32, i32> = HashMap::new();
         let mut component_active_state: HashMap<i32, bool> = HashMap::new();
+        let mut component_active_raw: HashMap<i32, u8> = HashMap::new();
         let mut pad_registry = PadRegistry::new_with_arena(&map_name);
         let mut ball_actor: Option<i32> = None;
         let mut ball_pos: (f32, f32, f32) = (0.0, 0.0, 93.15);
@@ -1050,6 +1088,8 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                 is_jump: lname.contains("carcomponent_jump"),
                 is_dodge: lname.contains("carcomponent_dodge"),
                 is_double_jump: lname.contains("carcomponent_doublejump"),
+                is_boost: lname.contains("carcomponent_boost"),
+                is_air_activate: lname.contains("carcomponent_airactivate"),
             })
         }
 
@@ -1060,6 +1100,8 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                 let mut frame_dodging_actors: HashSet<i32> = HashSet::new();
                 let mut frame_double_jumping_actors: HashSet<i32> = HashSet::new();
                 let mut frame_demo_records: Vec<(i32, Option<i32>)> = Vec::new();
+                let mut frame_component_events: Vec<ComponentEvent> = Vec::new();
+                let mut frame_stat_events: Vec<ParserStatEvent> = Vec::new();
                 // Prune actors that were deleted before processing updates to avoid stale telemetry
                 for deleted in nf.deleted_actors {
                     let aid: i32 = deleted.into();
@@ -1095,8 +1137,11 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                     actor_kind.remove(&aid);
                     component_kind.remove(&aid);
                     component_active_state.remove(&aid);
+                    component_active_raw.remove(&aid);
                     car_team.remove(&aid);
                     car_boost.remove(&aid);
+                    car_boost_raw.remove(&aid);
+                    car_boost_grant_count.remove(&aid);
                     car_pos.remove(&aid);
                     car_vel.remove(&aid);
                     car_angvel.remove(&aid);
@@ -1120,6 +1165,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                     let retained_components: HashSet<i32> =
                         component_owner.keys().copied().collect();
                     component_active_state.retain(|comp, _| retained_components.contains(comp));
+                    component_active_raw.retain(|comp, _| retained_components.contains(comp));
                     pad_registry.remove_actor(aid);
                 }
 
@@ -1284,6 +1330,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         }
                         // Some builds carry these separately
                         Attribute::Location(loc) => {
+                            let update_name = objects.get(upd_object_id).map(String::as_str);
                             if let Some(component) = component_kind.get(&aid) {
                                 let target = component_owner.get(&aid).cloned().unwrap_or(aid);
                                 if component.is_jump {
@@ -1294,6 +1341,28 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                 }
                                 if component.is_double_jump {
                                     frame_double_jumping_actors.insert(target);
+                                }
+                                let vector_event = match update_name {
+                                    Some("TAGame.CarComponent_Dodge_TA:DodgeTorque") => {
+                                        Some(("dodge_torque", "dodge"))
+                                    }
+                                    Some("TAGame.CarComponent_Dodge_TA:DodgeImpulse") => {
+                                        Some(("dodge_impulse", "dodge"))
+                                    }
+                                    Some("TAGame.CarComponent_DoubleJump_TA:DoubleJumpImpulse") => {
+                                        Some(("double_jump_impulse", "double_jump"))
+                                    }
+                                    _ => None,
+                                };
+                                if let Some((kind, label)) = vector_event {
+                                    frame_component_events.push(ComponentEvent {
+                                        owner_actor_id: target,
+                                        kind,
+                                        component: label,
+                                        vector: Some((loc.x, loc.y, loc.z)),
+                                        raw_value: None,
+                                        active: None,
+                                    });
                                 }
                             }
                             let is_ball = Some(aid) == ball_actor
@@ -1325,6 +1394,35 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                 Some("TAGame.Vehicle_TA:ReplicatedSteer") => {
                                     car_steer_raw.insert(aid, raw);
                                 }
+                                Some("TAGame.CarComponent_Boost_TA:ReplicatedBoostAmount") => {
+                                    let target = resolve_component_owner(&component_owner, aid);
+                                    let amt = ((raw as f64) * (100.0 / 255.0)).round() as i64;
+                                    car_boost.insert(target, amt.clamp(0, 100));
+                                    car_boost_raw.insert(target, raw);
+                                }
+                                Some("TAGame.CarComponent_TA:ReplicatedActive") => {
+                                    if let Some(component) = component_kind.get(&aid) {
+                                        if let Some(label) = component_label(component) {
+                                            let active = raw % 2 == 1;
+                                            let target =
+                                                resolve_component_owner(&component_owner, aid);
+                                            let previous = component_active_raw.insert(aid, raw);
+                                            component_active_state.insert(aid, active);
+                                            if previous != Some(raw)
+                                                && (previous.is_some() || active)
+                                            {
+                                                frame_component_events.push(ComponentEvent {
+                                                    owner_actor_id: target,
+                                                    kind: "active",
+                                                    component: label,
+                                                    vector: None,
+                                                    raw_value: Some(raw as i64),
+                                                    active: Some(active),
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
                                 _ => {
                                     if let Some(component) = component_kind.get(&aid) {
                                         if component.is_jump
@@ -1344,6 +1442,25 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                                 .unwrap_or(false)
                             {
                                 car_handbrake.insert(aid, value);
+                            }
+                        }
+                        Attribute::Int(value) => {
+                            if objects
+                                .get(upd_object_id)
+                                .map(|name| {
+                                    name == "TAGame.CarComponent_AirActivate_TA:AirActivateCount"
+                                })
+                                .unwrap_or(false)
+                            {
+                                let target = resolve_component_owner(&component_owner, aid);
+                                frame_component_events.push(ComponentEvent {
+                                    owner_actor_id: target,
+                                    kind: "air_activate_count",
+                                    component: "air_activate",
+                                    vector: None,
+                                    raw_value: Some(value as i64),
+                                    active: None,
+                                });
                             }
                         }
 
@@ -1449,8 +1566,22 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         // Boost value replication (0..=255) → scale to 0..=100
                         Attribute::ReplicatedBoost(rb) => {
                             let amt = ((rb.boost_amount as f64) * (100.0 / 255.0)).round() as i64;
-                            let target = component_owner.get(&aid).cloned().unwrap_or(aid);
+                            let target = resolve_component_owner(&component_owner, aid);
                             car_boost.insert(target, amt.clamp(0, 100));
+                            car_boost_raw.insert(target, rb.boost_amount);
+                            car_boost_grant_count.insert(target, rb.grant_count);
+                        }
+                        Attribute::StatEvent(stat) => {
+                            let object_name = if stat.object_id >= 0 {
+                                objects.get(stat.object_id as usize).cloned()
+                            } else {
+                                None
+                            };
+                            frame_stat_events.push(ParserStatEvent {
+                                object_id: stat.object_id,
+                                object_name,
+                                unknown1: stat.unknown1,
+                            });
                         }
                         // Demolition signals carry attacker/victim attribution in some builds.
                         Attribute::Demolish(demo) => {
@@ -1586,6 +1717,11 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                 let mut owner_jump_state: HashMap<i32, bool> = HashMap::new();
                 let mut owner_dodge_state: HashMap<i32, bool> = HashMap::new();
                 let mut owner_double_jump_state: HashMap<i32, bool> = HashMap::new();
+                let mut owner_boost_state: HashMap<i32, bool> = HashMap::new();
+                let mut owner_jump_raw: HashMap<i32, u8> = HashMap::new();
+                let mut owner_dodge_raw: HashMap<i32, u8> = HashMap::new();
+                let mut owner_double_jump_raw: HashMap<i32, u8> = HashMap::new();
+                let mut owner_boost_raw: HashMap<i32, u8> = HashMap::new();
                 for (component_id, owner_id) in &component_owner {
                     let Some(component) = component_kind.get(component_id) else {
                         continue;
@@ -1594,14 +1730,30 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         .get(component_id)
                         .copied()
                         .unwrap_or(false);
+                    let raw = component_active_raw.get(component_id).copied();
                     if component.is_jump {
                         owner_jump_state.insert(*owner_id, active);
+                        if let Some(raw) = raw {
+                            owner_jump_raw.insert(*owner_id, raw);
+                        }
                     }
                     if component.is_dodge {
                         owner_dodge_state.insert(*owner_id, active);
+                        if let Some(raw) = raw {
+                            owner_dodge_raw.insert(*owner_id, raw);
+                        }
                     }
                     if component.is_double_jump {
                         owner_double_jump_state.insert(*owner_id, active);
+                        if let Some(raw) = raw {
+                            owner_double_jump_raw.insert(*owner_id, raw);
+                        }
+                    }
+                    if component.is_boost {
+                        owner_boost_state.insert(*owner_id, active);
+                        if let Some(raw) = raw {
+                            owner_boost_raw.insert(*owner_id, raw);
+                        }
                     }
                 }
                 for actor_id in &frame_jumping_actors {
@@ -1731,6 +1883,12 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         p.set_item("rotation", prot)?;
                         let boost = *car_boost.get(&aid).unwrap_or(&33);
                         p.set_item("boost_amount", boost)?;
+                        if let Some(raw) = car_boost_raw.get(&aid) {
+                            p.set_item("boost_amount_raw", *raw)?;
+                        }
+                        if let Some(grant_count) = car_boost_grant_count.get(&aid) {
+                            p.set_item("boost_grant_count", *grant_count)?;
+                        }
                         if let Some(raw) = car_throttle_raw.get(&aid) {
                             p.set_item("throttle_raw", *raw)?;
                             p.set_item("throttle", normalize_input_byte(*raw))?;
@@ -1752,11 +1910,26 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                         if let Some(active) = owner_jump_state.get(&aid) {
                             p.set_item("is_jumping", *active)?;
                         }
+                        if let Some(raw) = owner_jump_raw.get(&aid) {
+                            p.set_item("jump_active_raw", *raw)?;
+                        }
                         if let Some(active) = owner_dodge_state.get(&aid) {
                             p.set_item("is_dodging", *active)?;
                         }
+                        if let Some(raw) = owner_dodge_raw.get(&aid) {
+                            p.set_item("dodge_active_raw", *raw)?;
+                        }
                         if let Some(active) = owner_double_jump_state.get(&aid) {
                             p.set_item("is_double_jumping", *active)?;
+                        }
+                        if let Some(raw) = owner_double_jump_raw.get(&aid) {
+                            p.set_item("double_jump_active_raw", *raw)?;
+                        }
+                        if let Some(active) = owner_boost_state.get(&aid) {
+                            p.set_item("boost_active", *active)?;
+                        }
+                        if let Some(raw) = owner_boost_raw.get(&aid) {
+                            p.set_item("boost_active_raw", *raw)?;
                         }
 
                         players_map.insert(idx, p.into_py(py));
@@ -1860,6 +2033,53 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                     }
                 }
                 prev_demo_state = car_demo.clone();
+
+                let component_events = PyList::empty(py);
+                for event in &frame_component_events {
+                    let event_dict = PyDict::new(py);
+                    event_dict.set_item("timestamp", nf.time as f64)?;
+                    event_dict.set_item("frame_index", frame_index)?;
+                    event_dict.set_item("kind", event.kind)?;
+                    event_dict.set_item("component", event.component)?;
+                    event_dict.set_item("actor_id", event.owner_actor_id)?;
+                    if let Some(idx) = actor_to_player_index.get(&event.owner_actor_id) {
+                        event_dict.set_item("player_id", format!("player_{}", idx))?;
+                    }
+                    if let Some(team) = car_team.get(&event.owner_actor_id) {
+                        event_dict.set_item("team", *team)?;
+                    }
+                    if let Some(active) = event.active {
+                        event_dict.set_item("active", active)?;
+                    }
+                    if let Some(raw_value) = event.raw_value {
+                        event_dict.set_item("raw_value", raw_value)?;
+                    }
+                    if let Some((x, y, z)) = event.vector {
+                        let vector = PyDict::new(py);
+                        vector.set_item("x", x)?;
+                        vector.set_item("y", y)?;
+                        vector.set_item("z", z)?;
+                        event_dict.set_item("vector", vector)?;
+                    }
+                    event_dict.set_item("source", "parser")?;
+                    component_events.append(event_dict)?;
+                }
+                f.set_item("component_events", component_events)?;
+
+                let parser_stat_events = PyList::empty(py);
+                for event in &frame_stat_events {
+                    let event_dict = PyDict::new(py);
+                    event_dict.set_item("timestamp", nf.time as f64)?;
+                    event_dict.set_item("frame_index", frame_index)?;
+                    event_dict.set_item("object_id", event.object_id)?;
+                    if let Some(object_name) = &event.object_name {
+                        event_dict.set_item("object_name", object_name)?;
+                    }
+                    event_dict.set_item("unknown1", event.unknown1)?;
+                    event_dict.set_item("source", "parser")?;
+                    parser_stat_events.append(event_dict)?;
+                }
+                f.set_item("parser_stat_events", parser_stat_events)?;
 
                 // Detect touches: proximity-based ball-car contact detection
                 let parser_touch_events = PyList::empty(py);
@@ -2102,8 +2322,10 @@ fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
                                     f.set_item("ball", ball)?;
                                     f.set_item("players", PyList::empty(py))?;
                                     f.set_item("boost_pad_events", PyList::empty(py))?;
+                                    f.set_item("component_events", PyList::empty(py))?;
                                     f.set_item("parser_touch_events", PyList::empty(py))?;
                                     f.set_item("parser_demo_events", PyList::empty(py))?;
+                                    f.set_item("parser_stat_events", PyList::empty(py))?;
                                     f.set_item("parser_tickmarks", PyList::empty(py))?;
                                     f.set_item("parser_kickoff_markers", PyList::empty(py))?;
 

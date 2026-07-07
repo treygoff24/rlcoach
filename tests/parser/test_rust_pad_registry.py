@@ -55,3 +55,23 @@ def test_rust_pad_registry_event_completeness():
     resolved_player = [event for event in collected_events if "player_id" in event]
     coverage = len(resolved_player) / len(collected_events)
     assert coverage >= 0.9, f"player_id resolution below threshold: {coverage:.2%}"
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+def test_location_component_events_do_not_break_pad_registry():
+    from rlcoach.parser import get_adapter
+
+    adapter = get_adapter("rust")
+    frames = adapter.parse_network(Path("testing_replay.replay"))
+
+    pad_events = []
+    component_events = []
+    for frame in frames.frames:
+        pad_events.extend(frame.get("boost_pad_events", []))
+        component_events.extend(frame.get("component_events", []))
+
+    assert pad_events, "Location-arm changes must preserve pad registry events"
+    assert any(
+        event.get("kind") in {"dodge_torque", "double_jump_impulse"}
+        for event in component_events
+    ), "fixture should exercise Location-arm component vector extraction"

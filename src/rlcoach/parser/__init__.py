@@ -30,7 +30,14 @@ from .errors import (
 from .interface import ParserAdapter
 from .null_adapter import NullAdapter
 from .rust_adapter import RustAdapter
-from .types import Header, NetworkDiagnostics, NetworkFrames, PlayerInfo
+from .types import (
+    Header,
+    NetworkDiagnostics,
+    NetworkFrames,
+    ParserComponentEvent,
+    ParserStatEvent,
+    PlayerInfo,
+)
 
 # Registry of available parser adapters
 _ADAPTER_REGISTRY: dict[str, type[ParserAdapter]] = {
@@ -115,6 +122,8 @@ __all__ = [
     "Header",
     "NetworkDiagnostics",
     "NetworkFrames",
+    "ParserComponentEvent",
+    "ParserStatEvent",
     "PlayerInfo",
     # Interface
     "ParserAdapter",

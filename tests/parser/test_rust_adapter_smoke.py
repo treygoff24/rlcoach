@@ -195,3 +195,56 @@ def test_0925_replay_exposes_driving_inputs():
             assert -1.0 <= player["steer"] <= 1.0
         if "handbrake" in player:
             assert isinstance(player["handbrake"], bool)
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.skipif(
+    not PARITY_REPLAY_PATH.exists(), reason="0925 parity replay fixture missing"
+)
+def test_0925_replay_exposes_component_state_and_events():
+    from rlcoach.parser import get_adapter
+
+    adapter = get_adapter("rust")
+    network = adapter.parse_network(PARITY_REPLAY_PATH)
+
+    assert network is not None
+    assert network.frames
+
+    players = [
+        player for frame in network.frames for player in frame.get("players", [])
+    ]
+    assert any("jump_active_raw" in player for player in players)
+    assert any("dodge_active_raw" in player for player in players)
+    assert any("double_jump_active_raw" in player for player in players)
+    assert any("boost_active" in player for player in players)
+    assert any("boost_active_raw" in player for player in players)
+    assert any("boost_amount_raw" in player for player in players)
+    assert any("boost_grant_count" in player for player in players)
+
+    component_events = [
+        event for frame in network.frames for event in frame.get("component_events", [])
+    ]
+    event_kinds = {
+        (event.get("component"), event.get("kind")) for event in component_events
+    }
+    assert ("jump", "active") in event_kinds
+    assert ("dodge", "active") in event_kinds
+    assert ("boost", "active") in event_kinds
+    assert ("dodge", "dodge_torque") in event_kinds
+    assert ("double_jump", "double_jump_impulse") in event_kinds
+    assert ("air_activate", "air_activate_count") in event_kinds
+    assert any(isinstance(event.get("vector"), dict) for event in component_events)
+    assert any(isinstance(event.get("raw_value"), int) for event in component_events)
+
+    stat_events = [
+        event
+        for frame in network.frames
+        for event in frame.get("parser_stat_events", [])
+    ]
+    assert any(
+        event.get("object_name") == "StatEvents.Events.Save" for event in stat_events
+    )
+    assert any(
+        event.get("object_name") == "StatEvents.Events.EpicSave"
+        for event in stat_events
+    )

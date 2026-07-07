@@ -19,8 +19,10 @@ from .parser.types import (
     BoostPadEventFrame,
     Frame,
     Header,
+    ParserComponentEvent,
     ParserDemoEvent,
     ParserKickoffMarker,
+    ParserStatEvent,
     ParserTickmarkEvent,
     ParserTouchEvent,
     PlayerFrame,
@@ -401,6 +403,62 @@ def _convert_demo_event(
     )
 
 
+def _convert_component_event(
+    item: Any, alias_lookup: dict[str, str] | None = None
+) -> ParserComponentEvent | None:
+    ts = _extract_event_field(item, "timestamp")
+    kind = _extract_event_field(item, "kind")
+    component = _extract_event_field(item, "component")
+    if ts is None or kind is None or component is None:
+        return None
+
+    raw_player_id = _extract_event_field(item, "player_id")
+    player_id = None
+    if raw_player_id is not None:
+        raw_player_id_str = str(raw_player_id)
+        player_id = (
+            alias_lookup.get(raw_player_id_str, raw_player_id_str)
+            if alias_lookup
+            else raw_player_id_str
+        )
+
+    vector_raw = _extract_event_field(item, "vector")
+    team = _extract_event_field(item, "team")
+    actor_id = _extract_event_field(item, "actor_id")
+    raw_value = _extract_event_field(item, "raw_value")
+    active = _extract_event_field(item, "active")
+    return ParserComponentEvent(
+        timestamp=float(ts),
+        kind=str(kind),
+        component=str(component),
+        player_id=player_id,
+        team=int(team) if isinstance(team, (int, float)) else None,
+        actor_id=int(actor_id) if isinstance(actor_id, (int, float)) else None,
+        frame_index=_parse_frame_index(item),
+        vector=to_vec3(vector_raw) if vector_raw is not None else None,
+        raw_value=int(raw_value) if isinstance(raw_value, (int, float)) else None,
+        active=active if isinstance(active, bool) else None,
+        source=str(_extract_event_field(item, "source") or "parser"),
+    )
+
+
+def _convert_stat_event(item: Any) -> ParserStatEvent | None:
+    ts = _extract_event_field(item, "timestamp")
+    object_id = _extract_event_field(item, "object_id")
+    if ts is None or object_id is None:
+        return None
+    object_name = _extract_event_field(item, "object_name")
+    unknown1 = _extract_event_field(item, "unknown1")
+    return ParserStatEvent(
+        timestamp=float(ts),
+        object_id=int(object_id),
+        object_name=str(object_name) if object_name is not None else None,
+        unknown1=unknown1 if isinstance(unknown1, bool) else None,
+        frame_index=_parse_frame_index(item),
+        source=str(_extract_event_field(item, "source") or "parser"),
+    )
+
+
 def _convert_tickmark_event(item: Any) -> ParserTickmarkEvent | None:
     ts = _extract_event_field(item, "timestamp")
     kind = _extract_event_field(item, "kind")
@@ -564,8 +622,10 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 ),
                 players=[],
                 boost_pad_events=[],
+                component_events=[],
                 parser_touch_events=[],
                 parser_demo_events=[],
+                parser_stat_events=[],
                 parser_tickmarks=[],
                 parser_kickoff_markers=[],
             )
@@ -714,7 +774,28 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     steer = _extract_optional_float(player_data, "steer")
                     throttle_raw = _extract_optional_int(player_data, "throttle_raw")
                     steer_raw = _extract_optional_int(player_data, "steer_raw")
+                    boost_active_raw = _extract_optional_int(
+                        player_data, "boost_active_raw"
+                    )
+                    boost_amount_raw = _extract_optional_int(
+                        player_data, "boost_amount_raw"
+                    )
+                    boost_grant_count = _extract_optional_int(
+                        player_data, "boost_grant_count"
+                    )
+                    jump_active_raw = _extract_optional_int(
+                        player_data, "jump_active_raw"
+                    )
+                    dodge_active_raw = _extract_optional_int(
+                        player_data, "dodge_active_raw"
+                    )
+                    double_jump_active_raw = _extract_optional_int(
+                        player_data, "double_jump_active_raw"
+                    )
                     _, handbrake = _extract_optional_bool_flag(player_data, "handbrake")
+                    _, boost_active = _extract_optional_bool_flag(
+                        player_data, "boost_active"
+                    )
 
                     if hasattr(player_data, "sleeping"):
                         sleeping = bool(player_data.sleeping)
@@ -756,6 +837,13 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         handbrake=handbrake,
                         throttle_raw=throttle_raw,
                         steer_raw=steer_raw,
+                        boost_active=boost_active,
+                        boost_active_raw=boost_active_raw,
+                        boost_amount_raw=boost_amount_raw,
+                        boost_grant_count=boost_grant_count,
+                        jump_active_raw=jump_active_raw,
+                        dodge_active_raw=dodge_active_raw,
+                        double_jump_active_raw=double_jump_active_raw,
                         is_supersonic=raw_supersonic_flag,
                         is_on_ground=is_on_ground or sleeping,
                         is_demolished=is_demolished,
@@ -915,6 +1003,12 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             parser_demo_events = _parse_events(
                 frame_data, "parser_demo_events", _convert_demo_event, alias_lookup
             )
+            component_events = _parse_events(
+                frame_data, "component_events", _convert_component_event, alias_lookup
+            )
+            parser_stat_events = _parse_events(
+                frame_data, "parser_stat_events", _convert_stat_event
+            )
             parser_tickmarks = _parse_events(
                 frame_data, "parser_tickmarks", _convert_tickmark_event
             )
@@ -928,8 +1022,10 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 ball=ball_frame,
                 players=list(player_frames_map.values()),
                 boost_pad_events=pad_events,
+                component_events=component_events,
                 parser_touch_events=parser_touch_events,
                 parser_demo_events=parser_demo_events,
+                parser_stat_events=parser_stat_events,
                 parser_tickmarks=parser_tickmarks,
                 parser_kickoff_markers=parser_kickoff_markers,
             )
@@ -960,8 +1056,10 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 ),
                 players=[],
                 boost_pad_events=[],
+                component_events=[],
                 parser_touch_events=[],
                 parser_demo_events=[],
+                parser_stat_events=[],
                 parser_tickmarks=[],
                 parser_kickoff_markers=[],
             )
@@ -1039,11 +1137,17 @@ def _align_match_clock(frames: list[Frame], header: Header | None) -> list[Frame
                 frame,
                 timestamp=shifted,
                 boost_pad_events=normalized_events,
+                component_events=_shift_event_timestamps(
+                    frame.component_events, start_time
+                ),
                 parser_touch_events=_shift_event_timestamps(
                     frame.parser_touch_events, start_time
                 ),
                 parser_demo_events=_shift_event_timestamps(
                     frame.parser_demo_events, start_time
+                ),
+                parser_stat_events=_shift_event_timestamps(
+                    frame.parser_stat_events, start_time
                 ),
                 parser_tickmarks=_shift_event_timestamps(
                     frame.parser_tickmarks, start_time

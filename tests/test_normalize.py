@@ -322,6 +322,32 @@ class TestTimelineBuilding:
                         "handbrake": True,
                         "throttle_raw": 192,
                         "steer_raw": 96,
+                        "boost_active": True,
+                        "boost_active_raw": 3,
+                        "boost_amount_raw": 200,
+                        "boost_grant_count": 4,
+                        "jump_active_raw": 1,
+                        "dodge_active_raw": 2,
+                        "double_jump_active_raw": 0,
+                    }
+                ],
+                "component_events": [
+                    {
+                        "timestamp": 0.0,
+                        "kind": "dodge_torque",
+                        "component": "dodge",
+                        "player_id": "player_0",
+                        "team": 0,
+                        "actor_id": 7,
+                        "vector": {"x": 1, "y": 2, "z": 3},
+                    }
+                ],
+                "parser_stat_events": [
+                    {
+                        "timestamp": 0.0,
+                        "object_id": 12,
+                        "object_name": "StatEvents.Events.Save",
+                        "unknown1": True,
                     }
                 ],
             }
@@ -341,6 +367,16 @@ class TestTimelineBuilding:
         assert frame.players[0].handbrake is True
         assert frame.players[0].throttle_raw == 192
         assert frame.players[0].steer_raw == 96
+        assert frame.players[0].boost_active is True
+        assert frame.players[0].boost_active_raw == 3
+        assert frame.players[0].boost_amount_raw == 200
+        assert frame.players[0].boost_grant_count == 4
+        assert frame.players[0].jump_active_raw == 1
+        assert frame.players[0].dodge_active_raw == 2
+        assert frame.players[0].double_jump_active_raw == 0
+        assert frame.component_events[0].player_id == "player_0"
+        assert frame.component_events[0].vector == Vec3(1.0, 2.0, 3.0)
+        assert frame.parser_stat_events[0].object_name == "StatEvents.Events.Save"
 
     def test_multiple_frames_sorted_by_timestamp(self):
         """Multiple frames sorted chronologically."""

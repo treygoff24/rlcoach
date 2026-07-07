@@ -134,8 +134,10 @@ class TestTypes:
         """Frame dataclass keeps explicit parser event carriers."""
         fields = getattr(Frame, "__dataclass_fields__", {})
         assert "boost_pad_events" in fields
+        assert "component_events" in fields
         assert "parser_touch_events" in fields
         assert "parser_demo_events" in fields
+        assert "parser_stat_events" in fields
         assert "parser_tickmarks" in fields
         assert "parser_kickoff_markers" in fields
 
@@ -145,16 +147,20 @@ class TestTypes:
             "timestamp": 0.0,
             "ball": {},
             "players": [],
+            "component_events": [],
             "parser_touch_events": [],
             "parser_demo_events": [],
+            "parser_stat_events": [],
             "parser_tickmarks": [],
             "parser_kickoff_markers": [],
         }
         frames = NetworkFrames(frame_count=1, sample_rate=30.0, frames=[frame_payload])
 
         raw_frame = frames.frames[0]
+        assert "component_events" in raw_frame
         assert "parser_touch_events" in raw_frame
         assert "parser_demo_events" in raw_frame
+        assert "parser_stat_events" in raw_frame
         assert "parser_tickmarks" in raw_frame
         assert "parser_kickoff_markers" in raw_frame
 

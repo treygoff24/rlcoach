@@ -181,6 +181,13 @@ class PlayerFrame:
     handbrake: bool | None = None
     throttle_raw: int | None = None
     steer_raw: int | None = None
+    boost_active: bool | None = None
+    boost_active_raw: int | None = None
+    boost_amount_raw: int | None = None
+    boost_grant_count: int | None = None
+    jump_active_raw: int | None = None
+    dodge_active_raw: int | None = None
+    double_jump_active_raw: int | None = None
     is_supersonic: bool = False
     is_on_ground: bool = True
     is_demolished: bool = False
@@ -244,6 +251,35 @@ class ParserDemoEvent:
 
 
 @dataclass(frozen=True)
+class ParserComponentEvent:
+    """Parser-emitted car component event payload."""
+
+    timestamp: float
+    kind: str
+    component: str
+    player_id: str | None = None
+    team: int | None = None
+    actor_id: int | None = None
+    frame_index: int | None = None
+    vector: Vec3 | None = None
+    raw_value: int | None = None
+    active: bool | None = None
+    source: str = "parser"
+
+
+@dataclass(frozen=True)
+class ParserStatEvent:
+    """Parser-emitted replicated stat event payload."""
+
+    timestamp: float
+    object_id: int
+    object_name: str | None = None
+    unknown1: bool | None = None
+    frame_index: int | None = None
+    source: str = "parser"
+
+
+@dataclass(frozen=True)
 class ParserTickmarkEvent:
     """Parser-emitted timeline marker payload."""
 
@@ -272,8 +308,10 @@ class Frame:
     ball: BallFrame
     players: list[PlayerFrame] = field(default_factory=list)
     boost_pad_events: list[BoostPadEventFrame] = field(default_factory=list)
+    component_events: list[ParserComponentEvent] = field(default_factory=list)
     parser_touch_events: list[ParserTouchEvent] = field(default_factory=list)
     parser_demo_events: list[ParserDemoEvent] = field(default_factory=list)
+    parser_stat_events: list[ParserStatEvent] = field(default_factory=list)
     parser_tickmarks: list[ParserTickmarkEvent] = field(default_factory=list)
     parser_kickoff_markers: list[ParserKickoffMarker] = field(default_factory=list)
 
