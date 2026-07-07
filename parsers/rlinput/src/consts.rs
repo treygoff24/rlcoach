@@ -77,15 +77,16 @@ pub const GROUND_MAX_CURVATURE_PIECES: [(f32, f32, f32); 5] = [
     (2500.0, 0.001_800, -0.40e-6),
 ];
 
-// Measured fit-score noise floors, p68 of null-hypothesis residual norms.
-// Provenance: frozen dev-set manifest `assets/s1_dev_set.json` (6 fixtures + 4
-// seeded 251202 replays), exported with
+// Measured fit-score noise floors, p68 of fresh-anchored null-hypothesis
+// residual norms. Provenance: frozen dev-set manifest `assets/s1_dev_set.json`
+// (6 fixtures + 4 seeded 251202 replays), exported with
 // `source /Users/treygoff/Code/rlcoach/.venv/bin/activate && python scripts/export_series_json.py`,
 // measured 2026-07-07 via
 // `RLINPUT_DEV_SERIES_DIR=/tmp/rlinput-dev-series-wp6b cargo test -p rlinput --features sim noise_floor_measurement -- --ignored --nocapture`.
-// WP6b verification found these first-measurement values are phase-contaminated;
-// see `codex/docs/2026-07-07-s1-wp6b-noise-floor.md` before gate-facing use.
-pub const FIT_SIGMA_POS_MEASURED: f32 = 73.697_41;
-pub const FIT_SIGMA_VEL_MEASURED: f32 = 21.666_748;
-pub const FIT_SIGMA_ROT_MEASURED: f32 = 0.013_785;
-pub const FIT_SIGMA_ANG_VEL_MEASURED: f32 = 0.038_623;
+// The first WP6b measurement (pos 73.69741, vel 21.666748, rot 0.013785,
+// ang_vel 0.038623) was rejected by the design ruling as sample-held
+// contamination; these values score only consecutive fresh RB-state anchors.
+pub const FIT_SIGMA_POS_MEASURED: f32 = 36.285_175;
+pub const FIT_SIGMA_VEL_MEASURED: f32 = 10.880_035;
+pub const FIT_SIGMA_ROT_MEASURED: f32 = 0.006_366;
+pub const FIT_SIGMA_ANG_VEL_MEASURED: f32 = 0.020_347;

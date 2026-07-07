@@ -17,8 +17,8 @@ use crate::{
     fit::{provisional_fit_weights, score},
     lattice::LatticeInterval,
     model::{
-        ComponentKind, ComponentStream, EnginePreference, EstimatorConfig, FitWeights, Mode,
-        PlayerSeries, ReplaySeries, SolverThresholds, WithheldChannels,
+        ComponentKind, ComponentStream, EnginePreference, EstimatorConfig, FitWeights,
+        KinematicFreshness, Mode, PlayerSeries, ReplaySeries, SolverThresholds, WithheldChannels,
     },
     segment::{
         segment_replay_with_splits_and_confidences, split_segment_at, RetroactiveSplit, Segment,
@@ -67,6 +67,18 @@ struct SeededHints {
     edges: HashMap<u32, Vec<ReconstructedEdge>>,
 }
 
+#[derive(Clone, Debug)]
+struct ScoringInterval {
+    start_frame: u32,
+    interval: LatticeInterval,
+}
+
+#[derive(Clone, Debug)]
+struct TimedSeededEdge {
+    edge: ReconstructedEdge,
+    tick_offset: u32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum CandidateEvent {
     JumpPress,
@@ -92,6 +104,7 @@ impl CandidateEvent {
 struct CandidateAction {
     tick_offset: u32,
     event: CandidateEvent,
+    frame_index: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -346,21 +359,25 @@ fn solve_player(
     let mut samples = Vec::new();
     let mut events = Vec::new();
     let mut reference = ReferenceScorer::new();
+    let mut freshness = KinematicFreshness::from_frames(&player.frames);
+    for segment in segments {
+        freshness.mark_fresh(segment.frame_span.0);
+    }
 
     for segment in segments {
         let mut tracker = tracker_for_segment(player, segment, series.tick_rate);
         let mut branching = BranchingTracker::new(tracker.clone());
         let mut segment_confidence = 1.0f32;
-        let mut prev_frame = segment.frame_span.0.saturating_sub(1);
+        let segment_base_frame = segment.frame_span.0.saturating_sub(1);
         let segment_base_time = frame_times
-            .get(prev_frame as usize)
+            .get(segment_base_frame as usize)
             .copied()
             .unwrap_or_default();
 
-        for interval in &segment.lattice.intervals {
-            let start_frame = prev_frame;
+        for scoring in fresh_scoring_intervals(segment, &freshness) {
+            let start_frame = scoring.start_frame;
+            let interval = &scoring.interval;
             let end_frame = interval.frame_index;
-            prev_frame = end_frame;
             if frame_out_of_bounds(player, start_frame) || frame_out_of_bounds(player, end_frame) {
                 continue;
             }
@@ -380,6 +397,7 @@ fn solve_player(
                 segment.kind,
                 segment_base_time,
                 &hints,
+                segment,
                 config,
                 &mut reference,
                 allow_retro_upgrades,
@@ -422,6 +440,41 @@ fn solve_player(
     }
 }
 
+fn fresh_scoring_intervals(
+    segment: &Segment,
+    freshness: &KinematicFreshness,
+) -> Vec<ScoringInterval> {
+    let mut out = Vec::new();
+    let mut anchor_frame = segment.frame_span.0.saturating_sub(1);
+    let mut anchor_tick = 0;
+    let mut anchor_time = 0.0;
+    let mut flags = AmbiguityFlags::empty();
+
+    for interval in &segment.lattice.intervals {
+        flags |= interval.flags;
+        if !freshness.is_fresh(interval.frame_index) {
+            continue;
+        }
+        if interval.frame_index != anchor_frame {
+            out.push(ScoringInterval {
+                start_frame: anchor_frame,
+                interval: LatticeInterval {
+                    frame_index: interval.frame_index,
+                    tick_range: (anchor_tick, interval.tick_range.1),
+                    time_range: (anchor_time, interval.time_range.1),
+                    flags,
+                },
+            });
+        }
+        anchor_frame = interval.frame_index;
+        anchor_tick = interval.tick_range.1;
+        anchor_time = interval.time_range.1;
+        flags = AmbiguityFlags::empty();
+    }
+
+    out
+}
+
 #[allow(clippy::too_many_arguments)]
 fn solve_interval(
     series: &ReplaySeries,
@@ -433,6 +486,7 @@ fn solve_interval(
     segment_kind: SegmentKind,
     segment_base_time: f64,
     hints: &SeededHints,
+    segment: &Segment,
     config: &EstimatorConfig,
     reference: &mut ReferenceScorer,
     allow_retro_upgrades: bool,
@@ -448,7 +502,7 @@ fn solve_interval(
         tracker,
         interval,
         base_controls,
-        hints.edges_for_frame(end_frame),
+        hints.edges_for_interval(segment, start_frame, end_frame, interval.tick_range.0),
         config,
         segment_kind,
     );
@@ -527,7 +581,7 @@ fn generate_candidates(
     tracker: &CarTracker,
     interval: &LatticeInterval,
     base_controls: Vec<Controls>,
-    seeded_edges: &[ReconstructedEdge],
+    seeded_edges: Vec<TimedSeededEdge>,
     config: &EstimatorConfig,
     segment_kind: SegmentKind,
 ) -> CandidateSet {
@@ -544,24 +598,31 @@ fn generate_candidates(
     }
 
     let mut candidates = vec![null];
-    let seeded = seeded_candidate_events(seeded_edges);
-    let event_kinds = if seeded.is_empty() {
+    let seeded = seeded_candidate_actions(&seeded_edges);
+    if !seeded.is_empty() {
+        if let Some(candidate) =
+            candidate_from_actions(seeded, base_controls.clone(), interval.flags)
+        {
+            if candidate_legal(tracker, &candidate, interval.tick_range.0) {
+                candidates.push(candidate);
+            }
+        }
+    } else {
         let mut events = kinematic_candidate_events(state_k, observed_end, tracker, segment_kind);
         if interval.flags.contains(AmbiguityFlags::LONG_GAP) && second_available(tracker) {
             push_unique_event(&mut events, CandidateEvent::Stall);
         }
-        events
-    } else {
-        seeded
-    };
-
-    for event in event_kinds {
-        for tick_offset in 0..ticks {
-            if let Some(candidate) =
-                single_event_candidate(event, tick_offset, base_controls.clone(), interval.flags)
-            {
-                if candidate_legal(tracker, &candidate, interval.tick_range.0) {
-                    candidates.push(candidate);
+        for event in events {
+            for tick_offset in 0..ticks {
+                if let Some(candidate) = single_event_candidate(
+                    event,
+                    tick_offset,
+                    base_controls.clone(),
+                    interval.flags,
+                ) {
+                    if candidate_legal(tracker, &candidate, interval.tick_range.0) {
+                        candidates.push(candidate);
+                    }
                 }
             }
         }
@@ -584,27 +645,46 @@ fn generate_candidates(
 fn single_event_candidate(
     event: CandidateEvent,
     tick_offset: u32,
+    controls: Vec<Controls>,
+    flags: AmbiguityFlags,
+) -> Option<Candidate> {
+    candidate_from_actions(
+        vec![CandidateAction {
+            tick_offset,
+            event,
+            frame_index: None,
+        }],
+        controls,
+        flags,
+    )
+}
+
+fn candidate_from_actions(
+    mut actions: Vec<CandidateAction>,
     mut controls: Vec<Controls>,
     flags: AmbiguityFlags,
 ) -> Option<Candidate> {
     if controls.is_empty() {
         return None;
     }
-    match event {
-        CandidateEvent::JumpPress => {
-            for control in controls.iter_mut().skip(tick_offset as usize) {
-                control.jump = true;
+    actions.sort_by_key(|action| action.tick_offset);
+    for action in &actions {
+        match action.event {
+            CandidateEvent::JumpPress => {
+                for control in controls.iter_mut().skip(action.tick_offset as usize) {
+                    control.jump = true;
+                }
             }
-        }
-        CandidateEvent::JumpRelease => {
-            for control in controls.iter_mut().skip(tick_offset as usize) {
-                control.jump = false;
+            CandidateEvent::JumpRelease => {
+                for control in controls.iter_mut().skip(action.tick_offset as usize) {
+                    control.jump = false;
+                }
             }
+            CandidateEvent::DoubleJump | CandidateEvent::Dodge { .. } | CandidateEvent::Stall => {}
         }
-        CandidateEvent::DoubleJump | CandidateEvent::Dodge { .. } | CandidateEvent::Stall => {}
     }
     Some(Candidate {
-        actions: vec![CandidateAction { tick_offset, event }],
+        actions,
         controls,
         flags,
         confidence_cap: 1.0,
@@ -646,14 +726,17 @@ fn add_long_gap_composites(
                             CandidateAction {
                                 tick_offset: press,
                                 event: CandidateEvent::JumpPress,
+                                frame_index: None,
                             },
                             CandidateAction {
                                 tick_offset: release,
                                 event: CandidateEvent::JumpRelease,
+                                frame_index: None,
                             },
                             CandidateAction {
                                 tick_offset: second,
                                 event,
+                                frame_index: None,
                             },
                         ],
                         controls,
@@ -669,38 +752,44 @@ fn add_long_gap_composites(
     }
 }
 
-fn seeded_candidate_events(edges: &[ReconstructedEdge]) -> Vec<CandidateEvent> {
+fn seeded_candidate_actions(edges: &[TimedSeededEdge]) -> Vec<CandidateAction> {
     let mut out = Vec::new();
     for edge in edges {
-        match edge.component {
+        let event = match edge.edge.component {
             ComponentKind::Jump => {
-                let event = if edge
+                if edge
+                    .edge
                     .counter_delta
                     .as_ref()
                     .is_some_and(|delta| delta.current % 2 == 0)
                 {
-                    CandidateEvent::JumpRelease
+                    Some(CandidateEvent::JumpRelease)
                 } else {
-                    CandidateEvent::JumpPress
-                };
-                push_unique_event(&mut out, event);
+                    Some(CandidateEvent::JumpPress)
+                }
             }
-            ComponentKind::DoubleJumpImpulse => {
-                push_unique_event(&mut out, CandidateEvent::DoubleJump);
+            ComponentKind::DoubleJumpImpulse => Some(CandidateEvent::DoubleJump),
+            ComponentKind::DodgeTorque => {
+                match edge.edge.vector.map(classify_dodge_torque_vector) {
+                    Some(SecondActionClass::Dodge { dir, .. }) => {
+                        Some(CandidateEvent::Dodge { dir })
+                    }
+                    Some(SecondActionClass::Stall) => Some(CandidateEvent::Stall),
+                    Some(SecondActionClass::DoubleJump) => Some(CandidateEvent::DoubleJump),
+                    None => Some(CandidateEvent::Dodge { dir: [1.0, 0.0] }),
+                }
             }
-            ComponentKind::DodgeTorque => match edge.vector.map(classify_dodge_torque_vector) {
-                Some(SecondActionClass::Dodge { dir, .. }) => {
-                    push_unique_event(&mut out, CandidateEvent::Dodge { dir });
-                }
-                Some(SecondActionClass::Stall) => {
-                    push_unique_event(&mut out, CandidateEvent::Stall)
-                }
-                Some(SecondActionClass::DoubleJump) => {
-                    push_unique_event(&mut out, CandidateEvent::DoubleJump);
-                }
-                None => push_unique_event(&mut out, CandidateEvent::Dodge { dir: [1.0, 0.0] }),
-            },
-            ComponentKind::Boost => {}
+            ComponentKind::Boost => None,
+        };
+        if let Some(event) = event {
+            let action = CandidateAction {
+                tick_offset: edge.tick_offset,
+                event,
+                frame_index: Some(edge.edge.frame_index),
+            };
+            if !out.contains(&action) {
+                out.push(action);
+            }
         }
     }
     out
@@ -1245,7 +1334,7 @@ fn events_from_candidate(
                 t: segment_base_time
                     + interval.time_range.0
                     + f64::from(action.tick_offset) / 120.0,
-                frame_index,
+                frame_index: action.frame_index.unwrap_or(frame_index),
                 confidence,
                 flags,
             }
@@ -1388,8 +1477,34 @@ impl SeededHints {
         Self { edges }
     }
 
-    fn edges_for_frame(&self, frame: u32) -> &[ReconstructedEdge] {
-        self.edges.get(&frame).map(Vec::as_slice).unwrap_or(&[])
+    fn edges_for_interval(
+        &self,
+        segment: &Segment,
+        start_frame: u32,
+        end_frame: u32,
+        tick_start: u64,
+    ) -> Vec<TimedSeededEdge> {
+        let mut out = Vec::new();
+        for interval in &segment.lattice.intervals {
+            let frame = interval.frame_index;
+            if frame <= start_frame || frame > end_frame {
+                continue;
+            }
+            let tick_offset = interval
+                .tick_range
+                .1
+                .saturating_sub(tick_start)
+                .min(u64::from(u32::MAX)) as u32;
+            if let Some(edges) = self.edges.get(&frame) {
+                out.extend(
+                    edges
+                        .iter()
+                        .cloned()
+                        .map(|edge| TimedSeededEdge { edge, tick_offset }),
+                );
+            }
+        }
+        out
     }
 }
 
@@ -1614,6 +1729,68 @@ mod tests {
     };
 
     #[test]
+    fn fresh_scoring_intervals_span_held_frame_terminators() {
+        let segment = Segment {
+            summary: crate::timeline::SegmentSummary {
+                id: 0,
+                tick_span: (0, 12),
+                boundary_causes: Vec::new(),
+                confidence: 0.0,
+            },
+            kind: SegmentKind::Air,
+            frame_span: (1, 4),
+            lattice: crate::lattice::SegmentLattice {
+                intervals: vec![
+                    LatticeInterval {
+                        frame_index: 1,
+                        tick_range: (0, 4),
+                        time_range: (0.0, 1.0 / 30.0),
+                        flags: AmbiguityFlags::empty(),
+                    },
+                    LatticeInterval {
+                        frame_index: 2,
+                        tick_range: (4, 8),
+                        time_range: (1.0 / 30.0, 2.0 / 30.0),
+                        flags: AmbiguityFlags::empty(),
+                    },
+                    LatticeInterval {
+                        frame_index: 3,
+                        tick_range: (8, 12),
+                        time_range: (2.0 / 30.0, 3.0 / 30.0),
+                        flags: AmbiguityFlags::empty(),
+                    },
+                ],
+                diagnostics: crate::lattice::LatticeDiagnostics::default(),
+            },
+        };
+        let frames = Kinematics {
+            pos: vec![
+                [0.0, 0.0, 0.0],
+                [10.0, 0.0, 0.0],
+                [10.0, 0.0, 0.0],
+                [30.0, 0.0, 0.0],
+            ],
+            vel: vec![[0.0; 3]; 4],
+            quat_xyzw: vec![[0.0, 0.0, 0.0, 1.0]; 4],
+            ang_vel: vec![[0.0; 3]; 4],
+            on_ground: vec![false; 4],
+            sleeping: vec![false; 4],
+            demolished: vec![false; 4],
+        };
+        let mut freshness = KinematicFreshness::from_frames(&frames);
+        freshness.mark_fresh(segment.frame_span.0);
+
+        let intervals = fresh_scoring_intervals(&segment, &freshness);
+
+        assert_eq!(intervals.len(), 2);
+        assert_eq!(intervals[0].start_frame, 0);
+        assert_eq!(intervals[0].interval.frame_index, 1);
+        assert_eq!(intervals[1].start_frame, 1);
+        assert_eq!(intervals[1].interval.frame_index, 3);
+        assert_eq!(intervals[1].interval.tick_range, (4, 12));
+    }
+
+    #[test]
     fn unseeded_masks_priors_before_single_solver_path() {
         let mut series = quiet_series(3);
         series.players[0].component.jump_raw = vec![0, 1, 2];
@@ -1663,7 +1840,7 @@ mod tests {
             &tracker,
             interval,
             vec![Controls::default(); interval_ticks(interval) as usize],
-            &[],
+            Vec::new(),
             &default_estimator_config(),
             SegmentKind::Air,
         );

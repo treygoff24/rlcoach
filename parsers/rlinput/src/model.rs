@@ -40,6 +40,72 @@ pub struct Kinematics {
     pub demolished: Vec<bool>,
 }
 
+/// Per-frame freshness for the atomic `TAGame.RBActor_TA:ReplicatedRBState`.
+///
+/// The replay parser currently exposes normalized kinematics after forward-fill.
+/// ReplicatedRBState is one atomic attribute, so a frame is fresh when the full
+/// `(pos, vel, quat_xyzw, ang_vel)` tuple changes bit-for-bit from the previous
+/// frame. Frame 0 and each segment's first frame are anchors even if the tuple
+/// matches the previous frame. Ceiling: if ground fitting ever needs freshness
+/// for legitimately parked cars, expose the parser's `updated_actors` bit
+/// instead of inferring freshness from repeated tuples.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KinematicFreshness {
+    fresh: Vec<bool>,
+}
+
+impl KinematicFreshness {
+    pub fn from_frames(frames: &Kinematics) -> Self {
+        let len = frames
+            .pos
+            .len()
+            .min(frames.vel.len())
+            .min(frames.quat_xyzw.len())
+            .min(frames.ang_vel.len());
+        let mut fresh = vec![false; len];
+        if !fresh.is_empty() {
+            fresh[0] = true;
+        }
+        for (frame, is_fresh) in fresh.iter_mut().enumerate().skip(1) {
+            *is_fresh = rb_tuple_differs(frames, frame - 1, frame);
+        }
+        Self { fresh }
+    }
+
+    pub fn mark_fresh(&mut self, frame_index: u32) {
+        if let Some(fresh) = self.fresh.get_mut(frame_index as usize) {
+            *fresh = true;
+        }
+    }
+
+    pub fn is_fresh(&self, frame_index: u32) -> bool {
+        self.fresh
+            .get(frame_index as usize)
+            .copied()
+            .unwrap_or(false)
+    }
+}
+
+fn rb_tuple_differs(frames: &Kinematics, a: usize, b: usize) -> bool {
+    vec3_bits(frames.pos[a]) != vec3_bits(frames.pos[b])
+        || vec3_bits(frames.vel[a]) != vec3_bits(frames.vel[b])
+        || vec4_bits(frames.quat_xyzw[a]) != vec4_bits(frames.quat_xyzw[b])
+        || vec3_bits(frames.ang_vel[a]) != vec3_bits(frames.ang_vel[b])
+}
+
+fn vec3_bits(v: [f32; 3]) -> [u32; 3] {
+    [v[0].to_bits(), v[1].to_bits(), v[2].to_bits()]
+}
+
+fn vec4_bits(v: [f32; 4]) -> [u32; 4] {
+    [
+        v[0].to_bits(),
+        v[1].to_bits(),
+        v[2].to_bits(),
+        v[3].to_bits(),
+    ]
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReplicatedChannels {
     pub throttle_raw: Vec<u8>,
@@ -264,5 +330,42 @@ mod tests {
         let decoded: EstimatorConfig =
             serde_json::from_str(&json).expect("EstimatorConfig should deserialize");
         assert_eq!(decoded, config);
+    }
+
+    #[test]
+    fn kinematic_freshness_uses_bitwise_full_tuple_changes() {
+        let frames = Kinematics {
+            pos: vec![[0.0, 0.0, 0.0], [-0.0, 0.0, 0.0], [-0.0, 0.0, 0.0]],
+            vel: vec![[1.0, 0.0, 0.0]; 3],
+            quat_xyzw: vec![[0.0, 0.0, 0.0, 1.0]; 3],
+            ang_vel: vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.01]],
+            on_ground: vec![false; 3],
+            sleeping: vec![false; 3],
+            demolished: vec![false; 3],
+        };
+
+        let fresh = KinematicFreshness::from_frames(&frames);
+
+        assert!(fresh.is_fresh(0));
+        assert!(fresh.is_fresh(1), "-0.0 differs bitwise from +0.0");
+        assert!(fresh.is_fresh(2));
+    }
+
+    #[test]
+    fn kinematic_freshness_allows_segment_start_anchors() {
+        let frames = Kinematics {
+            pos: vec![[1.0, 2.0, 3.0]; 3],
+            vel: vec![[4.0, 5.0, 6.0]; 3],
+            quat_xyzw: vec![[0.0, 0.0, 0.0, 1.0]; 3],
+            ang_vel: vec![[0.1, 0.2, 0.3]; 3],
+            on_ground: vec![false; 3],
+            sleeping: vec![false; 3],
+            demolished: vec![false; 3],
+        };
+        let mut fresh = KinematicFreshness::from_frames(&frames);
+
+        assert!(!fresh.is_fresh(2));
+        fresh.mark_fresh(2);
+        assert!(fresh.is_fresh(2));
     }
 }

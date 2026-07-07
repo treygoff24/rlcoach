@@ -216,7 +216,13 @@ mod tests {
 
     #[test]
     fn score_matches_hand_computed_terms() {
-        let weights = provisional_fit_weights();
+        let weights = FitWeights {
+            position_sigma: 4.0,
+            velocity_sigma: 20.0,
+            rotation_sigma: 0.05,
+            angular_velocity_sigma: 0.15,
+            ..provisional_fit_weights()
+        };
         let start = state();
         let mut observed = start;
         observed.pos = [weights.position_sigma, 0.0, 0.0];
@@ -453,11 +459,14 @@ mod noise_floor {
         convert::{identity_rot_mat, replay_quat_xyzw_to_rot_mat},
         engine::{portable::PortableEngine, CarPhysState, Controls, TickPlan},
         model::{
-            BallSeries, ComponentStream, Kinematics, PlayerSeries, ReplaySeries, ReplicatedChannels,
+            BallSeries, ComponentStream, KinematicFreshness, Kinematics, PlayerSeries,
+            ReplaySeries, ReplicatedChannels,
         },
         segment::{segment_replay, PlayerSegmentation, SegmentKind},
         tracker::reconstruct_seeded_edges,
     };
+    #[cfg(feature = "sim")]
+    use std::collections::BTreeMap;
 
     const QUIET_AIR_CONTROL_MAX: f32 = 0.12;
     const INPUT_DEADZONE_RAW: i16 = 13;
@@ -502,23 +511,81 @@ mod noise_floor {
             })
             .map(|(segmented_player, player)| {
                 let component_edge_frames = component_edge_frames(player);
+                let mut freshness = KinematicFreshness::from_frames(&player.frames);
+                for segment in &segmented_player.segments {
+                    freshness.mark_fresh(segment.frame_span.0);
+                }
                 segmented_player
                     .segments
                     .iter()
                     .filter(|segment| segment.kind == SegmentKind::Air)
-                    .flat_map(|segment| &segment.lattice.intervals)
-                    .filter(|interval| {
-                        quiet_interval(
+                    .map(|segment| {
+                        collect_fresh_spans(
                             series,
                             player,
                             segmented_player,
                             &component_edge_frames,
-                            interval,
+                            segment,
+                            &freshness,
                         )
+                        .len()
                     })
-                    .count()
+                    .sum::<usize>()
             })
             .sum()
+    }
+
+    #[allow(dead_code)]
+    #[derive(Clone)]
+    struct FreshSpan {
+        start_frame: u32,
+        end_frame: u32,
+        tick_range: (u64, u64),
+        time_range: (f64, f64),
+        span_frames: u32,
+    }
+
+    fn collect_fresh_spans(
+        series: &ReplaySeries,
+        player: &PlayerSeries,
+        segmented_player: &PlayerSegmentation,
+        component_edge_frames: &[u32],
+        segment: &crate::segment::Segment,
+        freshness: &KinematicFreshness,
+    ) -> Vec<FreshSpan> {
+        let mut spans = Vec::new();
+        let mut anchor_frame = segment.frame_span.0.saturating_sub(1);
+        let mut anchor_tick = 0;
+        let mut anchor_time = 0.0;
+        let mut span_quiet = true;
+
+        for interval in &segment.lattice.intervals {
+            span_quiet &= quiet_interval(
+                series,
+                player,
+                segmented_player,
+                component_edge_frames,
+                interval,
+            );
+            if !freshness.is_fresh(interval.frame_index) {
+                continue;
+            }
+            if span_quiet && interval.frame_index != anchor_frame {
+                spans.push(FreshSpan {
+                    start_frame: anchor_frame,
+                    end_frame: interval.frame_index,
+                    tick_range: (anchor_tick, interval.tick_range.1),
+                    time_range: (anchor_time, interval.time_range.1),
+                    span_frames: interval.frame_index.saturating_sub(anchor_frame),
+                });
+            }
+            anchor_frame = interval.frame_index;
+            anchor_tick = interval.tick_range.1;
+            anchor_time = interval.time_range.1;
+            span_quiet = true;
+        }
+
+        spans
     }
 
     fn quiet_interval(
@@ -750,25 +817,28 @@ mod noise_floor {
     #[test]
     #[ignore = "local dev-set measurement; run: RLINPUT_DEV_SERIES_DIR=/path/to/series cargo test -p rlinput --features sim noise_floor_measurement -- --ignored --nocapture"]
     fn noise_floor_measurement() {
-        let mut pooled = ResidualStats::default();
+        let mut pooled = MeasuredStats::default();
         for (name, series) in dev_series() {
             let stats = measure_series(&series);
-            println!("{}", stats.line(&name));
+            println!("{}", stats.all.line(&name));
             pooled.extend(stats);
         }
 
-        println!("{}", pooled.line("pooled"));
+        println!("{}", pooled.all.line("pooled"));
+        for (span, stats) in &pooled.by_span {
+            println!("span_bucket,frames={span},{}", stats.line("pooled"));
+        }
         println!(
             "sigma_choice,p68,pos={:.6},vel={:.6},rot={:.6},ang_vel={:.6}",
-            pooled.pos.percentile(0.68),
-            pooled.vel.percentile(0.68),
-            pooled.rot.percentile(0.68),
-            pooled.ang_vel.percentile(0.68),
+            pooled.all.pos.percentile(0.68),
+            pooled.all.vel.percentile(0.68),
+            pooled.all.rot.percentile(0.68),
+            pooled.all.ang_vel.percentile(0.68),
         );
         assert!(
-            pooled.len() >= 1_000,
-            "pooled quiet interval count below acceptance floor: {}",
-            pooled.len()
+            pooled.all.len() >= 300,
+            "pooled fresh-anchored quiet span count below diagnostic floor: {}",
+            pooled.all.len()
         );
     }
 
@@ -783,8 +853,8 @@ mod noise_floor {
             samples.extend(series_samples);
         }
         assert!(
-            samples.len() >= 1_000,
-            "pooled quiet interval count below acceptance floor: {}",
+            samples.len() >= 300,
+            "pooled fresh-anchored quiet span count below diagnostic floor: {}",
             samples.len()
         );
 
@@ -819,9 +889,10 @@ mod noise_floor {
             for sample in &samples {
                 let residual = sample.residual(sample.ticks);
                 println!(
-                    "phase_point,{},{},ticks={},dt={:.6},speed={:.6},speed_dt={:.6},pos={:.6},vel={:.6}",
+                    "phase_point,{},{},span_frames={},ticks={},dt={:.6},speed={:.6},speed_dt={:.6},pos={:.6},vel={:.6}",
                     sample.name,
                     sample.frame,
+                    sample.span_frames,
                     sample.ticks,
                     sample.dt,
                     sample.speed,
@@ -834,11 +905,16 @@ mod noise_floor {
     }
 
     #[cfg(feature = "sim")]
-    fn measure_series(series: &ReplaySeries) -> ResidualStats {
-        let mut stats = ResidualStats::default();
+    fn measure_series(series: &ReplaySeries) -> MeasuredStats {
+        let mut stats = MeasuredStats::default();
         for sample in collect_samples("", series) {
             let residual = sample.residual(sample.ticks);
             stats.push_residual(residual);
+            stats
+                .by_span
+                .entry(sample.span_frames)
+                .or_default()
+                .push_residual(residual);
         }
         stats
     }
@@ -888,43 +964,52 @@ mod noise_floor {
                 continue;
             };
             let component_edge_frames = component_edge_frames(player);
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+            }
             for segment in segmented_player
                 .segments
                 .iter()
                 .filter(|segment| segment.kind == SegmentKind::Air)
             {
-                for interval in &segment.lattice.intervals {
-                    if !quiet_interval(
-                        series,
-                        player,
-                        segmented_player,
-                        &component_edge_frames,
-                        interval,
-                    ) {
+                for span in collect_fresh_spans(
+                    series,
+                    player,
+                    segmented_player,
+                    &component_edge_frames,
+                    segment,
+                    &freshness,
+                ) {
+                    let start_frame = span.start_frame as usize;
+                    let end_frame = span.end_frame as usize;
+                    if start_frame >= player.frames.pos.len()
+                        || end_frame >= player.frames.pos.len()
+                    {
                         continue;
                     }
-                    let frame = interval.frame_index as usize;
-                    let Some(prev) = frame.checked_sub(1) else {
-                        continue;
-                    };
-                    let ticks = (interval.tick_range.1 - interval.tick_range.0)
+                    let ticks = span
+                        .tick_range
+                        .1
+                        .saturating_sub(span.tick_range.0)
                         .min(u64::from(u32::MAX)) as u32;
-                    let start = observed_state(player, prev);
-                    let observed = observed_state(player, frame);
+                    let start = observed_state(player, start_frame);
+                    let observed = observed_state(player, end_frame);
                     samples.push(ProbeSample {
                         name: name.to_string(),
-                        frame,
-                        dt: delta_for(series, frame),
+                        frame: end_frame,
+                        dt: (span.time_range.1 - span.time_range.0) as f32,
                         ticks,
                         speed: distance([0.0; 3], start.vel),
+                        span_frames: span.span_frames,
                         start,
                         observed,
                         next: player
                             .frames
                             .pos
-                            .get(frame + 1)
-                            .map(|_| observed_state(player, frame + 1)),
-                        next_ticks: ticks_for(series, frame + 1),
+                            .get(end_frame + 1)
+                            .map(|_| observed_state(player, end_frame + 1)),
+                        next_ticks: ticks_for(series, end_frame + 1),
                     });
                 }
             }
@@ -955,6 +1040,7 @@ mod noise_floor {
         dt: f32,
         ticks: u32,
         speed: f32,
+        span_frames: u32,
         start: CarPhysState,
         observed: CarPhysState,
         next: Option<CarPhysState>,
@@ -1160,6 +1246,27 @@ mod noise_floor {
 
     #[cfg(feature = "sim")]
     #[derive(Clone, Default)]
+    struct MeasuredStats {
+        all: ResidualStats,
+        by_span: BTreeMap<u32, ResidualStats>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl MeasuredStats {
+        fn push_residual(&mut self, residual: ProbeResidual) {
+            self.all.push_residual(residual);
+        }
+
+        fn extend(&mut self, other: Self) {
+            self.all.extend(other.all);
+            for (span, stats) in other.by_span {
+                self.by_span.entry(span).or_default().extend(stats);
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Default)]
     struct ResidualStats {
         pos: Distribution,
         vel: Distribution,
@@ -1282,9 +1389,9 @@ mod sim_tests {
         assert!(dodge.clean_accuracy >= 0.95);
         assert!(dodge.noisy_accuracy >= 0.45);
         assert!(double_jump.clean_accuracy >= 0.90);
-        // Measured WP6b position noise is far above the provisional 4 uu floor,
-        // making sub-tick double-jump placement honestly near-degenerate.
-        assert!(double_jump.noisy_accuracy >= 0.20);
+        // Fresh anchoring improves the floor, but sub-tick double-jump
+        // placement remains near-degenerate compared with its ~2.4 uu shift.
+        assert!(double_jump.noisy_accuracy >= 0.30);
     }
 
     #[test]
