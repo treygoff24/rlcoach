@@ -213,6 +213,14 @@ def build_synthetic_report(
         "duration_seconds": float(header.match_length or 0.0),
         "recorded_frame_hz": float(recorded_hz),
         "total_frames": max(1, len(frames)),
+        "signal_provenance": {
+            "declared_record_fps": "header:RecordFPS",
+            "recorded_frame_hz": "measured:network_frame_timestamps",
+            "frame_delta": "parser:boxcars.Frame.delta",
+            "rigid_body_sleeping": "parser:ReplicatedRBState.sleeping",
+            "driving_inputs": "parser:Vehicle_TA replicated input fields",
+            "component_events": "parser:CarComponent replicated fields",
+        },
         "coordinate_reference": {
             "side_wall_x": 4096,
             "back_wall_y": 5120,

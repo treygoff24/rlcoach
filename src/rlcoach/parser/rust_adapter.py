@@ -149,6 +149,11 @@ class RustAdapter(ParserAdapter):
             match_length=float(d.get("match_length", 0.0) or 0.0),
             engine_build=d.get("engine_build"),
             match_guid=d.get("match_guid"),
+            declared_record_fps=(
+                float(d["declared_record_fps"])
+                if d.get("declared_record_fps") is not None
+                else None
+            ),
             overtime=d.get("overtime"),
             mutators=mutators,
             players=players,

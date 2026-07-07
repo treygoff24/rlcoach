@@ -323,6 +323,7 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         let mut map_name: Option<String> = None;
         let mut match_guid: Option<String> = None;
         let mut overtime: Option<bool> = None;
+        let mut declared_record_fps: Option<f64> = None;
         let mut team0_score: i64 = 0;
         let mut team1_score: i64 = 0;
         let mut match_length: f64 = 0.0;
@@ -422,7 +423,22 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
                 }
                 if let Some(p) = find_prop(&properties, "NumFrames") {
                     if let Some(fr) = p.as_i32() {
-                        match_length = (fr as f64) / 30.0;
+                        match_length = (fr as f64) / declared_record_fps.unwrap_or(30.0);
+                    }
+                }
+                if let Some(p) = find_prop(&properties, "RecordFPS") {
+                    declared_record_fps = match p {
+                        HeaderProp::Float(value) => Some(*value as f64),
+                        HeaderProp::Int(value) => Some(*value as f64),
+                        _ => None,
+                    };
+                    if !declared_record_fps.map(|fps| fps > 0.0).unwrap_or(false) {
+                        declared_record_fps = None;
+                    }
+                    if let Some(frames) =
+                        find_prop(&properties, "NumFrames").and_then(|prop| prop.as_i32())
+                    {
+                        match_length = (frames as f64) / declared_record_fps.unwrap_or(30.0);
                     }
                 }
                 if let Some(p) = find_prop(&properties, "Team0Score") {
@@ -593,6 +609,7 @@ fn parse_header(path: &str) -> PyResult<PyObject> {
         header.set_item("team0_score", team0_score)?;
         header.set_item("team1_score", team1_score)?;
         header.set_item("match_length", match_length)?;
+        header.set_item("declared_record_fps", declared_record_fps)?;
         header.set_item("match_guid", match_guid)?;
         match overtime {
             Some(value) => header.set_item("overtime", value)?,
@@ -948,7 +965,20 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
             .iter()
             .find(|(k, _)| k == "NumFrames")
             .and_then(|(_, prop)| prop.as_i32())
-            .map(|frames| frames as f64 / 30.0)
+            .map(|frames| {
+                let fps = replay
+                    .properties
+                    .iter()
+                    .find(|(k, _)| k == "RecordFPS")
+                    .and_then(|(_, prop)| match prop {
+                        HeaderProp::Float(value) => Some(*value as f64),
+                        HeaderProp::Int(value) => Some(*value as f64),
+                        _ => None,
+                    })
+                    .filter(|fps| *fps > 0.0)
+                    .unwrap_or(30.0);
+                frames as f64 / fps
+            })
             .unwrap_or(0.0);
 
         // Header-derived players with teams for mapping

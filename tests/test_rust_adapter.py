@@ -226,6 +226,7 @@ def test_parse_header_maps_extended_metadata(monkeypatch):
                 "match_length": 305.5,
                 "engine_build": "build-1234",
                 "match_guid": "GUID-abc",
+                "declared_record_fps": 120.0,
                 "overtime": True,
                 "mutators": {"BallMaxSpeed": "Fast"},
                 "players": [],
@@ -240,6 +241,7 @@ def test_parse_header_maps_extended_metadata(monkeypatch):
     header = RustAdapter().parse_header(Path("testing_replay.replay"))
     assert header.engine_build == "build-1234"
     assert header.match_guid == "GUID-abc"
+    assert header.declared_record_fps == 120.0
     assert header.overtime is True
     assert header.mutators == {"BallMaxSpeed": "Fast"}
 

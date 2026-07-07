@@ -67,6 +67,7 @@ class Header:
     team_size: int = 0
     engine_build: str | None = None
     match_guid: str | None = None
+    declared_record_fps: float | None = None
     overtime: bool | None = None
     mutators: dict[str, str | int | float | bool] = field(default_factory=dict)
 
@@ -146,7 +147,7 @@ class NetworkFrames:
     """
 
     frame_count: int = 0
-    sample_rate: float = 30.0  # Expected FPS
+    sample_rate: float = 30.0  # Measured FPS; 30.0 fallback when unmeasurable
     frames: list = field(default_factory=list)  # Will be list[Frame] when implemented
     diagnostics: NetworkDiagnostics | None = None
     # Per-player profile metadata (camera + loadout) keyed by header player

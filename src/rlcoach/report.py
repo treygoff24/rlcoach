@@ -354,12 +354,23 @@ def generate_report(
             "duration_seconds": match_duration,
             "recorded_frame_hz": float(recorded_hz),
             "total_frames": max(1, len(normalized_frames)),
+            "signal_provenance": {
+                "declared_record_fps": "header:RecordFPS",
+                "recorded_frame_hz": "measured:network_frame_timestamps",
+                "frame_delta": "parser:boxcars.Frame.delta",
+                "rigid_body_sleeping": "parser:ReplicatedRBState.sleeping",
+                "driving_inputs": "parser:Vehicle_TA replicated input fields",
+                "component_events": "parser:CarComponent replicated fields",
+            },
             "coordinate_reference": {
                 "side_wall_x": 4096,
                 "back_wall_y": 5120,
                 "ceiling_z": 2044,
             },
         }
+        declared_record_fps = getattr(header, "declared_record_fps", None)
+        if declared_record_fps is not None:
+            metadata["declared_record_fps"] = float(declared_record_fps)
 
         # Quality
         crc_info = ingest_info.get("crc_check", {})

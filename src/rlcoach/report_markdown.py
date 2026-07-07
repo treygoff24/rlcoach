@@ -152,13 +152,18 @@ class _MarkdownComposer:
             if not mutators
             else ", ".join(f"{k}:{v}" for k, v in sorted(mutators.items()))
         )
+        declared_fps = self.metadata.get("declared_record_fps")
         overview_rows = [
             ("Map", self.metadata.get("map", "unknown")),
             ("Playlist", self.metadata.get("playlist", "UNKNOWN")),
             ("Team Size", str(self.metadata.get("team_size", "?"))),
             ("Duration (s)", self._fmt_num(self.match_seconds)),
             (
-                "Recorded Frame Hz",
+                "Declared Record FPS",
+                self._fmt_num(declared_fps) if declared_fps else "unknown",
+            ),
+            (
+                "Measured Frame Hz",
                 self._fmt_num(self.metadata.get("recorded_frame_hz", 0.0)),
             ),
             ("Total Frames", str(self.metadata.get("total_frames", 0))),

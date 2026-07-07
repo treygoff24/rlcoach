@@ -29,8 +29,14 @@
         "match_guid": { "type": "string" },
         "started_at_utc": { "type": "string", "format": "date-time" },
         "duration_seconds": { "type": "number" },
+        "declared_record_fps": { "type": "number", "description": "Replay header RecordFPS declaration when present; compare to measured recorded_frame_hz.", "minimum": 1, "maximum": 240 },
         "recorded_frame_hz": { "type": "number", "description": "Measured replay sampling rate (often ~30 Hz). See TickMark 30fps note in boxcars.", "minimum": 1, "maximum": 240 },
         "total_frames": { "type": "integer", "minimum": 1 },
+        "signal_provenance": {
+          "type": "object",
+          "description": "Where parser-visible signal families came from.",
+          "additionalProperties": { "type": "string" }
+        },
         "coordinate_reference": {
           "type": "object",
           "description": "Field constants used for analysis",
