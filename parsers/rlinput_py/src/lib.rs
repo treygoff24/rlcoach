@@ -1,188 +1,158 @@
 #![allow(deprecated)]
 //! PyO3 boundary for `rlinput`.
 //!
-//! WP8 intentionally exposes the stable boundary before WP7's full fit solver
-//! exists. `solve_timeline` accepts the final columnar payload shape and returns
-//! a real `SolveOutput` assembled from the contracts that already landed:
-//! contact-free segmentation plus seeded component-edge reconstruction. Samples
-//! are empty until fit/channel solving lands; segment confidence is structurally
-//! set to 1.0 so coverage reports count the current segmentation denominator
-//! honestly.
+//! `solve_timeline` accepts the final columnar payload shape and returns the
+//! Rust solver's plain dict/list mirror for Python's frozen adapter classes.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyList};
 use rlinput::model::{
-    BallSeries, ComponentEventIn, ComponentKind, ComponentStream, DemoEventIn, Kinematics,
-    PlayerSeries, ReplaySeries, ReplicatedChannels, TouchEventIn,
+    BallSeries, ComponentEventIn, ComponentKind, ComponentStream, DemoEventIn, EnginePreference,
+    EstimatorConfig, FitWeights, Kinematics, Mode, PlayerSeries, ReplaySeries, ReplicatedChannels,
+    SolverThresholds, TouchEventIn, WithheldChannels,
 };
-use rlinput::segment::segment_replay_with_confidences;
+use rlinput::solver::{default_estimator_config, solve_series};
 use rlinput::timeline::{
-    AmbiguityFlags, BoundaryCause, CancelSummary, CoverageReport, ExclusionBreakdown,
-    InputTimeline, LatticeDiagnostic, SegmentSummary, SolveDiagnostics, SolveOutput, SolvedEvent,
-    SolvedEventKind,
-};
-use rlinput::tracker::{
-    classify_dodge_torque_vector, reconstruct_seeded_edges, EdgeEvidence, ReconstructedEdge,
-    SecondActionClass,
+    BoundaryCause, Channel, CoverageReport, ExclusionBreakdown, InputSample, InputTimeline,
+    SegmentSummary, SolveDiagnostics, SolveOutput, SolvedEvent, SolvedEventKind, Source,
 };
 
 #[pyfunction]
-fn solve_timeline(py: Python<'_>, payload: &PyAny, _config: Option<&PyAny>) -> PyResult<PyObject> {
+fn solve_timeline(py: Python<'_>, payload: &PyAny, config: Option<&PyAny>) -> PyResult<PyObject> {
     let payload = payload.downcast::<PyDict>()?;
     let series = parse_replay_series(payload)?;
-    let output = solve_series(&series);
+    let config = parse_config(config)?;
+    let output = solve_series(&series, &config);
     solve_output_to_py(py, &output)
 }
 
-fn solve_series(series: &ReplaySeries) -> SolveOutput {
-    let segmentation =
-        segment_replay_with_confidences(series, 0.7, |_player_id, _segment| Some(1.0));
-    let frame_times = frame_times(series);
-
-    let timelines = segmentation
-        .players
-        .iter()
-        .map(|segmented_player| {
-            let events = series
-                .players
-                .iter()
-                .find(|player| player.player_id == segmented_player.player_id)
-                .map(|player| solved_events_for_player(player, &frame_times, series.tick_rate))
-                .unwrap_or_default();
-            InputTimeline {
-                player_id: segmented_player.player_id.clone(),
-                samples: Vec::new(),
-                events,
-                segments: segmented_player
-                    .segments
-                    .iter()
-                    .map(|segment| segment.summary.clone())
-                    .collect(),
-            }
-        })
-        .collect();
-
-    let mut nonstandard_cadence = false;
-    let mut lattice = Vec::new();
-    for player in &segmentation.players {
-        for segment in &player.segments {
-            let diagnostics = &segment.lattice.diagnostics;
-            if diagnostics.nonstandard_cadence {
-                nonstandard_cadence = true;
-                lattice.push(LatticeDiagnostic {
-                    kind: "nonstandard_cadence".to_string(),
-                    first_frame_index: diagnostics.first_nonstandard_frame.unwrap_or(0),
-                    count: 1,
-                });
-            }
+fn parse_config(config: Option<&PyAny>) -> PyResult<EstimatorConfig> {
+    let mut out = default_estimator_config();
+    let Some(config) = config else {
+        return Ok(out);
+    };
+    if config.is_none() {
+        return Ok(out);
+    }
+    let config = config.downcast::<PyDict>()?;
+    if let Some(mode) = optional_extract::<String>(config, "mode")? {
+        out.mode = parse_mode(&mode)?;
+    }
+    if let Some(engine) = optional_extract::<String>(config, "engine")? {
+        out.engine = parse_engine(&engine)?;
+    }
+    if let Some(withhold) = config.get_item("withhold")? {
+        if !withhold.is_none() {
+            out.withhold = parse_withhold(withhold)?;
         }
     }
+    if let Some(fit) = config.get_item("fit")? {
+        if !fit.is_none() {
+            out.fit = parse_fit_weights(fit.downcast::<PyDict>()?, out.fit)?;
+        }
+    }
+    if let Some(thresholds) = config.get_item("thresholds")? {
+        if !thresholds.is_none() {
+            out.thresholds =
+                parse_solver_thresholds(thresholds.downcast::<PyDict>()?, out.thresholds)?;
+        }
+    }
+    Ok(out)
+}
 
-    SolveOutput {
-        timelines,
-        coverage: segmentation.coverage,
-        diagnostics: SolveDiagnostics {
-            nonstandard_cadence,
-            lattice,
-            warnings: vec!["wp8_boundary_only_samples_omitted_until_wp7_solver".to_string()],
-        },
+fn parse_mode(value: &str) -> PyResult<Mode> {
+    match value {
+        "Seeded" | "seeded" => Ok(Mode::Seeded),
+        "Unseeded" | "unseeded" => Ok(Mode::Unseeded),
+        _ => Err(PyValueError::new_err(format!("unknown mode: {value}"))),
     }
 }
 
-fn solved_events_for_player(
-    player: &PlayerSeries,
-    frame_times: &[f64],
-    tick_rate: f64,
-) -> Vec<SolvedEvent> {
-    reconstruct_seeded_edges(&player.component)
-        .into_iter()
-        .filter_map(|edge| solved_event_from_edge(edge, frame_times, tick_rate))
-        .collect()
+fn parse_engine(value: &str) -> PyResult<EnginePreference> {
+    match value {
+        "PortableOnly" | "portable_only" | "portable" => Ok(EnginePreference::PortableOnly),
+        "PreferReference" | "prefer_reference" | "reference" => {
+            Ok(EnginePreference::PreferReference)
+        }
+        _ => Err(PyValueError::new_err(format!("unknown engine: {value}"))),
+    }
 }
 
-fn solved_event_from_edge(
-    edge: ReconstructedEdge,
-    frame_times: &[f64],
-    tick_rate: f64,
-) -> Option<SolvedEvent> {
-    if edge.component == ComponentKind::Boost {
-        return None;
+fn parse_withhold(value: &PyAny) -> PyResult<WithheldChannels> {
+    if let Ok(bits) = value.extract::<u32>() {
+        return WithheldChannels::from_bits(bits)
+            .ok_or_else(|| PyValueError::new_err(format!("invalid withhold bits: {bits}")));
     }
-
-    let t = if edge.t > 0.0 {
-        edge.t
-    } else {
-        frame_times
-            .get(edge.frame_index as usize)
-            .copied()
-            .unwrap_or(0.0)
-    };
-    let mut flags = AmbiguityFlags::empty();
-    let confidence = match edge.source {
-        EdgeEvidence::VectorEvent => 1.0,
-        EdgeEvidence::RawCounter => {
-            if edge
-                .counter_delta
-                .as_ref()
-                .is_some_and(|delta| delta.has_subframe_toggles)
-            {
-                flags |= AmbiguityFlags::LOW_MARGIN;
-                0.5
-            } else {
-                0.75
-            }
+    if let Ok(items) = value.extract::<Vec<String>>() {
+        let mut flags = WithheldChannels::empty();
+        for item in items {
+            flags |= withhold_flag(&item)?;
         }
-    };
-    let kind = match edge.component {
-        ComponentKind::Jump => {
-            if edge
-                .counter_delta
-                .as_ref()
-                .is_some_and(|delta| delta.current % 2 == 0)
-            {
-                SolvedEventKind::JumpRelease
-            } else {
-                SolvedEventKind::JumpPress
-            }
+        return Ok(flags);
+    }
+    let dict = value.downcast::<PyDict>()?;
+    let mut flags = WithheldChannels::empty();
+    for (name, flag) in [
+        ("throttle", WithheldChannels::THROTTLE),
+        ("steer", WithheldChannels::STEER),
+        ("handbrake", WithheldChannels::HANDBRAKE),
+        ("boost_active", WithheldChannels::BOOST_ACTIVE),
+        ("boost_amount", WithheldChannels::BOOST_AMOUNT),
+        ("jump_edges", WithheldChannels::JUMP_EDGES),
+        ("component_events", WithheldChannels::COMPONENT_EVENTS),
+    ] {
+        if optional_extract::<bool>(dict, name)?.unwrap_or(false) {
+            flags |= flag;
         }
-        ComponentKind::DoubleJumpImpulse => SolvedEventKind::DoubleJump,
-        ComponentKind::DodgeTorque => match edge.vector {
-            Some(vector) => match classify_dodge_torque_vector(vector) {
-                SecondActionClass::Dodge { dir, .. } => SolvedEventKind::Dodge {
-                    dir,
-                    cancel: empty_cancel(),
-                },
-                SecondActionClass::Stall => SolvedEventKind::Stall,
-                SecondActionClass::DoubleJump => SolvedEventKind::DoubleJump,
-            },
-            None => {
-                flags |= AmbiguityFlags::LOW_MARGIN;
-                SolvedEventKind::Dodge {
-                    dir: [0.0, 0.0],
-                    cancel: empty_cancel(),
-                }
-            }
-        },
-        ComponentKind::Boost => return None,
-    };
+    }
+    Ok(flags)
+}
 
-    Some(SolvedEvent {
-        kind,
-        tick: (t * tick_rate).round().max(0.0) as u64,
-        t,
-        frame_index: edge.frame_index,
-        confidence,
-        flags,
+fn withhold_flag(value: &str) -> PyResult<WithheldChannels> {
+    match value {
+        "throttle" | "THROTTLE" => Ok(WithheldChannels::THROTTLE),
+        "steer" | "STEER" => Ok(WithheldChannels::STEER),
+        "handbrake" | "HANDBRAKE" => Ok(WithheldChannels::HANDBRAKE),
+        "boost_active" | "BOOST_ACTIVE" => Ok(WithheldChannels::BOOST_ACTIVE),
+        "boost_amount" | "BOOST_AMOUNT" => Ok(WithheldChannels::BOOST_AMOUNT),
+        "jump_edges" | "JUMP_EDGES" => Ok(WithheldChannels::JUMP_EDGES),
+        "component_events" | "COMPONENT_EVENTS" => Ok(WithheldChannels::COMPONENT_EVENTS),
+        _ => Err(PyValueError::new_err(format!(
+            "unknown withhold channel: {value}"
+        ))),
+    }
+}
+
+fn parse_fit_weights(dict: &PyDict, default: FitWeights) -> PyResult<FitWeights> {
+    Ok(FitWeights {
+        position_sigma: optional_extract(dict, "position_sigma")?.unwrap_or(default.position_sigma),
+        velocity_sigma: optional_extract(dict, "velocity_sigma")?.unwrap_or(default.velocity_sigma),
+        angular_velocity_sigma: optional_extract(dict, "angular_velocity_sigma")?
+            .unwrap_or(default.angular_velocity_sigma),
+        rotation_sigma: optional_extract(dict, "rotation_sigma")?.unwrap_or(default.rotation_sigma),
+        reject_threshold: optional_extract(dict, "reject_threshold")?
+            .unwrap_or(default.reject_threshold),
+        low_margin_threshold: optional_extract(dict, "low_margin_threshold")?
+            .unwrap_or(default.low_margin_threshold),
     })
 }
 
-fn empty_cancel() -> CancelSummary {
-    CancelSummary {
-        onset_tick: None,
-        peak_pitch: 0.0,
-        full_cancel: false,
-    }
+fn parse_solver_thresholds(dict: &PyDict, default: SolverThresholds) -> PyResult<SolverThresholds> {
+    Ok(SolverThresholds {
+        long_gap_seconds: optional_extract(dict, "long_gap_seconds")?
+            .unwrap_or(default.long_gap_seconds),
+        cadence_fraction_tolerance: optional_extract(dict, "cadence_fraction_tolerance")?
+            .unwrap_or(default.cadence_fraction_tolerance),
+        cadence_persistence_intervals: optional_extract(dict, "cadence_persistence_intervals")?
+            .unwrap_or(default.cadence_persistence_intervals),
+        nominal_interval_ticks: optional_extract(dict, "nominal_interval_ticks")?
+            .unwrap_or(default.nominal_interval_ticks),
+        car_proximity_uu: optional_extract(dict, "car_proximity_uu")?
+            .unwrap_or(default.car_proximity_uu),
+        ball_proximity_uu: optional_extract(dict, "ball_proximity_uu")?
+            .unwrap_or(default.ball_proximity_uu),
+    })
 }
 
 fn parse_replay_series(payload: &PyDict) -> PyResult<ReplaySeries> {
@@ -406,30 +376,6 @@ fn flat_quat(value: &PyAny, field: &str) -> PyResult<Vec<[f32; 4]>> {
         .collect())
 }
 
-fn frame_times(series: &ReplaySeries) -> Vec<f64> {
-    let frame_count = series
-        .players
-        .iter()
-        .map(|player| player.frames.pos.len())
-        .max()
-        .unwrap_or(series.deltas.len());
-    let mut out = vec![0.0; frame_count];
-    for frame in 1..frame_count {
-        out[frame] = out[frame - 1] + f64::from(delta_for(series, frame));
-    }
-    out
-}
-
-fn delta_for(series: &ReplaySeries, terminating_frame: usize) -> f32 {
-    if series.deltas.len() > terminating_frame {
-        series.deltas[terminating_frame]
-    } else if terminating_frame > 0 && series.deltas.len() >= terminating_frame {
-        series.deltas[terminating_frame - 1]
-    } else {
-        0.0
-    }
-}
-
 fn required<'py>(dict: &'py PyDict, key: &str) -> PyResult<&'py PyAny> {
     dict.get_item(key)?
         .ok_or_else(|| PyValueError::new_err(format!("missing required key: {key}")))
@@ -472,7 +418,11 @@ fn solve_output_to_py(py: Python<'_>, output: &SolveOutput) -> PyResult<PyObject
 fn timeline_to_py(py: Python<'_>, timeline: &InputTimeline) -> PyResult<PyObject> {
     let out = PyDict::new(py);
     out.set_item("player_id", &timeline.player_id)?;
-    out.set_item("samples", PyList::empty(py))?;
+    let samples = PyList::empty(py);
+    for sample in &timeline.samples {
+        samples.append(sample_to_py(py, sample)?)?;
+    }
+    out.set_item("samples", samples)?;
     let events = PyList::empty(py);
     for event in &timeline.events {
         events.append(event_to_py(py, event)?)?;
@@ -484,6 +434,49 @@ fn timeline_to_py(py: Python<'_>, timeline: &InputTimeline) -> PyResult<PyObject
     }
     out.set_item("segments", segments)?;
     Ok(out.into())
+}
+
+fn sample_to_py(py: Python<'_>, sample: &InputSample) -> PyResult<PyObject> {
+    let out = PyDict::new(py);
+    out.set_item("frame_index", sample.frame_index)?;
+    out.set_item("tick_range", vec![sample.tick_range.0, sample.tick_range.1])?;
+    out.set_item("time_range", vec![sample.time_range.0, sample.time_range.1])?;
+    out.set_item("throttle", f32_channel_to_py(py, &sample.throttle)?)?;
+    out.set_item("steer", f32_channel_to_py(py, &sample.steer)?)?;
+    out.set_item("pitch", f32_channel_to_py(py, &sample.pitch)?)?;
+    out.set_item("yaw", f32_channel_to_py(py, &sample.yaw)?)?;
+    out.set_item("roll", f32_channel_to_py(py, &sample.roll)?)?;
+    out.set_item("jump", bool_channel_to_py(py, &sample.jump)?)?;
+    out.set_item("boost", bool_channel_to_py(py, &sample.boost)?)?;
+    out.set_item("handbrake", bool_channel_to_py(py, &sample.handbrake)?)?;
+    Ok(out.into())
+}
+
+fn f32_channel_to_py(py: Python<'_>, channel: &Channel<f32>) -> PyResult<PyObject> {
+    let out = PyDict::new(py);
+    out.set_item("value", channel.value)?;
+    out.set_item("source", source_name(channel.source))?;
+    out.set_item("confidence", channel.confidence)?;
+    out.set_item("flags", channel.flags.bits())?;
+    Ok(out.into())
+}
+
+fn bool_channel_to_py(py: Python<'_>, channel: &Channel<bool>) -> PyResult<PyObject> {
+    let out = PyDict::new(py);
+    out.set_item("value", channel.value)?;
+    out.set_item("source", source_name(channel.source))?;
+    out.set_item("confidence", channel.confidence)?;
+    out.set_item("flags", channel.flags.bits())?;
+    Ok(out.into())
+}
+
+fn source_name(source: Source) -> &'static str {
+    match source {
+        Source::Replicated => "Replicated",
+        Source::Solved => "Solved",
+        Source::Inferred => "Inferred",
+        Source::Absent => "Absent",
+    }
 }
 
 fn event_to_py(py: Python<'_>, event: &SolvedEvent) -> PyResult<PyObject> {
