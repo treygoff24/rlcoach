@@ -2,6 +2,7 @@
 
 pub mod consts;
 pub mod convert;
+pub mod engine;
 pub mod lattice;
 pub mod model;
 pub mod timeline;
