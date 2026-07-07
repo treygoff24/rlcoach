@@ -23,12 +23,14 @@ impl PortableEngine {
         self.update_double_jump_or_flip(state, controls, events, forward_speed, first_jump_started);
         self.update_boost(state, controls, &mut accel);
 
-        state.ang_vel = add(state.ang_vel, mul(ang_accel, AIR_DT));
-        state.ang_vel = clamp_norm(state.ang_vel, consts::CAR_MAX_ANG_SPEED);
-        state.vel = add(state.vel, mul(accel, AIR_DT));
-        state.vel = clamp_norm(state.vel, consts::CAR_MAX_SPEED);
-        state.pos = add(state.pos, mul(state.vel, AIR_DT));
-        state.rot = integrate_rot(state.rot, state.ang_vel);
+        let unclamped_ang_vel = add(state.ang_vel, mul(ang_accel, AIR_DT));
+        let unclamped_vel = add(state.vel, mul(accel, AIR_DT));
+        // Arena.cpp:718-722 steps Bullet, snapshots `rotMat` in `_PostTickUpdate`,
+        // then clamps velocities in `Car::_FinishPhysicsTick` (`Car.cpp:178-203`).
+        state.pos = add(state.pos, mul(unclamped_vel, AIR_DT));
+        state.rot = integrate_rot(state.rot, unclamped_ang_vel);
+        state.ang_vel = clamp_norm(unclamped_ang_vel, consts::CAR_MAX_ANG_SPEED);
+        state.vel = clamp_norm(unclamped_vel, consts::CAR_MAX_SPEED);
         state.boost = state.boost.clamp(0.0, consts::BOOST_MAX);
     }
 
@@ -309,16 +311,46 @@ impl AirEngine for PortableEngine {
     fn rollout(&mut self, state: &CarPhysState, plan: &TickPlan, ticks: u32) -> CarPhysState {
         let mut state = *state;
         for tick in 0..ticks {
-            let controls = plan.controls_at(tick);
+            let mut controls = plan.controls_at(tick);
             let events: Vec<_> = plan
                 .events
                 .iter()
                 .copied()
                 .filter(|event| event.tick_offset == tick)
                 .collect();
+            for event in &events {
+                apply_event_controls(&mut controls, *event);
+            }
             self.step(&mut state, controls, &events);
         }
         state
+    }
+}
+
+fn apply_event_controls(controls: &mut Controls, event: TickEvent) {
+    match event.kind {
+        TickEventKind::JumpPress => controls.jump = true,
+        TickEventKind::JumpRelease => controls.jump = false,
+        TickEventKind::DoubleJump => {
+            controls.jump = true;
+            controls.pitch = 0.0;
+            controls.yaw = 0.0;
+            controls.roll = 0.0;
+        }
+        TickEventKind::Dodge { dir } => {
+            controls.jump = true;
+            if dir[0].abs() <= f32::EPSILON && dir[1].abs() <= f32::EPSILON {
+                // RocketSim stalls use yaw+roll inside the component deadzone so
+                // the edge is a flip input but `Car.cpp:731-737` zeroes dodgeDir.
+                controls.pitch = 0.0;
+                controls.yaw = 0.3;
+                controls.roll = -0.3;
+            } else {
+                controls.pitch = -dir[0];
+                controls.yaw = dir[1];
+                controls.roll = 0.0;
+            }
+        }
     }
 }
 
@@ -366,15 +398,6 @@ fn norm(v: [f32; 3]) -> f32 {
     norm_sq(v).sqrt()
 }
 
-fn normalize(v: [f32; 3]) -> [f32; 3] {
-    let len = norm(v);
-    if len == 0.0 {
-        v
-    } else {
-        mul(v, 1.0 / len)
-    }
-}
-
 fn normalize2(v: [f32; 2]) -> [f32; 2] {
     let len = (v[0] * v[0] + v[1] * v[1]).sqrt();
     if len < f32::EPSILON {
@@ -394,12 +417,28 @@ fn clamp_norm(v: [f32; 3], max: f32) -> [f32; 3] {
 }
 
 fn integrate_rot(rot: [[f32; 3]; 3], ang_vel: [f32; 3]) -> [[f32; 3]; 3] {
-    let f = add(forward(rot), mul(cross(ang_vel, forward(rot)), AIR_DT));
-    let f = normalize(f);
-    let u_seed = add(up(rot), mul(cross(ang_vel, up(rot)), AIR_DT));
-    let r = normalize(cross(u_seed, f));
-    let u = normalize(cross(f, r));
+    // Bullet integrates orientation with an exponential-map delta quaternion
+    // premultiplied onto the current transform (`btTransformUtil.h:46-77`,
+    // called from `btRigidBody.cpp:99-106`), not with Euler axis drift.
+    let angle = norm(ang_vel) * AIR_DT;
+    if angle <= f32::EPSILON {
+        return rot;
+    }
+
+    let axis = mul(ang_vel, 1.0 / norm(ang_vel));
+    let f = rotate_axis_angle(forward(rot), axis, angle);
+    let r = rotate_axis_angle(right(rot), axis, angle);
+    let u = rotate_axis_angle(up(rot), axis, angle);
     [[f[0], r[0], u[0]], [f[1], r[1], u[1]], [f[2], r[2], u[2]]]
+}
+
+fn rotate_axis_angle(v: [f32; 3], axis: [f32; 3], angle: f32) -> [f32; 3] {
+    let sin = angle.sin();
+    let cos = angle.cos();
+    add(
+        add(mul(v, cos), mul(cross(axis, v), sin)),
+        mul(axis, dot(axis, v) * (1.0 - cos)),
+    )
 }
 
 #[cfg(test)]
