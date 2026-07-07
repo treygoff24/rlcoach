@@ -231,6 +231,15 @@ impl PortableEngine {
         state.has_flipped = true;
         state.is_flipping = true;
 
+        // Car.cpp:733-737: when BOTH raw components are inside the 0.1 deadzone the
+        // dodge direction is zeroed BEFORE normalization (a stall), never normalized up.
+        let dir = if dir[0].abs() < consts::DODGE_COMPONENT_DEADZONE
+            && dir[1].abs() < consts::DODGE_COMPONENT_DEADZONE
+        {
+            [0.0, 0.0]
+        } else {
+            dir
+        };
         let mut dodge_dir = normalize2(dir);
         state.flip_rel_torque = [-dodge_dir[1], dodge_dir[0], 0.0];
 
@@ -245,7 +254,7 @@ impl PortableEngine {
         }
 
         let forward_speed_ratio = (forward_speed.abs() / consts::CAR_MAX_SPEED).min(1.0);
-        let should_dodge_backwards = if forward_speed.abs() < 100.0 {
+        let should_dodge_backwards = if forward_speed.abs() < consts::DODGE_BACKWARD_SPEED_THRESHOLD {
             dodge_dir[0] < 0.0
         } else {
             (dodge_dir[0] >= 0.0) != (forward_speed >= 0.0)
@@ -271,10 +280,26 @@ impl PortableEngine {
         state.vel[1] += impulse_x * forward_2d[1] + impulse_y * right_2d[1];
     }
 
+    // Car.cpp:499-527 boosting state machine: with boost in the tank, boosting starts
+    // on press and CONTINUES while held or until boosting_time reaches BOOST_MIN_TIME —
+    // a tap always delivers >= 0.1 s of boost.
     fn update_boost(&mut self, state: &mut CarPhysState, controls: Controls, accel: &mut [f32; 3]) {
-        if controls.boost && state.boost > 0.0 {
+        if state.boost > 0.0 {
+            if state.is_boosting {
+                state.is_boosting = controls.boost || state.boosting_time < consts::BOOST_MIN_TIME;
+            } else {
+                state.is_boosting = controls.boost;
+            }
+        } else {
+            state.is_boosting = false;
+        }
+
+        if state.is_boosting {
+            state.boosting_time += AIR_DT;
             state.boost = (state.boost - consts::BOOST_USED_PER_SECOND * AIR_DT).max(0.0);
             *accel = add(*accel, mul(forward(state.rot), consts::BOOST_ACCEL_AIR));
+        } else {
+            state.boosting_time = 0.0;
         }
     }
 }
@@ -391,6 +416,8 @@ mod tests {
             rot: identity_rot_mat(),
             ang_vel: [0.0; 3],
             boost: consts::BOOST_MAX,
+            is_boosting: false,
+            boosting_time: 0.0,
             has_jumped: true,
             has_double_jumped: false,
             has_flipped: false,
@@ -691,6 +718,31 @@ mod tests {
                 consts::GRAVITY_Z * AIR_DT,
             ],
         );
+    }
+
+    #[test]
+    fn boost_tap_continues_for_min_time_then_stops() {
+        // Press boost for exactly one tick, then release for the rest.
+        let min_ticks = (consts::BOOST_MIN_TIME / AIR_DT).round() as u32; // 12 at 120Hz
+        let mut controls = vec![Controls {
+            boost: true,
+            ..Controls::default()
+        }];
+        controls.resize(2 * min_ticks as usize, Controls::default());
+        let plan = TickPlan {
+            controls,
+            events: vec![],
+        };
+        let out = PortableEngine::new().rollout(&base_state(), &plan, 2 * min_ticks);
+        // Tank drained for exactly BOOST_MIN_TIME despite the 1-tick tap (Car.cpp:499-527).
+        assert_close(
+            out.boost,
+            consts::BOOST_MAX - consts::BOOST_USED_PER_SECOND * consts::BOOST_MIN_TIME,
+        );
+        assert!(!out.is_boosting);
+        assert_close(out.boosting_time, 0.0);
+        // Velocity carries the full min-time of boost accel.
+        assert_close(out.vel[0], consts::BOOST_ACCEL_AIR * consts::BOOST_MIN_TIME);
     }
 
     #[test]

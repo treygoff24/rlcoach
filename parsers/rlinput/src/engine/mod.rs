@@ -18,6 +18,8 @@ pub struct CarPhysState {
     pub rot: RotationMatrix,
     pub ang_vel: [f32; 3],
     pub boost: f32,
+    pub is_boosting: bool,
+    pub boosting_time: f32,
     pub has_jumped: bool,
     pub has_double_jumped: bool,
     pub has_flipped: bool,

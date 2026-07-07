@@ -420,12 +420,13 @@ pub fn classify_second_action_controls(pitch: f32, yaw: f32, roll: f32) -> Secon
         return SecondActionClass::DoubleJump;
     }
 
-    let mut dir = [-pitch, yaw + roll];
-    if dir[0].abs() < DODGE_COMPONENT_DEADZONE {
-        dir[0] = 0.0;
-    }
-    if dir[1].abs() < DODGE_COMPONENT_DEADZONE {
-        dir[1] = 0.0;
+    // Car.cpp:733-737: the pre-normalize deadzone zeroes the direction only when BOTH
+    // raw components are inside 0.1 (a stall); a single small component is preserved
+    // through normalization. Per-component zeroing of the NORMALIZED direction applies
+    // to the impulse only (engine-side), never to flipRelTorque.
+    let dir = [-pitch, yaw + roll];
+    if dir[0].abs() < DODGE_COMPONENT_DEADZONE && dir[1].abs() < DODGE_COMPONENT_DEADZONE {
+        return SecondActionClass::Stall;
     }
     normalize_dodge_dir(dir)
 }

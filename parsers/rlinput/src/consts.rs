@@ -7,6 +7,7 @@ pub const BOOST_MAX: f32 = 100.0; // RocketSim `RLConst.h:56`, clamped at `Car.c
 pub const BOOST_USED_PER_SECOND: f32 = BOOST_MAX / 3.0; // RocketSim `RLConst.h:57`, applied at `Car.cpp:530`.
 pub const BOOST_ACCEL_GROUND: f32 = 2975.0 / 3.0; // RocketSim `RLConst.h:59`, applied at `Car.cpp:532`.
 pub const BOOST_ACCEL_AIR: f32 = 3175.0 / 3.0; // RocketSim `RLConst.h:60`, applied at `Car.cpp:532`.
+pub const BOOST_MIN_TIME: f32 = 0.1; // RocketSim `RLConst.h:58`, state machine at `Car.cpp:499-527`: once boosting starts it continues >= 0.1 s regardless of release.
 
 pub const THROTTLE_AIR_ACCEL: f32 = 200.0 / 3.0; // RocketSim `RLConst.h:92`, applied at `Car.cpp:680-681`.
 
@@ -19,6 +20,7 @@ pub const DOUBLEJUMP_MAX_DELAY: f32 = 1.25; // RocketSim `RLConst.h:99`, gate at
 
 pub const DODGE_DEADZONE: f32 = 0.5; // RocketSim `CarConfig.h:36-37`, used at `Car.cpp:704-706`.
 pub const DODGE_COMPONENT_DEADZONE: f32 = 0.1; // RocketSim `Car.cpp:731-742`.
+pub const DODGE_BACKWARD_SPEED_THRESHOLD: f32 = 100.0; // RocketSim `Car.cpp:747-751`: below this |forward speed|, backward-dodge selection uses the dodge direction sign alone.
 
 pub const FLIP_INITIAL_VEL_SCALE: f32 = 500.0; // RocketSim `RLConst.h:109`, applied at `Car.cpp:753`.
 pub const FLIP_FORWARD_IMPULSE_MAX_SPEED_SCALE: f32 = 1.0; // RocketSim `RLConst.h:112`, applied at `Car.cpp:755-758`.
