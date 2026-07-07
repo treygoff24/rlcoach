@@ -128,6 +128,16 @@ Extract everything the file already carries. All items land behind the existing 
 
 **Sprint 0 exit criteria:** every R1–R7 signal + frame delta visible in `iter_frames` output on a real replay; V0 agreement number known; pad-registry regression suite green; smoke-fixture assertions in CI for each new signal; goldens/schema updated; gate green.
 
+> **✅ S0 COMPLETE 2026-07-07** (branch `feat/sprint0-parser-signals`, 10 commits, merged to main). All exit criteria met; gate re-run at orchestrator level: ruff/black clean, pytest 656, cargo test 22, clippy clean. Opus adversarial review: FIX-THEN-MERGE → 1 iteration → CLEAN (P0:0, P1:1 contract-docs, P2:1, P3:4; all fixed or dispositioned).
+>
+> **Results recorded:**
+> - **V-0a**: entire 202-replay corpus (2025-09→2026-01) is 30fps — declared 202/202 = 30.0 exactly, measured max 30.007. Zero >30fps replays. Gate criterion 2's ±1-tick branch is moot for this corpus; the 30Hz fallback (correct-interval ≥98%) is the operative timing criterion.
+> - **V0**: parity (odd=active) HOLDS — forward agreement jump 84.7% (n=6244 edges), dodge 79.0% (n=7522), double-jump 67.1% (n=2471, dodge-like kinematic signature; vz-only was a methodology artifact). Inverse: kinematics-only produces 2.3–17× more candidates than real edges (parity does real disambiguation). Keep MEDIUM confidence; do not downgrade.
+> - **DURABLE CONTRACT (review P1)**: `component_events.active` is an instantaneous parity sample, NOT a debounced edge — sub-frame activate+deactivate is invisible to it (0925: 119 double_jump_impulse vectors vs 43 active:true edges). Raw counters (u8, deltas mod 256) + per-activation vector events are the contract S1 builds on; derived booleans are convenience. Gate criterion 1's "component edges as ground truth" = edges reconstructed from raw-counter deltas + vector events.
+> - `dodge_impulse` extraction UNVERIFIED (absent from all committed fixtures) — build nothing on it.
+> - `Frame.delta` faithfully surfaces boxcars values incl. zeros (7/8621 on 0925, max gap 0.19s) — S1 accumulation must tolerate delta==0 and large gaps.
+> - Latent bug fixed in passing: ball angular velocity now correctly ÷100-scaled (was ~100× large; nothing consumed it).
+
 ---
 
 ## 4. Sprint 1 — Input reconstruction spike (tick-lattice estimator) → DECISION GATE
