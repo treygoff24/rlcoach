@@ -653,6 +653,8 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             elif isinstance(frame_data, dict) and "time" in frame_data:
                 timestamp = float(frame_data["time"])
 
+            delta = _extract_optional_float(frame_data, "delta")
+
             # Extract ball state
             ball_pos = Vec3(0.0, 0.0, 93.15)
             ball_vel = Vec3(0.0, 0.0, 0.0)
@@ -1028,6 +1030,7 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 parser_stat_events=parser_stat_events,
                 parser_tickmarks=parser_tickmarks,
                 parser_kickoff_markers=parser_kickoff_markers,
+                delta=delta,
             )
 
             normalized_frames.append(normalized_frame)

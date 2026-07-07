@@ -1696,6 +1696,7 @@ fn run_iter_frames(path: &str) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
                 // Emit frame dict
                 let f = PyDict::new(py);
                 f.set_item("timestamp", nf.time as f64)?;
+                f.set_item("delta", nf.delta as f64)?;
                 let ball = PyDict::new(py);
                 let bpos = PyDict::new(py);
                 bpos.set_item("x", ball_pos.0)?;
@@ -2331,6 +2332,7 @@ fn parse_network_with_diagnostics(path: &str) -> PyResult<PyObject> {
                                 for nf in net.frames {
                                     let f = PyDict::new(py);
                                     f.set_item("timestamp", nf.time as f64)?;
+                                    f.set_item("delta", nf.delta as f64)?;
 
                                     let ball = PyDict::new(py);
                                     let bpos = PyDict::new(py);

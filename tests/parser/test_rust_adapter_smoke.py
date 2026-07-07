@@ -73,6 +73,24 @@ def test_0925_header_exposes_declared_record_fps():
 
 
 @pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
+@pytest.mark.skipif(
+    not PARITY_REPLAY_PATH.exists(), reason="0925 parity replay fixture missing"
+)
+def test_0925_replay_exposes_frame_delta():
+    from rlcoach.parser import get_adapter
+
+    network = get_adapter("rust").parse_network(PARITY_REPLAY_PATH)
+
+    assert network is not None
+    assert network.frames
+
+    deltas = [frame.get("delta") for frame in network.frames]
+    assert all(isinstance(delta, float) for delta in deltas)
+    assert deltas[0] >= 0.0
+    assert any(0.0 < delta < 0.1 for delta in deltas[1:])
+
+
+@pytest.mark.skipif(not _has_rust_core(), reason="Rust core not available")
 @pytest.mark.skipif(not LTM_REPLAY_PATH.exists(), reason="LTM replay fixture missing")
 def test_ltm_replay_reports_parse_reason_not_silent_none():
     from rlcoach.parser import get_adapter

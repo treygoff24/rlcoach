@@ -300,6 +300,7 @@ class TestTimelineBuilding:
         raw = [
             {
                 "timestamp": 0.0,
+                "delta": 0.033333335,
                 "ball": {
                     "position": {"x": 0, "y": 0, "z": 93.15},
                     "velocity": {"x": 6000, "y": -7000, "z": -2000},
@@ -355,6 +356,7 @@ class TestTimelineBuilding:
 
         frame = build_timeline(Header(players=[]), raw)[0]
 
+        assert frame.delta == 0.033333335
         assert frame.ball.velocity == Vec3(6000.0, -7000.0, -2000.0)
         assert frame.ball.angular_velocity == Vec3(10_000.0, -10_000.0, -500.0)
         assert frame.ball.sleeping is True
