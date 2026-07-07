@@ -5,6 +5,7 @@ pub mod convert;
 pub mod engine;
 pub mod lattice;
 pub mod model;
+pub mod segment;
 pub mod timeline;
 pub mod tracker;
 
