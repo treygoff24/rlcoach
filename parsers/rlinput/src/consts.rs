@@ -55,3 +55,24 @@ pub const CAR_AIR_CONTROL_D: [f32; 3] = [
     CAR_AIR_CONTROL_DAMPING_RAW[1] * CAR_TORQUE_SCALE,
     CAR_AIR_CONTROL_DAMPING_RAW[2] * CAR_TORQUE_SCALE,
 ]; // RocketSim `RLConst.h:124,148-151`, applied at `Car.cpp:668-671,677`.
+
+// Community-measured ground model. Provenance: RLBot Useful Game Values
+// (`https://wiki.rlbot.org/v5/botmaking/useful-game-values/`) mirrors Sam Mish's
+// RLUtilities/ground-control notes (`https://www.smish.dev/rocket_league/ground_control/`):
+// throttle falls from ~1600 uu/s² at rest to 0 at ~1410 uu/s, braking is
+// ~3500 uu/s², coasting is ~525 uu/s², and max turn curvature is piecewise linear.
+pub const GROUND_THROTTLE_ACCEL_ZERO: f32 = 1600.0;
+pub const GROUND_THROTTLE_TRANSITION_SPEED: f32 = 1400.0;
+pub const GROUND_THROTTLE_TRANSITION_ACCEL: f32 = 160.0;
+pub const GROUND_THROTTLE_MAX_SPEED: f32 = 1410.0;
+pub const GROUND_BRAKE_ACCEL: f32 = 3500.0;
+pub const GROUND_COAST_ACCEL: f32 = 525.0;
+pub const GROUND_THROTTLE_RAW_DEADZONE: u8 = 13;
+pub const GROUND_HANDBRAKE_SLIP_ANGLE_RAD: f32 = 15.0_f32.to_radians();
+pub const GROUND_MAX_CURVATURE_PIECES: [(f32, f32, f32); 5] = [
+    (500.0, 0.006_900, -5.84e-6),
+    (1000.0, 0.005_610, -3.26e-6),
+    (1500.0, 0.004_300, -1.95e-6),
+    (1750.0, 0.003_025, -1.10e-6),
+    (2500.0, 0.001_800, -0.40e-6),
+];
