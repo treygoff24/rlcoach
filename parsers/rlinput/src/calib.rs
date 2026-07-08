@@ -38,15 +38,18 @@ pub struct OracleReport {
     pub player_count: usize,
     pub flip_raw: F1Metric,
     pub flip_raw_unfiltered: F1Metric,
+    pub flip_raw_pm1_interval: F1Metric,
     pub phantom_flip_raw: usize,
     pub flip_coalesced: F1Metric,
     pub flip_coalesced_unfiltered: F1Metric,
+    pub flip_coalesced_pm1_interval: F1Metric,
     pub phantom_flip_coalesced: usize,
     pub flip_correct_interval_rate_raw: f32,
     pub flip_correct_interval_rate_raw_unfiltered: f32,
     pub flip_correct_interval_rate_coalesced: f32,
     pub flip_correct_interval_rate_coalesced_unfiltered: f32,
     pub blind: BlindChannelMetrics,
+    pub powerslide_steer_split: PowerslideSteerSplit,
     pub amount_derived_boost_edges: F1Metric,
     pub coverage: CoverageMetric,
     pub calibration: Vec<ChannelCalibration>,
@@ -60,11 +63,14 @@ pub struct ReplayOracleReport {
     pub player_count: usize,
     pub flip_raw: F1Metric,
     pub flip_raw_unfiltered: F1Metric,
+    pub flip_raw_pm1_interval: F1Metric,
     pub phantom_flip_raw: usize,
     pub flip_coalesced: F1Metric,
     pub flip_coalesced_unfiltered: F1Metric,
+    pub flip_coalesced_pm1_interval: F1Metric,
     pub phantom_flip_coalesced: usize,
     pub blind: BlindChannelMetrics,
+    pub powerslide_steer_split: PowerslideSteerSplit,
     pub amount_derived_boost_edges: F1Metric,
     pub coverage: CoverageMetric,
 }
@@ -93,6 +99,12 @@ pub struct BlindChannelMetrics {
     pub throttle_sign: ShareMetric,
     pub steer_abs_error_le_0_15: ShareMetric,
     pub handbrake_f1: F1Metric,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct PowerslideSteerSplit {
+    pub powerslide: ShareMetric,
+    pub non_powerslide: ShareMetric,
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -167,9 +179,11 @@ pub fn run_oracle(named_series: &[(String, ReplaySeries)]) -> OracleReport {
         player_count: acc.player_count,
         flip_raw: acc.flip_raw.finish(),
         flip_raw_unfiltered: acc.flip_raw_unfiltered.finish(),
+        flip_raw_pm1_interval: acc.flip_raw_pm1_interval.finish(),
         phantom_flip_raw: acc.phantom_flip_raw,
         flip_coalesced: acc.flip_coalesced.finish(),
         flip_coalesced_unfiltered: acc.flip_coalesced_unfiltered.finish(),
+        flip_coalesced_pm1_interval: acc.flip_coalesced_pm1_interval.finish(),
         phantom_flip_coalesced: acc.phantom_flip_coalesced,
         flip_correct_interval_rate_raw: acc.flip_raw.correct_interval_rate(),
         flip_correct_interval_rate_raw_unfiltered: acc.flip_raw_unfiltered.correct_interval_rate(),
@@ -178,6 +192,7 @@ pub fn run_oracle(named_series: &[(String, ReplaySeries)]) -> OracleReport {
             .flip_coalesced_unfiltered
             .correct_interval_rate(),
         blind: acc.blind.finish(),
+        powerslide_steer_split: acc.powerslide_steer_split.finish(),
         amount_derived_boost_edges: acc.amount_derived_boost_edges.finish(),
         coverage: acc.coverage.finish(),
         calibration: acc.calibration.finish(),
@@ -225,13 +240,16 @@ pub fn score_replay(
         player_count: series.players.len(),
         flip_raw: f1_with_tolerance(&raw_truth, &flip_pred, 0),
         flip_raw_unfiltered: f1_with_tolerance(&raw_truth_unfiltered, &flip_pred, 0),
+        flip_raw_pm1_interval: f1_with_tolerance(&raw_truth, &flip_pred, 1),
         phantom_flip_raw: raw_truth_unfiltered.len().saturating_sub(raw_truth.len()),
         flip_coalesced: f1_with_tolerance(&coalesced_truth, &flip_pred, 0),
         flip_coalesced_unfiltered: f1_with_tolerance(&coalesced_truth_unfiltered, &flip_pred, 0),
+        flip_coalesced_pm1_interval: f1_with_tolerance(&coalesced_truth, &flip_pred, 1),
         phantom_flip_coalesced: coalesced_truth_unfiltered
             .len()
             .saturating_sub(coalesced_truth.len()),
         blind,
+        powerslide_steer_split: powerslide_steer_split(series, output),
         amount_derived_boost_edges: f1_with_tolerance(&boost_truth, &amount_edges, 1),
         coverage: coverage_from_output(output),
     }
@@ -242,11 +260,14 @@ struct Accumulator {
     player_count: usize,
     flip_raw: CountF1,
     flip_raw_unfiltered: CountF1,
+    flip_raw_pm1_interval: CountF1,
     phantom_flip_raw: usize,
     flip_coalesced: CountF1,
     flip_coalesced_unfiltered: CountF1,
+    flip_coalesced_pm1_interval: CountF1,
     phantom_flip_coalesced: usize,
     blind: BlindAcc,
+    powerslide_steer_split: PowerslideSteerAcc,
     amount_derived_boost_edges: CountF1,
     coverage: CoverageAcc,
     calibration: CalibrationAcc,
@@ -257,12 +278,17 @@ impl Accumulator {
         self.player_count += replay.player_count;
         self.flip_raw.add(replay.flip_raw);
         self.flip_raw_unfiltered.add(replay.flip_raw_unfiltered);
+        self.flip_raw_pm1_interval.add(replay.flip_raw_pm1_interval);
         self.phantom_flip_raw += replay.phantom_flip_raw;
         self.flip_coalesced.add(replay.flip_coalesced);
         self.flip_coalesced_unfiltered
             .add(replay.flip_coalesced_unfiltered);
+        self.flip_coalesced_pm1_interval
+            .add(replay.flip_coalesced_pm1_interval);
         self.phantom_flip_coalesced += replay.phantom_flip_coalesced;
         self.blind.add(&replay.blind);
+        self.powerslide_steer_split
+            .add(&replay.powerslide_steer_split);
         self.amount_derived_boost_edges
             .add(replay.amount_derived_boost_edges);
         self.coverage.add(replay.coverage);
@@ -317,6 +343,26 @@ impl BlindAcc {
             throttle_sign: self.throttle_sign.finish(),
             steer_abs_error_le_0_15: self.steer.finish(),
             handbrake_f1: self.handbrake_f1.finish(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct PowerslideSteerAcc {
+    powerslide: ShareAcc,
+    non_powerslide: ShareAcc,
+}
+
+impl PowerslideSteerAcc {
+    fn add(&mut self, metric: &PowerslideSteerSplit) {
+        self.powerslide.add(metric.powerslide);
+        self.non_powerslide.add(metric.non_powerslide);
+    }
+
+    fn finish(self) -> PowerslideSteerSplit {
+        PowerslideSteerSplit {
+            powerslide: self.powerslide.finish(),
+            non_powerslide: self.non_powerslide.finish(),
         }
     }
 }
@@ -623,6 +669,37 @@ fn steer_accuracy(
         }
     }
     acc.finish()
+}
+
+fn powerslide_steer_split(series: &ReplaySeries, output: &SolveOutput) -> PowerslideSteerSplit {
+    let mut powerslide = ShareAcc::default();
+    let mut non_powerslide = ShareAcc::default();
+    for (player, timeline) in joined_players(series, output) {
+        for sample in &timeline.samples {
+            let idx = sample_start_frame(series, sample).unwrap_or(sample.frame_index) as usize;
+            let Some(raw) = player.replicated.steer_raw.get(idx).copied() else {
+                continue;
+            };
+            let correct = (sample.steer.value - raw_axis(raw)).abs() <= STEER_TOLERANCE;
+            let acc = if player
+                .replicated
+                .handbrake
+                .get(idx)
+                .copied()
+                .unwrap_or(false)
+            {
+                &mut powerslide
+            } else {
+                &mut non_powerslide
+            };
+            acc.numerator += usize::from(correct);
+            acc.denominator += 1;
+        }
+    }
+    PowerslideSteerSplit {
+        powerslide: powerslide.finish(),
+        non_powerslide: non_powerslide.finish(),
+    }
 }
 
 fn add_bool_calibration(
@@ -956,6 +1033,59 @@ mod tests {
             print_continuous_channel_probe(&name, &series, &output);
             print_boost_probe(&name, &series, &output);
         }
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_GATE_MANIFEST to assets/s1_holdout_set.json or assets/s1_dev_set.json"]
+    fn gate_evaluation_report() {
+        let started = std::time::Instant::now();
+        let manifest = gate_manifest_path();
+        let repo = repo_root();
+        let label =
+            std::env::var("RLINPUT_GATE_LABEL").unwrap_or_else(|_| infer_gate_label(&manifest));
+        let series_dir = gate_series_dir(&label);
+        std::fs::create_dir_all(&series_dir).expect("gate series dir should be creatable");
+
+        let entries = gate_manifest_entries(&manifest);
+        assert!(
+            !entries.is_empty(),
+            "gate manifest should contain holdout or dev entries: {}",
+            manifest.display()
+        );
+
+        let mut named = Vec::new();
+        let mut failures = Vec::new();
+        for entry in &entries {
+            match export_and_load_gate_series(&repo, entry, &series_dir) {
+                Ok(series) => named.push((gate_replay_name(entry), series)),
+                Err(reason) => failures.push(serde_json::json!({
+                    "replay": entry,
+                    "reason": reason,
+                })),
+            }
+        }
+        assert!(
+            !named.is_empty(),
+            "all gate replay exports failed for {}",
+            manifest.display()
+        );
+
+        let oracle = run_oracle(&named);
+        let resim = run_gate_resim(&repo, &manifest, &series_dir);
+        let report = gate_report_json(
+            &label,
+            &manifest,
+            entries.len(),
+            &failures,
+            &oracle,
+            resim,
+            started.elapsed(),
+        );
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).expect("gate report should serialize")
+        );
     }
 
     fn load_exported_series(dir: &str) -> Vec<(String, ReplaySeries)> {
@@ -1611,6 +1741,323 @@ mod tests {
             values[2][1],
             values[2][2]
         )
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_manifest_path() -> std::path::PathBuf {
+        let raw = std::env::var("RLINPUT_GATE_MANIFEST")
+            .expect("RLINPUT_GATE_MANIFEST should point to the frozen gate manifest");
+        resolve_path(&repo_root(), &raw)
+    }
+
+    #[cfg(feature = "sim")]
+    fn repo_root() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(std::path::Path::parent)
+            .expect("rlinput crate should live under parsers/rlinput")
+            .to_path_buf()
+    }
+
+    #[cfg(feature = "sim")]
+    fn resolve_path(repo: &std::path::Path, raw: &str) -> std::path::PathBuf {
+        let path = std::path::PathBuf::from(raw);
+        if path.is_absolute() {
+            path
+        } else {
+            repo.join(path)
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn infer_gate_label(manifest: &std::path::Path) -> String {
+        manifest
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("gate")
+            .replace("s1_", "")
+            .replace("_set", "")
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_series_dir(label: &str) -> std::path::PathBuf {
+        if let Ok(raw) = std::env::var("RLINPUT_GATE_SERIES_DIR") {
+            return resolve_path(&repo_root(), &raw);
+        }
+        std::env::temp_dir().join(format!(
+            "rlcoach-wp10-{}-series-{}",
+            sanitize_label(label),
+            std::process::id()
+        ))
+    }
+
+    #[cfg(feature = "sim")]
+    fn sanitize_label(label: &str) -> String {
+        label
+            .chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+            .collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_manifest_entries(manifest: &std::path::Path) -> Vec<String> {
+        let file = std::fs::File::open(manifest).expect("gate manifest should open");
+        let data: serde_json::Value =
+            serde_json::from_reader(file).expect("gate manifest should parse as JSON");
+        let mut out = Vec::new();
+        for key in ["holdout", "fixtures", "seeded_draw"] {
+            let Some(items) = data.get(key).and_then(serde_json::Value::as_array) else {
+                continue;
+            };
+            for item in items {
+                if let Some(filename) = item.get("filename").and_then(serde_json::Value::as_str) {
+                    out.push(filename.to_string());
+                }
+            }
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_replay_name(entry: &str) -> String {
+        std::path::Path::new(entry)
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or(entry)
+            .to_string()
+    }
+
+    #[cfg(feature = "sim")]
+    fn export_and_load_gate_series(
+        repo: &std::path::Path,
+        entry: &str,
+        series_dir: &std::path::Path,
+    ) -> Result<ReplaySeries, String> {
+        let replay = repo.join(entry);
+        if !replay.exists() {
+            return Err(format!("missing replay {}", replay.display()));
+        }
+        let out = series_dir.join(format!("{}.json", gate_replay_name(entry)));
+        let output = std::process::Command::new(gate_python(repo)?)
+            .current_dir(repo)
+            .arg(repo.join("scripts/export_series_json.py"))
+            .arg(&replay)
+            .output()
+            .map_err(|err| format!("export command failed to start: {err}"))?;
+        if !output.status.success() {
+            return Err(command_failure("export_series_json.py", &output));
+        }
+        std::fs::write(&out, &output.stdout)
+            .map_err(|err| format!("failed to write {}: {err}", out.display()))?;
+        let file = std::fs::File::open(&out)
+            .map_err(|err| format!("failed to open exported {}: {err}", out.display()))?;
+        serde_json::from_reader(file)
+            .map_err(|err| format!("failed to parse exported {}: {err}", out.display()))
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_python(repo: &std::path::Path) -> Result<std::path::PathBuf, String> {
+        if let Ok(raw) = std::env::var("RLCOACH_PYTHON") {
+            let path = std::path::PathBuf::from(raw);
+            if path.exists() {
+                return Ok(path);
+            }
+        }
+        for candidate in [
+            repo.join(".venv/bin/python"),
+            std::path::PathBuf::from("/Users/treygoff/Code/rlcoach/.venv/bin/python"),
+        ] {
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+        Err("set RLCOACH_PYTHON to a venv python; no worktree/source .venv found".to_string())
+    }
+
+    #[cfg(feature = "sim")]
+    fn run_gate_resim(
+        repo: &std::path::Path,
+        manifest: &std::path::Path,
+        series_dir: &std::path::Path,
+    ) -> serde_json::Value {
+        let output_json = series_dir.join("v1_resim_python_approximation.json");
+        let result = gate_python(repo).and_then(|python| {
+            let output = std::process::Command::new(python)
+                .current_dir(repo)
+                .arg(repo.join("scripts/v1_resim.py"))
+                .arg("--manifest")
+                .arg(manifest)
+                .arg("--series-dir")
+                .arg(series_dir)
+                .arg("--corpus-dir")
+                .arg(repo)
+                .arg("--output-json")
+                .arg(&output_json)
+                .output()
+                .map_err(|err| format!("v1_resim.py failed to start: {err}"))?;
+            if !output.status.success() {
+                return Err(command_failure("v1_resim.py", &output));
+            }
+            let file = std::fs::File::open(&output_json)
+                .map_err(|err| format!("failed to open {}: {err}", output_json.display()))?;
+            serde_json::from_reader(file)
+                .map_err(|err| format!("failed to parse {}: {err}", output_json.display()))
+        });
+        match result {
+            Ok(value) => value,
+            Err(reason) => serde_json::json!({
+                "schema_version": 1,
+                "status": "failed",
+                "reason": reason,
+            }),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn command_failure(name: &str, output: &std::process::Output) -> String {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        format!(
+            "{name} exited with {}; stdout={} stderr={}",
+            output.status, stdout, stderr
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_report_json(
+        label: &str,
+        manifest: &std::path::Path,
+        requested_replays: usize,
+        failures: &[serde_json::Value],
+        oracle: &OracleReport,
+        resim: serde_json::Value,
+        elapsed: std::time::Duration,
+    ) -> serde_json::Value {
+        let c4_median = resim_value(&resim, &["aggregate", "median_ratio_to_zero"]);
+        let c4_p95 = resim_value(&resim, &["aggregate", "p95_ratio_to_zero"]);
+        let c4_max_build = c4_max_build_ratio(&resim);
+        serde_json::json!({
+            "schema_version": 1,
+            "label": label,
+            "manifest": manifest.display().to_string(),
+            "runner": "rlinput::calib::tests::gate_evaluation_report",
+            "mode": "unseeded_strict_blind",
+            "processed_replays": oracle.replay_count,
+            "requested_replays": requested_replays,
+            "export_failures": failures,
+            "runtime_seconds": elapsed.as_secs_f64(),
+            "criteria": [
+                criterion_ge("c1_flip_interval_f1", oracle.flip_raw.f1, 0.95, "unseeded raw component-edge interval F1"),
+                criterion_ge("c2_30hz_correct_interval_rate", oracle.flip_correct_interval_rate_raw, 0.98, "30Hz fallback correct recorded interval; c4 reported separately"),
+                criterion_ge("c3_boost_edge_f1", oracle.blind.boost_edge_f1.f1, 0.95, "strict-blind boost edge F1"),
+                criterion_ge("c3_jump_edge_f1", oracle.blind.jump_edge_f1.f1, 0.95, "strict-blind jump edge F1"),
+                criterion_ge("c3_throttle_sign", oracle.blind.throttle_sign.share, 0.90, "outside |raw-128| > 13 deadzone"),
+                criterion_ge("c3_steer_abs_error_le_0_15", oracle.blind.steer_abs_error_le_0_15.share, 0.85, "all frames"),
+                criterion_le("c4_resim_median_ratio", c4_median, 0.25, "PYTHON_APPROXIMATION scripts/v1_resim.py median ratio to zero-input baseline"),
+                criterion_le("c4_resim_p95_ratio", c4_p95, 0.50, "PYTHON_APPROXIMATION scripts/v1_resim.py p95 ratio to zero-input baseline"),
+                criterion_le("c4_resim_max_build_median_vs_corpus_median", c4_max_build, 2.0, "PYTHON_APPROXIMATION build median solved error / corpus median solved error"),
+                criterion_ge("c5_air_segment_coverage_conf_ge_0_7", oracle.coverage.coverage, 0.80, "air segments with segment confidence >= 0.7"),
+            ],
+            "diagnostics": {
+                "flip_raw_unfiltered": oracle.flip_raw_unfiltered,
+                "flip_coalesced_unfiltered": oracle.flip_coalesced_unfiltered,
+                "flip_raw_pm1_interval": oracle.flip_raw_pm1_interval,
+                "flip_coalesced_pm1_interval": oracle.flip_coalesced_pm1_interval,
+                "amount_derived_boost_edges_diagnostic_only": oracle.amount_derived_boost_edges,
+                "powerslide_steer_split": oracle.powerslide_steer_split,
+                "resim_label": "PYTHON_APPROXIMATION",
+                "resim_known_ceiling": "one-frame positional approximation from solver output controls, not the full Rust reference resim"
+            },
+            "per_replay": oracle.per_replay.iter().map(gate_replay_breakdown).collect::<Vec<_>>(),
+            "oracle_report": oracle,
+            "resim_python_approximation": resim,
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn criterion_ge(name: &str, measured: f32, threshold: f64, note: &str) -> serde_json::Value {
+        criterion_json(name, Some(f64::from(measured)), ">=", threshold, note)
+    }
+
+    #[cfg(feature = "sim")]
+    fn criterion_le(
+        name: &str,
+        measured: Option<f64>,
+        threshold: f64,
+        note: &str,
+    ) -> serde_json::Value {
+        criterion_json(name, measured, "<=", threshold, note)
+    }
+
+    #[cfg(feature = "sim")]
+    fn criterion_json(
+        name: &str,
+        measured: Option<f64>,
+        op: &str,
+        threshold: f64,
+        note: &str,
+    ) -> serde_json::Value {
+        let pass = measured.map(|value| match op {
+            ">=" => value >= threshold,
+            "<=" => value <= threshold,
+            _ => false,
+        });
+        serde_json::json!({
+            "criterion": name,
+            "measured": measured,
+            "threshold": threshold,
+            "operator": op,
+            "pass": pass,
+            "note": note,
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn resim_value(report: &serde_json::Value, path: &[&str]) -> Option<f64> {
+        let mut current = report;
+        for key in path {
+            current = current.get(*key)?;
+        }
+        current.as_f64()
+    }
+
+    #[cfg(feature = "sim")]
+    fn c4_max_build_ratio(report: &serde_json::Value) -> Option<f64> {
+        let corpus = resim_value(report, &["aggregate", "e_solved_median"])?;
+        if corpus == 0.0 {
+            return None;
+        }
+        report
+            .get("by_build_bucket")?
+            .as_object()?
+            .values()
+            .filter_map(|bucket| {
+                bucket
+                    .get("e_solved_median")
+                    .and_then(serde_json::Value::as_f64)
+                    .map(|median| median / corpus)
+            })
+            .max_by(f64::total_cmp)
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_replay_breakdown(replay: &ReplayOracleReport) -> serde_json::Value {
+        serde_json::json!({
+            "replay": replay.replay,
+            "build_bucket": replay.build_bucket,
+            "player_count": replay.player_count,
+            "flip_raw": replay.flip_raw,
+            "flip_raw_unfiltered_truth": replay.flip_raw_unfiltered.truth,
+            "flip_raw_pm1_interval": replay.flip_raw_pm1_interval,
+            "flip_correct_interval_rate_raw": replay.flip_raw.recall,
+            "boost_edge_f1": replay.blind.boost_edge_f1,
+            "jump_edge_f1": replay.blind.jump_edge_f1,
+            "throttle_sign": replay.blind.throttle_sign,
+            "steer_abs_error_le_0_15": replay.blind.steer_abs_error_le_0_15,
+            "amount_derived_boost_edges_diagnostic_only": replay.amount_derived_boost_edges,
+            "powerslide_steer_split": replay.powerslide_steer_split,
+            "coverage": replay.coverage,
+        })
     }
 
     fn poison_replicated_series() -> ReplaySeries {

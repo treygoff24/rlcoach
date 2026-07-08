@@ -113,6 +113,8 @@ def finish_skip(args: argparse.Namespace, reason: str) -> int:
 
 def manifest_entries(manifest: Path, committed_only: bool) -> list[dict[str, Any]]:
     data = json.loads(manifest.read_text())
+    if "holdout" in data:
+        return list(data["holdout"])
     entries = list(data["fixtures"])
     if not committed_only:
         entries.extend(data["seeded_draw"])
@@ -340,24 +342,36 @@ def aggregate_report(
         "schema_version": 1,
         "generated_at": datetime.now(UTC).isoformat(),
         "manifest": str(args.manifest),
-        "mode": (
-            "committed_fixtures_only" if args.committed_fixtures_only else "dev_set"
-        ),
+        "mode": manifest_mode(args.manifest, args.committed_fixtures_only),
         "requested_replays": len(entries),
         "processed_replays": len({record["replay"] for record in records}),
         "record_count": len(records),
         "skipped": skipped,
         "aggregate": aggregate_records(records),
+        "by_replay": {},
         "by_build_bucket": {},
     }
+    by_replay: dict[str, list[dict[str, Any]]] = {}
     by_bucket: dict[str, list[dict[str, Any]]] = {}
     for record in records:
+        by_replay.setdefault(str(record["replay"]), []).append(record)
         by_bucket.setdefault(str(record["build_bucket"]), []).append(record)
+    report["by_replay"] = {
+        replay: aggregate_records(replay_records)
+        for replay, replay_records in sorted(by_replay.items())
+    }
     report["by_build_bucket"] = {
         bucket: aggregate_records(bucket_records)
         for bucket, bucket_records in sorted(by_bucket.items())
     }
     return report
+
+
+def manifest_mode(manifest: Path, committed_only: bool) -> str:
+    data = json.loads(manifest.read_text())
+    if "holdout" in data:
+        return "holdout_set"
+    return "committed_fixtures_only" if committed_only else "dev_set"
 
 
 def aggregate_records(records: list[dict[str, Any]]) -> dict[str, Any]:
