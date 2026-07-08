@@ -526,3 +526,16 @@ The first noise-floor measurement (σ_pos 73.697 uu, σ_vel 21.667 uu/s at poole
 5. **Prediction on record** (falsifiable): with fresh-anchored scoring and corrected σ, the 0925 unseeded-vs-seeded flip agreement (0.108 at WP7 merge, E_reject blowout ⇒ event hallucination) should rise dramatically. If it stays ~0.1 after this fix, the failure is in WP7 candidate generation and gets its own investigation.
 
 First-measurement numbers stay in `codex/docs/2026-07-07-s1-wp6b-noise-floor.md` as an audit-trail record with the STOP verdict; they never become gate-facing constants.
+
+### WP7c/WP9 synthesis ruling (2026-07-07): unseeded deficits are concrete scope/recall defects — Wave A ordered
+
+First full oracle readout (dev set, tuning-visible; `codex/docs/2026-07-07-s1-wp9-oracle.md`) plus the WP7c taxonomy (`codex/docs/2026-07-07-s1-wp7c-miss-taxonomy.md`) localize the criterion misses to four concrete defects, none of which is "30Hz observability is insufficient":
+
+1. **Unseeded jump-press inference does not exist** (recall 0/539). First presses occur at ground→air liftoff boundaries; the air solver never proposes them. Fix: liftoff-implied press events (jump impulse ≈ 292 uu/s vertical step discriminates press-liftoff from drive-off), emitted at segment boundaries, seeding tracker jump state into the AIR segment.
+2. **Kinematic candidate generation misses 62% of component-known flips** (NO_CANDIDATE 1185/1900) despite flip signatures being the largest in the system. Diagnose (thresholds vs corrected σ; span-dilution of end-to-end deltas; signature-shape blind spots) and fix; a further 31% are OUTSCORED_BY_NULL — likely mis-parameterized candidates (direction/tick), same investigation.
+3. **Hallucinations (1923) are NOT missing-truth artifacts** (all in full component coverage) — lead suspect is real non-flip dynamics leaking into AIR segments (surface contact via conservative-plane-test gaps, car-car bumps). Audit ordered (position vs nearest surface / other-car distance at hallucination intervals).
+4. **Two oracle numbers are measurement plumbing, not solver verdicts**: coverage 0.0045 (confidence constants unwired into solver output) and V1 ratio 0.983 (Python one-frame approximation ceiling; Rust same-pass metric is the design instrument — deferred to after Wave A).
+
+Sub-tick δ modeling (WP6c residual phase structure, σ_pos 36 uu) remains DEFERRED; revisit at the post-Wave-A oracle re-run.
+
+Pre-registered predictions (falsifiable, same discipline as the WP6b ruling): (P1) liftoff-implied presses lift jump edge F1 from 0.059 to ≥ 0.8; (P2) candidate-gen + outscoring fixes lift flip recall from 0.37 to ≥ 0.8 without hallucinations growing (trade curve required in the report); (P3) the hallucination audit finds concentration near surfaces/other cars. Failures of these predictions are design information, not lane failures.
