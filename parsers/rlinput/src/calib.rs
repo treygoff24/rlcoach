@@ -911,6 +911,26 @@ mod tests {
         assert_eq!(report.replay_count, 10);
     }
 
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_confidence_informativeness_report() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
+        let named = load_exported_series(&dir);
+        let mut samples = InformativenessSamples::default();
+        for (name, series) in &named {
+            let input = BlindSolverInput::strict(series);
+            let output = input.solve();
+            samples.add_replay(series, &output);
+            println!(
+                "confidence_informativeness_replay,replay={},air_segments={}",
+                name, output.coverage.air_segments
+            );
+        }
+        assert_eq!(named.len(), 10);
+        samples.print();
+    }
+
     #[cfg(feature = "sim")]
     #[test]
     #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
@@ -957,6 +977,181 @@ mod tests {
         }
         named.sort_by(|a, b| a.0.cmp(&b.0));
         named
+    }
+
+    #[derive(Default)]
+    struct InformativenessSamples {
+        by_family: BTreeMap<&'static str, Vec<(f32, bool)>>,
+    }
+
+    impl InformativenessSamples {
+        fn add(&mut self, family: &'static str, confidence: f32, correct: bool) {
+            self.by_family
+                .entry(family)
+                .or_default()
+                .push((confidence, correct));
+        }
+
+        fn add_replay(&mut self, series: &ReplaySeries, output: &SolveOutput) {
+            self.add_channels(series, output);
+            self.add_segments(series, output);
+        }
+
+        fn add_channels(&mut self, series: &ReplaySeries, output: &SolveOutput) {
+            for (player, timeline) in joined_players(series, output) {
+                for sample in &timeline.samples {
+                    let idx =
+                        sample_start_frame(series, sample).unwrap_or(sample.frame_index) as usize;
+
+                    if player.frames.on_ground.get(idx).copied().unwrap_or(false) {
+                        if let Some(raw) = player.replicated.throttle_raw.get(idx).copied() {
+                            let centered = i16::from(raw) - 128;
+                            if centered.abs() > THROTTLE_DEADZONE_RAW {
+                                self.add(
+                                    "throttle_sign",
+                                    sample.throttle.confidence,
+                                    centered.signum() == signum_f32(sample.throttle.value),
+                                );
+                            }
+                        }
+                    }
+
+                    if let Some(raw) = player.replicated.steer_raw.get(idx).copied() {
+                        self.add(
+                            "steer_abs_error_le_0_15",
+                            sample.steer.confidence,
+                            (sample.steer.value - raw_axis(raw)).abs() <= STEER_TOLERANCE,
+                        );
+                    }
+
+                    if let Some(truth) = player.replicated.boost_active_raw.get(idx).copied() {
+                        self.add(
+                            "boost_active",
+                            sample.boost.confidence,
+                            sample.boost.value == truth,
+                        );
+                    }
+
+                    if let Some(truth) = player.replicated.handbrake.get(idx).copied() {
+                        self.add(
+                            "handbrake",
+                            sample.handbrake.confidence,
+                            sample.handbrake.value == truth,
+                        );
+                    }
+                }
+            }
+        }
+
+        fn add_segments(&mut self, series: &ReplaySeries, output: &SolveOutput) {
+            let segmentation = segment_replay(series);
+            let truth = coalesced_flip_truth(series, output);
+            let predicted = solved_flip_intervals(output);
+            let timelines: HashMap<_, _> = output
+                .timelines
+                .iter()
+                .map(|timeline| (timeline.player_id.as_str(), timeline))
+                .collect();
+            for segmented_player in &segmentation.players {
+                let Some(timeline) = timelines.get(segmented_player.player_id.as_str()) else {
+                    continue;
+                };
+                for segment in &segmented_player.segments {
+                    if segment.kind != crate::segment::SegmentKind::Air {
+                        continue;
+                    }
+                    let Some(summary) = timeline
+                        .segments
+                        .iter()
+                        .find(|summary| summary.id == segment.summary.id)
+                    else {
+                        continue;
+                    };
+                    let truth_present = truth.iter().any(|(player_id, frame)| {
+                        player_id == &segmented_player.player_id
+                            && *frame >= segment.frame_span.0
+                            && *frame < segment.frame_span.1
+                    });
+                    let predicted_present = predicted.iter().any(|(player_id, frame)| {
+                        player_id == &segmented_player.player_id
+                            && *frame >= segment.frame_span.0
+                            && *frame < segment.frame_span.1
+                    });
+                    self.add(
+                        "air_segment_flip_presence",
+                        summary.confidence,
+                        truth_present == predicted_present,
+                    );
+                }
+            }
+        }
+
+        fn print(mut self) {
+            for (family, samples) in &mut self.by_family {
+                samples.sort_by(|a, b| a.0.total_cmp(&b.0));
+                let bottom = quartile_agreement(samples.iter().take(samples.len() / 4));
+                let top = quartile_agreement(samples.iter().rev().take(samples.len() / 4));
+                let auc = bin_auc(samples);
+                println!(
+                    "confidence_informativeness,family={},count={},bottom_q_agreement={:.3},top_q_agreement={:.3},separation={:.3},bin_auc={:.3}",
+                    family,
+                    samples.len(),
+                    bottom,
+                    top,
+                    top - bottom,
+                    auc,
+                );
+            }
+        }
+    }
+
+    fn quartile_agreement<'a>(samples: impl Iterator<Item = &'a (f32, bool)>) -> f32 {
+        let mut count = 0usize;
+        let mut hits = 0usize;
+        for (_, correct) in samples {
+            count += 1;
+            hits += usize::from(*correct);
+        }
+        share(hits, count)
+    }
+
+    fn bin_auc(samples: &[(f32, bool)]) -> f32 {
+        let mut bins = [BinAcc::default(); CONFIDENCE_BINS];
+        for (confidence, correct) in samples {
+            let idx = ((confidence.clamp(0.0, 0.999_999) * CONFIDENCE_BINS as f32) as usize)
+                .min(CONFIDENCE_BINS - 1);
+            bins[idx].add(*confidence, *correct);
+        }
+        let occupied: Vec<_> = bins
+            .into_iter()
+            .enumerate()
+            .filter(|(_, bin)| bin.count > 0)
+            .collect();
+        let mut wins = 0.0f32;
+        let mut total = 0.0f32;
+        for (left_idx, left) in &occupied {
+            let left_rate = share(left.hits, left.count);
+            for (right_idx, right) in &occupied {
+                if right_idx <= left_idx {
+                    continue;
+                }
+                let weight = (left.count * right.count) as f32;
+                total += weight;
+                let right_rate = share(right.hits, right.count);
+                wins += if right_rate > left_rate {
+                    weight
+                } else if (right_rate - left_rate).abs() < f32::EPSILON {
+                    weight * 0.5
+                } else {
+                    0.0
+                };
+            }
+        }
+        if total == 0.0 {
+            0.5
+        } else {
+            wins / total
+        }
     }
 
     #[cfg(feature = "sim")]
