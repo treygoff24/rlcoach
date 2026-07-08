@@ -116,7 +116,6 @@ struct Candidate {
     controls: Vec<Controls>,
     flags: AmbiguityFlags,
     confidence_cap: f32,
-    surface_restore_tick: Option<u32>,
 }
 
 impl Candidate {
@@ -126,13 +125,7 @@ impl Candidate {
             controls,
             flags,
             confidence_cap: 1.0,
-            surface_restore_tick: None,
         }
-    }
-
-    fn with_surface_restore(mut self, tick_offset: Option<u32>) -> Self {
-        self.surface_restore_tick = tick_offset;
-        self
     }
 
     fn to_tick_plan(&self) -> TickPlan {
@@ -530,7 +523,6 @@ fn solve_interval(
         interval,
         config,
     );
-    let surface_restore_tick = surface_restore_tick_offset(player, start_frame, end_frame, ticks);
     let candidates = generate_candidates(
         &state_k,
         &observed_end,
@@ -540,7 +532,6 @@ fn solve_interval(
         seeded_edges,
         config,
         segment_kind,
-        surface_restore_tick,
     );
     let mut scored = score_candidates(
         &state_k,
@@ -652,11 +643,9 @@ fn generate_candidates(
     seeded_edges: Vec<TimedSeededEdge>,
     config: &EstimatorConfig,
     segment_kind: SegmentKind,
-    surface_restore_tick: Option<u32>,
 ) -> CandidateSet {
     let ticks = interval_ticks(interval);
-    let null = Candidate::null(base_controls.clone(), interval.flags)
-        .with_surface_restore(surface_restore_tick);
+    let null = Candidate::null(base_controls.clone(), interval.flags);
     let null_energy = score_null(state_k, observed_end, ticks, &null, &config.fit);
     // The event margin is a ranking prior, not a reason to skip candidate enumeration.
     if null_energy <= f64::from(config.fit.reject_threshold)
@@ -674,7 +663,6 @@ fn generate_candidates(
         for actions in seeded {
             if let Some(candidate) =
                 candidate_from_actions(actions, base_controls.clone(), interval.flags)
-                    .map(|candidate| candidate.with_surface_restore(surface_restore_tick))
             {
                 if candidate_legal(tracker, &candidate, interval.tick_range.0) {
                     candidates.push(candidate);
@@ -682,17 +670,8 @@ fn generate_candidates(
             }
         }
     } else {
-        let surface_contact = surface_restore_tick.is_some();
-        let mut events = kinematic_candidate_events(
-            state_k,
-            observed_end,
-            tracker,
-            segment_kind,
-            surface_contact,
-        );
-        if interval.flags.contains(AmbiguityFlags::LONG_GAP)
-            && second_available_or_surface_reset(tracker, surface_contact)
-        {
+        let mut events = kinematic_candidate_events(state_k, observed_end, tracker, segment_kind);
+        if interval.flags.contains(AmbiguityFlags::LONG_GAP) && second_available(tracker) {
             push_unique_event(&mut events, CandidateEvent::Stall);
         }
         for event in events {
@@ -703,7 +682,6 @@ fn generate_candidates(
                     base_controls.clone(),
                     interval.flags,
                 ) {
-                    let candidate = candidate.with_surface_restore(surface_restore_tick);
                     if candidate_legal(tracker, &candidate, interval.tick_range.0) {
                         candidates.push(candidate);
                     }
@@ -719,7 +697,6 @@ fn generate_candidates(
             interval,
             base_controls,
             dodge_dir_from_signature(state_k, observed_end),
-            surface_restore_tick,
         );
     }
 
@@ -773,7 +750,6 @@ fn candidate_from_actions(
         controls,
         flags,
         confidence_cap: 1.0,
-        surface_restore_tick: None,
     })
 }
 
@@ -783,7 +759,6 @@ fn add_long_gap_composites(
     interval: &LatticeInterval,
     base_controls: Vec<Controls>,
     dodge_dir: [f32; 2],
-    surface_restore_tick: Option<u32>,
 ) {
     if !first_jump_available(tracker) {
         return;
@@ -829,7 +804,6 @@ fn add_long_gap_composites(
                         controls,
                         flags: interval.flags | AmbiguityFlags::LONG_GAP,
                         confidence_cap: LONG_GAP_CONFIDENCE_CAP,
-                        surface_restore_tick,
                     };
                     if candidate_legal(tracker, &candidate, interval.tick_range.0) {
                         candidates.push(candidate);
@@ -935,7 +909,6 @@ fn kinematic_candidate_events(
     observed_end: &CarPhysState,
     tracker: &CarTracker,
     segment_kind: SegmentKind,
-    surface_contact: bool,
 ) -> Vec<CandidateEvent> {
     let mut events = Vec::new();
     let vel_residual = diff(observed_end.vel, state_k.vel);
@@ -954,9 +927,7 @@ fn kinematic_candidate_events(
     if matches!(tracker.jump, JumpState::Holding { .. }) {
         push_unique_event(&mut events, CandidateEvent::JumpRelease);
     }
-    if (segment_kind == SegmentKind::Air || surface_contact)
-        && second_available_or_surface_reset(tracker, surface_contact)
-    {
+    if segment_kind == SegmentKind::Air && second_available(tracker) {
         if vertical_residual > 120.0 && ang_residual < 0.3 && planar_residual < 250.0 {
             push_unique_event(&mut events, CandidateEvent::DoubleJump);
         }
@@ -979,13 +950,6 @@ fn push_unique_event(events: &mut Vec<CandidateEvent>, event: CandidateEvent) {
     if !events.contains(&event) {
         events.push(event);
     }
-}
-
-fn second_available_or_surface_reset(tracker: &CarTracker, surface_contact: bool) -> bool {
-    second_available(tracker)
-        || (surface_contact
-            && matches!(tracker.contact, ContactState::Airborne { .. })
-            && !matches!(tracker.second, SecondAction::Available { .. }))
 }
 
 fn candidate_legal(tracker: &CarTracker, candidate: &Candidate, base_tick: u64) -> bool {
@@ -1012,19 +976,8 @@ fn apply_candidate_to_tracker(
 ) -> bool {
     let mut actions = candidate.actions.clone();
     actions.sort_by_key(|action| action.tick_offset);
-    let restore_tick = candidate
-        .surface_restore_tick
-        .map(|tick_offset| base_tick + u64::from(tick_offset));
-    let mut restored = false;
     for action in actions {
         let tick = base_tick + u64::from(action.tick_offset);
-        if let Some(surface_tick) = restore_tick {
-            if !restored && surface_tick <= tick {
-                tracker.advance_to(surface_tick);
-                tracker.restore_second_action_from_surface_contact(surface_tick);
-                restored = true;
-            }
-        }
         let result = match action.event {
             CandidateEvent::JumpPress => tracker.first_jump_press(tick).map(|_| ()),
             CandidateEvent::JumpRelease => tracker.jump_release(tick).map(|_| ()),
@@ -1042,14 +995,7 @@ fn apply_candidate_to_tracker(
             return false;
         }
     }
-    let end_tick = base_tick + u64::from(candidate.controls.len() as u32);
-    if let Some(surface_tick) = restore_tick {
-        if !restored && surface_tick <= end_tick {
-            tracker.advance_to(surface_tick);
-            tracker.restore_second_action_from_surface_contact(surface_tick);
-        }
-    }
-    tracker.advance_to(end_tick);
+    tracker.advance_to(base_tick + u64::from(candidate.controls.len() as u32));
     true
 }
 
@@ -1816,79 +1762,6 @@ fn frame_state(player: &PlayerSeries, frame: u32) -> FrameState {
     }
 }
 
-fn surface_restore_tick_offset(
-    player: &PlayerSeries,
-    start_frame: u32,
-    end_frame: u32,
-    ticks: u32,
-) -> Option<u32> {
-    let last_tick = ticks.saturating_sub(1);
-    let frame_span = end_frame.saturating_sub(start_frame);
-    for frame in start_frame..=end_frame {
-        if surface_contact_at_frame(player, frame) {
-            return Some(if frame_span == 0 {
-                0
-            } else {
-                ((frame - start_frame) * last_tick) / frame_span
-            });
-        }
-    }
-    None
-}
-
-fn surface_contact_at_frame(player: &PlayerSeries, frame: u32) -> bool {
-    if frame as usize >= player.frames.pos.len() || frame as usize >= player.frames.quat_xyzw.len()
-    {
-        return false;
-    }
-    let state = frame_state(player, frame);
-    let surface = nearest_arena_surface(state.pos);
-    surface.margin.abs() <= crate::consts::SURFACE_CONTACT_MARGIN_UU
-        && dot(up(state.rot), surface.normal) >= crate::consts::SURFACE_CONTACT_UP_DOT_MIN
-}
-
-#[derive(Clone, Copy, Debug)]
-struct SurfacePlane {
-    margin: f32,
-    normal: [f32; 3],
-}
-
-fn nearest_arena_surface([x, y, z]: [f32; 3]) -> SurfacePlane {
-    let ax = x.abs();
-    let ay = y.abs();
-    let sx = if x >= 0.0 { -1.0 } else { 1.0 };
-    let sy = if y >= 0.0 { -1.0 } else { 1.0 };
-    let candidates = [
-        SurfacePlane {
-            margin: z - crate::consts::SURFACE_FLOOR_Z,
-            normal: [0.0, 0.0, 1.0],
-        },
-        SurfacePlane {
-            margin: crate::consts::SURFACE_CEILING_Z - z,
-            normal: [0.0, 0.0, -1.0],
-        },
-        SurfacePlane {
-            margin: crate::consts::SURFACE_SIDE_WALL_X - ax,
-            normal: [sx, 0.0, 0.0],
-        },
-        SurfacePlane {
-            margin: crate::consts::SURFACE_BACK_WALL_Y - ay,
-            normal: [0.0, sy, 0.0],
-        },
-        SurfacePlane {
-            margin: crate::consts::SURFACE_CORNER_SUM - (ax + ay),
-            normal: normalize3_or([sx, sy, 0.0], [0.0, 0.0, 1.0]),
-        },
-    ];
-    candidates
-        .into_iter()
-        .min_by(|a, b| a.margin.abs().total_cmp(&b.margin.abs()))
-        .unwrap_or(SurfacePlane {
-            margin: f32::INFINITY,
-            normal: [0.0, 0.0, 1.0],
-        })
-}
-
 impl SeededHints {
     fn new(stream: &ComponentStream) -> Self {
         let mut edges: HashMap<u32, Vec<ReconstructedEdge>> = HashMap::new();
@@ -2159,15 +2032,6 @@ fn normalize2_or(v: [f32; 2], fallback: [f32; 2]) -> [f32; 2] {
     }
 }
 
-fn normalize3_or(v: [f32; 3], fallback: [f32; 3]) -> [f32; 3] {
-    let n = norm(v);
-    if n <= f32::EPSILON {
-        fallback
-    } else {
-        [v[0] / n, v[1] / n, v[2] / n]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2321,7 +2185,6 @@ mod tests {
             Vec::new(),
             &default_estimator_config(),
             SegmentKind::Air,
-            None,
         );
         assert_eq!(
             candidates
@@ -2334,31 +2197,6 @@ mod tests {
         assert_eq!(candidates.candidates.len(), 1);
         assert!(candidates.candidates[0].is_null());
         tracker.advance_to(4);
-    }
-
-    #[test]
-    fn surface_restore_makes_same_tick_dodge_candidate_legal() {
-        let mut tracker = CarTracker::new_grounded(0);
-        tracker.set_airborne(0);
-        tracker.second = SecondAction::Expired;
-
-        let candidate = Candidate {
-            actions: vec![CandidateAction {
-                tick_offset: 0,
-                event: CandidateEvent::Dodge { dir: [1.0, 0.0] },
-                frame_index: None,
-            }],
-            controls: vec![Controls::default()],
-            flags: AmbiguityFlags::empty(),
-            confidence_cap: 1.0,
-            surface_restore_tick: Some(0),
-        };
-
-        assert!(candidate_legal(&tracker, &candidate, 100));
-
-        let mut no_restore = candidate;
-        no_restore.surface_restore_tick = None;
-        assert!(!candidate_legal(&tracker, &no_restore, 100));
     }
 
     #[test]
@@ -3493,7 +3331,6 @@ mod tests {
         vertical_delta: f32,
         ang_delta: f32,
         air_segment: bool,
-        surface_contact: bool,
         second_available: bool,
         double_jump_gate: bool,
         dodge_gate: bool,
@@ -4530,8 +4367,6 @@ mod tests {
                         .filter(|edge| timed_edge_is_jump_press(edge))
                         .map(|edge| edge.edge.frame_index)
                         .collect();
-                    let surface_restore_tick =
-                        surface_restore_tick_offset(player, start_frame, end_frame, ticks);
                     let generation = generate_candidates_for_wp7c_diag(
                         &state_k,
                         &observed_end,
@@ -4541,7 +4376,6 @@ mod tests {
                         seeded_edges,
                         config,
                         segment.kind,
-                        surface_restore_tick,
                     );
                     let (mut scored, _portable_best, _reference_best) = score_candidates_for_diag(
                         &state_k,
@@ -4737,23 +4571,14 @@ mod tests {
         seeded_edges: Vec<TimedSeededEdge>,
         config: &EstimatorConfig,
         segment_kind: SegmentKind,
-        surface_restore_tick: Option<u32>,
     ) -> CandidateGenerationDiag {
         let ticks = interval_ticks(interval);
-        let null = Candidate::null(base_controls.clone(), interval.flags)
-            .with_surface_restore(surface_restore_tick);
+        let null = Candidate::null(base_controls.clone(), interval.flags);
         let null_energy = score_null(state_k, observed_end, ticks, &null, &config.fit);
         let null_gate_threshold = config.fit.reject_threshold;
         let seeded_edges_count = seeded_edges.len();
         let long_gap = interval.flags.contains(AmbiguityFlags::LONG_GAP);
-        let surface_contact = surface_restore_tick.is_some();
-        let kinematic_gate = kinematic_gate_diag(
-            state_k,
-            observed_end,
-            tracker,
-            segment_kind,
-            surface_contact,
-        );
+        let kinematic_gate = kinematic_gate_diag(state_k, observed_end, tracker, segment_kind);
         if null_energy <= f64::from(null_gate_threshold) && seeded_edges.is_empty() && !long_gap {
             return CandidateGenerationDiag {
                 null_fast_path: true,
@@ -4772,16 +4597,9 @@ mod tests {
         let mut kinematic_events = Vec::new();
         let seeded = seeded_candidate_action_sets(&seeded_edges);
         if seeded.is_empty() {
-            kinematic_events = kinematic_candidate_events(
-                state_k,
-                observed_end,
-                tracker,
-                segment_kind,
-                surface_contact,
-            );
-            if interval.flags.contains(AmbiguityFlags::LONG_GAP)
-                && second_available_or_surface_reset(tracker, surface_contact)
-            {
+            kinematic_events =
+                kinematic_candidate_events(state_k, observed_end, tracker, segment_kind);
+            if interval.flags.contains(AmbiguityFlags::LONG_GAP) && second_available(tracker) {
                 push_unique_event(&mut kinematic_events, CandidateEvent::Stall);
             }
             for event in &kinematic_events {
@@ -4792,7 +4610,7 @@ mod tests {
                         base_controls.clone(),
                         interval.flags,
                     ) {
-                        raw_candidates.push(candidate.with_surface_restore(surface_restore_tick));
+                        raw_candidates.push(candidate);
                     }
                 }
             }
@@ -4801,7 +4619,7 @@ mod tests {
                 if let Some(candidate) =
                     candidate_from_actions(actions, base_controls.clone(), interval.flags)
                 {
-                    raw_candidates.push(candidate.with_surface_restore(surface_restore_tick));
+                    raw_candidates.push(candidate);
                 }
             }
         }
@@ -4812,7 +4630,6 @@ mod tests {
                 interval,
                 base_controls,
                 dodge_dir_from_signature(state_k, observed_end),
-                surface_restore_tick,
             );
         }
 
@@ -4843,7 +4660,6 @@ mod tests {
         observed_end: &CarPhysState,
         tracker: &CarTracker,
         segment_kind: SegmentKind,
-        surface_contact: bool,
     ) -> KinematicGateDiag {
         let vel_residual = diff(observed_end.vel, state_k.vel);
         let planar_delta = norm2([vel_residual[0], vel_residual[1]]);
@@ -4851,22 +4667,18 @@ mod tests {
         let vertical_delta = vel_residual[2];
         let ang_delta = norm(diff(observed_end.ang_vel, state_k.ang_vel));
         let air_segment = segment_kind == SegmentKind::Air;
-        let second_action_surface = air_segment || surface_contact;
         let first_jump = first_jump_available(tracker);
         let jump_holding = matches!(tracker.jump, JumpState::Holding { .. });
-        let second = second_available_or_surface_reset(tracker, surface_contact);
+        let second = second_available(tracker);
         let double_jump_vertical = vertical_delta > 120.0;
         let double_jump_ang = ang_delta < 0.3;
         let double_jump_planar = planar_delta < 250.0;
-        let double_jump_gate = second_action_surface
-            && second
-            && double_jump_vertical
-            && double_jump_ang
-            && double_jump_planar;
+        let double_jump_gate =
+            air_segment && second && double_jump_vertical && double_jump_ang && double_jump_planar;
         let dodge_planar = planar_delta > 150.0;
         let dodge_ang = ang_delta > 0.5;
-        let dodge_gate = second_action_surface && second && (dodge_planar || dodge_ang);
-        let stall_gate = second_action_surface && second && vertical_delta < -30.0;
+        let dodge_gate = air_segment && second && (dodge_planar || dodge_ang);
+        let stall_gate = air_segment && second && vertical_delta < -30.0;
         let mut gates = Vec::new();
         push_gate(
             &mut gates,
@@ -4874,13 +4686,6 @@ mod tests {
             "segment_kind == Air",
             format!("{segment_kind:?}"),
             air_segment,
-        );
-        push_gate(
-            &mut gates,
-            "kinematic.surface_contact_window",
-            "abs(surface_margin) <= contact threshold && car_up dot surface_normal >= threshold",
-            surface_contact.to_string(),
-            surface_contact,
         );
         push_gate(
             &mut gates,
@@ -4909,7 +4714,7 @@ mod tests {
         push_gate(
             &mut gates,
             "kinematic.second_available",
-            "tracker.second == Available OR surface contact can restore it",
+            "tracker.second == Available",
             tracker_state(tracker),
             second,
         );
@@ -4937,9 +4742,9 @@ mod tests {
         push_gate(
             &mut gates,
             "kinematic.doublejump_gate",
-            "(Air || surface_contact) && second && vertical>120 && ang<0.3 && planar<250",
+            "Air && second && vertical>120 && ang<0.3 && planar<250",
             format!(
-                "air={air_segment};surface_contact={surface_contact};second={second};vertical={vertical_delta:.3};ang={ang_delta:.3};planar={planar_delta:.3}"
+                "air={air_segment};second={second};vertical={vertical_delta:.3};ang={ang_delta:.3};planar={planar_delta:.3}"
             ),
             double_jump_gate,
         );
@@ -4960,9 +4765,9 @@ mod tests {
         push_gate(
             &mut gates,
             "kinematic.dodge_gate",
-            "(Air || surface_contact) && second && (planar>150 || ang>0.5)",
+            "Air && second && (planar>150 || ang>0.5)",
             format!(
-                "air={air_segment};surface_contact={surface_contact};second={second};planar={planar_delta:.3};ang={ang_delta:.3}"
+                "air={air_segment};second={second};planar={planar_delta:.3};ang={ang_delta:.3}"
             ),
             dodge_gate,
         );
@@ -4976,10 +4781,8 @@ mod tests {
         push_gate(
             &mut gates,
             "kinematic.stall_gate",
-            "(Air || surface_contact) && second && vertical<-30",
-            format!(
-                "air={air_segment};surface_contact={surface_contact};second={second};vertical={vertical_delta:.3}"
-            ),
+            "Air && second && vertical<-30",
+            format!("air={air_segment};second={second};vertical={vertical_delta:.3}"),
             stall_gate,
         );
 
@@ -4988,7 +4791,6 @@ mod tests {
             vertical_delta,
             ang_delta,
             air_segment,
-            surface_contact,
             second_available: second,
             double_jump_gate,
             dodge_gate,
@@ -5019,7 +4821,6 @@ mod tests {
         interval: &LatticeInterval,
         base_controls: Vec<Controls>,
         dodge_dir: [f32; 2],
-        surface_restore_tick: Option<u32>,
     ) {
         let ticks = interval_ticks(interval);
         for press in 0..ticks {
@@ -5062,7 +4863,6 @@ mod tests {
                             controls,
                             flags: interval.flags | AmbiguityFlags::LONG_GAP,
                             confidence_cap: LONG_GAP_CONFIDENCE_CAP,
-                            surface_restore_tick,
                         });
                     }
                 }
@@ -5284,8 +5084,6 @@ mod tests {
                         interval,
                         &config,
                     );
-                    let surface_restore_tick =
-                        surface_restore_tick_offset(player, start_frame, end_frame, ticks);
                     let generation = generate_candidates_for_wp7c_diag(
                         &state_k,
                         &observed_end,
@@ -5295,7 +5093,6 @@ mod tests {
                         seeded_edges,
                         &config,
                         segment.kind,
-                        surface_restore_tick,
                     );
                     let (mut scored, _portable_best, _reference_best) = score_candidates_for_diag(
                         &state_k,
@@ -5438,7 +5235,7 @@ mod tests {
         }
         let gate = &generation.kinematic_gate;
         let mut failures = Vec::new();
-        if !(gate.air_segment || gate.surface_contact) {
+        if !gate.air_segment {
             failures.push("kinematic.segment_is_air".to_string());
         }
         if !gate.second_available {
@@ -5446,18 +5243,12 @@ mod tests {
         }
         match truth.map(|truth| truth.kind) {
             Some("Dodge") => {
-                if (gate.air_segment || gate.surface_contact)
-                    && gate.second_available
-                    && !gate.dodge_gate
-                {
+                if gate.air_segment && gate.second_available && !gate.dodge_gate {
                     failures.push("kinematic.dodge_gate".to_string());
                 }
             }
             Some("DoubleJump") => {
-                if (gate.air_segment || gate.surface_contact)
-                    && gate.second_available
-                    && !gate.double_jump_gate
-                {
+                if gate.air_segment && gate.second_available && !gate.double_jump_gate {
                     if gate.vertical_delta <= 120.0 {
                         failures.push("kinematic.doublejump_vertical_delta".to_string());
                     }
@@ -5491,8 +5282,8 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
-    fn no_candidate_reason(generation: &CandidateGenerationDiag, _tracker: &CarTracker) -> String {
-        if !generation.kinematic_gate.second_available {
+    fn no_candidate_reason(generation: &CandidateGenerationDiag, tracker: &CarTracker) -> String {
+        if !second_available(tracker) {
             "TRACKER_SECOND_NOT_AVAILABLE".to_string()
         } else if generation.null_fast_path {
             "NULL_FAST_PATH".to_string()
@@ -6636,8 +6427,6 @@ mod tests {
                         &interval_tracker,
                         &config,
                     );
-                    let surface_restore_tick =
-                        surface_restore_tick_offset(player, start_frame, end_frame, ticks);
                     let candidates = generate_candidates(
                         &state_k,
                         &observed_end,
@@ -6655,7 +6444,6 @@ mod tests {
                         ),
                         &config,
                         segment.kind,
-                        surface_restore_tick,
                     );
                     let (mut scored, portable_best, reference_best) = score_candidates_for_diag(
                         &state_k,

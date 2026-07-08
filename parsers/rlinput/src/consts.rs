@@ -23,25 +23,6 @@ pub const JUMP_MIN_TIME: f32 = 0.025; // RocketSim `RLConst.h:96`, gate at `Car.
 pub const JUMP_MAX_TIME: f32 = 0.2; // RocketSim `RLConst.h:98`, gate at `Car.cpp:561-562`.
 pub const DOUBLEJUMP_MAX_DELAY: f32 = 1.25; // RocketSim `RLConst.h:99`, gate at `Car.cpp:698-704`.
 
-// Conservative arena surface model from design §2.3. RocketSim 0.37.0 contact
-// semantics: `Car.h:24-30` tracks per-wheel contact, `Car.cpp:109-118` marks
-// cars on ground at 3+ wheels, and `Car.cpp:689-694` resets double-jump/flip
-// state on contact. The solver requires the stricter four-wheel-ish geometric
-// proxy: near one arena plane and car-local up roughly aligned with its normal.
-// The 35 uu contact margin intentionally captures the frozen-dev-set floor rest
-// signature (A5 POOLED surface p50 ~= -22.99 uu; Octane spawn/rest z is ~17 uu
-// against the 40 uu floor plane) while staying far narrower than the 256 uu
-// surface-proximity exclusion used for segmentation.
-pub const SURFACE_FLOOR_Z: f32 = 40.0;
-pub const SURFACE_CEILING_Z: f32 = 2044.0 - 40.0;
-pub const SURFACE_SIDE_WALL_X: f32 = 4096.0 - 40.0;
-pub const SURFACE_BACK_WALL_Y: f32 = 5120.0 - 40.0;
-pub const SURFACE_CORNER_SUM: f32 = 8064.0 - 60.0;
-pub const SURFACE_TRANSITION_Z: f32 = 256.0;
-pub const SURFACE_TRANSITION_DIST: f32 = 256.0;
-pub const SURFACE_CONTACT_MARGIN_UU: f32 = 35.0;
-pub const SURFACE_CONTACT_UP_DOT_MIN: f32 = 0.5;
-
 pub const DODGE_DEADZONE: f32 = 0.5; // RocketSim `CarConfig.h:36-37`, used at `Car.cpp:704-706`.
 pub const DODGE_COMPONENT_DEADZONE: f32 = 0.1; // RocketSim `Car.cpp:731-742`.
 pub const DODGE_BACKWARD_SPEED_THRESHOLD: f32 = 100.0; // RocketSim `Car.cpp:747-751`: below this |forward speed|, backward-dodge selection uses the dodge direction sign alone.
