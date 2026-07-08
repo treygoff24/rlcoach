@@ -1,5 +1,6 @@
 //! Input reconstruction support crate.
 
+pub mod calib;
 pub mod channels;
 pub mod consts;
 pub mod convert;

@@ -112,6 +112,51 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
+  resim_smoke:
+    name: resim_smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+
+      - name: Install dependencies and wheels
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install maturin
+          cd parsers/rlreplay_rust
+          maturin develop --release
+          cd ../rlinput_py
+          maturin develop --release
+
+      - name: Run V1 resim smoke
+        run: |
+          . .venv/bin/activate
+          python scripts/v1_resim.py \
+            --committed-fixtures-only \
+            --require-wheel \
+            --smoke \
+            --output-json /tmp/s1_resim_smoke.json
+
   # Frontend Tests
   frontend-test:
     name: Frontend Tests

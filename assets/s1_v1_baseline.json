@@ -1,0 +1,48 @@
+{
+  "aggregate": {
+    "e_solved_median": 19.386931981904418,
+    "e_solved_p95": 71.5773284313475,
+    "e_zero_median": 19.719649723250228,
+    "e_zero_p95": 71.38908856437837,
+    "median_ratio_to_zero": 0.98312760388672,
+    "p95_ratio_to_zero": 1.0026368156640546,
+    "segments": 55930
+  },
+  "by_build_bucket": {
+    "250811.43331.492665": {
+      "e_solved_median": 19.82720213620498,
+      "e_solved_p95": 74.07054997889634,
+      "e_zero_median": 20.402858872657788,
+      "e_zero_p95": 74.02387878209727,
+      "median_ratio_to_zero": 0.9717854865317794,
+      "p95_ratio_to_zero": 1.0006304883987025,
+      "segments": 41814
+    },
+    "250909.54128.495700": {
+      "e_solved_median": 19.237208922689657,
+      "e_solved_p95": 62.8448259202642,
+      "e_zero_median": 19.292284121868107,
+      "e_zero_p95": 62.76960234121618,
+      "median_ratio_to_zero": 0.9971452214351321,
+      "p95_ratio_to_zero": 1.001198407768128,
+      "segments": 5207
+    },
+    "251202.62834.504897": {
+      "e_solved_median": 18.353299757384058,
+      "e_solved_p95": 57.488302363705046,
+      "e_zero_median": 18.460236514410223,
+      "e_zero_p95": 57.520076275992075,
+      "median_ratio_to_zero": 0.9942071838059773,
+      "p95_ratio_to_zero": 0.9994476030919262,
+      "segments": 8909
+    }
+  },
+  "generated_at": "2026-07-08T00:00:26.737459+00:00",
+  "manifest": "/Users/treygoff/Code/delegate-worktrees/70496e1aa6dd/codex-20260707T235046Z_32af6b/assets/s1_dev_set.json",
+  "mode": "dev_set",
+  "processed_replays": 10,
+  "record_count": 55930,
+  "requested_replays": 10,
+  "schema_version": 1,
+  "skipped": []
+}
