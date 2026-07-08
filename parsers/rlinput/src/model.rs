@@ -133,7 +133,7 @@ pub struct ComponentEventIn {
     pub raw_value: Option<u8>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ComponentKind {
     Jump,
     DodgeTorque,

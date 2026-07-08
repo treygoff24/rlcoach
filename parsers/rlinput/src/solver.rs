@@ -3064,6 +3064,29 @@ mod tests {
     #[cfg(feature = "sim")]
     #[test]
     #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a12_truth_provenance_probe() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported dev-set ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A12 must run on all 10 dev replays");
+
+        println!(
+            "wave_a12_code_path,file=parsers/rlinput/src/tracker.rs,function=reconstruct_seeded_edges,why=vector_edge emits DodgeTorque/DoubleJumpImpulse vector attributes as ReconstructedEdge with counter_delta=None; raw counter edges are suppressed for that component when any vector events exist"
+        );
+
+        let mut pooled = A12ReplaySummary::default();
+        for (replay, series) in replays {
+            let summary = a12_probe_replay(&replay, &series);
+            print_a12_replay_summary(&replay, &series.build_bucket, &summary);
+            pooled.add(&summary);
+        }
+        print_a12_replay_summary("POOLED", "ALL", &pooled);
+        print_a12_verdict(&pooled);
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
     fn exported_dev_set_wave_a3_flip_recall_microscope() {
         let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
             .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
@@ -4154,6 +4177,174 @@ mod tests {
             self.by_class
                 .get(&(false, A9Class::Neither))
                 .cloned()
+                .unwrap_or_default()
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum A12Provenance {
+        CounterBacked,
+        VectorOnly,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A12Provenance {
+        fn as_str(self) -> &'static str {
+            match self {
+                A12Provenance::CounterBacked => "COUNTER_BACKED",
+                A12Provenance::VectorOnly => "VECTOR_ONLY",
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    struct A12Row {
+        hit: bool,
+        a9_class: A9Class,
+        miss_class: Option<MissClass>,
+        provenance: A12Provenance,
+        component: ComponentKind,
+        vector_changed: Option<bool>,
+        same_as_previous_vector: Option<bool>,
+        same_direction_as_previous_counter_dodge: Option<bool>,
+        frames_since_previous_counter_dodge: Option<u32>,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct A12PhysicalSummary {
+        vector_only: usize,
+        value_changed: usize,
+        identical_resend: usize,
+        same_as_previous_vector: usize,
+        new_from_previous_vector: usize,
+        same_direction_previous_counter_dodge: usize,
+        new_direction_previous_counter_dodge: usize,
+        missing_previous_counter_dodge: usize,
+        frames_since_previous_counter_dodge: Vec<f64>,
+        frame_gap_hist: BTreeMap<String, usize>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A12PhysicalSummary {
+        fn add_row(&mut self, row: &A12Row) {
+            if row.provenance != A12Provenance::VectorOnly {
+                return;
+            }
+            self.vector_only += 1;
+            self.value_changed += usize::from(row.vector_changed == Some(true));
+            self.identical_resend += usize::from(row.vector_changed == Some(false));
+            self.same_as_previous_vector += usize::from(row.same_as_previous_vector == Some(true));
+            self.new_from_previous_vector +=
+                usize::from(row.same_as_previous_vector == Some(false));
+            match row.same_direction_as_previous_counter_dodge {
+                Some(true) => self.same_direction_previous_counter_dodge += 1,
+                Some(false) => self.new_direction_previous_counter_dodge += 1,
+                None => self.missing_previous_counter_dodge += 1,
+            }
+            if let Some(frames) = row.frames_since_previous_counter_dodge {
+                self.frames_since_previous_counter_dodge
+                    .push(f64::from(frames));
+            }
+            *self
+                .frame_gap_hist
+                .entry(a12_frame_gap_bucket(row.frames_since_previous_counter_dodge).to_string())
+                .or_default() += 1;
+        }
+
+        fn add(&mut self, other: &Self) {
+            self.vector_only += other.vector_only;
+            self.value_changed += other.value_changed;
+            self.identical_resend += other.identical_resend;
+            self.same_as_previous_vector += other.same_as_previous_vector;
+            self.new_from_previous_vector += other.new_from_previous_vector;
+            self.same_direction_previous_counter_dodge +=
+                other.same_direction_previous_counter_dodge;
+            self.new_direction_previous_counter_dodge += other.new_direction_previous_counter_dodge;
+            self.missing_previous_counter_dodge += other.missing_previous_counter_dodge;
+            self.frames_since_previous_counter_dodge
+                .extend(other.frames_since_previous_counter_dodge.iter().copied());
+            merge_hist(&mut self.frame_gap_hist, &other.frame_gap_hist);
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct A12ReplaySummary {
+        by_provenance_population: BTreeMap<(A12Provenance, bool), usize>,
+        by_provenance_a9: BTreeMap<(A12Provenance, A9Class), usize>,
+        by_provenance_miss_a9: BTreeMap<(A12Provenance, A9Class), usize>,
+        by_provenance_taxonomy: BTreeMap<(A12Provenance, MissClass), usize>,
+        physical_by_component: BTreeMap<ComponentKind, A12PhysicalSummary>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A12ReplaySummary {
+        fn add_row(&mut self, row: A12Row) {
+            *self
+                .by_provenance_population
+                .entry((row.provenance, row.hit))
+                .or_default() += 1;
+            *self
+                .by_provenance_a9
+                .entry((row.provenance, row.a9_class))
+                .or_default() += 1;
+            if let Some(miss_class) = row.miss_class {
+                *self
+                    .by_provenance_miss_a9
+                    .entry((row.provenance, row.a9_class))
+                    .or_default() += 1;
+                *self
+                    .by_provenance_taxonomy
+                    .entry((row.provenance, miss_class))
+                    .or_default() += 1;
+            }
+            self.physical_by_component
+                .entry(row.component)
+                .or_default()
+                .add_row(&row);
+        }
+
+        fn add(&mut self, other: &Self) {
+            for (key, count) in &other.by_provenance_population {
+                *self.by_provenance_population.entry(*key).or_default() += count;
+            }
+            for (key, count) in &other.by_provenance_a9 {
+                *self.by_provenance_a9.entry(*key).or_default() += count;
+            }
+            for (key, count) in &other.by_provenance_miss_a9 {
+                *self.by_provenance_miss_a9.entry(*key).or_default() += count;
+            }
+            for (key, count) in &other.by_provenance_taxonomy {
+                *self.by_provenance_taxonomy.entry(*key).or_default() += count;
+            }
+            for (component, summary) in &other.physical_by_component {
+                self.physical_by_component
+                    .entry(*component)
+                    .or_default()
+                    .add(summary);
+            }
+        }
+
+        fn count_population(&self, provenance: A12Provenance, hit: bool) -> usize {
+            self.by_provenance_population
+                .get(&(provenance, hit))
+                .copied()
+                .unwrap_or_default()
+        }
+
+        fn count_a9(&self, provenance: A12Provenance, class: A9Class) -> usize {
+            self.by_provenance_a9
+                .get(&(provenance, class))
+                .copied()
+                .unwrap_or_default()
+        }
+
+        fn count_miss_a9(&self, provenance: A12Provenance, class: A9Class) -> usize {
+            self.by_provenance_miss_a9
+                .get(&(provenance, class))
+                .copied()
                 .unwrap_or_default()
         }
     }
@@ -5453,6 +5644,93 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    fn a12_probe_replay(replay: &str, series: &ReplaySeries) -> A12ReplaySummary {
+        let report = wp7c_replay_report(replay, series);
+        let known = coalesced_component_targets(series, is_component_flip_edge, false);
+        assert_eq!(
+            known.len(),
+            report.summary.known_flips,
+            "A12 probe population must match WP7c known flips"
+        );
+
+        let miss_classes: BTreeMap<_, _> = report
+            .misses
+            .iter()
+            .map(|miss| ((miss.player_id.clone(), miss.end_frame), miss.class))
+            .collect();
+        let segmentation = crate::segment::segment_replay(series);
+        let mut summary = A12ReplaySummary::default();
+
+        for ((player_id, end_frame), target) in known {
+            let miss_class = miss_classes.get(&(player_id.clone(), end_frame)).copied();
+            let a9_row = a9_probe_target(series, &segmentation, &player_id, &target, miss_class);
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == player_id)
+            else {
+                continue;
+            };
+            summary.add_row(a12_row(player, &target, a9_row, miss_class));
+        }
+
+        summary
+    }
+
+    #[cfg(feature = "sim")]
+    fn a12_row(
+        player: &PlayerSeries,
+        target: &ComponentTarget,
+        a9_row: A9Row,
+        miss_class: Option<MissClass>,
+    ) -> A12Row {
+        let edge = a11_truth_edge(player, target);
+        let frame = edge
+            .as_ref()
+            .map(|edge| edge.frame_index)
+            .unwrap_or_else(|| a10_truth_frame(target));
+        let component = edge
+            .as_ref()
+            .map(|edge| edge.component)
+            .unwrap_or(ComponentKind::DodgeTorque);
+        let counter_backed = a12_counter_delta_adjacent(player, component, frame).is_some();
+        let provenance = if counter_backed {
+            A12Provenance::CounterBacked
+        } else {
+            A12Provenance::VectorOnly
+        };
+        let vector = edge.as_ref().and_then(|edge| edge.vector);
+        let previous_vector = a12_previous_vector(player, component, frame);
+        let same_as_previous_vector = vector
+            .zip(previous_vector)
+            .map(|(current, previous)| a12_vector_eq(current, previous));
+        let vector_changed = same_as_previous_vector.map(|same| !same);
+        let previous_counter_dodge = a12_previous_counter_backed_dodge(player, frame);
+        let current_dir = if component == ComponentKind::DodgeTorque {
+            vector.and_then(a12_dodge_dir)
+        } else {
+            None
+        };
+        let same_direction_as_previous_counter_dodge = current_dir
+            .zip(previous_counter_dodge.and_then(|(_, dir)| dir))
+            .map(|(current, previous)| dot2(current, previous) >= 0.995);
+        let frames_since_previous_counter_dodge =
+            previous_counter_dodge.map(|(previous_frame, _)| frame.saturating_sub(previous_frame));
+
+        A12Row {
+            hit: miss_class.is_none(),
+            a9_class: a9_row.class,
+            miss_class,
+            provenance,
+            component,
+            vector_changed,
+            same_as_previous_vector,
+            same_direction_as_previous_counter_dodge,
+            frames_since_previous_counter_dodge,
+        }
+    }
+
+    #[cfg(feature = "sim")]
     fn a11_row(
         player: &PlayerSeries,
         freshness: &KinematicFreshness,
@@ -5586,6 +5864,90 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    fn a12_counter_delta_adjacent(
+        player: &PlayerSeries,
+        component: ComponentKind,
+        frame: u32,
+    ) -> Option<(u32, u8)> {
+        let frames = a11_component_update_frames(player, component);
+        if frames.is_empty() {
+            return None;
+        }
+        let mut candidates = BTreeSet::new();
+        match frames.binary_search(&frame) {
+            Ok(idx) => {
+                for i in idx.saturating_sub(1)..=(idx + 1).min(frames.len() - 1) {
+                    candidates.insert(frames[i]);
+                }
+            }
+            Err(idx) => {
+                if idx > 0 {
+                    candidates.insert(frames[idx - 1]);
+                }
+                if idx < frames.len() {
+                    candidates.insert(frames[idx]);
+                }
+            }
+        }
+        candidates.into_iter().find_map(|candidate| {
+            a11_counter_delta(player, component, candidate)
+                .filter(|delta| *delta != 0)
+                .map(|delta| (candidate, delta))
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn a12_previous_vector(
+        player: &PlayerSeries,
+        component: ComponentKind,
+        frame: u32,
+    ) -> Option<[f32; 3]> {
+        player
+            .component
+            .events
+            .iter()
+            .rev()
+            .find(|event| event.component == component && event.frame_index < frame)
+            .and_then(|event| event.vector)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a12_previous_counter_backed_dodge(
+        player: &PlayerSeries,
+        frame: u32,
+    ) -> Option<(u32, Option<[f32; 2]>)> {
+        crate::tracker::reconstruct_seeded_edges(&player.component)
+            .into_iter()
+            .filter(|edge| {
+                edge.component == ComponentKind::DodgeTorque
+                    && edge.frame_index < frame
+                    && a12_counter_delta_adjacent(
+                        player,
+                        ComponentKind::DodgeTorque,
+                        edge.frame_index,
+                    )
+                    .is_some()
+            })
+            .last()
+            .map(|edge| (edge.frame_index, edge.vector.and_then(a12_dodge_dir)))
+    }
+
+    #[cfg(feature = "sim")]
+    fn a12_dodge_dir(vector: [f32; 3]) -> Option<[f32; 2]> {
+        match classify_dodge_torque_vector(vector) {
+            SecondActionClass::Dodge { dir, .. } => Some(dir),
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a12_vector_eq(a: [f32; 3], b: [f32; 3]) -> bool {
+        a[0].to_bits() == b[0].to_bits()
+            && a[1].to_bits() == b[1].to_bits()
+            && a[2].to_bits() == b[2].to_bits()
+    }
+
+    #[cfg(feature = "sim")]
     fn print_a11_replay_summary(replay: &str, build_bucket: &str, summary: &A11ReplaySummary) {
         print_a11_population_summary(replay, build_bucket, "HIT", "ALL", &summary.hit);
         print_a11_population_summary(replay, build_bucket, "MISSED", "ALL", &summary.missed);
@@ -5667,6 +6029,156 @@ mod tests {
             hit_rule,
             A11_COMPONENT_GAP_CATCHUP_FRAMES
         );
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a12_replay_summary(replay: &str, build_bucket: &str, summary: &A12ReplaySummary) {
+        for provenance in [A12Provenance::CounterBacked, A12Provenance::VectorOnly] {
+            let hits = summary.count_population(provenance, true);
+            let misses = summary.count_population(provenance, false);
+            let total = hits + misses;
+            println!(
+                "wave_a12_provenance_population,replay={},build_bucket={},provenance={},total={},hits={},misses={},miss_share={:.3}",
+                replay,
+                build_bucket,
+                provenance.as_str(),
+                total,
+                hits,
+                misses,
+                recall(misses, total)
+            );
+            for class in [
+                A9Class::FullConsistent,
+                A9Class::CancelConsistent,
+                A9Class::Neither,
+            ] {
+                let count = summary.count_a9(provenance, class);
+                println!(
+                    "wave_a12_provenance_a9,replay={},build_bucket={},provenance={},a9_class={},count={},share={:.3}",
+                    replay,
+                    build_bucket,
+                    provenance.as_str(),
+                    class.as_str(),
+                    count,
+                    recall(count, total)
+                );
+            }
+            for class in [
+                MissClass::NoCandidate,
+                MissClass::Illegal,
+                MissClass::OutscoredByNull,
+                MissClass::OutscoredByEvent,
+                MissClass::Unscored,
+            ] {
+                let count = summary
+                    .by_provenance_taxonomy
+                    .get(&(provenance, class))
+                    .copied()
+                    .unwrap_or_default();
+                println!(
+                    "wave_a12_provenance_taxonomy,replay={},build_bucket={},provenance={},taxonomy={},count={},share_of_misses={:.3}",
+                    replay,
+                    build_bucket,
+                    provenance.as_str(),
+                    class.as_str(),
+                    count,
+                    recall(count, misses)
+                );
+            }
+        }
+
+        for component in [ComponentKind::DodgeTorque, ComponentKind::DoubleJumpImpulse] {
+            let empty = A12PhysicalSummary::default();
+            let physical = summary
+                .physical_by_component
+                .get(&component)
+                .unwrap_or(&empty);
+            let p50_frames =
+                percentile_finite(physical.frames_since_previous_counter_dodge.clone(), 0.50);
+            let p90_frames =
+                percentile_finite(physical.frames_since_previous_counter_dodge.clone(), 0.90);
+            println!(
+                "wave_a12_vector_physical,replay={},build_bucket={},component={},vector_only={},value_changed={},identical_resend={},same_as_previous_vector={},new_from_previous_vector={},same_direction_previous_counter_dodge={},new_direction_previous_counter_dodge={},missing_previous_counter_dodge={},prev_counter_gap_p50_frames={:.1},prev_counter_gap_p90_frames={:.1},prev_counter_gap_p50_seconds={:.3},prev_counter_gap_hist={}",
+                replay,
+                build_bucket,
+                a12_component_name(component),
+                physical.vector_only,
+                physical.value_changed,
+                physical.identical_resend,
+                physical.same_as_previous_vector,
+                physical.new_from_previous_vector,
+                physical.same_direction_previous_counter_dodge,
+                physical.new_direction_previous_counter_dodge,
+                physical.missing_previous_counter_dodge,
+                p50_frames,
+                p90_frames,
+                p50_frames / 30.0,
+                fmt_hist(&physical.frame_gap_hist)
+            );
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a12_verdict(summary: &A12ReplaySummary) {
+        let vector_hits = summary.count_population(A12Provenance::VectorOnly, true);
+        let vector_misses = summary.count_population(A12Provenance::VectorOnly, false);
+        let vector_total = vector_hits + vector_misses;
+        let vector_neither = summary.count_a9(A12Provenance::VectorOnly, A9Class::Neither);
+        let counter_misses = summary.count_population(A12Provenance::CounterBacked, false);
+        let counter_miss_full_cancel = summary
+            .count_miss_a9(A12Provenance::CounterBacked, A9Class::FullConsistent)
+            + summary.count_miss_a9(A12Provenance::CounterBacked, A9Class::CancelConsistent);
+        let vector_miss_full_cancel = summary
+            .count_miss_a9(A12Provenance::VectorOnly, A9Class::FullConsistent)
+            + summary.count_miss_a9(A12Provenance::VectorOnly, A9Class::CancelConsistent);
+        let vector_miss_rule = recall(vector_misses, vector_total) >= 0.85;
+        let vector_neither_rule = recall(vector_neither, vector_total) >= 0.75;
+        let enrichment_rule = recall(counter_miss_full_cancel, counter_misses)
+            > recall(vector_miss_full_cancel, vector_misses);
+        let verdict = if vector_miss_rule && vector_neither_rule && enrichment_rule {
+            "CONFIRMED"
+        } else {
+            "FALSIFIED"
+        };
+        println!(
+            "wave_a12_verdict,p_a12={},vector_only_total={},vector_only_misses={},vector_only_miss_share={:.3},vector_miss_rule={},vector_only_neither={},vector_only_neither_share={:.3},vector_neither_rule={},counter_backed_misses={},counter_backed_miss_full_cancel={},counter_backed_miss_full_cancel_share={:.3},vector_only_miss_full_cancel={},vector_only_miss_full_cancel_share={:.3},counter_backed_enrichment_rule={}",
+            verdict,
+            vector_total,
+            vector_misses,
+            recall(vector_misses, vector_total),
+            vector_miss_rule,
+            vector_neither,
+            recall(vector_neither, vector_total),
+            vector_neither_rule,
+            counter_misses,
+            counter_miss_full_cancel,
+            recall(counter_miss_full_cancel, counter_misses),
+            vector_miss_full_cancel,
+            recall(vector_miss_full_cancel, vector_misses),
+            enrichment_rule
+        );
+    }
+
+    #[cfg(feature = "sim")]
+    fn a12_component_name(component: ComponentKind) -> &'static str {
+        match component {
+            ComponentKind::Jump => "Jump",
+            ComponentKind::DodgeTorque => "DodgeTorque",
+            ComponentKind::DoubleJumpImpulse => "DoubleJumpImpulse",
+            ComponentKind::Boost => "Boost",
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a12_frame_gap_bucket(gap: Option<u32>) -> &'static str {
+        match gap {
+            None => "NA",
+            Some(0..=4) => "0-4",
+            Some(5..=30) => "5-30",
+            Some(31..=90) => "31-90",
+            Some(91..=300) => "91-300",
+            Some(_) => "301+",
+        }
     }
 
     #[cfg(feature = "sim")]
