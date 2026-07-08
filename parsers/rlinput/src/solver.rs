@@ -2125,6 +2125,8 @@ mod tests {
     const A9_PLANAR_IMPULSE_UU_PER_S: f32 = 120.0;
     #[cfg(feature = "sim")]
     const A9_ONSET_ANG_RAD_PER_S: f32 = 0.35;
+    #[cfg(feature = "sim")]
+    const A11_COMPONENT_GAP_CATCHUP_FRAMES: u32 = 5;
 
     #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
@@ -3034,6 +3036,29 @@ mod tests {
         }
         print_a10_replay_summary("POOLED", "ALL", &pooled);
         print_a10_verdict(&pooled);
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a11_truth_extraction_audit() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported dev-set ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A11 must run on all 10 dev replays");
+
+        println!(
+            "wave_a11_field_availability,reopen_marker=false,source=ReplaySeries.component has raw counters plus component events; no actor reopen/new-actor channel marker is exported"
+        );
+
+        let mut pooled = A11ReplaySummary::default();
+        for (replay, series) in replays {
+            let summary = a11_probe_replay(&replay, &series);
+            print_a11_replay_summary(&replay, &series.build_bucket, &summary);
+            pooled.add(&summary);
+        }
+        print_a11_replay_summary("POOLED", "ALL", &pooled);
+        print_a11_verdict(&pooled);
     }
 
     #[cfg(feature = "sim")]
@@ -4001,6 +4026,135 @@ mod tests {
             self.missed_neither.add(&other.missed_neither);
             self.hallucination.add(&other.hallucination);
             self.ceiling.add_summary(&other.ceiling);
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    struct A11Row {
+        hit: bool,
+        a9_class: A9Class,
+        counter_delta: Option<u8>,
+        component_gap: Option<u32>,
+        arrival_multiplicity: usize,
+        rb_held_adjacent: bool,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct A11PopulationSummary {
+        total: usize,
+        catchup: usize,
+        counter_gt1: usize,
+        no_counter_delta: usize,
+        gap_ge5: usize,
+        no_component_gap: usize,
+        arrival_multiplicity_ge2: usize,
+        rb_held_adjacent: usize,
+        counter_deltas: Vec<f64>,
+        component_gaps: Vec<f64>,
+        arrival_multiplicities: Vec<f64>,
+        delta_hist: BTreeMap<String, usize>,
+        gap_hist: BTreeMap<String, usize>,
+        multiplicity_hist: BTreeMap<String, usize>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A11PopulationSummary {
+        fn add_row(&mut self, row: &A11Row) {
+            let counter_gt1 = row.counter_delta.is_some_and(|delta| delta > 1);
+            let gap_ge5 = row
+                .component_gap
+                .is_some_and(|gap| gap >= A11_COMPONENT_GAP_CATCHUP_FRAMES);
+            self.total += 1;
+            self.catchup += usize::from(counter_gt1 || gap_ge5);
+            self.counter_gt1 += usize::from(counter_gt1);
+            self.no_counter_delta += usize::from(row.counter_delta.is_none());
+            self.gap_ge5 += usize::from(gap_ge5);
+            self.no_component_gap += usize::from(row.component_gap.is_none());
+            self.arrival_multiplicity_ge2 += usize::from(row.arrival_multiplicity >= 2);
+            self.rb_held_adjacent += usize::from(row.rb_held_adjacent);
+            if let Some(delta) = row.counter_delta {
+                self.counter_deltas.push(f64::from(delta));
+            }
+            if let Some(gap) = row.component_gap {
+                self.component_gaps.push(f64::from(gap));
+            }
+            self.arrival_multiplicities
+                .push(row.arrival_multiplicity as f64);
+            *self
+                .delta_hist
+                .entry(a11_counter_delta_bucket(row.counter_delta).to_string())
+                .or_default() += 1;
+            *self
+                .gap_hist
+                .entry(a11_gap_bucket(row.component_gap).to_string())
+                .or_default() += 1;
+            *self
+                .multiplicity_hist
+                .entry(a11_multiplicity_bucket(row.arrival_multiplicity).to_string())
+                .or_default() += 1;
+        }
+
+        fn add(&mut self, other: &Self) {
+            self.total += other.total;
+            self.catchup += other.catchup;
+            self.counter_gt1 += other.counter_gt1;
+            self.no_counter_delta += other.no_counter_delta;
+            self.gap_ge5 += other.gap_ge5;
+            self.no_component_gap += other.no_component_gap;
+            self.arrival_multiplicity_ge2 += other.arrival_multiplicity_ge2;
+            self.rb_held_adjacent += other.rb_held_adjacent;
+            self.counter_deltas
+                .extend(other.counter_deltas.iter().copied());
+            self.component_gaps
+                .extend(other.component_gaps.iter().copied());
+            self.arrival_multiplicities
+                .extend(other.arrival_multiplicities.iter().copied());
+            merge_hist(&mut self.delta_hist, &other.delta_hist);
+            merge_hist(&mut self.gap_hist, &other.gap_hist);
+            merge_hist(&mut self.multiplicity_hist, &other.multiplicity_hist);
+        }
+
+        fn catchup_share(&self) -> f32 {
+            recall(self.catchup, self.total)
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct A11ReplaySummary {
+        hit: A11PopulationSummary,
+        missed: A11PopulationSummary,
+        by_class: BTreeMap<(bool, A9Class), A11PopulationSummary>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A11ReplaySummary {
+        fn add_row(&mut self, row: A11Row) {
+            if row.hit {
+                self.hit.add_row(&row);
+            } else {
+                self.missed.add_row(&row);
+            }
+            self.by_class
+                .entry((row.hit, row.a9_class))
+                .or_default()
+                .add_row(&row);
+        }
+
+        fn add(&mut self, other: &Self) {
+            self.hit.add(&other.hit);
+            self.missed.add(&other.missed);
+            for (key, summary) in &other.by_class {
+                self.by_class.entry(*key).or_default().add(summary);
+            }
+        }
+
+        fn missed_neither(&self) -> A11PopulationSummary {
+            self.by_class
+                .get(&(false, A9Class::Neither))
+                .cloned()
+                .unwrap_or_default()
         }
     }
 
@@ -5252,6 +5406,319 @@ mod tests {
             recall(summary.ceiling.observable_hits, summary.ceiling.observable_total),
             recall(summary.ceiling.unobservable_hits, summary.ceiling.unobservable_total),
         );
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_probe_replay(replay: &str, series: &ReplaySeries) -> A11ReplaySummary {
+        let report = wp7c_replay_report(replay, series);
+        let known = coalesced_component_targets(series, is_component_flip_edge, false);
+        assert_eq!(
+            known.len(),
+            report.summary.known_flips,
+            "A11 probe population must match WP7c known flips"
+        );
+
+        let miss_classes: BTreeMap<_, _> = report
+            .misses
+            .iter()
+            .map(|miss| ((miss.player_id.clone(), miss.end_frame), miss.class))
+            .collect();
+        let segmentation = crate::segment::segment_replay(series);
+        let freshness = freshness_by_player(series, &segmentation);
+        let mut summary = A11ReplaySummary::default();
+
+        for ((player_id, end_frame), target) in known {
+            let miss_class = miss_classes.get(&(player_id.clone(), end_frame)).copied();
+            let a9_row = a9_probe_target(series, &segmentation, &player_id, &target, miss_class);
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == player_id)
+            else {
+                continue;
+            };
+            let Some(player_freshness) = freshness.get(&player_id) else {
+                continue;
+            };
+            summary.add_row(a11_row(
+                player,
+                player_freshness,
+                &target,
+                a9_row,
+                miss_class,
+            ));
+        }
+
+        summary
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_row(
+        player: &PlayerSeries,
+        freshness: &KinematicFreshness,
+        target: &ComponentTarget,
+        a9_row: A9Row,
+        miss_class: Option<MissClass>,
+    ) -> A11Row {
+        let edge = a11_truth_edge(player, target);
+        let frame = edge
+            .as_ref()
+            .map(|edge| edge.frame_index)
+            .unwrap_or_else(|| a10_truth_frame(target));
+        let component = edge
+            .as_ref()
+            .map(|edge| edge.component)
+            .unwrap_or(ComponentKind::DodgeTorque);
+        let frame_count = player.frames.pos.len() as u32;
+        A11Row {
+            hit: miss_class.is_none(),
+            a9_class: a9_row.class,
+            counter_delta: a11_counter_delta(player, component, frame),
+            component_gap: a11_component_gap(player, component, frame),
+            arrival_multiplicity: a11_arrival_multiplicity(player, frame),
+            rb_held_adjacent: a11_rb_held_adjacent(freshness, frame, frame_count),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_truth_edge(
+        player: &PlayerSeries,
+        target: &ComponentTarget,
+    ) -> Option<ReconstructedEdge> {
+        crate::tracker::reconstruct_seeded_edges(&player.component)
+            .into_iter()
+            .filter(is_component_flip_edge)
+            .filter(|edge| target.edge_frames.contains(&edge.frame_index))
+            .min_by_key(|edge| target.end_frame.abs_diff(edge.frame_index))
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_counter_delta(
+        player: &PlayerSeries,
+        component: ComponentKind,
+        frame: u32,
+    ) -> Option<u8> {
+        let raw = a11_raw_component(player, component)?;
+        let idx = frame as usize;
+        if idx > 0 && idx < raw.len() {
+            let delta = crate::tracker::raw_counter_delta(raw[idx - 1], raw[idx]).delta_mod_256;
+            if delta != 0 {
+                return Some(delta);
+            }
+        }
+
+        let current = player
+            .component
+            .events
+            .iter()
+            .filter(|event| event.component == component && event.frame_index == frame)
+            .filter_map(|event| event.raw_value)
+            .next_back()?;
+        let previous = player
+            .component
+            .events
+            .iter()
+            .filter(|event| event.component == component && event.frame_index < frame)
+            .filter_map(|event| event.raw_value)
+            .next_back()
+            .or_else(|| idx.checked_sub(1).and_then(|prev| raw.get(prev).copied()))?;
+        Some(crate::tracker::raw_counter_delta(previous, current).delta_mod_256)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_component_gap(
+        player: &PlayerSeries,
+        component: ComponentKind,
+        frame: u32,
+    ) -> Option<u32> {
+        a11_component_update_frames(player, component)
+            .into_iter()
+            .rev()
+            .find(|update_frame| *update_frame < frame)
+            .map(|previous| frame - previous)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_component_update_frames(player: &PlayerSeries, component: ComponentKind) -> Vec<u32> {
+        let mut frames = BTreeSet::new();
+        for event in &player.component.events {
+            if event.component == component {
+                frames.insert(event.frame_index);
+            }
+        }
+        if let Some(raw) = a11_raw_component(player, component) {
+            for (idx, pair) in raw.windows(2).enumerate() {
+                if crate::tracker::raw_counter_delta(pair[0], pair[1]).delta_mod_256 != 0 {
+                    frames.insert(idx as u32 + 1);
+                }
+            }
+        }
+        frames.into_iter().collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_arrival_multiplicity(player: &PlayerSeries, frame: u32) -> usize {
+        crate::tracker::reconstruct_seeded_edges(&player.component)
+            .into_iter()
+            .filter(|edge| edge.frame_index.abs_diff(frame) <= 2)
+            .count()
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_rb_held_adjacent(freshness: &KinematicFreshness, frame: u32, frame_count: u32) -> bool {
+        if frame_count == 0 {
+            return false;
+        }
+        let frame = frame.min(frame_count - 1);
+        a10_held_run_len(freshness, frame, frame_count) > 0
+            || (frame > 0 && a10_held_run_len(freshness, frame - 1, frame_count) > 0)
+            || (frame + 1 < frame_count && a10_held_run_len(freshness, frame + 1, frame_count) > 0)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_raw_component(player: &PlayerSeries, component: ComponentKind) -> Option<&[u8]> {
+        match component {
+            ComponentKind::Jump => Some(&player.component.jump_raw),
+            ComponentKind::DodgeTorque => Some(&player.component.dodge_raw),
+            ComponentKind::DoubleJumpImpulse => Some(&player.component.double_jump_raw),
+            ComponentKind::Boost => Some(&player.component.boost_raw),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a11_replay_summary(replay: &str, build_bucket: &str, summary: &A11ReplaySummary) {
+        print_a11_population_summary(replay, build_bucket, "HIT", "ALL", &summary.hit);
+        print_a11_population_summary(replay, build_bucket, "MISSED", "ALL", &summary.missed);
+        for hit in [true, false] {
+            for class in [
+                A9Class::FullConsistent,
+                A9Class::CancelConsistent,
+                A9Class::Neither,
+            ] {
+                let empty = A11PopulationSummary::default();
+                let summary = summary.by_class.get(&(hit, class)).unwrap_or(&empty);
+                print_a11_population_summary(
+                    replay,
+                    build_bucket,
+                    if hit { "HIT" } else { "MISSED" },
+                    class.as_str(),
+                    summary,
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a11_population_summary(
+        replay: &str,
+        build_bucket: &str,
+        population: &str,
+        class: &str,
+        summary: &A11PopulationSummary,
+    ) {
+        println!(
+            "wave_a11_probe,replay={},build_bucket={},population={},a9_class={},total={},catchup={},catchup_share={:.3},counter_gt1={},counter_gt1_share={:.3},no_counter_delta={},component_gap_ge5={},component_gap_ge5_share={:.3},no_component_gap={},arrival_mult_ge2={},arrival_mult_ge2_share={:.3},rb_held_adjacent={},rb_held_adjacent_share={:.3},counter_delta_p50={:.1},component_gap_p50={:.1},arrival_mult_p50={:.1},counter_delta_hist={},component_gap_hist={},arrival_mult_hist={}",
+            replay,
+            build_bucket,
+            population,
+            class,
+            summary.total,
+            summary.catchup,
+            summary.catchup_share(),
+            summary.counter_gt1,
+            recall(summary.counter_gt1, summary.total),
+            summary.no_counter_delta,
+            summary.gap_ge5,
+            recall(summary.gap_ge5, summary.total),
+            summary.no_component_gap,
+            summary.arrival_multiplicity_ge2,
+            recall(summary.arrival_multiplicity_ge2, summary.total),
+            summary.rb_held_adjacent,
+            recall(summary.rb_held_adjacent, summary.total),
+            percentile_finite(summary.counter_deltas.clone(), 0.50),
+            percentile_finite(summary.component_gaps.clone(), 0.50),
+            percentile_finite(summary.arrival_multiplicities.clone(), 0.50),
+            fmt_hist(&summary.delta_hist),
+            fmt_hist(&summary.gap_hist),
+            fmt_hist(&summary.multiplicity_hist),
+        );
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a11_verdict(summary: &A11ReplaySummary) {
+        let missed_neither = summary.missed_neither();
+        let miss_rule = missed_neither.catchup_share() >= 0.40;
+        let hit_rule = summary.hit.catchup_share() <= 0.10;
+        let verdict = if miss_rule && hit_rule {
+            "CONFIRMED"
+        } else {
+            "FALSIFIED"
+        };
+        println!(
+            "wave_a11_verdict,p_a11={},miss_neither_catchup_share={:.3},miss_neither_catchup={}/{},miss_rule={},hit_catchup_share={:.3},hit_catchup={}/{},hit_rule={},threshold_delta_gt1=true,threshold_component_gap_ge_frames={}",
+            verdict,
+            missed_neither.catchup_share(),
+            missed_neither.catchup,
+            missed_neither.total,
+            miss_rule,
+            summary.hit.catchup_share(),
+            summary.hit.catchup,
+            summary.hit.total,
+            hit_rule,
+            A11_COMPONENT_GAP_CATCHUP_FRAMES
+        );
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_counter_delta_bucket(delta: Option<u8>) -> &'static str {
+        match delta {
+            None => "NA",
+            Some(0) => "0",
+            Some(1) => "1",
+            Some(2) => "2",
+            Some(3 | 4) => "3-4",
+            Some(_) => "5+",
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_gap_bucket(gap: Option<u32>) -> &'static str {
+        match gap {
+            None => "NA",
+            Some(0 | 1) => "0-1",
+            Some(2..=4) => "2-4",
+            Some(5..=9) => "5-9",
+            Some(_) => "10+",
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a11_multiplicity_bucket(count: usize) -> &'static str {
+        match count {
+            0 => "0",
+            1 => "1",
+            2 => "2",
+            3 | 4 => "3-4",
+            _ => "5+",
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn merge_hist(dst: &mut BTreeMap<String, usize>, src: &BTreeMap<String, usize>) {
+        for (key, count) in src {
+            *dst.entry(key.clone()).or_default() += count;
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn fmt_hist(hist: &BTreeMap<String, usize>) -> String {
+        if hist.is_empty() {
+            return "none".to_string();
+        }
+        hist.iter()
+            .map(|(key, count)| format!("{key}:{count}"))
+            .collect::<Vec<_>>()
+            .join("|")
     }
 
     #[cfg(feature = "sim")]
