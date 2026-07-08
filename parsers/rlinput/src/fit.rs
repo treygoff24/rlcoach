@@ -100,13 +100,8 @@ pub fn fit_interval<E: AirEngine>(
 
     if let Some(null) = hypotheses.iter().find(|hypothesis| hypothesis.is_null()) {
         let null_result = evaluate(engine, state_k, null, observed_end, weights, ticks);
-        if null_result.energy
-            <= f64::from(
-                weights
-                    .reject_threshold
-                    .max(weights.null_event_accept_margin),
-            )
-        {
+        // The event margin is a ranking prior, not a reason to skip candidate enumeration.
+        if null_result.energy <= f64::from(weights.reject_threshold) {
             return rank_results(vec![null_result], weights);
         }
     }

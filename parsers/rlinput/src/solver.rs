@@ -647,13 +647,8 @@ fn generate_candidates(
     let ticks = interval_ticks(interval);
     let null = Candidate::null(base_controls.clone(), interval.flags);
     let null_energy = score_null(state_k, observed_end, ticks, &null, &config.fit);
-    if null_energy
-        <= f64::from(
-            config
-                .fit
-                .reject_threshold
-                .max(config.fit.null_event_accept_margin),
-        )
+    // The event margin is a ranking prior, not a reason to skip candidate enumeration.
+    if null_energy <= f64::from(config.fit.reject_threshold)
         && seeded_edges.is_empty()
         && !interval.flags.contains(AmbiguityFlags::LONG_GAP)
     {
@@ -2062,6 +2057,10 @@ mod tests {
     const DIAG_SURFACE_CORNER_SUM: f32 = 8064.0 - 60.0;
     #[cfg(feature = "sim")]
     const DIAG_SURFACE_NEAR_UU: f32 = 256.0;
+    #[cfg(feature = "sim")]
+    const A3_TABLE_A_LIMIT: usize = 12;
+    #[cfg(feature = "sim")]
+    const A3_TABLE_B_LIMIT: usize = 6;
 
     #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
@@ -2700,6 +2699,42 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a3_flip_recall_microscope() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A3 must run on all 10 dev replays");
+
+        let mut misses = Vec::new();
+        for (replay_name, series) in replays {
+            misses.extend(wave_a3_replay_misses(&replay_name, &series));
+        }
+
+        let no_candidate: Vec<_> = misses
+            .iter()
+            .filter(|miss| miss.class == MissClass::NoCandidate)
+            .collect();
+        let outscored_by_null: Vec<_> = misses
+            .iter()
+            .filter(|miss| miss.class == MissClass::OutscoredByNull)
+            .collect();
+        let table_a = stratified_a3_sample(&no_candidate, A3_TABLE_A_LIMIT);
+        let table_b = stratified_a3_sample(&outscored_by_null, A3_TABLE_B_LIMIT);
+
+        println!(
+            "wave_a3_totals,no_candidate={},outscored_by_null={}",
+            no_candidate.len(),
+            outscored_by_null.len()
+        );
+        print_a3_failure_histogram("table_a_12", &table_a);
+        print_a3_failure_histogram("all_no_candidate", &no_candidate);
+        print_a3_table_a(&table_a);
+        print_a3_table_b(&table_b);
+    }
+
     fn quiet_series(frames: usize) -> ReplaySeries {
         let mut states = Vec::new();
         let mut state = base_state(true);
@@ -3079,9 +3114,95 @@ mod tests {
     #[derive(Clone, Debug)]
     struct CandidateGenerationDiag {
         null_fast_path: bool,
+        null_energy: f64,
+        null_gate_threshold: f32,
+        seeded_edges_count: usize,
+        long_gap: bool,
+        kinematic_gate: KinematicGateDiag,
         kinematic_events: Vec<CandidateEvent>,
         raw_candidates: Vec<Candidate>,
         legal_candidates: Vec<Candidate>,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct KinematicGateDiag {
+        planar_delta: f32,
+        vertical_delta: f32,
+        ang_delta: f32,
+        air_segment: bool,
+        second_available: bool,
+        double_jump_gate: bool,
+        dodge_gate: bool,
+        stall_gate: bool,
+        gates: Vec<GateConjunctDiag>,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct GateConjunctDiag {
+        name: String,
+        threshold: String,
+        actual: String,
+        passed: bool,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct A3MissDiag {
+        replay: String,
+        player_id: String,
+        start_frame: u32,
+        end_frame: u32,
+        span_frames: u32,
+        span_ticks: u64,
+        held_frames: usize,
+        class: MissClass,
+        reason: String,
+        winner: &'static str,
+        flags: AmbiguityFlags,
+        tracker_state: String,
+        observed: ObservedSpanDiag,
+        truth: Option<ComponentTruthDiag>,
+        gates: Vec<GateConjunctDiag>,
+        failures: Vec<String>,
+        legal_candidates: Vec<Candidate>,
+        state_k: CarPhysState,
+        observed_end: CarPhysState,
+        ticks: u32,
+        weights: FitWeights,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct ObservedSpanDiag {
+        ang_delta: f32,
+        ang_axis: &'static str,
+        planar_delta: f32,
+        vertical_delta: f32,
+        rotation_angle: f64,
+        max_step_planar_delta: f32,
+        max_step_ang_delta: f32,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct ComponentTruthDiag {
+        kind: &'static str,
+        frame: u32,
+        raw_vector: Option<[f32; 3]>,
+        dir: Option<[f32; 2]>,
+        tick_range: (u32, u32),
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct A3ScoredCandidate {
+        candidate: Candidate,
+        spec: String,
+        energy: f64,
+        delta_vs_null: f64,
+        terms: [f64; 4],
     }
 
     #[cfg(feature = "sim")]
@@ -3504,18 +3625,18 @@ mod tests {
         let ticks = interval_ticks(interval);
         let null = Candidate::null(base_controls.clone(), interval.flags);
         let null_energy = score_null(state_k, observed_end, ticks, &null, &config.fit);
-        if null_energy
-            <= f64::from(
-                config
-                    .fit
-                    .reject_threshold
-                    .max(config.fit.null_event_accept_margin),
-            )
-            && seeded_edges.is_empty()
-            && !interval.flags.contains(AmbiguityFlags::LONG_GAP)
-        {
+        let null_gate_threshold = config.fit.reject_threshold;
+        let seeded_edges_count = seeded_edges.len();
+        let long_gap = interval.flags.contains(AmbiguityFlags::LONG_GAP);
+        let kinematic_gate = kinematic_gate_diag(state_k, observed_end, tracker, segment_kind);
+        if null_energy <= f64::from(null_gate_threshold) && seeded_edges.is_empty() && !long_gap {
             return CandidateGenerationDiag {
                 null_fast_path: true,
+                null_energy,
+                null_gate_threshold,
+                seeded_edges_count,
+                long_gap,
+                kinematic_gate,
                 kinematic_events: Vec::new(),
                 raw_candidates: vec![null.clone()],
                 legal_candidates: vec![null],
@@ -3572,10 +3693,176 @@ mod tests {
             .collect();
         CandidateGenerationDiag {
             null_fast_path: false,
+            null_energy,
+            null_gate_threshold,
+            seeded_edges_count,
+            long_gap,
+            kinematic_gate,
             kinematic_events,
             raw_candidates,
             legal_candidates,
         }
+    }
+
+    #[cfg(feature = "sim")]
+    fn kinematic_gate_diag(
+        state_k: &CarPhysState,
+        observed_end: &CarPhysState,
+        tracker: &CarTracker,
+        segment_kind: SegmentKind,
+    ) -> KinematicGateDiag {
+        let vel_residual = diff(observed_end.vel, state_k.vel);
+        let planar_delta = norm2([vel_residual[0], vel_residual[1]]);
+        let up_delta = dot(vel_residual, up(state_k.rot));
+        let vertical_delta = vel_residual[2];
+        let ang_delta = norm(diff(observed_end.ang_vel, state_k.ang_vel));
+        let air_segment = segment_kind == SegmentKind::Air;
+        let first_jump = first_jump_available(tracker);
+        let jump_holding = matches!(tracker.jump, JumpState::Holding { .. });
+        let second = second_available(tracker);
+        let double_jump_vertical = vertical_delta > 120.0;
+        let double_jump_ang = ang_delta < 0.3;
+        let double_jump_planar = planar_delta < 250.0;
+        let double_jump_gate =
+            air_segment && second && double_jump_vertical && double_jump_ang && double_jump_planar;
+        let dodge_planar = planar_delta > 150.0;
+        let dodge_ang = ang_delta > 0.5;
+        let dodge_gate = air_segment && second && (dodge_planar || dodge_ang);
+        let stall_gate = air_segment && second && vertical_delta < -30.0;
+        let mut gates = Vec::new();
+        push_gate(
+            &mut gates,
+            "kinematic.segment_is_air",
+            "segment_kind == Air",
+            format!("{segment_kind:?}"),
+            air_segment,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.first_jump_available",
+            "tracker.jump == Idle && contact grounded/airborne",
+            tracker_state(tracker),
+            first_jump,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.liftoff_up_delta",
+            format!(
+                "up_delta > {:.3}",
+                crate::consts::JUMP_LIFTOFF_MIN_UP_VEL_STEP
+            ),
+            format!("{up_delta:.3}"),
+            up_delta > crate::consts::JUMP_LIFTOFF_MIN_UP_VEL_STEP,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.jump_holding_for_release",
+            "tracker.jump == Holding",
+            tracker_state(tracker),
+            jump_holding,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.second_available",
+            "tracker.second == Available",
+            tracker_state(tracker),
+            second,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.doublejump_vertical_delta",
+            "vertical_delta > 120.000",
+            format!("{vertical_delta:.3}"),
+            double_jump_vertical,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.doublejump_ang_delta",
+            "ang_delta < 0.300",
+            format!("{ang_delta:.3}"),
+            double_jump_ang,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.doublejump_planar_delta",
+            "planar_delta < 250.000",
+            format!("{planar_delta:.3}"),
+            double_jump_planar,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.doublejump_gate",
+            "Air && second && vertical>120 && ang<0.3 && planar<250",
+            format!(
+                "air={air_segment};second={second};vertical={vertical_delta:.3};ang={ang_delta:.3};planar={planar_delta:.3}"
+            ),
+            double_jump_gate,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.dodge_planar_delta",
+            "planar_delta > 150.000",
+            format!("{planar_delta:.3}"),
+            dodge_planar,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.dodge_ang_delta",
+            "ang_delta > 0.500",
+            format!("{ang_delta:.3}"),
+            dodge_ang,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.dodge_gate",
+            "Air && second && (planar>150 || ang>0.5)",
+            format!(
+                "air={air_segment};second={second};planar={planar_delta:.3};ang={ang_delta:.3}"
+            ),
+            dodge_gate,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.stall_vertical_delta",
+            "vertical_delta < -30.000",
+            format!("{vertical_delta:.3}"),
+            vertical_delta < -30.0,
+        );
+        push_gate(
+            &mut gates,
+            "kinematic.stall_gate",
+            "Air && second && vertical<-30",
+            format!("air={air_segment};second={second};vertical={vertical_delta:.3}"),
+            stall_gate,
+        );
+
+        KinematicGateDiag {
+            planar_delta,
+            vertical_delta,
+            ang_delta,
+            air_segment,
+            second_available: second,
+            double_jump_gate,
+            dodge_gate,
+            stall_gate,
+            gates,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn push_gate(
+        gates: &mut Vec<GateConjunctDiag>,
+        name: &str,
+        threshold: impl Into<String>,
+        actual: impl Into<String>,
+        passed: bool,
+    ) {
+        gates.push(GateConjunctDiag {
+            name: name.to_string(),
+            threshold: threshold.into(),
+            actual: actual.into(),
+            passed,
+        });
     }
 
     #[cfg(feature = "sim")]
@@ -3763,6 +4050,288 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    fn wave_a3_replay_misses(replay: &str, series: &ReplaySeries) -> Vec<A3MissDiag> {
+        let known_flips = coalesced_component_targets(series, is_component_flip_edge, false);
+        let component_press_frames = component_jump_press_frames(series);
+
+        let mut config = default_estimator_config();
+        config.mode = Mode::Unseeded;
+        config.engine = EnginePreference::PreferReference;
+        let masked = masked_series_for_solving(series, &config);
+        let first = solve_pass(&masked, &config, &[], true);
+        let retro_splits = first.retro_splits.clone();
+        let output = if retro_splits.is_empty() {
+            first.output
+        } else {
+            solve_pass(&masked, &config, &retro_splits, false).output
+        };
+        let solved_flips = solved_flip_intervals(&output);
+        let solved_jump_presses =
+            solved_event_frame_sets(&output, |kind| matches!(kind, SolvedEventKind::JumpPress));
+        let segmentation = segment_replay_with_splits_and_confidences(
+            &masked,
+            &retro_splits,
+            CONFIDENT_SEGMENT_THRESHOLD,
+            |_player_id, _segment| None,
+        );
+        let mut misses = Vec::new();
+
+        for segmented_player in &segmentation.players {
+            let Some(player_index) = masked
+                .players
+                .iter()
+                .position(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let player = &masked.players[player_index];
+            let original_player = &series.players[player_index];
+            let hints = SeededHints::new(&player.component);
+            let mut reference = ReferenceScorer::new();
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+            }
+
+            for segment in &segmented_player.segments {
+                let tracker = tracker_for_segment(player, segment, masked.tick_rate);
+                let mut branching = BranchingTracker::new(tracker.clone());
+                for scoring in fresh_scoring_intervals(segment, &freshness) {
+                    let start_frame = scoring.start_frame;
+                    let interval = &scoring.interval;
+                    let end_frame = interval.frame_index;
+                    let key = (player.player_id.clone(), end_frame);
+                    if frame_out_of_bounds(player, start_frame)
+                        || frame_out_of_bounds(player, end_frame)
+                    {
+                        continue;
+                    }
+
+                    let interval_tracker = branching.best_tracker().clone();
+                    let ticks = interval_ticks(interval);
+                    let state_k = car_state(
+                        player,
+                        start_frame,
+                        interval.tick_range.0,
+                        &interval_tracker,
+                    );
+                    let observed_end =
+                        car_state(player, end_frame, interval.tick_range.1, &interval_tracker);
+                    let base_controls = solve_controls(
+                        player,
+                        start_frame,
+                        end_frame,
+                        interval,
+                        &interval_tracker,
+                        &config,
+                    );
+                    let seeded_edges = edges_for_interval_with_implied_liftoff(
+                        player,
+                        &hints,
+                        segment,
+                        start_frame,
+                        end_frame,
+                        interval,
+                        &config,
+                    );
+                    let generation = generate_candidates_for_wp7c_diag(
+                        &state_k,
+                        &observed_end,
+                        &interval_tracker,
+                        interval,
+                        base_controls,
+                        seeded_edges,
+                        &config,
+                        segment.kind,
+                    );
+                    let (mut scored, _portable_best, _reference_best) = score_candidates_for_diag(
+                        &state_k,
+                        &observed_end,
+                        ticks,
+                        &generation.legal_candidates,
+                        &config,
+                        &mut reference,
+                    );
+                    if scored.is_empty() {
+                        scored.push(score_one(
+                            &mut PortableEngine::new(),
+                            &state_k,
+                            &observed_end,
+                            ticks,
+                            Candidate::null(
+                                vec![Controls::default(); ticks as usize],
+                                interval.flags,
+                            ),
+                            &config.fit,
+                        ));
+                    }
+                    prefer_event_when_null_is_rejected(&mut scored, &config.fit);
+                    prefer_long_gap_stall_z_damp(&mut scored, interval, &observed_end);
+
+                    if let Some(target) = known_flips.get(&key) {
+                        if !solved_flips.contains(&key) {
+                            let miss = classify_miss(
+                                player,
+                                target,
+                                &generation,
+                                &scored,
+                                &interval_tracker,
+                                &component_press_frames,
+                                &solved_jump_presses,
+                            );
+                            if matches!(
+                                miss.class,
+                                MissClass::NoCandidate | MissClass::OutscoredByNull
+                            ) {
+                                let truth = component_truth_for_target(
+                                    original_player,
+                                    segment,
+                                    target,
+                                    interval,
+                                );
+                                misses.push(A3MissDiag {
+                                    replay: replay.to_string(),
+                                    player_id: player.player_id.clone(),
+                                    start_frame: target.start_frame,
+                                    end_frame: target.end_frame,
+                                    span_frames: target.span_frames,
+                                    span_ticks: target.span_ticks,
+                                    held_frames: target.held_frames,
+                                    class: miss.class,
+                                    reason: miss.reason,
+                                    winner: miss.winner,
+                                    flags: target.flags,
+                                    tracker_state: tracker_state(&interval_tracker),
+                                    observed: observed_span_diag(
+                                        original_player,
+                                        start_frame,
+                                        end_frame,
+                                        &state_k,
+                                        &observed_end,
+                                    ),
+                                    gates: a3_gate_conjuncts(&generation),
+                                    failures: a3_blocking_failures(&generation, truth.as_ref()),
+                                    truth,
+                                    legal_candidates: generation.legal_candidates.clone(),
+                                    state_k,
+                                    observed_end,
+                                    ticks,
+                                    weights: config.fit,
+                                });
+                            }
+                        }
+                    }
+
+                    let branch_width =
+                        if scored.first().is_some_and(|item| item.candidate.is_null()) {
+                            1
+                        } else {
+                            BranchingTracker::DEFAULT_BEAM_WIDTH
+                        };
+                    let branch_options: Vec<_> = scored
+                        .iter()
+                        .enumerate()
+                        .take(branch_width)
+                        .map(|(rank, item)| BranchOption {
+                            candidate: item.candidate.clone(),
+                            score: rank as f64,
+                        })
+                        .collect();
+                    apply_branch_options(&mut branching, &branch_options, interval.tick_range.0);
+                }
+            }
+        }
+
+        misses
+    }
+
+    #[cfg(feature = "sim")]
+    fn a3_gate_conjuncts(generation: &CandidateGenerationDiag) -> Vec<GateConjunctDiag> {
+        let mut gates = Vec::new();
+        push_gate(
+            &mut gates,
+            "upstream.null_fast_path_not_taken",
+            format!(
+                "null_energy > {:.3} OR seeded_edges>0 OR LONG_GAP",
+                generation.null_gate_threshold
+            ),
+            format!(
+                "null_energy={:.3};seeded_edges={};long_gap={}",
+                generation.null_energy, generation.seeded_edges_count, generation.long_gap
+            ),
+            !generation.null_fast_path,
+        );
+        push_gate(
+            &mut gates,
+            "upstream.kinematic_path_not_bypassed_by_seeded_edges",
+            "seeded_edges == 0",
+            generation.seeded_edges_count.to_string(),
+            generation.seeded_edges_count == 0,
+        );
+        gates.extend(generation.kinematic_gate.gates.clone());
+        gates
+    }
+
+    #[cfg(feature = "sim")]
+    fn a3_blocking_failures(
+        generation: &CandidateGenerationDiag,
+        truth: Option<&ComponentTruthDiag>,
+    ) -> Vec<String> {
+        if generation.null_fast_path {
+            return vec!["upstream.null_fast_path_not_taken".to_string()];
+        }
+        if generation.seeded_edges_count > 0 {
+            return vec!["upstream.kinematic_path_not_bypassed_by_seeded_edges".to_string()];
+        }
+        let gate = &generation.kinematic_gate;
+        let mut failures = Vec::new();
+        if !gate.air_segment {
+            failures.push("kinematic.segment_is_air".to_string());
+        }
+        if !gate.second_available {
+            failures.push("kinematic.second_available".to_string());
+        }
+        match truth.map(|truth| truth.kind) {
+            Some("Dodge") => {
+                if gate.air_segment && gate.second_available && !gate.dodge_gate {
+                    failures.push("kinematic.dodge_gate".to_string());
+                }
+            }
+            Some("DoubleJump") => {
+                if gate.air_segment && gate.second_available && !gate.double_jump_gate {
+                    if gate.vertical_delta <= 120.0 {
+                        failures.push("kinematic.doublejump_vertical_delta".to_string());
+                    }
+                    if gate.ang_delta >= 0.3 {
+                        failures.push("kinematic.doublejump_ang_delta".to_string());
+                    }
+                    if gate.planar_delta >= 250.0 {
+                        failures.push("kinematic.doublejump_planar_delta".to_string());
+                    }
+                }
+            }
+            Some("Stall") => {
+                if gate.air_segment && gate.second_available && !gate.stall_gate {
+                    failures.push("kinematic.stall_gate".to_string());
+                }
+            }
+            _ => {
+                if gate.air_segment
+                    && gate.second_available
+                    && !gate.dodge_gate
+                    && !gate.double_jump_gate
+                {
+                    failures.push("kinematic.flip_signature_gate".to_string());
+                }
+            }
+        }
+        if failures.is_empty() {
+            failures.push("candidate_builder_or_later_filter".to_string());
+        }
+        failures
+    }
+
+    #[cfg(feature = "sim")]
     fn no_candidate_reason(generation: &CandidateGenerationDiag, tracker: &CarTracker) -> String {
         if !second_available(tracker) {
             "TRACKER_SECOND_NOT_AVAILABLE".to_string()
@@ -3787,6 +4356,408 @@ mod tests {
         } else {
             "NO_FLIP_CANDIDATE_AFTER_CANDIDATE_BUILD".to_string()
         }
+    }
+
+    #[cfg(feature = "sim")]
+    fn component_truth_for_target(
+        player: &PlayerSeries,
+        segment: &Segment,
+        target: &ComponentTarget,
+        interval: &LatticeInterval,
+    ) -> Option<ComponentTruthDiag> {
+        crate::tracker::reconstruct_seeded_edges(&player.component)
+            .into_iter()
+            .filter(is_component_flip_edge)
+            .filter(|edge| {
+                edge.frame_index > target.start_frame && edge.frame_index <= target.end_frame
+            })
+            .min_by_key(|edge| target.end_frame.abs_diff(edge.frame_index))
+            .map(|edge| {
+                let (kind, dir) = match edge.component {
+                    ComponentKind::DoubleJumpImpulse => ("DoubleJump", None),
+                    ComponentKind::DodgeTorque => {
+                        match edge.vector.map(classify_dodge_torque_vector) {
+                            Some(SecondActionClass::Dodge { dir, .. }) => ("Dodge", Some(dir)),
+                            Some(SecondActionClass::DoubleJump) => ("DoubleJump", None),
+                            Some(SecondActionClass::Stall) => ("Stall", None),
+                            None => ("Dodge", None),
+                        }
+                    }
+                    _ => ("unknown", None),
+                };
+                ComponentTruthDiag {
+                    kind,
+                    frame: edge.frame_index,
+                    raw_vector: edge.vector,
+                    dir,
+                    tick_range: truth_tick_range(segment, edge.frame_index, interval),
+                }
+            })
+    }
+
+    #[cfg(feature = "sim")]
+    fn truth_tick_range(
+        segment: &Segment,
+        frame_index: u32,
+        scoring_interval: &LatticeInterval,
+    ) -> (u32, u32) {
+        segment
+            .lattice
+            .intervals
+            .iter()
+            .find(|interval| interval.frame_index == frame_index)
+            .map(|interval| {
+                (
+                    interval
+                        .tick_range
+                        .0
+                        .saturating_sub(scoring_interval.tick_range.0)
+                        .min(u64::from(u32::MAX)) as u32,
+                    interval
+                        .tick_range
+                        .1
+                        .saturating_sub(scoring_interval.tick_range.0)
+                        .min(u64::from(u32::MAX)) as u32,
+                )
+            })
+            .unwrap_or((0, interval_ticks(scoring_interval)))
+    }
+
+    #[cfg(feature = "sim")]
+    fn observed_span_diag(
+        player: &PlayerSeries,
+        start_frame: u32,
+        end_frame: u32,
+        state_k: &CarPhysState,
+        observed_end: &CarPhysState,
+    ) -> ObservedSpanDiag {
+        let delta_v = diff(observed_end.vel, state_k.vel);
+        let delta_ang = diff(observed_end.ang_vel, state_k.ang_vel);
+        let mut max_step_planar_delta = 0.0_f32;
+        let mut max_step_ang_delta = 0.0_f32;
+        for frame in start_frame.saturating_add(1)..=end_frame {
+            let prev = frame_state(player, frame - 1);
+            let curr = frame_state(player, frame);
+            let step_v = diff(curr.vel, prev.vel);
+            max_step_planar_delta = max_step_planar_delta.max(norm2([step_v[0], step_v[1]]));
+            max_step_ang_delta = max_step_ang_delta.max(norm(diff(curr.ang_vel, prev.ang_vel)));
+        }
+        ObservedSpanDiag {
+            ang_delta: norm(delta_ang),
+            ang_axis: dominant_axis(delta_ang),
+            planar_delta: norm2([delta_v[0], delta_v[1]]),
+            vertical_delta: delta_v[2],
+            rotation_angle: crate::fit::rotation_distance_rad(state_k.rot, observed_end.rot),
+            max_step_planar_delta,
+            max_step_ang_delta,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn dominant_axis(v: [f32; 3]) -> &'static str {
+        let x = v[0].abs();
+        let y = v[1].abs();
+        let z = v[2].abs();
+        if x >= y && x >= z {
+            "x"
+        } else if y >= z {
+            "y"
+        } else {
+            "z"
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn stratified_a3_sample<'a>(rows: &[&'a A3MissDiag], limit: usize) -> Vec<&'a A3MissDiag> {
+        let mut by_replay: BTreeMap<&str, Vec<&A3MissDiag>> = BTreeMap::new();
+        for row in rows {
+            by_replay.entry(row.replay.as_str()).or_default().push(*row);
+        }
+        let mut out = Vec::new();
+        while out.len() < limit {
+            let mut progressed = false;
+            for replay_rows in by_replay.values_mut() {
+                if replay_rows.is_empty() {
+                    continue;
+                }
+                out.push(replay_rows.remove(0));
+                progressed = true;
+                if out.len() >= limit {
+                    break;
+                }
+            }
+            if !progressed {
+                break;
+            }
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a3_failure_histogram(label: &str, rows: &[&A3MissDiag]) {
+        let mut counts = BTreeMap::new();
+        for row in rows {
+            for failure in &row.failures {
+                *counts.entry(failure.as_str()).or_insert(0usize) += 1;
+            }
+        }
+        for (failure, count) in counts {
+            println!(
+                "wave_a3_failure_histogram,label={label},failure={failure},count={count},share={:.3}",
+                recall(count, rows.len())
+            );
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a3_table_a(rows: &[&A3MissDiag]) {
+        println!("wave_a3_table_a_begin");
+        println!(
+            "| replay | player | frames | span | observed deltas | truth | failures | reason/winner/tracker | gates |"
+        );
+        println!("| --- | --- | ---: | --- | --- | --- | --- | --- | --- |");
+        for row in rows {
+            println!(
+                "| {} | {} | {}..{} | frames={} span_frames={} held={} ticks={} flags={:?} | |d_ang|={:.3} axis={} planar_dv={:.3} vertical_dv={:.3} rot={:.5} max_step_planar={:.3} max_step_ang={:.3} | {} | {} | reason={} winner={} tracker={} | {} |",
+                row.replay,
+                row.player_id,
+                row.start_frame,
+                row.end_frame,
+                row.end_frame.saturating_sub(row.start_frame),
+                row.span_frames,
+                row.held_frames,
+                row.span_ticks,
+                row.flags,
+                row.observed.ang_delta,
+                row.observed.ang_axis,
+                row.observed.planar_delta,
+                row.observed.vertical_delta,
+                row.observed.rotation_angle,
+                row.observed.max_step_planar_delta,
+                row.observed.max_step_ang_delta,
+                truth_summary(row.truth.as_ref()),
+                row.failures.join(";"),
+                row.reason,
+                row.winner,
+                row.tracker_state,
+                gate_summary(&row.gates)
+            );
+        }
+        println!("wave_a3_table_a_end");
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a3_table_b(rows: &[&A3MissDiag]) {
+        println!("wave_a3_table_b_begin");
+        println!("| replay | player | frames | truth | true candidate? / dominant residual | candidates |");
+        println!("| --- | --- | ---: | --- | --- | --- |");
+        for row in rows {
+            let scored = score_a3_candidates(row);
+            println!(
+                "| {} | {} | {}..{} | {} | {} | {} |",
+                row.replay,
+                row.player_id,
+                row.start_frame,
+                row.end_frame,
+                truth_summary(row.truth.as_ref()),
+                true_candidate_note(row, &scored),
+                scored
+                    .iter()
+                    .map(|item| format!(
+                        "{} E={:.3} dE_null={:.3}",
+                        item.spec, item.energy, item.delta_vs_null
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            );
+        }
+        println!("wave_a3_table_b_end");
+    }
+
+    #[cfg(feature = "sim")]
+    fn truth_summary(truth: Option<&ComponentTruthDiag>) -> String {
+        match truth {
+            Some(truth) => format!(
+                "kind={} frame={} tick_range={:?} dir={} raw_vector={}",
+                truth.kind,
+                truth.frame,
+                truth.tick_range,
+                truth
+                    .dir
+                    .map(|dir| format!("[{:.3},{:.3}]", dir[0], dir[1]))
+                    .unwrap_or_else(|| "none".to_string()),
+                truth
+                    .raw_vector
+                    .map(|v| format!("[{:.3},{:.3},{:.3}]", v[0], v[1], v[2]))
+                    .unwrap_or_else(|| "none".to_string())
+            ),
+            None => "none".to_string(),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn gate_summary(gates: &[GateConjunctDiag]) -> String {
+        gates
+            .iter()
+            .map(|gate| {
+                format!(
+                    "{} threshold=({}) actual=({}) {}",
+                    gate.name,
+                    gate.threshold,
+                    gate.actual,
+                    if gate.passed { "PASS" } else { "FAIL" }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+
+    #[cfg(feature = "sim")]
+    fn score_a3_candidates(row: &A3MissDiag) -> Vec<A3ScoredCandidate> {
+        let mut engine = crate::engine::rocketsim::RocketSimEngine::new();
+        let scored: Vec<_> = row
+            .legal_candidates
+            .iter()
+            .cloned()
+            .map(|candidate| {
+                score_one(
+                    &mut engine,
+                    &row.state_k,
+                    &row.observed_end,
+                    row.ticks,
+                    candidate,
+                    &row.weights,
+                )
+            })
+            .collect();
+        let null_energy = scored
+            .iter()
+            .find(|item| item.candidate.is_null())
+            .map(|item| item.energy)
+            .unwrap_or(f64::NAN);
+        let mut out: Vec<_> = scored
+            .into_iter()
+            .map(|item| A3ScoredCandidate {
+                spec: candidate_spec(&item.candidate),
+                terms: residual_terms(&item.sim_end, &row.observed_end, &row.weights),
+                delta_vs_null: item.energy - null_energy,
+                energy: item.energy,
+                candidate: item.candidate,
+            })
+            .collect();
+        out.sort_by(|a, b| a.energy.total_cmp(&b.energy));
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn true_candidate_note(row: &A3MissDiag, scored: &[A3ScoredCandidate]) -> String {
+        let Some(truth) = row.truth.as_ref() else {
+            return "false; no component truth edge found".to_string();
+        };
+        let Some(null) = scored.iter().find(|item| item.candidate.is_null()) else {
+            return "false; null candidate missing".to_string();
+        };
+        let Some(best_true) = scored
+            .iter()
+            .filter(|item| candidate_matches_truth(&item.candidate, truth))
+            .min_by(|a, b| a.energy.total_cmp(&b.energy))
+        else {
+            return "false; no legal candidate matched kind+dir_dot>=0.95+truth_tick_range"
+                .to_string();
+        };
+        let term_deltas = [
+            ("pos", best_true.terms[0] - null.terms[0]),
+            ("vel", best_true.terms[1] - null.terms[1]),
+            ("rot", best_true.terms[2] - null.terms[2]),
+            ("ang_vel", best_true.terms[3] - null.terms[3]),
+        ];
+        let dominant = term_deltas
+            .into_iter()
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap_or(("unknown", f64::NAN));
+        if best_true.energy < null.energy {
+            format!(
+                "true; raw event beats null by {:.3} but margin {:.3} not cleared; largest residual delta {}={:.3}",
+                null.energy - best_true.energy,
+                row.weights.null_event_accept_margin,
+                dominant.0,
+                dominant.1
+            )
+        } else {
+            format!(
+                "true; true E worse than null by {:.3}; dominated by {}={:.3}",
+                best_true.energy - null.energy,
+                dominant.0,
+                dominant.1
+            )
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn residual_terms(
+        sim_end: &CarPhysState,
+        observed_end: &CarPhysState,
+        weights: &FitWeights,
+    ) -> [f64; 4] {
+        [
+            f64::from(norm(diff(sim_end.pos, observed_end.pos))).powi(2)
+                / f64::from(weights.position_sigma).powi(2),
+            f64::from(norm(diff(sim_end.vel, observed_end.vel))).powi(2)
+                / f64::from(weights.velocity_sigma).powi(2),
+            crate::fit::rotation_distance_rad(sim_end.rot, observed_end.rot).powi(2)
+                / f64::from(weights.rotation_sigma).powi(2),
+            f64::from(norm(diff(sim_end.ang_vel, observed_end.ang_vel))).powi(2)
+                / f64::from(weights.angular_velocity_sigma).powi(2),
+        ]
+    }
+
+    #[cfg(feature = "sim")]
+    fn candidate_matches_truth(candidate: &Candidate, truth: &ComponentTruthDiag) -> bool {
+        candidate.actions.iter().any(|action| {
+            let tick_matches = action.tick_offset >= truth.tick_range.0
+                && action.tick_offset < truth.tick_range.1.max(truth.tick_range.0 + 1);
+            if !tick_matches {
+                return false;
+            }
+            match (action.event, truth.kind, truth.dir) {
+                (CandidateEvent::DoubleJump, "DoubleJump", _) => true,
+                (CandidateEvent::Stall, "Stall", _) => true,
+                (CandidateEvent::Dodge { dir }, "Dodge", Some(truth_dir)) => {
+                    dot2(dir, truth_dir) >= 0.95
+                }
+                (CandidateEvent::Dodge { .. }, "Dodge", None) => true,
+                _ => false,
+            }
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn candidate_spec(candidate: &Candidate) -> String {
+        if candidate.is_null() {
+            return "Null".to_string();
+        }
+        candidate
+            .actions
+            .iter()
+            .map(|action| match action.event {
+                CandidateEvent::JumpPress => format!("JumpPress(tick={})", action.tick_offset),
+                CandidateEvent::JumpRelease => format!("JumpRelease(tick={})", action.tick_offset),
+                CandidateEvent::DoubleJump => format!("DoubleJump(tick={})", action.tick_offset),
+                CandidateEvent::Dodge { dir } => {
+                    format!(
+                        "Dodge(dir=[{:.3},{:.3}],tick={})",
+                        dir[0], dir[1], action.tick_offset
+                    )
+                }
+                CandidateEvent::Stall => format!("Stall(tick={})", action.tick_offset),
+            })
+            .collect::<Vec<_>>()
+            .join("+")
+    }
+
+    #[cfg(feature = "sim")]
+    fn dot2(a: [f32; 2], b: [f32; 2]) -> f32 {
+        a[0] * b[0] + a[1] * b[1]
     }
 
     #[cfg(feature = "sim")]
