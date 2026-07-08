@@ -1,0 +1,58 @@
+{
+  "_comment": "Frozen S1 holdout manifest. Drawn AFTER tuning lock (investigation closed + Wave CAL merged, main c9369dc+). Append-only. These replays were never used during S1 development or tuning.",
+  "schema_version": 1,
+  "frozen_at": "2026-07-08",
+  "method": {
+    "sample": "Python random.Random(seed).sample over lexicographically sorted replays/*.replay excluding all s1_dev_set.json entries; order is PRNG draw order",
+    "seed": 20260708,
+    "candidate_count": 192,
+    "tuning_lock_evidence": "design doc rulings: flip investigation CLOSED + P-CAL confirmed (2026-07-08)"
+  },
+  "holdout": [
+    {
+      "filename": "replays/0DC96542470582E8660CBC99C288D33A.replay"
+    },
+    {
+      "filename": "replays/B8A003104059B66503E86CB28EEED9E9.replay"
+    },
+    {
+      "filename": "replays/0B9AE7F0409E38CB19DA87A802D4AD76.replay"
+    },
+    {
+      "filename": "replays/8D591FF0458F45284ACD43A907ACC999.replay"
+    },
+    {
+      "filename": "replays/10E129144F8212419968D1A14FE690A4.replay"
+    },
+    {
+      "filename": "replays/670152F2433DF0AFA26551B3FD08BA0F.replay"
+    },
+    {
+      "filename": "replays/CB43113B482753E9009E4FA4D3713D4D.replay"
+    },
+    {
+      "filename": "replays/49E6E6E246D9D709D0C8C4B72FE3EB1C.replay"
+    },
+    {
+      "filename": "replays/09F94D67433B9C5E066F1CB67D084086.replay"
+    },
+    {
+      "filename": "replays/DF3996734202BCCEBF1530BE6FC8AB3D.replay"
+    },
+    {
+      "filename": "replays/377715AB4B2CB21CFACBA98CFF4027F5.replay"
+    },
+    {
+      "filename": "replays/F204CC9646BF2CF1FB519E836EFEABCF.replay"
+    },
+    {
+      "filename": "replays/42A301E44446BA1A5BEDD48F4FF22000.replay"
+    },
+    {
+      "filename": "replays/AA52ABE64CE26BBE9E96E7BB731169B2.replay"
+    },
+    {
+      "filename": "replays/CA9032184A94FF69DBC00A99FA6B658B.replay"
+    }
+  ]
+}
