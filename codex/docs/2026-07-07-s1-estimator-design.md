@@ -555,3 +555,18 @@ Evidence: Wave A4 adjacency probe (killed: 10.3% of misses) and Wave A5 three-ca
 - **P-A6a (lookahead):** pooled unseeded flip recall ≥ 0.55 (from 0.370) at margin 256 with hallucinations ≤ 900 and dodge probe 1.000/1.000. If recall lands < 0.45, the lookahead model is wrong — stop, don't tune.
 - **P-A6b (surface contact):** ≥ 60% of the Expired-320 + far-551 miss population becomes candidate-eligible; recall contribution ≥ +0.08; hallucination count grows ≤ 10%.
 - **P-A6c (joint):** if both land, pooled recall ≥ 0.63 — within reach of the 0.647 emission ceiling measured in A4, at which point the remaining gap is OUTSCORED_BY_NULL scoring work, not enumeration.
+
+## Wave B channel-convention ruling (orchestrator, 2026-07-08)
+
+Evidence: Wave B criterion-3 probes (`codex/docs/2026-07-07-s1-wp9-oracle.md`, Wave B section). Facts adopted: strict-blind mask verified on all 4 dev replays; ground throttle mostly correct while air throttle is zeroed in `solve_controls`; air `steer` is zero by construction while `yaw` carries positive correlation; boost output is nontrivial with edge-timing noise.
+
+### Rulings
+
+1. **Single-stick-axis convention (ratified).** Controller steer and yaw are one physical axis; the game routes it by contact state. The estimator emits `steer = yaw` while airborne (and continues emitting `yaw` itself unchanged). The criterion-3 steer metric then scores the stick axis everywhere it is kinematically observable.
+2. **Unobservability is not zero (ratified).** Air throttle has no kinematic effect; emitting `0.0` with full confidence is dishonest certainty. The solver emits no-value/held-prior with low confidence for kinematically unobservable channel-frames, and the criterion-3 throttle-sign denominator is restricted to observable frames (ground contact). Observable-coverage is reported alongside so the restriction can't hide a coverage collapse.
+3. **Boost edge smoothing (fix wave).** Stateful boost tracking (min-duration/hysteresis) before edge scoring — solver-side, lands in the post-A6 channels fix wave with before/after F1 at exact and ±2f diagnostic tolerance.
+
+### Pre-registered predictions
+
+- **P-B1:** steer=yaw in air lifts criterion-3 steer ±0.15 from 0.515 to ≥ 0.70 (if it lands < 0.60 the yaw estimate itself is too weak and needs its own diagnosis).
+- **P-B2:** observable-frames throttle sign ≥ 0.85 with observable coverage ≥ 0.55 of scoring frames (ground share); if sign stays ≈ 0.5 on ground-only frames, the throttle channel has a real solver defect beyond air zeroing.
