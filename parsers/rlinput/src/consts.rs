@@ -101,3 +101,36 @@ pub const FIT_SIGMA_ANG_VEL_MEASURED: f32 = 0.020_347;
 // reference re-score. Selected margin 256.0: quiet hallucinations 2456→1923
 // versus margin 0, with one coalesced known-flip retention loss (1119→1118).
 pub const FIT_NULL_EVENT_ACCEPT_MARGIN: f32 = 256.0;
+
+// Confidence calibration maps fitted once from the regenerated dev-set oracle:
+// `RLINPUT_DEV_SERIES_DIR=/tmp/rlinput-dev-series-wp6b cargo test -p rlinput exported_dev_set_oracle_report -- --ignored --nocapture`
+// captured as `/tmp/rlcoach-waveCAL-oracle-before.out` on 2026-07-08.
+// Inputs are raw solver confidences; outputs are isotonic empirical agreement
+// by confidence family. The solver applies these as step functions at the upper
+// raw-confidence bound of each fitted block; explicit empty segments bypass the
+// map and remain zero.
+//
+// High-accuracy family: boost_active + handbrake + throttle_sign bins.
+pub const CONFIDENCE_CALIBRATION_HIGH_ACCURACY: [(f32, f32); 3] = [
+    (0.300_105, 0.834_025),
+    (0.848_114, 0.879_783),
+    (1.0, 0.951_819),
+];
+
+// Steer absolute-error family (`|steer_pred - steer_truth| <= 0.15`).
+pub const CONFIDENCE_CALIBRATION_STEER: [(f32, f32); 4] = [
+    (0.046_334, 0.397_668),
+    (0.120_356, 0.408_149),
+    (0.440_419, 0.492_289),
+    (1.0, 0.773_189),
+];
+
+// Joint confidence family for segment/event confidence and channels without a
+// channel-specific oracle curve: pooled high-accuracy + steer bins.
+pub const CONFIDENCE_CALIBRATION_JOINT: [(f32, f32); 5] = [
+    (0.120_356, 0.695_680),
+    (0.210_441, 0.738_968),
+    (0.440_419, 0.763_908),
+    (0.848_114, 0.833_333),
+    (1.0, 0.898_918),
+];
