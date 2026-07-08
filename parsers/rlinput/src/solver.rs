@@ -453,7 +453,6 @@ fn solve_player(
     }
 
     hold_unobservable_air_throttle(&mut samples);
-    smooth_solved_boost_samples(&mut samples);
 
     PlayerSolved {
         player_id: player.player_id.clone(),
@@ -1533,29 +1532,6 @@ fn hold_unobservable_air_throttle(samples: &mut [InputSample]) {
     }
 }
 
-fn smooth_solved_boost_samples(samples: &mut [InputSample]) {
-    let min_ticks = (crate::consts::BOOST_MIN_TIME * 120.0).round() as u64;
-    let mut force_until = None;
-    for sample in samples {
-        if sample.boost.source == Source::Replicated {
-            force_until = None;
-            continue;
-        }
-
-        let tick = sample.tick_range.0;
-        if sample.boost.value {
-            let until = tick.saturating_add(min_ticks);
-            force_until = Some(force_until.map_or(until, |old: u64| old.max(until)));
-        } else if force_until.is_some_and(|until| tick < until) {
-            sample.boost.value = true;
-            sample.boost.confidence = sample.boost.confidence.min(0.55);
-            sample.boost.flags |= AmbiguityFlags::LOW_MARGIN;
-        } else {
-            force_until = None;
-        }
-    }
-}
-
 fn events_from_candidate(
     candidate: &Candidate,
     interval: &LatticeInterval,
@@ -2215,43 +2191,6 @@ mod tests {
         assert_eq!(channel.value, 0.0);
         assert!(channel.confidence <= AIR_THROTTLE_HELD_CONFIDENCE);
         assert!(channel.flags.contains(AmbiguityFlags::LOW_MARGIN));
-    }
-
-    #[test]
-    fn boost_smoothing_extends_solved_taps_to_min_duration() {
-        fn sample(tick: u64, boost: bool) -> InputSample {
-            InputSample {
-                frame_index: (tick / 4) as u32,
-                tick_range: (tick, tick + 4),
-                time_range: (tick as f64 / 120.0, (tick + 4) as f64 / 120.0),
-                throttle: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
-                steer: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
-                pitch: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
-                yaw: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
-                roll: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
-                jump: bool_channel(false, Source::Solved, 1.0, AmbiguityFlags::empty()),
-                boost: bool_channel(boost, Source::Solved, 1.0, AmbiguityFlags::empty()),
-                handbrake: bool_channel(false, Source::Solved, 1.0, AmbiguityFlags::empty()),
-            }
-        }
-
-        let mut samples = vec![
-            sample(0, true),
-            sample(4, false),
-            sample(8, false),
-            sample(12, false),
-        ];
-        smooth_solved_boost_samples(&mut samples);
-
-        assert_eq!(
-            samples
-                .iter()
-                .map(|sample| sample.boost.value)
-                .collect::<Vec<_>>(),
-            vec![true, true, true, false]
-        );
-        assert!(samples[1].boost.flags.contains(AmbiguityFlags::LOW_MARGIN));
-        assert!(samples[2].boost.flags.contains(AmbiguityFlags::LOW_MARGIN));
     }
 
     #[test]
