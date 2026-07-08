@@ -539,3 +539,19 @@ First full oracle readout (dev set, tuning-visible; `codex/docs/2026-07-07-s1-wp
 Sub-tick δ modeling (WP6c residual phase structure, σ_pos 36 uu) remains DEFERRED; revisit at the post-Wave-A oracle re-run.
 
 Pre-registered predictions (falsifiable, same discipline as the WP6b ruling): (P1) liftoff-implied presses lift jump edge F1 from 0.059 to ≥ 0.8; (P2) candidate-gen + outscoring fixes lift flip recall from 0.37 to ≥ 0.8 without hallucinations growing (trade curve required in the report); (P3) the hallucination audit finds concentration near surfaces/other cars. Failures of these predictions are design information, not lane failures.
+
+## Wave A5 synthesis ruling (orchestrator, 2026-07-08)
+
+Evidence: Wave A4 adjacency probe (killed: 10.3% of misses) and Wave A5 three-cause forensic (`codex/docs/2026-07-07-s1-waveA.md`). Facts adopted: (a) 1573/1784 scoped misses show the angular-velocity effect +1..+8 frames after the component edge, concentrated +1..+3, all on FRESH anchors — held-run blindness falsified; only 144 effect-intervals produced any solved flip. (b) `second_available` failures are dominated by `Expired` window state (320/481); hallucinated-prior cascades are marginal (35). (c) `segment_is_air` failures sit at surface margin p50 ≈ −23 uu, far from any raw liftoff (551/615).
+
+### Rulings
+
+1. **Event-time convention (ratified).** The component edge frame remains the truth key for all rulers; solver events keep kinematic placement; NO re-timing of emitted events. Flip matching stays exact coalesced-key as the PRIMARY metric (A4 killed the tolerance story); ±1-interval is retained as a diagnostic column only. Press matching convention is ratified as coalesced key with ±2-frame tolerance (per Wave A2 mechanics argument).
+2. **Lookahead evidence horizon (Wave A6 work).** The lag population is an evidence-locality problem: a flip onset near an interval terminator has ~no in-interval evidence; its kinematic signature lands in the next 1–3 fresh anchors. Candidate enumeration and scoring for interval N may draw evidence from a bounded lookahead of up to 3 subsequent consecutive-fresh anchors (flag-stamped on the interval; no change to truth keys or event placement). A plain frame-shift of candidate anchors is KNOWN BAD (A5 attempt: recall 0.370→0.309, reverted).
+3. **Surface-contact mechanics (Wave A6 work).** The Expired + far-from-liftoff populations are unmodeled game mechanics, not bugs: flip resets (four-wheel surface contact restores the second action) and wavedashes (dodge at/near surface contact). Tracker gains a contact-driven second-action restore; dodge candidates become legal in a narrow surface-contact window (|surface margin| ≤ threshold with contact geometry), NOT a broad Ground allowance (would fight the A4 air-only hallucination guard).
+
+### Pre-registered predictions
+
+- **P-A6a (lookahead):** pooled unseeded flip recall ≥ 0.55 (from 0.370) at margin 256 with hallucinations ≤ 900 and dodge probe 1.000/1.000. If recall lands < 0.45, the lookahead model is wrong — stop, don't tune.
+- **P-A6b (surface contact):** ≥ 60% of the Expired-320 + far-551 miss population becomes candidate-eligible; recall contribution ≥ +0.08; hallucination count grows ≤ 10%.
+- **P-A6c (joint):** if both land, pooled recall ≥ 0.63 — within reach of the 0.647 emission ceiling measured in A4, at which point the remaining gap is OUTSCORED_BY_NULL scoring work, not enumeration.
