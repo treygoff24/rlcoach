@@ -40,6 +40,7 @@ const RETRO_CAR_PROXIMITY_UU: f32 = 500.0;
 const LONG_GAP_CONFIDENCE_CAP: f32 = 0.5;
 const HYPOTHESIS_CAP: usize = 256;
 const LIFTOFF_PRESS_BOUNDARY_LOOKBACK_FRAMES: u32 = 6;
+const AIR_THROTTLE_HELD_CONFIDENCE: f32 = 0.05;
 #[cfg(feature = "sim")]
 const REFERENCE_SURVIVORS: usize = 2;
 
@@ -450,6 +451,9 @@ fn solve_player(
             segment_confidence,
         );
     }
+
+    hold_unobservable_air_throttle(&mut samples);
+    smooth_solved_boost_samples(&mut samples);
 
     PlayerSolved {
         player_id: player.player_id.clone(),
@@ -1300,24 +1304,6 @@ fn solve_controls(
         .unwrap_or(0.0)
     };
 
-    let steer = if grounded {
-        solve_steer(SteerObservation {
-            speed_2d: norm2([start.vel[0], start.vel[1]]),
-            yaw_rate_z: start.ang_vel[2],
-        })
-        .value
-    } else {
-        0.0
-    };
-    let handbrake = grounded
-        && solve_handbrake(HandbrakeObservation {
-            velocity_2d: [start.vel[0], start.vel[1]],
-            forward_2d: [forward[0], forward[1]],
-            yaw_rate_z: start.ang_vel[2],
-            steer,
-        })
-        .value;
-
     let flip = match &tracker.second {
         SecondAction::UsedDodge(phase) => Some(phase),
         _ => None,
@@ -1369,6 +1355,23 @@ fn solve_controls(
         )
         .value
     };
+    let steer = if grounded {
+        solve_steer(SteerObservation {
+            speed_2d: norm2([start.vel[0], start.vel[1]]),
+            yaw_rate_z: start.ang_vel[2],
+        })
+        .value
+    } else {
+        yaw
+    };
+    let handbrake = grounded
+        && solve_handbrake(HandbrakeObservation {
+            velocity_2d: [start.vel[0], start.vel[1]],
+            forward_2d: [forward[0], forward[1]],
+            yaw_rate_z: start.ang_vel[2],
+            steer,
+        })
+        .value;
     let boost = solve_boost(BoostObservation {
         tick: interval.tick_range.0,
         dt: dt as f32,
@@ -1408,6 +1411,24 @@ fn sample_from_candidate(
     let controls = best.candidate.controls.first().copied().unwrap_or_default();
     let confidence = best.confidence;
     let flags = best.flags;
+    let grounded = player
+        .frames
+        .on_ground
+        .get(start_frame as usize)
+        .copied()
+        .unwrap_or(false);
+    let throttle = throttle_channel(
+        player
+            .replicated
+            .throttle_raw
+            .get(start_frame as usize)
+            .copied(),
+        controls.throttle,
+        grounded,
+        confidence,
+        flags,
+        config,
+    );
     InputSample {
         frame_index: end_frame,
         tick_range: interval.tick_range,
@@ -1415,21 +1436,7 @@ fn sample_from_candidate(
             segment_base_time + interval.time_range.0,
             segment_base_time + interval.time_range.1,
         ),
-        throttle: f32_channel(
-            replicated_axis(
-                player
-                    .replicated
-                    .throttle_raw
-                    .get(start_frame as usize)
-                    .copied(),
-                config.mode == Mode::Seeded
-                    && !config.withhold.contains(WithheldChannels::THROTTLE),
-            )
-            .unwrap_or(controls.throttle),
-            source_for_replicated(config, WithheldChannels::THROTTLE),
-            confidence,
-            flags,
-        ),
+        throttle,
         steer: f32_channel(
             replicated_axis(
                 player
@@ -1483,6 +1490,69 @@ fn sample_from_candidate(
             confidence,
             flags,
         ),
+    }
+}
+
+fn throttle_channel(
+    raw: Option<u8>,
+    solved: f32,
+    grounded: bool,
+    confidence: f32,
+    flags: AmbiguityFlags,
+    config: &EstimatorConfig,
+) -> Channel<f32> {
+    if let Some(value) = replicated_axis(
+        raw,
+        config.mode == Mode::Seeded && !config.withhold.contains(WithheldChannels::THROTTLE),
+    ) {
+        return f32_channel(value, Source::Replicated, confidence, flags);
+    }
+
+    if grounded {
+        f32_channel(solved, Source::Solved, confidence, flags)
+    } else {
+        f32_channel(
+            solved,
+            Source::Inferred,
+            confidence.min(AIR_THROTTLE_HELD_CONFIDENCE),
+            flags | AmbiguityFlags::LOW_MARGIN,
+        )
+    }
+}
+
+fn hold_unobservable_air_throttle(samples: &mut [InputSample]) {
+    let mut held = 0.0;
+    for sample in samples {
+        if sample.throttle.source == Source::Inferred
+            && sample.throttle.confidence <= AIR_THROTTLE_HELD_CONFIDENCE
+        {
+            sample.throttle.value = held;
+        } else {
+            held = sample.throttle.value;
+        }
+    }
+}
+
+fn smooth_solved_boost_samples(samples: &mut [InputSample]) {
+    let min_ticks = (crate::consts::BOOST_MIN_TIME * 120.0).round() as u64;
+    let mut force_until = None;
+    for sample in samples {
+        if sample.boost.source == Source::Replicated {
+            force_until = None;
+            continue;
+        }
+
+        let tick = sample.tick_range.0;
+        if sample.boost.value {
+            let until = tick.saturating_add(min_ticks);
+            force_until = Some(force_until.map_or(until, |old: u64| old.max(until)));
+        } else if force_until.is_some_and(|until| tick < until) {
+            sample.boost.value = true;
+            sample.boost.confidence = sample.boost.confidence.min(0.55);
+            sample.boost.flags |= AmbiguityFlags::LOW_MARGIN;
+        } else {
+            force_until = None;
+        }
     }
 }
 
@@ -2130,6 +2200,58 @@ mod tests {
         assert_eq!(intervals[1].start_frame, 1);
         assert_eq!(intervals[1].interval.frame_index, 3);
         assert_eq!(intervals[1].interval.tick_range, (4, 12));
+    }
+
+    #[test]
+    fn unseeded_air_throttle_is_inferred_low_confidence() {
+        let config = EstimatorConfig {
+            mode: Mode::Unseeded,
+            ..default_estimator_config()
+        };
+        let channel =
+            throttle_channel(Some(255), 0.0, false, 0.9, AmbiguityFlags::empty(), &config);
+
+        assert_eq!(channel.source, Source::Inferred);
+        assert_eq!(channel.value, 0.0);
+        assert!(channel.confidence <= AIR_THROTTLE_HELD_CONFIDENCE);
+        assert!(channel.flags.contains(AmbiguityFlags::LOW_MARGIN));
+    }
+
+    #[test]
+    fn boost_smoothing_extends_solved_taps_to_min_duration() {
+        fn sample(tick: u64, boost: bool) -> InputSample {
+            InputSample {
+                frame_index: (tick / 4) as u32,
+                tick_range: (tick, tick + 4),
+                time_range: (tick as f64 / 120.0, (tick + 4) as f64 / 120.0),
+                throttle: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
+                steer: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
+                pitch: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
+                yaw: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
+                roll: f32_channel(0.0, Source::Solved, 1.0, AmbiguityFlags::empty()),
+                jump: bool_channel(false, Source::Solved, 1.0, AmbiguityFlags::empty()),
+                boost: bool_channel(boost, Source::Solved, 1.0, AmbiguityFlags::empty()),
+                handbrake: bool_channel(false, Source::Solved, 1.0, AmbiguityFlags::empty()),
+            }
+        }
+
+        let mut samples = vec![
+            sample(0, true),
+            sample(4, false),
+            sample(8, false),
+            sample(12, false),
+        ];
+        smooth_solved_boost_samples(&mut samples);
+
+        assert_eq!(
+            samples
+                .iter()
+                .map(|sample| sample.boost.value)
+                .collect::<Vec<_>>(),
+            vec![true, true, true, false]
+        );
+        assert!(samples[1].boost.flags.contains(AmbiguityFlags::LOW_MARGIN));
+        assert!(samples[2].boost.flags.contains(AmbiguityFlags::LOW_MARGIN));
     }
 
     #[test]

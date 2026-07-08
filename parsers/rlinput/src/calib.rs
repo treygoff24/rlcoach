@@ -524,6 +524,9 @@ fn throttle_sign(
     for (player, timeline) in joined_players(series, output) {
         for sample in &timeline.samples {
             let idx = sample_start_frame(series, sample).unwrap_or(sample.frame_index) as usize;
+            if !player.frames.on_ground.get(idx).copied().unwrap_or(false) {
+                continue;
+            }
             let Some(raw) = player.replicated.throttle_raw.get(idx).copied() else {
                 continue;
             };
@@ -985,6 +988,7 @@ mod tests {
         );
 
         for (label, by_scope) in throttle {
+            let all_den = by_scope[0].den;
             for (scope, stats) in ["all", "ground", "air"].into_iter().zip(by_scope) {
                 println!(
                     "criterion3_throttle,replay={},metric={},scope={},coverage={}/{},score={:.4},den={},r={:.4},pred_hist={},truth_hist={},confusion={}",
@@ -992,7 +996,7 @@ mod tests {
                     label,
                     scope,
                     stats.den,
-                    stats.den,
+                    all_den,
                     stats.share(),
                     stats.den,
                     pearson(&stats.pairs),
