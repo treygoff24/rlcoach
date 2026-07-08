@@ -1829,6 +1829,8 @@ mod tests {
         engine::{TickEvent, TickEventKind},
         model::{BallSeries, ComponentEventIn, Kinematics, ReplicatedChannels},
     };
+    #[cfg(feature = "sim")]
+    use std::collections::{BTreeMap, BTreeSet};
 
     #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
@@ -2267,6 +2269,136 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wp7c_unseeded_flip_taxonomy() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "WP7c must run on all 10 dev replays");
+
+        let mut pooled = Wp7cReplaySummary::default();
+        let mut pooled_misses: BTreeMap<MissClass, usize> = BTreeMap::new();
+        let mut pooled_hallucinations: Vec<HallucinationDiag> = Vec::new();
+        let mut pooled_coverage: BTreeMap<&'static str, usize> = BTreeMap::new();
+
+        for (replay_name, series) in replays {
+            let report = wp7c_replay_report(&replay_name, &series);
+            pooled.add(&report.summary);
+            for miss in &report.misses {
+                *pooled_misses.entry(miss.class).or_default() += 1;
+            }
+            for hallucination in &report.hallucinations {
+                *pooled_coverage
+                    .entry(hallucination.coverage_label)
+                    .or_default() += 1;
+            }
+            pooled_hallucinations.extend(report.hallucinations.iter().cloned());
+
+            println!(
+                "wp7c_replay_summary,replay={},known_flips={},hits={},misses={},miss_recall={:.3},no_candidate={},illegal={},outscored_by_null={},outscored_by_event={},unscored={},press_known={},press_hits={},press_recall={:.3},hallucinations={}",
+                report.replay,
+                report.summary.known_flips,
+                report.summary.flip_hits,
+                report.summary.flip_misses,
+                recall(report.summary.flip_hits, report.summary.known_flips),
+                report.count_misses(MissClass::NoCandidate),
+                report.count_misses(MissClass::Illegal),
+                report.count_misses(MissClass::OutscoredByNull),
+                report.count_misses(MissClass::OutscoredByEvent),
+                report.count_misses(MissClass::Unscored),
+                report.summary.press_known,
+                report.summary.press_hits,
+                recall(report.summary.press_hits, report.summary.press_known),
+                report.hallucinations.len(),
+            );
+            print_hallucination_summary(&report.replay, &report.hallucinations);
+            for miss in &report.misses {
+                println!(
+                    "wp7c_miss_detail,replay={},player={},frames={}..{},span_frames={},span_ticks={},held_frames={},class={},reason={},winner={},margin={:.3},truth_press_window={},unseeded_press_window={},wrong_veto={},flags={:?},tracker={}",
+                    report.replay,
+                    miss.player_id,
+                    miss.start_frame,
+                    miss.end_frame,
+                    miss.span_frames,
+                    miss.span_ticks,
+                    miss.held_frames,
+                    miss.class.as_str(),
+                    miss.reason,
+                    miss.winner,
+                    miss.margin.unwrap_or(f64::NAN),
+                    miss.truth_press_in_window,
+                    miss.unseeded_press_in_window,
+                    miss.wrong_veto,
+                    miss.flags,
+                    miss.tracker_state,
+                );
+            }
+            for hallucination in report.hallucinations.iter().take(50) {
+                println!(
+                    "wp7c_hallucination_sample,replay={},player={},frames={}..{},coverage={},dodge_vectors={},jump_edges={},dodge_edges={},double_jump_edges={},margin={:.3},planar_delta={:.3},vertical_delta={:.3},ang_delta={:.3},car_proximity={},flags={:?}",
+                    report.replay,
+                    hallucination.player_id,
+                    hallucination.start_frame,
+                    hallucination.end_frame,
+                    hallucination.coverage_label,
+                    hallucination.dodge_vector_events,
+                    hallucination.jump_edges,
+                    hallucination.dodge_edges,
+                    hallucination.double_jump_edges,
+                    hallucination.margin,
+                    hallucination.planar_delta,
+                    hallucination.vertical_delta,
+                    hallucination.ang_delta,
+                    hallucination.car_proximity,
+                    hallucination.flags,
+                );
+            }
+        }
+
+        println!(
+            "wp7c_pooled_miss_taxonomy,known_flips={},hits={},misses={},miss_recall={:.3},no_candidate={},illegal={},outscored_by_null={},outscored_by_event={},unscored={}",
+            pooled.known_flips,
+            pooled.flip_hits,
+            pooled.flip_misses,
+            recall(pooled.flip_hits, pooled.known_flips),
+            pooled_misses
+                .get(&MissClass::NoCandidate)
+                .copied()
+                .unwrap_or_default(),
+            pooled_misses
+                .get(&MissClass::Illegal)
+                .copied()
+                .unwrap_or_default(),
+            pooled_misses
+                .get(&MissClass::OutscoredByNull)
+                .copied()
+                .unwrap_or_default(),
+            pooled_misses
+                .get(&MissClass::OutscoredByEvent)
+                .copied()
+                .unwrap_or_default(),
+            pooled_misses
+                .get(&MissClass::Unscored)
+                .copied()
+                .unwrap_or_default(),
+        );
+        println!(
+            "wp7c_pooled_press_recall,known={},hits={},recall={:.3}",
+            pooled.press_known,
+            pooled.press_hits,
+            recall(pooled.press_hits, pooled.press_known),
+        );
+        print_hallucination_summary("POOLED", &pooled_hallucinations);
+        for (coverage, count) in pooled_coverage {
+            println!(
+                "wp7c_pooled_hallucination_coverage,coverage={coverage},count={count},share={:.3}",
+                recall(count, pooled_hallucinations.len()),
+            );
+        }
+    }
+
     fn quiet_series(frames: usize) -> ReplaySeries {
         let mut states = Vec::new();
         let mut state = base_state(true);
@@ -2462,6 +2594,1019 @@ mod tests {
         ang_delta: f32,
         segment_frac: f32,
         after_prior: bool,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct Wp7cReport {
+        replay: String,
+        summary: Wp7cReplaySummary,
+        misses: Vec<MissDiag>,
+        hallucinations: Vec<HallucinationDiag>,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct Wp7cReplaySummary {
+        known_flips: usize,
+        flip_hits: usize,
+        flip_misses: usize,
+        press_known: usize,
+        press_hits: usize,
+    }
+
+    #[cfg(feature = "sim")]
+    impl Wp7cReplaySummary {
+        fn add(&mut self, other: &Self) {
+            self.known_flips += other.known_flips;
+            self.flip_hits += other.flip_hits;
+            self.flip_misses += other.flip_misses;
+            self.press_known += other.press_known;
+            self.press_hits += other.press_hits;
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum MissClass {
+        NoCandidate,
+        Illegal,
+        OutscoredByNull,
+        OutscoredByEvent,
+        Unscored,
+    }
+
+    #[cfg(feature = "sim")]
+    impl MissClass {
+        fn as_str(self) -> &'static str {
+            match self {
+                MissClass::NoCandidate => "NO_CANDIDATE",
+                MissClass::Illegal => "ILLEGAL",
+                MissClass::OutscoredByNull => "OUTSCORED_BY_NULL",
+                MissClass::OutscoredByEvent => "OUTSCORED_BY_EVENT",
+                MissClass::Unscored => "UNSCORED",
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct ComponentTarget {
+        start_frame: u32,
+        end_frame: u32,
+        flags: AmbiguityFlags,
+        held_frames: usize,
+        span_frames: u32,
+        span_ticks: u64,
+        reached_scoring: bool,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct MissDiag {
+        player_id: String,
+        start_frame: u32,
+        end_frame: u32,
+        span_frames: u32,
+        span_ticks: u64,
+        held_frames: usize,
+        class: MissClass,
+        reason: String,
+        winner: &'static str,
+        margin: Option<f64>,
+        truth_press_in_window: bool,
+        unseeded_press_in_window: bool,
+        wrong_veto: bool,
+        flags: AmbiguityFlags,
+        tracker_state: String,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct HallucinationDiag {
+        player_id: String,
+        start_frame: u32,
+        end_frame: u32,
+        coverage_label: &'static str,
+        dodge_vector_events: usize,
+        jump_edges: usize,
+        dodge_edges: usize,
+        double_jump_edges: usize,
+        margin: f64,
+        planar_delta: f32,
+        vertical_delta: f32,
+        ang_delta: f32,
+        car_proximity: bool,
+        flags: AmbiguityFlags,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct ComponentCoverage {
+        dodge_vector_events: usize,
+        jump_edges: usize,
+        dodge_edges: usize,
+        double_jump_edges: usize,
+    }
+
+    #[cfg(feature = "sim")]
+    impl ComponentCoverage {
+        fn label(&self) -> &'static str {
+            match (self.dodge_vector_events > 0, self.jump_edges > 0) {
+                (true, true) => "full_component_stream",
+                (false, true) => "no_dodge_vectors",
+                (true, false) => "no_jump_edges",
+                (false, false) => "absent_flip_and_jump",
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct CandidateGenerationDiag {
+        null_fast_path: bool,
+        kinematic_events: Vec<CandidateEvent>,
+        raw_candidates: Vec<Candidate>,
+        legal_candidates: Vec<Candidate>,
+    }
+
+    #[cfg(feature = "sim")]
+    fn read_dev_series(dir: &str) -> Vec<(String, ReplaySeries)> {
+        let mut paths: Vec<_> = std::fs::read_dir(dir)
+            .expect("dev series dir should read")
+            .map(|entry| entry.expect("entry should read").path())
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("json"))
+            .collect();
+        paths.sort();
+        paths
+            .into_iter()
+            .map(|path| {
+                let replay = path
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .expect("json filename should be utf8")
+                    .to_string();
+                let file = std::fs::File::open(&path).expect("fixture should open");
+                let series = serde_json::from_reader(file).expect("fixture should parse");
+                (replay, series)
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn wp7c_replay_report(replay: &str, series: &ReplaySeries) -> Wp7cReport {
+        let known_flips = coalesced_component_targets(series, is_component_flip_edge, false);
+        let known_presses =
+            coalesced_component_targets(series, is_component_jump_press_edge, false);
+        let component_press_frames = component_jump_press_frames(series);
+        let component_coverage = component_coverage_by_player(series);
+
+        let mut config = default_estimator_config();
+        config.mode = Mode::Unseeded;
+        config.engine = EnginePreference::PreferReference;
+        let masked = masked_series_for_solving(series, &config);
+        let first = solve_pass(&masked, &config, &[], true);
+        let retro_splits = first.retro_splits.clone();
+        let output = if retro_splits.is_empty() {
+            first.output
+        } else {
+            solve_pass(&masked, &config, &retro_splits, false).output
+        };
+        let solved_flips = solved_flip_intervals(&output);
+        let solved_jump_presses =
+            solved_event_frame_sets(&output, |kind| matches!(kind, SolvedEventKind::JumpPress));
+
+        let summary = Wp7cReplaySummary {
+            known_flips: known_flips.len(),
+            flip_hits: known_flips
+                .keys()
+                .filter(|key| solved_flips.contains(*key))
+                .count(),
+            flip_misses: known_flips
+                .keys()
+                .filter(|key| !solved_flips.contains(*key))
+                .count(),
+            press_known: known_presses.len(),
+            press_hits: known_presses
+                .keys()
+                .filter(|key| solved_jump_presses.contains_key(*key))
+                .count(),
+        };
+
+        let (mut misses, hallucinations) = wp7c_interval_diagnostics(
+            series,
+            &masked,
+            &config,
+            &retro_splits,
+            &known_flips,
+            &solved_flips,
+            &solved_jump_presses,
+            &component_press_frames,
+            &component_coverage,
+        );
+        let seen_misses: BTreeSet<_> = misses
+            .iter()
+            .map(|miss| (miss.player_id.clone(), miss.end_frame))
+            .collect();
+        for ((player_id, end_frame), target) in &known_flips {
+            if solved_flips.contains(&(player_id.clone(), *end_frame))
+                || seen_misses.contains(&(player_id.clone(), *end_frame))
+            {
+                continue;
+            }
+            misses.push(unscored_miss(
+                player_id,
+                target,
+                &component_press_frames,
+                &solved_jump_presses,
+            ));
+        }
+
+        Wp7cReport {
+            replay: replay.to_string(),
+            summary,
+            misses,
+            hallucinations,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    impl Wp7cReport {
+        fn count_misses(&self, class: MissClass) -> usize {
+            self.misses
+                .iter()
+                .filter(|miss| miss.class == class)
+                .count()
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[allow(clippy::too_many_arguments)]
+    fn wp7c_interval_diagnostics(
+        original: &ReplaySeries,
+        masked: &ReplaySeries,
+        config: &EstimatorConfig,
+        retro_splits: &[RetroactiveSplit],
+        known_flips: &BTreeMap<(String, u32), ComponentTarget>,
+        solved_flips: &HashSet<(String, u32)>,
+        solved_jump_presses: &BTreeMap<(String, u32), ()>,
+        component_press_frames: &BTreeMap<String, BTreeSet<u32>>,
+        coverage: &BTreeMap<String, ComponentCoverage>,
+    ) -> (Vec<MissDiag>, Vec<HallucinationDiag>) {
+        let segmentation = segment_replay_with_splits_and_confidences(
+            masked,
+            retro_splits,
+            CONFIDENT_SEGMENT_THRESHOLD,
+            |_player_id, _segment| None,
+        );
+        let mut misses = Vec::new();
+        let mut hallucinations = Vec::new();
+
+        for segmented_player in &segmentation.players {
+            let Some(player_index) = masked
+                .players
+                .iter()
+                .position(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let player = &masked.players[player_index];
+            let original_player = &original.players[player_index];
+            let hints = SeededHints::new(&player.component);
+            let mut reference = ReferenceScorer::new();
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+            }
+
+            for segment in &segmented_player.segments {
+                let tracker = tracker_for_segment(player, segment, masked.tick_rate);
+                let mut branching = BranchingTracker::new(tracker.clone());
+                for scoring in fresh_scoring_intervals(segment, &freshness) {
+                    let start_frame = scoring.start_frame;
+                    let interval = &scoring.interval;
+                    let end_frame = interval.frame_index;
+                    let key = (player.player_id.clone(), end_frame);
+                    if frame_out_of_bounds(player, start_frame)
+                        || frame_out_of_bounds(player, end_frame)
+                    {
+                        continue;
+                    }
+                    let interval_tracker = branching.best_tracker().clone();
+                    let ticks = interval_ticks(interval);
+                    let state_k = car_state(player, start_frame, &interval_tracker);
+                    let observed_end = car_state(player, end_frame, &interval_tracker);
+                    let base_controls = solve_controls(
+                        player,
+                        start_frame,
+                        end_frame,
+                        interval,
+                        &interval_tracker,
+                        config,
+                    );
+                    let seeded_edges = hints.edges_for_interval(
+                        segment,
+                        start_frame,
+                        end_frame,
+                        interval.tick_range.0,
+                    );
+                    let generation = generate_candidates_for_wp7c_diag(
+                        &state_k,
+                        &observed_end,
+                        &interval_tracker,
+                        interval,
+                        base_controls,
+                        seeded_edges,
+                        config,
+                        segment.kind,
+                    );
+                    let (mut scored, _portable_best, _reference_best) = score_candidates_for_diag(
+                        &state_k,
+                        &observed_end,
+                        ticks,
+                        &generation.legal_candidates,
+                        config,
+                        &mut reference,
+                    );
+                    if scored.is_empty() {
+                        scored.push(score_one(
+                            &mut PortableEngine::new(),
+                            &state_k,
+                            &observed_end,
+                            ticks,
+                            Candidate::null(
+                                vec![Controls::default(); ticks as usize],
+                                interval.flags,
+                            ),
+                            &config.fit,
+                        ));
+                    }
+                    prefer_event_when_null_is_rejected(&mut scored, &config.fit);
+                    prefer_long_gap_stall_z_damp(&mut scored, interval, &observed_end);
+
+                    if let Some(target) = known_flips.get(&key) {
+                        if !solved_flips.contains(&key) {
+                            misses.push(classify_miss(
+                                player,
+                                target,
+                                &generation,
+                                &scored,
+                                &interval_tracker,
+                                component_press_frames,
+                                solved_jump_presses,
+                            ));
+                        }
+                    } else if solved_flips.contains(&key)
+                        && scored
+                            .first()
+                            .is_some_and(|item| candidate_has_flip(&item.candidate))
+                    {
+                        let null_energy = scored
+                            .iter()
+                            .find(|item| item.candidate.is_null())
+                            .map(|item| item.energy)
+                            .unwrap_or(f64::NAN);
+                        let best_flip = scored
+                            .iter()
+                            .filter(|item| candidate_has_flip(&item.candidate))
+                            .min_by(|a, b| a.energy.total_cmp(&b.energy));
+                        if let (Some(best_flip), Some(player_coverage)) =
+                            (best_flip, coverage.get(&original_player.player_id))
+                        {
+                            let delta_v = diff(observed_end.vel, state_k.vel);
+                            hallucinations.push(HallucinationDiag {
+                                player_id: player.player_id.clone(),
+                                start_frame,
+                                end_frame,
+                                coverage_label: player_coverage.label(),
+                                dodge_vector_events: player_coverage.dodge_vector_events,
+                                jump_edges: player_coverage.jump_edges,
+                                dodge_edges: player_coverage.dodge_edges,
+                                double_jump_edges: player_coverage.double_jump_edges,
+                                margin: null_energy - best_flip.energy,
+                                planar_delta: norm2([delta_v[0], delta_v[1]]),
+                                vertical_delta: delta_v[2],
+                                ang_delta: norm(diff(observed_end.ang_vel, state_k.ang_vel)),
+                                car_proximity: best_flip.flags.intersects(
+                                    AmbiguityFlags::CAR_PROXIMITY
+                                        | AmbiguityFlags::COLLISION_SUSPECTED,
+                                ),
+                                flags: best_flip.flags,
+                            });
+                        }
+                    }
+
+                    let branch_width =
+                        if scored.first().is_some_and(|item| item.candidate.is_null()) {
+                            1
+                        } else {
+                            BranchingTracker::DEFAULT_BEAM_WIDTH
+                        };
+                    let branch_options: Vec<_> = scored
+                        .iter()
+                        .enumerate()
+                        .take(branch_width)
+                        .map(|(rank, item)| BranchOption {
+                            candidate: item.candidate.clone(),
+                            score: rank as f64,
+                        })
+                        .collect();
+                    apply_branch_options(&mut branching, &branch_options, interval.tick_range.0);
+                }
+            }
+        }
+
+        (misses, hallucinations)
+    }
+
+    #[cfg(feature = "sim")]
+    #[allow(clippy::too_many_arguments)]
+    fn generate_candidates_for_wp7c_diag(
+        state_k: &CarPhysState,
+        observed_end: &CarPhysState,
+        tracker: &CarTracker,
+        interval: &LatticeInterval,
+        base_controls: Vec<Controls>,
+        seeded_edges: Vec<TimedSeededEdge>,
+        config: &EstimatorConfig,
+        segment_kind: SegmentKind,
+    ) -> CandidateGenerationDiag {
+        let ticks = interval_ticks(interval);
+        let null = Candidate::null(base_controls.clone(), interval.flags);
+        let null_energy = score_null(state_k, observed_end, ticks, &null, &config.fit);
+        if null_energy
+            <= f64::from(
+                config
+                    .fit
+                    .reject_threshold
+                    .max(config.fit.null_event_accept_margin),
+            )
+            && seeded_edges.is_empty()
+            && !interval.flags.contains(AmbiguityFlags::LONG_GAP)
+        {
+            return CandidateGenerationDiag {
+                null_fast_path: true,
+                kinematic_events: Vec::new(),
+                raw_candidates: vec![null.clone()],
+                legal_candidates: vec![null],
+            };
+        }
+
+        let mut raw_candidates = vec![null];
+        let mut kinematic_events = Vec::new();
+        let seeded = seeded_candidate_action_sets(&seeded_edges);
+        if seeded.is_empty() {
+            kinematic_events =
+                kinematic_candidate_events(state_k, observed_end, tracker, segment_kind);
+            if interval.flags.contains(AmbiguityFlags::LONG_GAP) && second_available(tracker) {
+                push_unique_event(&mut kinematic_events, CandidateEvent::Stall);
+            }
+            for event in &kinematic_events {
+                for tick_offset in 0..ticks {
+                    if let Some(candidate) = single_event_candidate(
+                        *event,
+                        tick_offset,
+                        base_controls.clone(),
+                        interval.flags,
+                    ) {
+                        raw_candidates.push(candidate);
+                    }
+                }
+            }
+        } else {
+            for actions in seeded {
+                if let Some(candidate) =
+                    candidate_from_actions(actions, base_controls.clone(), interval.flags)
+                {
+                    raw_candidates.push(candidate);
+                }
+            }
+        }
+
+        if interval.flags.contains(AmbiguityFlags::LONG_GAP) {
+            add_long_gap_composites_for_wp7c_diag(
+                &mut raw_candidates,
+                interval,
+                base_controls,
+                dodge_dir_from_signature(state_k, observed_end),
+            );
+        }
+
+        raw_candidates.truncate(HYPOTHESIS_CAP);
+        let legal_candidates = raw_candidates
+            .iter()
+            .filter(|candidate| {
+                candidate.is_null() || candidate_legal(tracker, candidate, interval.tick_range.0)
+            })
+            .cloned()
+            .collect();
+        CandidateGenerationDiag {
+            null_fast_path: false,
+            kinematic_events,
+            raw_candidates,
+            legal_candidates,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn add_long_gap_composites_for_wp7c_diag(
+        candidates: &mut Vec<Candidate>,
+        interval: &LatticeInterval,
+        base_controls: Vec<Controls>,
+        dodge_dir: [f32; 2],
+    ) {
+        let ticks = interval_ticks(interval);
+        for press in 0..ticks {
+            let min_release = (press + 3).min(ticks);
+            for release in min_release..ticks {
+                for second in release.saturating_add(1)..ticks {
+                    for event in [
+                        CandidateEvent::Dodge { dir: dodge_dir },
+                        CandidateEvent::DoubleJump,
+                    ] {
+                        if candidates.len() >= HYPOTHESIS_CAP {
+                            return;
+                        }
+                        let mut controls = base_controls.clone();
+                        for control in controls
+                            .iter_mut()
+                            .take(release as usize)
+                            .skip(press as usize)
+                        {
+                            control.jump = true;
+                        }
+                        candidates.push(Candidate {
+                            actions: vec![
+                                CandidateAction {
+                                    tick_offset: press,
+                                    event: CandidateEvent::JumpPress,
+                                    frame_index: None,
+                                },
+                                CandidateAction {
+                                    tick_offset: release,
+                                    event: CandidateEvent::JumpRelease,
+                                    frame_index: None,
+                                },
+                                CandidateAction {
+                                    tick_offset: second,
+                                    event,
+                                    frame_index: None,
+                                },
+                            ],
+                            controls,
+                            flags: interval.flags | AmbiguityFlags::LONG_GAP,
+                            confidence_cap: LONG_GAP_CONFIDENCE_CAP,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn classify_miss(
+        player: &PlayerSeries,
+        target: &ComponentTarget,
+        generation: &CandidateGenerationDiag,
+        scored: &[ScoredCandidate],
+        tracker: &CarTracker,
+        component_press_frames: &BTreeMap<String, BTreeSet<u32>>,
+        solved_jump_presses: &BTreeMap<(String, u32), ()>,
+    ) -> MissDiag {
+        let raw_flip_count = generation
+            .raw_candidates
+            .iter()
+            .filter(|candidate| candidate_has_flip(candidate))
+            .count();
+        let legal_flip_count = generation
+            .legal_candidates
+            .iter()
+            .filter(|candidate| candidate_has_flip(candidate))
+            .count();
+        let best = scored.first();
+        let best_flip_energy = scored
+            .iter()
+            .filter(|item| candidate_has_flip(&item.candidate))
+            .map(|item| item.energy)
+            .min_by(|a, b| a.total_cmp(b));
+        let null_energy = scored
+            .iter()
+            .find(|item| item.candidate.is_null())
+            .map(|item| item.energy);
+        let truth_press_in_window = press_in_window(
+            component_press_frames.get(&player.player_id),
+            target.end_frame,
+        );
+        let unseeded_press_in_window =
+            solved_press_in_window(solved_jump_presses, &player.player_id, target.end_frame);
+
+        let (class, reason, winner) = if legal_flip_count == 0 {
+            if raw_flip_count > 0 {
+                (
+                    MissClass::Illegal,
+                    "candidate_legal_rejected_all_flip_candidates".to_string(),
+                    best.map_or("none", |item| candidate_name(&item.candidate)),
+                )
+            } else {
+                (
+                    MissClass::NoCandidate,
+                    no_candidate_reason(generation, tracker),
+                    best.map_or("none", |item| candidate_name(&item.candidate)),
+                )
+            }
+        } else if best.is_some_and(|item| item.candidate.is_null()) {
+            (
+                MissClass::OutscoredByNull,
+                "null_ranked_first_after_margin".to_string(),
+                "Null",
+            )
+        } else if best.is_some_and(|item| !candidate_has_flip(&item.candidate)) {
+            (
+                MissClass::OutscoredByEvent,
+                "different_event_ranked_first".to_string(),
+                best.map_or("none", |item| candidate_name(&item.candidate)),
+            )
+        } else {
+            (
+                MissClass::OutscoredByEvent,
+                "flip_ranked_first_in_diagnostic_but_not_emitted".to_string(),
+                best.map_or("none", |item| candidate_name(&item.candidate)),
+            )
+        };
+
+        MissDiag {
+            player_id: player.player_id.clone(),
+            start_frame: target.start_frame,
+            end_frame: target.end_frame,
+            span_frames: target.span_frames,
+            span_ticks: target.span_ticks,
+            held_frames: target.held_frames,
+            class,
+            reason,
+            winner,
+            margin: null_energy
+                .zip(best_flip_energy)
+                .map(|(null, flip)| null - flip),
+            truth_press_in_window,
+            unseeded_press_in_window,
+            wrong_veto: class == MissClass::Illegal && truth_press_in_window,
+            flags: target.flags,
+            tracker_state: tracker_state(tracker),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn unscored_miss(
+        player_id: &str,
+        target: &ComponentTarget,
+        component_press_frames: &BTreeMap<String, BTreeSet<u32>>,
+        solved_jump_presses: &BTreeMap<(String, u32), ()>,
+    ) -> MissDiag {
+        MissDiag {
+            player_id: player_id.to_string(),
+            start_frame: target.start_frame,
+            end_frame: target.end_frame,
+            span_frames: target.span_frames,
+            span_ticks: target.span_ticks,
+            held_frames: target.held_frames,
+            class: MissClass::Unscored,
+            reason: if target.reached_scoring {
+                "not_seen_in_final_unseeded_scoring_pass".to_string()
+            } else {
+                "component_flip_not_in_fresh_scoring_interval".to_string()
+            },
+            winner: "none",
+            margin: None,
+            truth_press_in_window: press_in_window(
+                component_press_frames.get(player_id),
+                target.end_frame,
+            ),
+            unseeded_press_in_window: solved_press_in_window(
+                solved_jump_presses,
+                player_id,
+                target.end_frame,
+            ),
+            wrong_veto: false,
+            flags: target.flags,
+            tracker_state: "unscored".to_string(),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn no_candidate_reason(generation: &CandidateGenerationDiag, tracker: &CarTracker) -> String {
+        if !second_available(tracker) {
+            "TRACKER_SECOND_NOT_AVAILABLE".to_string()
+        } else if generation.null_fast_path {
+            "NULL_FAST_PATH".to_string()
+        } else if generation.kinematic_events.is_empty() {
+            "KINEMATIC_GATE_DID_NOT_FIRE".to_string()
+        } else if !generation
+            .kinematic_events
+            .iter()
+            .any(candidate_event_is_flip)
+        {
+            format!(
+                "EVENT_KIND_FILTERED:{}",
+                generation
+                    .kinematic_events
+                    .iter()
+                    .map(|event| candidate_event_name(*event))
+                    .collect::<Vec<_>>()
+                    .join("|")
+            )
+        } else {
+            "NO_FLIP_CANDIDATE_AFTER_CANDIDATE_BUILD".to_string()
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn coalesced_component_targets(
+        series: &ReplaySeries,
+        keep: fn(&ReconstructedEdge) -> bool,
+        include_unscored: bool,
+    ) -> BTreeMap<(String, u32), ComponentTarget> {
+        let segmentation = crate::segment::segment_replay(series);
+        let mut targets = BTreeMap::new();
+        for segmented_player in &segmentation.players {
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let edges: Vec<_> = crate::tracker::reconstruct_seeded_edges(&player.component)
+                .into_iter()
+                .filter(keep)
+                .collect();
+            let mut covered = BTreeSet::new();
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+            }
+            for segment in &segmented_player.segments {
+                for scoring in fresh_scoring_intervals(segment, &freshness) {
+                    let edge_frames: Vec<_> = edges
+                        .iter()
+                        .map(|edge| edge.frame_index)
+                        .filter(|frame| {
+                            *frame > scoring.start_frame && *frame <= scoring.interval.frame_index
+                        })
+                        .collect();
+                    if edge_frames.is_empty() {
+                        continue;
+                    }
+                    covered.extend(edge_frames.iter().copied());
+                    let key = (player.player_id.clone(), scoring.interval.frame_index);
+                    targets
+                        .entry(key)
+                        .and_modify(|target: &mut ComponentTarget| {
+                            target.flags |= scoring.interval.flags;
+                        })
+                        .or_insert_with(|| ComponentTarget {
+                            start_frame: scoring.start_frame,
+                            end_frame: scoring.interval.frame_index,
+                            flags: scoring.interval.flags,
+                            held_frames: held_frames(
+                                &freshness,
+                                scoring.start_frame,
+                                scoring.interval.frame_index,
+                            ),
+                            span_frames: scoring.interval.frame_index - scoring.start_frame,
+                            span_ticks: scoring
+                                .interval
+                                .tick_range
+                                .1
+                                .saturating_sub(scoring.interval.tick_range.0),
+                            reached_scoring: true,
+                        });
+                }
+            }
+            if include_unscored {
+                for edge in edges {
+                    if covered.contains(&edge.frame_index) {
+                        continue;
+                    }
+                    let flags = flags_for_frame(segmented_player, edge.frame_index);
+                    targets
+                        .entry((player.player_id.clone(), edge.frame_index))
+                        .or_insert_with(|| ComponentTarget {
+                            start_frame: edge.frame_index.saturating_sub(1),
+                            end_frame: edge.frame_index,
+                            flags,
+                            held_frames: 0,
+                            span_frames: u32::from(edge.frame_index > 0),
+                            span_ticks: 0,
+                            reached_scoring: false,
+                        });
+                }
+            }
+        }
+        targets
+    }
+
+    #[cfg(feature = "sim")]
+    fn flags_for_frame(
+        player: &crate::segment::PlayerSegmentation,
+        frame_index: u32,
+    ) -> AmbiguityFlags {
+        player
+            .interval_flags
+            .iter()
+            .find(|flags| flags.frame_index == frame_index)
+            .map(|flags| flags.flags)
+            .unwrap_or_default()
+    }
+
+    #[cfg(feature = "sim")]
+    fn held_frames(freshness: &KinematicFreshness, start_frame: u32, end_frame: u32) -> usize {
+        (start_frame.saturating_add(1)..=end_frame)
+            .filter(|frame| !freshness.is_fresh(*frame))
+            .count()
+    }
+
+    #[cfg(feature = "sim")]
+    fn is_component_flip_edge(edge: &ReconstructedEdge) -> bool {
+        matches!(
+            edge.component,
+            ComponentKind::DodgeTorque | ComponentKind::DoubleJumpImpulse
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn is_component_jump_press_edge(edge: &ReconstructedEdge) -> bool {
+        if edge.component != ComponentKind::Jump {
+            return false;
+        }
+        match edge.counter_delta {
+            Some(delta) => delta.current % 2 != 0,
+            None => true,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn component_jump_press_frames(series: &ReplaySeries) -> BTreeMap<String, BTreeSet<u32>> {
+        let mut out = BTreeMap::new();
+        for player in &series.players {
+            let frames = crate::tracker::reconstruct_seeded_edges(&player.component)
+                .into_iter()
+                .filter(is_component_jump_press_edge)
+                .map(|edge| edge.frame_index)
+                .collect();
+            out.insert(player.player_id.clone(), frames);
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn component_coverage_by_player(series: &ReplaySeries) -> BTreeMap<String, ComponentCoverage> {
+        let mut out = BTreeMap::new();
+        for player in &series.players {
+            let edges = crate::tracker::reconstruct_seeded_edges(&player.component);
+            out.insert(
+                player.player_id.clone(),
+                ComponentCoverage {
+                    dodge_vector_events: player
+                        .component
+                        .events
+                        .iter()
+                        .filter(|event| {
+                            event.component == ComponentKind::DodgeTorque && event.vector.is_some()
+                        })
+                        .count(),
+                    jump_edges: edges
+                        .iter()
+                        .filter(|edge| edge.component == ComponentKind::Jump)
+                        .count(),
+                    dodge_edges: edges
+                        .iter()
+                        .filter(|edge| edge.component == ComponentKind::DodgeTorque)
+                        .count(),
+                    double_jump_edges: edges
+                        .iter()
+                        .filter(|edge| edge.component == ComponentKind::DoubleJumpImpulse)
+                        .count(),
+                },
+            );
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn solved_event_frame_sets(
+        output: &SolveOutput,
+        keep: fn(&SolvedEventKind) -> bool,
+    ) -> BTreeMap<(String, u32), ()> {
+        let mut out = BTreeMap::new();
+        for timeline in &output.timelines {
+            for event in &timeline.events {
+                if keep(&event.kind) {
+                    out.insert((timeline.player_id.clone(), event.frame_index), ());
+                }
+            }
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn legal_press_window_frames() -> u32 {
+        ((crate::consts::JUMP_MAX_TIME + crate::consts::DOUBLEJUMP_MAX_DELAY) * 30.0).ceil() as u32
+            + 1
+    }
+
+    #[cfg(feature = "sim")]
+    fn press_in_window(frames: Option<&BTreeSet<u32>>, end_frame: u32) -> bool {
+        let Some(frames) = frames else {
+            return false;
+        };
+        let start = end_frame.saturating_sub(legal_press_window_frames());
+        frames.range(start..=end_frame).next().is_some()
+    }
+
+    #[cfg(feature = "sim")]
+    fn solved_press_in_window(
+        frames: &BTreeMap<(String, u32), ()>,
+        player_id: &str,
+        end_frame: u32,
+    ) -> bool {
+        let start = end_frame.saturating_sub(legal_press_window_frames());
+        (start..=end_frame).any(|frame| frames.contains_key(&(player_id.to_string(), frame)))
+    }
+
+    #[cfg(feature = "sim")]
+    fn tracker_state(tracker: &CarTracker) -> String {
+        format!(
+            "contact={:?};jump={:?};second={:?}",
+            tracker.contact, tracker.jump, tracker.second
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn candidate_event_is_flip(event: &CandidateEvent) -> bool {
+        matches!(
+            event,
+            CandidateEvent::DoubleJump | CandidateEvent::Dodge { .. } | CandidateEvent::Stall
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn candidate_event_name(event: CandidateEvent) -> &'static str {
+        match event {
+            CandidateEvent::JumpPress => "JumpPress",
+            CandidateEvent::JumpRelease => "JumpRelease",
+            CandidateEvent::DoubleJump => "DoubleJump",
+            CandidateEvent::Dodge { .. } => "Dodge",
+            CandidateEvent::Stall => "Stall",
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_hallucination_summary(replay: &str, hallucinations: &[HallucinationDiag]) {
+        let full = hallucinations
+            .iter()
+            .filter(|diag| diag.coverage_label == "full_component_stream")
+            .count();
+        let sparse_or_absent = hallucinations.len().saturating_sub(full);
+        let car_prox = hallucinations
+            .iter()
+            .filter(|diag| diag.car_proximity)
+            .count();
+        println!(
+            "wp7c_hallucination_summary,replay={},count={},full_component_stream={},sparse_or_absent={},sparse_or_absent_share={:.3},car_proximity={},margin_p50={:.3},margin_p68={:.3},margin_p90={:.3},planar_p50={:.3},ang_p50={:.3}",
+            replay,
+            hallucinations.len(),
+            full,
+            sparse_or_absent,
+            recall(sparse_or_absent, hallucinations.len()),
+            car_prox,
+            percentile(hallucinations.iter().map(|diag| diag.margin).collect(), 0.50),
+            percentile(hallucinations.iter().map(|diag| diag.margin).collect(), 0.68),
+            percentile(hallucinations.iter().map(|diag| diag.margin).collect(), 0.90),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.planar_delta))
+                    .collect(),
+                0.50,
+            ),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.ang_delta))
+                    .collect(),
+                0.50,
+            ),
+        );
+        let mut coverage = BTreeMap::new();
+        for diag in hallucinations {
+            *coverage.entry(diag.coverage_label).or_insert(0usize) += 1;
+        }
+        for (label, count) in coverage {
+            println!(
+                "wp7c_hallucination_coverage,replay={replay},coverage={label},count={count},share={:.3}",
+                recall(count, hallucinations.len()),
+            );
+        }
     }
 
     fn quiet_flip_disagreement_diags(series: &ReplaySeries) -> Vec<QuietFlipDiag> {
@@ -2708,6 +3853,18 @@ mod tests {
             .any(|action| action.event == CandidateEvent::Stall)
         {
             "Stall"
+        } else if candidate
+            .actions
+            .iter()
+            .any(|action| action.event == CandidateEvent::JumpPress)
+        {
+            "JumpPress"
+        } else if candidate
+            .actions
+            .iter()
+            .any(|action| action.event == CandidateEvent::JumpRelease)
+        {
+            "JumpRelease"
         } else {
             "Other"
         }
