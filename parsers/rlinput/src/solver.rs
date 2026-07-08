@@ -2115,6 +2115,8 @@ mod tests {
     const A5_DODGE_ANG_DELTA: f32 = 0.5;
     #[cfg(feature = "sim")]
     const A5_BOUNDARY_WINDOW_FRAMES: u32 = 4;
+    #[cfg(feature = "sim")]
+    const A8_LAG_LOOKAHEAD_FRAMES: u32 = 3;
 
     #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
@@ -2962,6 +2964,24 @@ mod tests {
     #[cfg(feature = "sim")]
     #[test]
     #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a8_effect_anchor_probe() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported dev-set ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A8 must run on all 10 dev replays");
+
+        let mut pooled = A8ProbeSummary::default();
+        for (replay, series) in replays {
+            let summary = a8_effect_anchor_probe_replay(&replay, &series);
+            print_a8_probe_summary(&replay, &summary);
+            pooled.add(&summary);
+        }
+        print_a8_probe_summary("POOLED", &pooled);
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
     fn exported_dev_set_wave_a3_flip_recall_microscope() {
         let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
             .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
@@ -3431,6 +3451,11 @@ mod tests {
         state_k: CarPhysState,
         observed_end: CarPhysState,
         ticks: u32,
+        tracker: CarTracker,
+        interval: LatticeInterval,
+        segment_frame_span: (u32, u32),
+        segment_intervals: Vec<LatticeInterval>,
+        base_controls: Vec<Controls>,
         weights: FitWeights,
     }
 
@@ -3627,6 +3652,44 @@ mod tests {
         offset: Option<i32>,
         fresh: bool,
         solved_at_effect_interval: bool,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct A8ProbeSummary {
+        scoped_misses: usize,
+        a5_lag_misses: usize,
+        effect_found: usize,
+        no_effect: usize,
+        no_legal_dodge: usize,
+        winners: usize,
+        margin_256_blocked: usize,
+        winner_margin_e: Vec<f64>,
+        winner_raw_margin_e: Vec<f64>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A8ProbeSummary {
+        fn add(&mut self, other: &Self) {
+            self.scoped_misses += other.scoped_misses;
+            self.a5_lag_misses += other.a5_lag_misses;
+            self.effect_found += other.effect_found;
+            self.no_effect += other.no_effect;
+            self.no_legal_dodge += other.no_legal_dodge;
+            self.winners += other.winners;
+            self.margin_256_blocked += other.margin_256_blocked;
+            self.winner_margin_e
+                .extend(other.winner_margin_e.iter().copied());
+            self.winner_raw_margin_e
+                .extend(other.winner_raw_margin_e.iter().copied());
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    struct A8Margins {
+        margin_t: f64,
+        margin_e: f64,
+        raw_margin_e: f64,
     }
 
     #[cfg(feature = "sim")]
@@ -3874,6 +3937,212 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    fn a8_effect_anchor_probe_replay(replay: &str, series: &ReplaySeries) -> A8ProbeSummary {
+        let misses = wave_a3_replay_misses(replay, series);
+        let mut summary = A8ProbeSummary::default();
+        for miss in &misses {
+            summary.scoped_misses += 1;
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == miss.player_id)
+            else {
+                continue;
+            };
+            if a8_raw_a5_lag_frame(player, miss, A5_LAG_LOOKAHEAD_FRAMES).is_none() {
+                continue;
+            }
+            summary.a5_lag_misses += 1;
+            match a8_probe_miss(series, miss) {
+                A8ProbeOutcome::NoEffect => summary.no_effect += 1,
+                A8ProbeOutcome::NoLegalDodge => {
+                    summary.effect_found += 1;
+                    summary.no_legal_dodge += 1;
+                }
+                A8ProbeOutcome::Margins(margins) => {
+                    summary.effect_found += 1;
+                    if margins.margin_t < 0.0
+                        && margins.raw_margin_e > 0.0
+                        && margins.margin_e <= 0.0
+                    {
+                        summary.margin_256_blocked += 1;
+                    }
+                    if margins.margin_t < 0.0 && margins.margin_e > 0.0 {
+                        summary.winners += 1;
+                        summary.winner_margin_e.push(margins.margin_e);
+                        summary.winner_raw_margin_e.push(margins.raw_margin_e);
+                    }
+                }
+            }
+        }
+        summary
+    }
+
+    #[cfg(feature = "sim")]
+    fn a8_raw_a5_lag_frame(
+        player: &PlayerSeries,
+        miss: &A3MissDiag,
+        lookahead_frames: u32,
+    ) -> Option<u32> {
+        let truth_frame = miss
+            .truth
+            .as_ref()
+            .map(|truth| truth.frame)
+            .unwrap_or(miss.end_frame);
+        let max_frame = player.frames.ang_vel.len().saturating_sub(1) as u32;
+        let search_end = truth_frame.saturating_add(lookahead_frames).min(max_frame);
+        (truth_frame.saturating_add(1)..=search_end).find(|frame| {
+            let prev = frame_state(player, frame.saturating_sub(1));
+            let curr = frame_state(player, *frame);
+            norm(diff(curr.ang_vel, prev.ang_vel)) >= A5_DODGE_ANG_DELTA
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    enum A8ProbeOutcome {
+        NoEffect,
+        NoLegalDodge,
+        Margins(A8Margins),
+    }
+
+    #[cfg(feature = "sim")]
+    fn a8_probe_miss(series: &ReplaySeries, miss: &A3MissDiag) -> A8ProbeOutcome {
+        let Some(player) = series
+            .players
+            .iter()
+            .find(|player| player.player_id == miss.player_id)
+        else {
+            return A8ProbeOutcome::NoEffect;
+        };
+        let mut freshness = KinematicFreshness::from_frames(&player.frames);
+        freshness.mark_fresh(miss.segment_frame_span.0);
+        let Some((_effect_frame, effect_interval, observed_e)) =
+            a8_effect_frame(player, miss, &freshness)
+        else {
+            return A8ProbeOutcome::NoEffect;
+        };
+        let dir = miss
+            .truth
+            .as_ref()
+            .and_then(|truth| (truth.kind == "Dodge").then_some(truth.dir).flatten())
+            .unwrap_or_else(|| dodge_dir_from_signature(&miss.state_k, &observed_e));
+
+        let Some((margin_t, _raw_margin_t)) = a8_dodge_margin(
+            miss,
+            &miss.observed_end,
+            miss.ticks,
+            miss.base_controls.clone(),
+            dir,
+        ) else {
+            return A8ProbeOutcome::NoLegalDodge;
+        };
+        let controls_e = a8_extended_controls(miss, effect_interval.tick_range.1);
+        let ticks_e = controls_e.len().min(u32::MAX as usize) as u32;
+        let Some((margin_e, raw_margin_e)) =
+            a8_dodge_margin(miss, &observed_e, ticks_e, controls_e, dir)
+        else {
+            return A8ProbeOutcome::NoLegalDodge;
+        };
+
+        A8ProbeOutcome::Margins(A8Margins {
+            margin_t,
+            margin_e,
+            raw_margin_e,
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn a8_effect_frame(
+        player: &PlayerSeries,
+        miss: &A3MissDiag,
+        freshness: &KinematicFreshness,
+    ) -> Option<(u32, LatticeInterval, CarPhysState)> {
+        let max_frame = miss
+            .end_frame
+            .saturating_add(A8_LAG_LOOKAHEAD_FRAMES)
+            .min(miss.segment_frame_span.1.saturating_sub(1));
+        for frame in miss.end_frame.saturating_add(1)..=max_frame {
+            if !freshness.is_fresh(frame) {
+                break;
+            }
+            let interval = miss
+                .segment_intervals
+                .iter()
+                .find(|interval| interval.frame_index == frame)?;
+            let controls = a8_extended_controls(miss, interval.tick_range.1);
+            let ticks = controls.len().min(u32::MAX as usize) as u32;
+            let null = Candidate::null(controls, miss.interval.flags);
+            let null_end = crate::engine::rocketsim::RocketSimEngine::new().rollout(
+                &miss.state_k,
+                &null.to_tick_plan(),
+                ticks,
+            );
+            let observed = car_state(player, frame, interval.tick_range.1, &miss.tracker);
+            if norm(diff(observed.ang_vel, null_end.ang_vel)) >= A5_DODGE_ANG_DELTA {
+                return Some((frame, interval.clone(), observed));
+            }
+        }
+        None
+    }
+
+    #[cfg(feature = "sim")]
+    fn a8_extended_controls(miss: &A3MissDiag, end_tick: u64) -> Vec<Controls> {
+        let total_ticks = end_tick
+            .saturating_sub(miss.interval.tick_range.0)
+            .min(u64::from(u32::MAX)) as usize;
+        let mut controls = miss.base_controls.clone();
+        controls.resize(total_ticks, Controls::default());
+        controls
+    }
+
+    #[cfg(feature = "sim")]
+    fn a8_dodge_margin(
+        miss: &A3MissDiag,
+        observed_end: &CarPhysState,
+        ticks: u32,
+        controls: Vec<Controls>,
+        dir: [f32; 2],
+    ) -> Option<(f64, f64)> {
+        let mut engine = crate::engine::rocketsim::RocketSimEngine::new();
+        let null_energy = score_one(
+            &mut engine,
+            &miss.state_k,
+            observed_end,
+            ticks,
+            Candidate::null(controls.clone(), miss.interval.flags),
+            &miss.weights,
+        )
+        .energy;
+        let mut best_dodge = None;
+        for tick_offset in 0..miss.ticks {
+            let Some(candidate) = single_event_candidate(
+                CandidateEvent::Dodge { dir },
+                tick_offset,
+                controls.clone(),
+                miss.interval.flags,
+            ) else {
+                continue;
+            };
+            if !candidate_legal(&miss.tracker, &candidate, miss.interval.tick_range.0) {
+                continue;
+            }
+            let energy = score_one(
+                &mut engine,
+                &miss.state_k,
+                observed_end,
+                ticks,
+                candidate,
+                &miss.weights,
+            )
+            .energy;
+            best_dodge = Some(best_dodge.map_or(energy, |best: f64| best.min(energy)));
+        }
+        let best_dodge = best_dodge?;
+        let adjusted = adjusted_event_energy(best_dodge, true, Some(null_energy), &miss.weights);
+        Some((null_energy - adjusted, null_energy - best_dodge))
+    }
+
+    #[cfg(feature = "sim")]
     fn solved_flip_events_by_player(output: &SolveOutput) -> BTreeMap<String, Vec<u32>> {
         let mut out: BTreeMap<String, Vec<u32>> = BTreeMap::new();
         for timeline in &output.timelines {
@@ -4054,6 +4323,33 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a8_probe_summary(replay: &str, summary: &A8ProbeSummary) {
+        let tested = summary.effect_found.saturating_sub(summary.no_legal_dodge);
+        println!(
+            "wave_a8_probe,replay={replay},scoped_misses={},a5_lag_misses={},effect_found={},no_effect_1_3={},tested={},no_legal_dodge={},winners={},winner_share_a5_lag={:.3},winner_share_tested={:.3},winner_share_effect_found={:.3},margin256_blocked={},winner_margin_e_p10={:.3},winner_margin_e_p50={:.3},winner_margin_e_p68={:.3},winner_margin_e_p90={:.3},winner_raw_margin_e_p10={:.3},winner_raw_margin_e_p50={:.3},winner_raw_margin_e_p68={:.3},winner_raw_margin_e_p90={:.3}",
+            summary.scoped_misses,
+            summary.a5_lag_misses,
+            summary.effect_found,
+            summary.no_effect,
+            tested,
+            summary.no_legal_dodge,
+            summary.winners,
+            recall(summary.winners, summary.a5_lag_misses),
+            recall(summary.winners, tested),
+            recall(summary.winners, summary.effect_found),
+            summary.margin_256_blocked,
+            percentile(summary.winner_margin_e.clone(), 0.10),
+            percentile(summary.winner_margin_e.clone(), 0.50),
+            percentile(summary.winner_margin_e.clone(), 0.68),
+            percentile(summary.winner_margin_e.clone(), 0.90),
+            percentile(summary.winner_raw_margin_e.clone(), 0.10),
+            percentile(summary.winner_raw_margin_e.clone(), 0.50),
+            percentile(summary.winner_raw_margin_e.clone(), 0.68),
+            percentile(summary.winner_raw_margin_e.clone(), 0.90),
+        );
     }
 
     #[cfg(feature = "sim")]
@@ -5136,6 +5432,7 @@ mod tests {
                         &interval_tracker,
                         &config,
                     );
+                    let probe_base_controls = base_controls.clone();
                     let seeded_edges = edges_for_interval_with_implied_liftoff(
                         player,
                         &hints,
@@ -5227,6 +5524,11 @@ mod tests {
                                     state_k,
                                     observed_end,
                                     ticks,
+                                    tracker: interval_tracker.clone(),
+                                    interval: interval.clone(),
+                                    segment_frame_span: segment.frame_span,
+                                    segment_intervals: segment.lattice.intervals.clone(),
+                                    base_controls: probe_base_controls,
                                     weights: config.fit,
                                 });
                             }
