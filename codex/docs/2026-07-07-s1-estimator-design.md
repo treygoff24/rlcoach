@@ -618,3 +618,16 @@ Mechanism: network relevancy catch-up. When a culled actor re-enters relevance, 
 ### Ruling — Wave A11 truth-extraction audit (instrument audit, not a solver wave)
 
 For every known flip, from the RAW component stream: counter delta at the edge; frames since the previous component update for that actor (component-stream gap, distinct from RB freshness); arrival-frame multiplicity (multiple truth events at/near one arrival); RB held-run adjacency. Cross-tab by HIT/MISS and A9 class. **P-A11 (pre-registered): ≥40% of NEITHER-class misses show catch-up signatures (counter delta >1 OR component gap ≥5 frames at the edge) vs ≤10% of hits.** If CONFIRMED: the truth set gets a validity filter (executed-flip truth = component edge with clean single-step delta and adequate stream continuity), all rulers/oracle re-run against FILTERED truth, and recall is re-adjudicated (predicted: filtered recall ≈ 1116 / (3018 − phantom_count), plausibly ≥0.55). If FALSIFIED: the miss mass is recorded as a genuinely unexplained open problem for the V2 ground-truth track and the gate adjudicates on frozen criteria as-is.
+
+## H-PHANTOM revision: vector-only truth events (orchestrator, 2026-07-08)
+
+P-A11 FALSIFIED as registered — component-stream gaps ≥5 frames are near-universal in BOTH populations (p50 gap 66–91 frames; components are sparse for everyone), so the catch-up signature does not discriminate. Counter jumps >1 are likewise non-discriminative (hits 15.0% vs NEITHER misses 7.4%).
+
+The audit nonetheless produced the sharpest discriminator of the sprint: **`no_counter_delta` — truth events with NO dodge-counter increment at their edge — covers 639/1294 = 49.4% of NEITHER-class misses vs 37/1116 = 3.3% of hits (16×).** These truth events were derived from torque-vector attribute updates alone. A vector re-send/refresh without a counter step is not evidence of a new dodge. This is H-PHANTOM in revised form: phantom truth events from vector-only extraction edges.
+
+### Ruling — Wave A12 truth provenance classification + validity filter
+
+1. **Provenance probe:** for every known flip, classify its extraction provenance from the raw component attributes: COUNTER-BACKED (counter increment at/adjacent to the edge) vs VECTOR-ONLY (no counter movement). Cross-tab vs HIT/MISS and A9 class, per replay + pooled. Examine and report WHAT the vector-only edges physically are (value change vs re-send; same vector as previous dodge or new direction).
+2. **P-A12 (pre-registered):** vector-only truth events are ≥85% MISSES (they almost never get solved because there is nothing to solve) AND ≥75% A9-NEITHER (kinematically quiet). Counter-backed misses conversely enrich in FULL/CANCEL classes.
+3. **If CONFIRMED — validity filter:** truth = counter-backed edges only (vector used for direction metadata, never as an independent event source). Unfiltered counts retained as diagnostic columns EVERYWHERE. Re-run all rulers + full oracle. **P-A12b: filtered pooled recall ≥0.48** (arithmetic guide: ~1080/2200 if ~800 phantoms fall away; state actual filtered denominator row-by-row). Press truth gets the same provenance audit (report; fix only if same mechanism).
+4. If FALSIFIED: vector-only events are recorded as an unexplained truth-side anomaly for the V2 track; gate adjudicates on frozen criteria unchanged.
