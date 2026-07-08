@@ -2,6 +2,7 @@
 
 pub mod calib;
 pub mod channels;
+pub mod component_truth;
 pub mod consts;
 pub mod convert;
 pub mod engine;

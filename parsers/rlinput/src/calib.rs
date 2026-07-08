@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    component_truth::{component_edges, TruthFilter},
     lattice::LatticeInterval,
     model::{
         ComponentKind, EnginePreference, EstimatorConfig, KinematicFreshness, Mode, ReplaySeries,
@@ -18,7 +19,6 @@ use crate::{
     segment::{segment_replay, Segment},
     solver::{default_estimator_config, masked_series_for_solving, solve_series},
     timeline::{InputSample, InputTimeline, SolveOutput, SolvedEventKind},
-    tracker::reconstruct_seeded_edges,
 };
 
 const STRICT_BLIND: WithheldChannels = WithheldChannels::THROTTLE
@@ -37,9 +37,15 @@ pub struct OracleReport {
     pub replay_count: usize,
     pub player_count: usize,
     pub flip_raw: F1Metric,
+    pub flip_raw_unfiltered: F1Metric,
+    pub phantom_flip_raw: usize,
     pub flip_coalesced: F1Metric,
+    pub flip_coalesced_unfiltered: F1Metric,
+    pub phantom_flip_coalesced: usize,
     pub flip_correct_interval_rate_raw: f32,
+    pub flip_correct_interval_rate_raw_unfiltered: f32,
     pub flip_correct_interval_rate_coalesced: f32,
+    pub flip_correct_interval_rate_coalesced_unfiltered: f32,
     pub blind: BlindChannelMetrics,
     pub amount_derived_boost_edges: F1Metric,
     pub coverage: CoverageMetric,
@@ -53,7 +59,11 @@ pub struct ReplayOracleReport {
     pub build_bucket: String,
     pub player_count: usize,
     pub flip_raw: F1Metric,
+    pub flip_raw_unfiltered: F1Metric,
+    pub phantom_flip_raw: usize,
     pub flip_coalesced: F1Metric,
+    pub flip_coalesced_unfiltered: F1Metric,
+    pub phantom_flip_coalesced: usize,
     pub blind: BlindChannelMetrics,
     pub amount_derived_boost_edges: F1Metric,
     pub coverage: CoverageMetric,
@@ -156,9 +166,17 @@ pub fn run_oracle(named_series: &[(String, ReplaySeries)]) -> OracleReport {
         replay_count: named_series.len(),
         player_count: acc.player_count,
         flip_raw: acc.flip_raw.finish(),
+        flip_raw_unfiltered: acc.flip_raw_unfiltered.finish(),
+        phantom_flip_raw: acc.phantom_flip_raw,
         flip_coalesced: acc.flip_coalesced.finish(),
+        flip_coalesced_unfiltered: acc.flip_coalesced_unfiltered.finish(),
+        phantom_flip_coalesced: acc.phantom_flip_coalesced,
         flip_correct_interval_rate_raw: acc.flip_raw.correct_interval_rate(),
+        flip_correct_interval_rate_raw_unfiltered: acc.flip_raw_unfiltered.correct_interval_rate(),
         flip_correct_interval_rate_coalesced: acc.flip_coalesced.correct_interval_rate(),
+        flip_correct_interval_rate_coalesced_unfiltered: acc
+            .flip_coalesced_unfiltered
+            .correct_interval_rate(),
         blind: acc.blind.finish(),
         amount_derived_boost_edges: acc.amount_derived_boost_edges.finish(),
         coverage: acc.coverage.finish(),
@@ -174,7 +192,10 @@ pub fn score_replay(
     calibration: &mut CalibrationAcc,
 ) -> ReplayOracleReport {
     let raw_truth = flip_truth_raw(series);
+    let raw_truth_unfiltered = flip_truth_raw_with_filter(series, TruthFilter::Unfiltered);
     let coalesced_truth = coalesced_flip_truth(series, output);
+    let coalesced_truth_unfiltered =
+        coalesced_flip_truth_with_filter(series, output, TruthFilter::Unfiltered);
     let flip_pred = solved_flip_intervals(output);
     let jump_truth = component_truth(series, &[ComponentKind::Jump]);
     let jump_pred = solved_jump_intervals(output);
@@ -203,7 +224,13 @@ pub fn score_replay(
         build_bucket: series.build_bucket.clone(),
         player_count: series.players.len(),
         flip_raw: f1_with_tolerance(&raw_truth, &flip_pred, 0),
+        flip_raw_unfiltered: f1_with_tolerance(&raw_truth_unfiltered, &flip_pred, 0),
+        phantom_flip_raw: raw_truth_unfiltered.len().saturating_sub(raw_truth.len()),
         flip_coalesced: f1_with_tolerance(&coalesced_truth, &flip_pred, 0),
+        flip_coalesced_unfiltered: f1_with_tolerance(&coalesced_truth_unfiltered, &flip_pred, 0),
+        phantom_flip_coalesced: coalesced_truth_unfiltered
+            .len()
+            .saturating_sub(coalesced_truth.len()),
         blind,
         amount_derived_boost_edges: f1_with_tolerance(&boost_truth, &amount_edges, 1),
         coverage: coverage_from_output(output),
@@ -214,7 +241,11 @@ pub fn score_replay(
 struct Accumulator {
     player_count: usize,
     flip_raw: CountF1,
+    flip_raw_unfiltered: CountF1,
+    phantom_flip_raw: usize,
     flip_coalesced: CountF1,
+    flip_coalesced_unfiltered: CountF1,
+    phantom_flip_coalesced: usize,
     blind: BlindAcc,
     amount_derived_boost_edges: CountF1,
     coverage: CoverageAcc,
@@ -225,7 +256,12 @@ impl Accumulator {
     fn add_replay(&mut self, replay: &ReplayOracleReport) {
         self.player_count += replay.player_count;
         self.flip_raw.add(replay.flip_raw);
+        self.flip_raw_unfiltered.add(replay.flip_raw_unfiltered);
+        self.phantom_flip_raw += replay.phantom_flip_raw;
         self.flip_coalesced.add(replay.flip_coalesced);
+        self.flip_coalesced_unfiltered
+            .add(replay.flip_coalesced_unfiltered);
+        self.phantom_flip_coalesced += replay.phantom_flip_coalesced;
         self.blind.add(&replay.blind);
         self.amount_derived_boost_edges
             .add(replay.amount_derived_boost_edges);
@@ -388,16 +424,32 @@ impl BinAcc {
 }
 
 fn flip_truth_raw(series: &ReplaySeries) -> HashSet<(String, u32)> {
-    component_truth(
+    flip_truth_raw_with_filter(series, TruthFilter::Unfiltered)
+}
+
+fn flip_truth_raw_with_filter(
+    series: &ReplaySeries,
+    filter: TruthFilter,
+) -> HashSet<(String, u32)> {
+    component_truth_with_filter(
         series,
         &[ComponentKind::DodgeTorque, ComponentKind::DoubleJumpImpulse],
+        filter,
     )
 }
 
 fn component_truth(series: &ReplaySeries, kinds: &[ComponentKind]) -> HashSet<(String, u32)> {
+    component_truth_with_filter(series, kinds, TruthFilter::Unfiltered)
+}
+
+fn component_truth_with_filter(
+    series: &ReplaySeries,
+    kinds: &[ComponentKind],
+    filter: TruthFilter,
+) -> HashSet<(String, u32)> {
     let mut out = HashSet::new();
     for player in &series.players {
-        for edge in reconstruct_seeded_edges(&player.component) {
+        for edge in component_edges(&player.component, filter) {
             if kinds.contains(&edge.component) {
                 out.insert((player.player_id.clone(), edge.frame_index));
             }
@@ -440,7 +492,15 @@ fn solved_events(
 }
 
 fn coalesced_flip_truth(series: &ReplaySeries, output: &SolveOutput) -> HashSet<(String, u32)> {
-    let raw = flip_truth_raw(series);
+    coalesced_flip_truth_with_filter(series, output, TruthFilter::Unfiltered)
+}
+
+fn coalesced_flip_truth_with_filter(
+    series: &ReplaySeries,
+    output: &SolveOutput,
+    filter: TruthFilter,
+) -> HashSet<(String, u32)> {
+    let raw = flip_truth_raw_with_filter(series, filter);
     let mut out = HashSet::new();
     let by_player: HashMap<_, _> = output
         .timelines
