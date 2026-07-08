@@ -2063,6 +2063,12 @@ mod tests {
     const A3_TABLE_A_LIMIT: usize = 12;
     #[cfg(feature = "sim")]
     const A3_TABLE_B_LIMIT: usize = 6;
+    #[cfg(feature = "sim")]
+    const A5_LAG_LOOKAHEAD_FRAMES: u32 = 8;
+    #[cfg(feature = "sim")]
+    const A5_DODGE_ANG_DELTA: f32 = 0.5;
+    #[cfg(feature = "sim")]
+    const A5_BOUNDARY_WINDOW_FRAMES: u32 = 4;
 
     #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
@@ -2877,6 +2883,24 @@ mod tests {
     #[cfg(feature = "sim")]
     #[test]
     #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a5_three_cause_probe() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported dev-set ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A5 must run on all 10 dev replays");
+
+        let mut pooled = A5Summary::default();
+        for (replay, series) in replays {
+            let summary = a5_probe_replay(&replay, &series);
+            print_a5_summary(&replay, &summary);
+            pooled.add(&summary);
+        }
+        print_a5_summary("POOLED", &pooled);
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
     fn exported_dev_set_wave_a3_flip_recall_microscope() {
         let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
             .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
@@ -3471,6 +3495,88 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct A5Summary {
+        scoped_misses: usize,
+        no_candidate: usize,
+        outscored_by_null: usize,
+        lag_scanned: usize,
+        lag_no_effect: usize,
+        lag_effect_offsets: Vec<i32>,
+        lag_fresh: usize,
+        lag_held: usize,
+        lag_solved_at_effect_interval: usize,
+        cascade_total: usize,
+        cascade_real_prior: usize,
+        cascade_hallucinated_prior: usize,
+        cascade_expired_timeout: usize,
+        cascade_unknown: usize,
+        cascade_liftoff_tick_zero: usize,
+        cascade_hallucination_causes: BTreeMap<String, usize>,
+        segment_total: usize,
+        segment_surface_margins: Vec<f64>,
+        segment_boundary_offsets: Vec<i32>,
+        segment_after_raw_liftoff: usize,
+        segment_before_raw_liftoff: usize,
+        segment_far_from_liftoff: usize,
+        overlap: BTreeMap<(bool, bool, bool), usize>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A5Summary {
+        fn add(&mut self, other: &Self) {
+            self.scoped_misses += other.scoped_misses;
+            self.no_candidate += other.no_candidate;
+            self.outscored_by_null += other.outscored_by_null;
+            self.lag_scanned += other.lag_scanned;
+            self.lag_no_effect += other.lag_no_effect;
+            self.lag_effect_offsets
+                .extend(other.lag_effect_offsets.iter().copied());
+            self.lag_fresh += other.lag_fresh;
+            self.lag_held += other.lag_held;
+            self.lag_solved_at_effect_interval += other.lag_solved_at_effect_interval;
+            self.cascade_total += other.cascade_total;
+            self.cascade_real_prior += other.cascade_real_prior;
+            self.cascade_hallucinated_prior += other.cascade_hallucinated_prior;
+            self.cascade_expired_timeout += other.cascade_expired_timeout;
+            self.cascade_unknown += other.cascade_unknown;
+            self.cascade_liftoff_tick_zero += other.cascade_liftoff_tick_zero;
+            for (key, count) in &other.cascade_hallucination_causes {
+                *self
+                    .cascade_hallucination_causes
+                    .entry(key.clone())
+                    .or_default() += count;
+            }
+            self.segment_total += other.segment_total;
+            self.segment_surface_margins
+                .extend(other.segment_surface_margins.iter().copied());
+            self.segment_boundary_offsets
+                .extend(other.segment_boundary_offsets.iter().copied());
+            self.segment_after_raw_liftoff += other.segment_after_raw_liftoff;
+            self.segment_before_raw_liftoff += other.segment_before_raw_liftoff;
+            self.segment_far_from_liftoff += other.segment_far_from_liftoff;
+            for (key, count) in &other.overlap {
+                *self.overlap.entry(*key).or_default() += count;
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    struct A5LagDiag {
+        offset: Option<i32>,
+        fresh: bool,
+        solved_at_effect_interval: bool,
+    }
+
+    #[cfg(feature = "sim")]
+    enum A5CascadeClass {
+        RealPrior,
+        HallucinatedPrior(String),
+        ExpiredTimeout,
+        Unknown,
+    }
+
+    #[cfg(feature = "sim")]
     fn read_dev_series(dir: &str) -> Vec<(String, ReplaySeries)> {
         let mut paths: Vec<_> = std::fs::read_dir(dir)
             .expect("dev series dir should read")
@@ -3499,6 +3605,409 @@ mod tests {
         config.mode = Mode::Unseeded;
         config.engine = EnginePreference::PreferReference;
         solve_series(series, &config)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a5_probe_replay(replay: &str, series: &ReplaySeries) -> A5Summary {
+        let misses = wave_a3_replay_misses(replay, series);
+        let output = solve_unseeded_reference(series);
+        let solved_flips = solved_flip_intervals(&output);
+        let solved_events = solved_flip_events_by_player(&output);
+        let known_flips = coalesced_component_targets(series, is_component_flip_edge, false);
+        let ordinals = coalesced_interval_ordinals(series);
+        let segmentation = crate::segment::segment_replay(series);
+        let freshness = freshness_by_player(series, &segmentation);
+        let scoring_ends = scoring_end_by_player(series, &segmentation, &freshness);
+        let mut summary = A5Summary::default();
+
+        for miss in &misses {
+            summary.scoped_misses += 1;
+            match miss.class {
+                MissClass::NoCandidate => summary.no_candidate += 1,
+                MissClass::OutscoredByNull => summary.outscored_by_null += 1,
+                MissClass::Illegal | MissClass::OutscoredByEvent | MissClass::Unscored => {}
+            }
+
+            let lag = a5_lag_diag(miss, series, &freshness, &scoring_ends, &solved_flips);
+            let lagged = lag
+                .as_ref()
+                .and_then(|diag| diag.offset)
+                .is_some_and(|offset| offset > 0);
+            if let Some(lag) = lag {
+                summary.lag_scanned += 1;
+                if let Some(offset) = lag.offset {
+                    summary.lag_effect_offsets.push(offset);
+                    if lag.fresh {
+                        summary.lag_fresh += 1;
+                    } else {
+                        summary.lag_held += 1;
+                    }
+                    if lag.solved_at_effect_interval {
+                        summary.lag_solved_at_effect_interval += 1;
+                    }
+                } else {
+                    summary.lag_no_effect += 1;
+                }
+            }
+
+            let cascade = miss
+                .failures
+                .iter()
+                .any(|failure| failure == "kinematic.second_available");
+            if cascade {
+                summary.cascade_total += 1;
+                if miss.tracker_state.contains("liftoff_tick: 0") {
+                    summary.cascade_liftoff_tick_zero += 1;
+                }
+                match a5_cascade_class(miss, &solved_events, &known_flips, &ordinals) {
+                    A5CascadeClass::RealPrior => summary.cascade_real_prior += 1,
+                    A5CascadeClass::HallucinatedPrior(key) => {
+                        summary.cascade_hallucinated_prior += 1;
+                        *summary.cascade_hallucination_causes.entry(key).or_default() += 1;
+                    }
+                    A5CascadeClass::ExpiredTimeout => summary.cascade_expired_timeout += 1,
+                    A5CascadeClass::Unknown => summary.cascade_unknown += 1,
+                }
+            }
+
+            let segment = miss
+                .failures
+                .iter()
+                .any(|failure| failure == "kinematic.segment_is_air");
+            if segment {
+                summary.segment_total += 1;
+                if let Some(diag) = a5_segment_diag(miss, series, &segmentation) {
+                    summary
+                        .segment_surface_margins
+                        .push(f64::from(diag.surface_margin));
+                    if let Some(offset) = diag.segment_boundary_offset {
+                        summary.segment_boundary_offsets.push(offset);
+                    }
+                    match diag.raw_liftoff_offset {
+                        Some(offset)
+                            if offset <= 0 && offset.abs() <= A5_BOUNDARY_WINDOW_FRAMES as i32 =>
+                        {
+                            summary.segment_after_raw_liftoff += 1;
+                        }
+                        Some(offset)
+                            if offset > 0 && offset <= A5_BOUNDARY_WINDOW_FRAMES as i32 =>
+                        {
+                            summary.segment_before_raw_liftoff += 1;
+                        }
+                        _ => summary.segment_far_from_liftoff += 1,
+                    }
+                }
+            }
+
+            *summary
+                .overlap
+                .entry((lagged, cascade, segment))
+                .or_default() += 1;
+        }
+
+        summary
+    }
+
+    #[cfg(feature = "sim")]
+    fn freshness_by_player(
+        series: &ReplaySeries,
+        segmentation: &crate::segment::SegmentationOutput,
+    ) -> BTreeMap<String, KinematicFreshness> {
+        let mut out = BTreeMap::new();
+        for segmented_player in &segmentation.players {
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+            }
+            out.insert(player.player_id.clone(), freshness);
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn scoring_end_by_player(
+        series: &ReplaySeries,
+        segmentation: &crate::segment::SegmentationOutput,
+        freshness: &BTreeMap<String, KinematicFreshness>,
+    ) -> BTreeMap<String, BTreeMap<u32, u32>> {
+        let mut out = BTreeMap::new();
+        for segmented_player in &segmentation.players {
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let Some(freshness) = freshness.get(&player.player_id) else {
+                continue;
+            };
+            let mut frames = BTreeMap::new();
+            for segment in &segmented_player.segments {
+                for scoring in fresh_scoring_intervals(segment, freshness) {
+                    for frame in
+                        scoring.start_frame.saturating_add(1)..=scoring.interval.frame_index
+                    {
+                        frames.insert(frame, scoring.interval.frame_index);
+                    }
+                }
+            }
+            out.insert(player.player_id.clone(), frames);
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn a5_lag_diag(
+        miss: &A3MissDiag,
+        series: &ReplaySeries,
+        freshness: &BTreeMap<String, KinematicFreshness>,
+        scoring_ends: &BTreeMap<String, BTreeMap<u32, u32>>,
+        solved_flips: &HashSet<(String, u32)>,
+    ) -> Option<A5LagDiag> {
+        let player = series
+            .players
+            .iter()
+            .find(|player| player.player_id == miss.player_id)?;
+        let truth_frame = miss
+            .truth
+            .as_ref()
+            .map(|truth| truth.frame)
+            .unwrap_or(miss.end_frame);
+        let max_frame = player.frames.ang_vel.len().saturating_sub(1) as u32;
+        let search_end = truth_frame
+            .saturating_add(A5_LAG_LOOKAHEAD_FRAMES)
+            .min(max_frame);
+        let effect_frame = (truth_frame.saturating_add(1)..=search_end).find(|frame| {
+            let prev = frame_state(player, frame.saturating_sub(1));
+            let curr = frame_state(player, *frame);
+            norm(diff(curr.ang_vel, prev.ang_vel)) >= A5_DODGE_ANG_DELTA
+        });
+        let Some(effect_frame) = effect_frame else {
+            return Some(A5LagDiag {
+                offset: None,
+                fresh: false,
+                solved_at_effect_interval: false,
+            });
+        };
+        let interval_end = scoring_ends
+            .get(&miss.player_id)
+            .and_then(|frames| frames.get(&effect_frame))
+            .copied()
+            .unwrap_or(effect_frame);
+        Some(A5LagDiag {
+            offset: Some(effect_frame as i32 - truth_frame as i32),
+            fresh: freshness
+                .get(&miss.player_id)
+                .is_some_and(|freshness| freshness.is_fresh(effect_frame)),
+            solved_at_effect_interval: solved_flips
+                .contains(&(miss.player_id.clone(), interval_end)),
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn solved_flip_events_by_player(output: &SolveOutput) -> BTreeMap<String, Vec<u32>> {
+        let mut out: BTreeMap<String, Vec<u32>> = BTreeMap::new();
+        for timeline in &output.timelines {
+            for event in &timeline.events {
+                if matches!(
+                    event.kind,
+                    SolvedEventKind::Dodge { .. }
+                        | SolvedEventKind::DoubleJump
+                        | SolvedEventKind::Stall
+                ) {
+                    out.entry(timeline.player_id.clone())
+                        .or_default()
+                        .push(event.frame_index);
+                }
+            }
+        }
+        for frames in out.values_mut() {
+            frames.sort_unstable();
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn a5_cascade_class(
+        miss: &A3MissDiag,
+        solved_events: &BTreeMap<String, Vec<u32>>,
+        known_flips: &BTreeMap<FlipKey, ComponentTarget>,
+        ordinals: &BTreeMap<String, BTreeMap<u32, i32>>,
+    ) -> A5CascadeClass {
+        if miss.tracker_state.contains("Expired") {
+            return A5CascadeClass::ExpiredTimeout;
+        }
+        if !(miss.tracker_state.contains("UsedDodge")
+            || miss.tracker_state.contains("UsedDoubleJump"))
+        {
+            return A5CascadeClass::Unknown;
+        }
+        let Some(frame) = solved_events
+            .get(&miss.player_id)
+            .and_then(|frames| frames.iter().rev().find(|frame| **frame < miss.end_frame))
+            .copied()
+        else {
+            return A5CascadeClass::Unknown;
+        };
+        let pred = (miss.player_id.clone(), frame);
+        let real = known_flips.contains_key(&pred)
+            || known_flips.keys().any(|truth| {
+                flip_match_distance(truth, &pred, ordinals, FlipMatchTolerance::Frames(4)).is_some()
+            });
+        if real {
+            A5CascadeClass::RealPrior
+        } else {
+            A5CascadeClass::HallucinatedPrior(format!("{}@{}", miss.player_id, frame))
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    struct A5SegmentDiag {
+        surface_margin: f32,
+        segment_boundary_offset: Option<i32>,
+        raw_liftoff_offset: Option<i32>,
+    }
+
+    #[cfg(feature = "sim")]
+    fn a5_segment_diag(
+        miss: &A3MissDiag,
+        series: &ReplaySeries,
+        segmentation: &crate::segment::SegmentationOutput,
+    ) -> Option<A5SegmentDiag> {
+        let player = series
+            .players
+            .iter()
+            .find(|player| player.player_id == miss.player_id)?;
+        let truth_frame = miss
+            .truth
+            .as_ref()
+            .map(|truth| truth.frame)
+            .unwrap_or(miss.end_frame);
+        let pos = player.frames.pos.get(truth_frame as usize).copied()?;
+        let segmented_player = segmentation
+            .players
+            .iter()
+            .find(|player| player.player_id == miss.player_id)?;
+        Some(A5SegmentDiag {
+            surface_margin: nearest_arena_surface_margin(pos),
+            segment_boundary_offset: nearest_air_boundary_offset(segmented_player, truth_frame),
+            raw_liftoff_offset: nearest_raw_liftoff_offset(player, truth_frame),
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn nearest_air_boundary_offset(
+        segmented_player: &crate::segment::PlayerSegmentation,
+        frame: u32,
+    ) -> Option<i32> {
+        segmented_player
+            .segments
+            .iter()
+            .filter(|segment| segment.kind == SegmentKind::Air)
+            .map(|segment| segment.frame_span.0 as i32 - frame as i32)
+            .min_by_key(|offset| offset.abs())
+    }
+
+    #[cfg(feature = "sim")]
+    fn nearest_raw_liftoff_offset(player: &PlayerSeries, frame: u32) -> Option<i32> {
+        (1..player.frames.on_ground.len())
+            .filter(|idx| player.frames.on_ground[idx - 1] && !player.frames.on_ground[*idx])
+            .map(|idx| idx as i32 - frame as i32)
+            .min_by_key(|offset| offset.abs())
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a5_summary(replay: &str, summary: &A5Summary) {
+        println!(
+            "wave_a5_scope,replay={replay},scoped_misses={},no_candidate={},outscored_by_null={}",
+            summary.scoped_misses, summary.no_candidate, summary.outscored_by_null
+        );
+        println!(
+            "wave_a5_lag_summary,replay={replay},scanned={},effect_found={},no_effect={},offset_hist={},fresh={},held={},solved_at_effect_interval={}",
+            summary.lag_scanned,
+            summary.lag_effect_offsets.len(),
+            summary.lag_no_effect,
+            hist_i32(&summary.lag_effect_offsets),
+            summary.lag_fresh,
+            summary.lag_held,
+            summary.lag_solved_at_effect_interval,
+        );
+        println!(
+            "wave_a5_cascade_summary,replay={replay},second_available_fail={},real_prior={},hallucinated_prior={},expired_timeout={},unknown={},liftoff_tick_zero={},hallucination_causes={},hallucination_downstream_misses={}",
+            summary.cascade_total,
+            summary.cascade_real_prior,
+            summary.cascade_hallucinated_prior,
+            summary.cascade_expired_timeout,
+            summary.cascade_unknown,
+            summary.cascade_liftoff_tick_zero,
+            summary.cascade_hallucination_causes.len(),
+            summary.cascade_hallucination_causes.values().sum::<usize>(),
+        );
+        for (idx, (cause, count)) in summary
+            .cascade_hallucination_causes
+            .iter()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .take(12)
+            .enumerate()
+        {
+            println!(
+                "wave_a5_cascade_hallucination_cause,replay={replay},rank={},event={},downstream_misses={}",
+                idx + 1,
+                cause,
+                count
+            );
+        }
+        println!(
+            "wave_a5_segment_summary,replay={replay},segment_air_fail={},surface_p10={:.3},surface_p50={:.3},surface_p90={:.3},boundary_hist={},after_raw_liftoff_within_{}f={},before_raw_liftoff_within_{}f={},far_from_raw_liftoff={}",
+            summary.segment_total,
+            percentile(summary.segment_surface_margins.clone(), 0.10),
+            percentile(summary.segment_surface_margins.clone(), 0.50),
+            percentile(summary.segment_surface_margins.clone(), 0.90),
+            hist_i32(&summary.segment_boundary_offsets),
+            A5_BOUNDARY_WINDOW_FRAMES,
+            summary.segment_after_raw_liftoff,
+            A5_BOUNDARY_WINDOW_FRAMES,
+            summary.segment_before_raw_liftoff,
+            summary.segment_far_from_liftoff,
+        );
+        for lag in [false, true] {
+            for cascade in [false, true] {
+                for segment in [false, true] {
+                    let count = summary
+                        .overlap
+                        .get(&(lag, cascade, segment))
+                        .copied()
+                        .unwrap_or_default();
+                    println!(
+                        "wave_a5_overlap,replay={replay},lag={lag},cascade={cascade},segment={segment},count={count}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn hist_i32(values: &[i32]) -> String {
+        let mut hist = BTreeMap::new();
+        for value in values {
+            *hist.entry(*value).or_insert(0usize) += 1;
+        }
+        if hist.is_empty() {
+            return "none".to_string();
+        }
+        hist.into_iter()
+            .map(|(value, count)| format!("{value}:{count}"))
+            .collect::<Vec<_>>()
+            .join("|")
     }
 
     #[cfg(feature = "sim")]
