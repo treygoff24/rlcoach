@@ -790,6 +790,14 @@ mod tests {
     use super::*;
     use crate::model::{BallSeries, ComponentStream, Kinematics, PlayerSeries, ReplicatedChannels};
 
+    #[cfg(feature = "sim")]
+    const SEEDED_251202_DEV_REPLAYS: [&str; 4] = [
+        "3D6CDD7F418048C2AA2A11ACC588094D",
+        "769971A8447DB11ABD813990572B53B1",
+        "7A51ECF34B1E94EFE3B049B1DC0A8F7E",
+        "F5BB1FF44EB9B29EE9EF9C9ACA51BA7C",
+    ];
+
     #[test]
     fn withheld_channel_is_never_read_during_solve() {
         let series = poison_replicated_series();
@@ -831,6 +839,43 @@ mod tests {
     fn exported_dev_set_oracle_report() {
         let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
             .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
+        let named = load_exported_series(&dir);
+        let report = run_oracle(&named);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).expect("report should serialize")
+        );
+        assert_eq!(report.replay_count, 10);
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn criterion3_channel_probe_report() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
+        let mut named: Vec<_> = load_exported_series(&dir)
+            .into_iter()
+            .filter(|(name, _)| SEEDED_251202_DEV_REPLAYS.contains(&name.as_str()))
+            .collect();
+        named.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(named.len(), SEEDED_251202_DEV_REPLAYS.len());
+
+        println!("criterion3_probe_scope,replays={}", named.len());
+        for (name, series) in named {
+            let input = BlindSolverInput::strict(&series);
+            println!(
+                "criterion3_ruler_audit,replay={},mask_ok={},key_space=sample_start_raw_frame,boost_truth=raw_replicated_edges,boost_pred=sample_end_edges,strict_blind=true",
+                name,
+                strict_mask_ok(input.masked_series())
+            );
+            let output = input.solve();
+            print_continuous_channel_probe(&name, &series, &output);
+            print_boost_probe(&name, &series, &output);
+        }
+    }
+
+    fn load_exported_series(dir: &str) -> Vec<(String, ReplaySeries)> {
         let mut named = Vec::new();
         for entry in std::fs::read_dir(dir).expect("dev series dir should read") {
             let path = entry.expect("entry should read").path();
@@ -848,12 +893,465 @@ mod tests {
             ));
         }
         named.sort_by(|a, b| a.0.cmp(&b.0));
-        let report = run_oracle(&named);
+        named
+    }
+
+    #[cfg(feature = "sim")]
+    fn strict_mask_ok(series: &ReplaySeries) -> bool {
+        series.players.iter().all(|player| {
+            player.replicated.throttle_raw.iter().all(|raw| *raw == 128)
+                && player.replicated.steer_raw.iter().all(|raw| *raw == 128)
+                && player.replicated.handbrake.iter().all(|value| !*value)
+                && player
+                    .replicated
+                    .boost_active_raw
+                    .iter()
+                    .all(|value| !*value)
+                && player
+                    .replicated
+                    .boost_amount_raw
+                    .iter()
+                    .all(|raw| *raw == 0)
+                && player.component.events.is_empty()
+                && player.component.jump_raw.iter().all(|raw| *raw == 0)
+                && player.component.dodge_raw.iter().all(|raw| *raw == 0)
+                && player.component.double_jump_raw.iter().all(|raw| *raw == 0)
+                && player.component.boost_raw.iter().all(|raw| *raw == 0)
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_continuous_channel_probe(name: &str, series: &ReplaySeries, output: &SolveOutput) {
+        let mut audit = RulerAudit::default();
+        let mut throttle = [
+            ("throttle", std::array::from_fn(|_| SignStats::default())),
+            ("pitch", std::array::from_fn(|_| SignStats::default())),
+            ("neg_pitch", std::array::from_fn(|_| SignStats::default())),
+        ];
+        let mut steer = [
+            ("steer", std::array::from_fn(|_| SteerStats::default())),
+            ("yaw", std::array::from_fn(|_| SteerStats::default())),
+            ("neg_yaw", std::array::from_fn(|_| SteerStats::default())),
+        ];
+
+        for (player, timeline) in joined_players(series, output) {
+            let freshness = KinematicFreshness::from_frames(&player.frames);
+            for sample in &timeline.samples {
+                let start =
+                    sample_start_frame(series, sample).unwrap_or(sample.frame_index) as usize;
+                let end = sample.frame_index as usize;
+                let grounded = player.frames.on_ground.get(start).copied().unwrap_or(false);
+                audit.add(player, &freshness, start, end);
+
+                if let Some(raw) = player.replicated.throttle_raw.get(start).copied() {
+                    for (label, stats) in &mut throttle {
+                        let value = match *label {
+                            "throttle" => sample.throttle.value,
+                            "pitch" => sample.pitch.value,
+                            "neg_pitch" => -sample.pitch.value,
+                            _ => unreachable!(),
+                        };
+                        add_scoped_sign(stats, grounded, raw, value);
+                    }
+                }
+
+                if let Some(raw) = player.replicated.steer_raw.get(start).copied() {
+                    let truth = raw_axis(raw);
+                    for (label, stats) in &mut steer {
+                        let value = match *label {
+                            "steer" => sample.steer.value,
+                            "yaw" => sample.yaw.value,
+                            "neg_yaw" => -sample.yaw.value,
+                            _ => unreachable!(),
+                        };
+                        add_scoped_steer(stats, grounded, truth, value);
+                    }
+                }
+            }
+        }
+
         println!(
-            "{}",
-            serde_json::to_string_pretty(&report).expect("report should serialize")
+            "criterion3_sample_audit,replay={},samples={},start_fresh={}/{},end_fresh={}/{},start_equals_end={},throttle_start_end_same={},steer_start_end_same={},boost_start_end_same={}",
+            name,
+            audit.samples,
+            audit.start_fresh,
+            audit.samples,
+            audit.end_fresh,
+            audit.samples,
+            audit.start_equals_end,
+            audit.throttle_same,
+            audit.steer_same,
+            audit.boost_same
         );
-        assert_eq!(report.replay_count, 10);
+
+        for (label, by_scope) in throttle {
+            for (scope, stats) in ["all", "ground", "air"].into_iter().zip(by_scope) {
+                println!(
+                    "criterion3_throttle,replay={},metric={},scope={},coverage={}/{},score={:.4},den={},r={:.4},pred_hist={},truth_hist={},confusion={}",
+                    name,
+                    label,
+                    scope,
+                    stats.den,
+                    stats.den,
+                    stats.share(),
+                    stats.den,
+                    pearson(&stats.pairs),
+                    fmt3(stats.pred_hist),
+                    fmt3(stats.truth_hist),
+                    fmt_confusion(stats.confusion)
+                );
+            }
+        }
+
+        for (label, by_scope) in steer {
+            for (scope, stats) in ["all", "ground", "air"].into_iter().zip(by_scope) {
+                println!(
+                    "criterion3_steer,replay={},metric={},scope={},coverage={}/{},le015={:.4},den={},r={:.4},pred_hist={},truth_hist={},err_hist={}",
+                    name,
+                    label,
+                    scope,
+                    stats.den,
+                    stats.den,
+                    stats.share(),
+                    stats.den,
+                    pearson(&stats.pairs),
+                    fmt5(stats.pred_hist),
+                    fmt5(stats.truth_hist),
+                    fmt6(stats.err_hist)
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_boost_probe(name: &str, series: &ReplaySeries, output: &SolveOutput) {
+        let truth = replicated_bool_edges(series, |player| &player.replicated.boost_active_raw);
+        let pred = solved_bool_edges(output, |sample| sample.boost.value);
+        let exact = f1_with_tolerance(&truth, &pred, 0);
+        let tol1 = f1_with_tolerance(&truth, &pred, 1);
+        let tol2 = f1_with_tolerance(&truth, &pred, 2);
+        let coalesced =
+            coalesced_bool_truth(series, output, |player| &player.replicated.boost_active_raw);
+        let coalesced_tol1 = f1_with_tolerance(&coalesced, &pred, 1);
+        let mut active = BoolStats::default();
+        for (player, timeline) in joined_players(series, output) {
+            for sample in &timeline.samples {
+                let start =
+                    sample_start_frame(series, sample).unwrap_or(sample.frame_index) as usize;
+                if let Some(truth) = player.replicated.boost_active_raw.get(start).copied() {
+                    active.add(truth, sample.boost.value);
+                }
+            }
+        }
+
+        println!(
+            "criterion3_boost,replay={},sample_coverage={}/{},exact_f1={:.4},tol1_f1={:.4},tol2_f1={:.4},coalesced_tol1_f1={:.4},truth={},pred={},matched_tol1={},false_neg_tol1={},false_pos_tol1={},active_r={:.4},active_pred_hist=false:{},true:{},active_truth_hist=false:{},true:{},nearest_offsets={}",
+            name,
+            active.pairs.len(),
+            active.pairs.len(),
+            exact.f1,
+            tol1.f1,
+            tol2.f1,
+            coalesced_tol1.f1,
+            tol1.truth,
+            tol1.predicted,
+            tol1.matched,
+            tol1.truth.saturating_sub(tol1.matched),
+            tol1.predicted.saturating_sub(tol1.matched),
+            pearson(&active.pairs),
+            active.pred_false,
+            active.pred_true,
+            active.truth_false,
+            active.truth_true,
+            boost_offsets(&truth, &pred)
+        );
+    }
+
+    #[cfg(feature = "sim")]
+    fn coalesced_bool_truth(
+        series: &ReplaySeries,
+        output: &SolveOutput,
+        field: impl Fn(&PlayerSeries) -> &[bool],
+    ) -> HashSet<(String, u32)> {
+        let raw = replicated_bool_edges(series, field);
+        let mut out = HashSet::new();
+        let by_player: HashMap<_, _> = output
+            .timelines
+            .iter()
+            .map(|timeline| (timeline.player_id.as_str(), timeline))
+            .collect();
+        for player in &series.players {
+            let Some(timeline) = by_player.get(player.player_id.as_str()) else {
+                continue;
+            };
+            let mut prev = 0;
+            for sample in &timeline.samples {
+                if raw.iter().any(|(player_id, frame)| {
+                    player_id == &player.player_id && *frame > prev && *frame <= sample.frame_index
+                }) {
+                    out.insert((player.player_id.clone(), sample.frame_index));
+                }
+                prev = sample.frame_index;
+            }
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct RulerAudit {
+        samples: usize,
+        start_fresh: usize,
+        end_fresh: usize,
+        start_equals_end: usize,
+        throttle_same: usize,
+        steer_same: usize,
+        boost_same: usize,
+    }
+
+    #[cfg(feature = "sim")]
+    impl RulerAudit {
+        fn add(
+            &mut self,
+            player: &PlayerSeries,
+            freshness: &KinematicFreshness,
+            start: usize,
+            end: usize,
+        ) {
+            self.samples += 1;
+            self.start_fresh += usize::from(freshness.is_fresh(start as u32));
+            self.end_fresh += usize::from(freshness.is_fresh(end as u32));
+            self.start_equals_end += usize::from(start == end);
+            self.throttle_same += usize::from(
+                player.replicated.throttle_raw.get(start)
+                    == player.replicated.throttle_raw.get(end),
+            );
+            self.steer_same += usize::from(
+                player.replicated.steer_raw.get(start) == player.replicated.steer_raw.get(end),
+            );
+            self.boost_same += usize::from(
+                player.replicated.boost_active_raw.get(start)
+                    == player.replicated.boost_active_raw.get(end),
+            );
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct SignStats {
+        den: usize,
+        hit: usize,
+        truth_hist: [usize; 3],
+        pred_hist: [usize; 3],
+        confusion: [[usize; 3]; 3],
+        pairs: Vec<(f32, f32)>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl SignStats {
+        fn add(&mut self, raw: u8, pred: f32) {
+            let centered = i16::from(raw) - 128;
+            if centered.abs() <= THROTTLE_DEADZONE_RAW {
+                return;
+            }
+            let truth_sign = centered.signum();
+            let pred_sign = signum_f32(pred);
+            let truth_idx = sign_idx(truth_sign);
+            let pred_idx = sign_idx(pred_sign);
+            self.den += 1;
+            self.hit += usize::from(truth_sign == pred_sign);
+            self.truth_hist[truth_idx] += 1;
+            self.pred_hist[pred_idx] += 1;
+            self.confusion[truth_idx][pred_idx] += 1;
+            self.pairs.push((pred, raw_axis(raw)));
+        }
+
+        fn share(&self) -> f32 {
+            share(self.hit, self.den)
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct SteerStats {
+        den: usize,
+        hit: usize,
+        truth_hist: [usize; 5],
+        pred_hist: [usize; 5],
+        err_hist: [usize; 6],
+        pairs: Vec<(f32, f32)>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl SteerStats {
+        fn add(&mut self, truth: f32, pred: f32) {
+            let err = (pred - truth).abs();
+            self.den += 1;
+            self.hit += usize::from(err <= STEER_TOLERANCE);
+            self.truth_hist[value_bin5(truth)] += 1;
+            self.pred_hist[value_bin5(pred)] += 1;
+            self.err_hist[err_bin6(err)] += 1;
+            self.pairs.push((pred, truth));
+        }
+
+        fn share(&self) -> f32 {
+            share(self.hit, self.den)
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct BoolStats {
+        pred_false: usize,
+        pred_true: usize,
+        truth_false: usize,
+        truth_true: usize,
+        pairs: Vec<(f32, f32)>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl BoolStats {
+        fn add(&mut self, truth: bool, pred: bool) {
+            self.truth_false += usize::from(!truth);
+            self.truth_true += usize::from(truth);
+            self.pred_false += usize::from(!pred);
+            self.pred_true += usize::from(pred);
+            self.pairs.push((f32::from(pred), f32::from(truth)));
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn add_scoped_sign(stats: &mut [SignStats; 3], grounded: bool, raw: u8, pred: f32) {
+        stats[0].add(raw, pred);
+        stats[if grounded { 1 } else { 2 }].add(raw, pred);
+    }
+
+    #[cfg(feature = "sim")]
+    fn add_scoped_steer(stats: &mut [SteerStats; 3], grounded: bool, truth: f32, pred: f32) {
+        stats[0].add(truth, pred);
+        stats[if grounded { 1 } else { 2 }].add(truth, pred);
+    }
+
+    #[cfg(feature = "sim")]
+    fn sign_idx(sign: i16) -> usize {
+        match sign.cmp(&0) {
+            std::cmp::Ordering::Less => 0,
+            std::cmp::Ordering::Equal => 1,
+            std::cmp::Ordering::Greater => 2,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn value_bin5(value: f32) -> usize {
+        if value < -0.5 {
+            0
+        } else if value < -STEER_TOLERANCE {
+            1
+        } else if value <= STEER_TOLERANCE {
+            2
+        } else if value <= 0.5 {
+            3
+        } else {
+            4
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn err_bin6(value: f32) -> usize {
+        if value <= 0.05 {
+            0
+        } else if value <= STEER_TOLERANCE {
+            1
+        } else if value <= 0.3 {
+            2
+        } else if value <= 0.5 {
+            3
+        } else if value <= 1.0 {
+            4
+        } else {
+            5
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn pearson(pairs: &[(f32, f32)]) -> f64 {
+        if pairs.len() < 2 {
+            return 0.0;
+        }
+        let n = pairs.len() as f64;
+        let (sum_x, sum_y) = pairs.iter().fold((0.0, 0.0), |(sx, sy), (x, y)| {
+            (sx + f64::from(*x), sy + f64::from(*y))
+        });
+        let mean_x = sum_x / n;
+        let mean_y = sum_y / n;
+        let (num, den_x, den_y) = pairs.iter().fold((0.0, 0.0, 0.0), |acc, (x, y)| {
+            let dx = f64::from(*x) - mean_x;
+            let dy = f64::from(*y) - mean_y;
+            (acc.0 + dx * dy, acc.1 + dx * dx, acc.2 + dy * dy)
+        });
+        if den_x == 0.0 || den_y == 0.0 {
+            0.0
+        } else {
+            num / (den_x.sqrt() * den_y.sqrt())
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn boost_offsets(truth: &HashSet<(String, u32)>, pred: &HashSet<(String, u32)>) -> String {
+        let mut hist: BTreeMap<i32, usize> = BTreeMap::new();
+        for (player_id, pred_frame) in pred {
+            if let Some(delta) = truth
+                .iter()
+                .filter(|(truth_player, truth_frame)| {
+                    truth_player == player_id && truth_frame.abs_diff(*pred_frame) <= 5
+                })
+                .map(|(_, truth_frame)| *truth_frame as i32 - *pred_frame as i32)
+                .min_by_key(|delta| delta.abs())
+            {
+                *hist.entry(delta).or_default() += 1;
+            }
+        }
+        hist.into_iter()
+            .map(|(delta, count)| format!("{delta}:{count}"))
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
+    #[cfg(feature = "sim")]
+    fn fmt3(values: [usize; 3]) -> String {
+        format!("neg:{}|zero:{}|pos:{}", values[0], values[1], values[2])
+    }
+
+    #[cfg(feature = "sim")]
+    fn fmt5(values: [usize; 5]) -> String {
+        format!(
+            "lt-0.5:{}|-0.5..-0.15:{}|-0.15..0.15:{}|0.15..0.5:{}|gt0.5:{}",
+            values[0], values[1], values[2], values[3], values[4]
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn fmt6(values: [usize; 6]) -> String {
+        format!(
+            "<=0.05:{}|<=0.15:{}|<=0.30:{}|<=0.50:{}|<=1.00:{}|>1.00:{}",
+            values[0], values[1], values[2], values[3], values[4], values[5]
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn fmt_confusion(values: [[usize; 3]; 3]) -> String {
+        format!(
+            "truth_neg[pred_neg:{},pred_zero:{},pred_pos:{}]|truth_zero[pred_neg:{},pred_zero:{},pred_pos:{}]|truth_pos[pred_neg:{},pred_zero:{},pred_pos:{}]",
+            values[0][0],
+            values[0][1],
+            values[0][2],
+            values[1][0],
+            values[1][1],
+            values[1][2],
+            values[2][0],
+            values[2][1],
+            values[2][2]
+        )
     }
 
     fn poison_replicated_series() -> ReplaySeries {
