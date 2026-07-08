@@ -3016,6 +3016,29 @@ mod tests {
     #[cfg(feature = "sim")]
     #[test]
     #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a10_observability_audit() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported dev-set ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A10 must run on all 10 dev replays");
+
+        println!(
+            "wave_a10_field_availability,primary_or_pov=false,opponent_team=false,nearest_car_proxy=nearest_other_car"
+        );
+
+        let mut pooled = A10ReplaySummary::default();
+        for (replay, series) in replays {
+            let summary = a10_probe_replay(&replay, &series);
+            print_a10_replay_summary(&replay, &series.build_bucket, &summary);
+            pooled.add(&summary);
+        }
+        print_a10_replay_summary("POOLED", "ALL", &pooled);
+        print_a10_verdict(&pooled);
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
     fn exported_dev_set_wave_a3_flip_recall_microscope() {
         let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
             .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
@@ -3851,6 +3874,133 @@ mod tests {
             for (key, count) in &other.miss_xtab {
                 *self.miss_xtab.entry(*key).or_default() += count;
             }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct A10Row {
+        gap_before: u32,
+        gap_after: u32,
+        max_gap: u32,
+        held_run_len: u32,
+        fresh_rate_31: f64,
+        observable: bool,
+        car_ball_distance: f64,
+        nearest_other_car_distance: f64,
+        car_speed: f64,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct A10PopulationSummary {
+        total: usize,
+        observable: usize,
+        held_contained: usize,
+        gap_before: Vec<f64>,
+        gap_after: Vec<f64>,
+        max_gap: Vec<f64>,
+        held_run_len: Vec<f64>,
+        fresh_rate_31: Vec<f64>,
+        car_ball_distance: Vec<f64>,
+        nearest_other_car_distance: Vec<f64>,
+        car_speed: Vec<f64>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A10PopulationSummary {
+        fn add_row(&mut self, row: &A10Row) {
+            self.total += 1;
+            self.observable += usize::from(row.observable);
+            self.held_contained += usize::from(row.held_run_len > 0);
+            self.gap_before.push(f64::from(row.gap_before));
+            self.gap_after.push(f64::from(row.gap_after));
+            self.max_gap.push(f64::from(row.max_gap));
+            self.held_run_len.push(f64::from(row.held_run_len));
+            self.fresh_rate_31.push(row.fresh_rate_31);
+            self.car_ball_distance.push(row.car_ball_distance);
+            self.nearest_other_car_distance
+                .push(row.nearest_other_car_distance);
+            self.car_speed.push(row.car_speed);
+        }
+
+        fn add(&mut self, other: &Self) {
+            self.total += other.total;
+            self.observable += other.observable;
+            self.held_contained += other.held_contained;
+            self.gap_before.extend(other.gap_before.iter().copied());
+            self.gap_after.extend(other.gap_after.iter().copied());
+            self.max_gap.extend(other.max_gap.iter().copied());
+            self.held_run_len.extend(other.held_run_len.iter().copied());
+            self.fresh_rate_31
+                .extend(other.fresh_rate_31.iter().copied());
+            self.car_ball_distance
+                .extend(other.car_ball_distance.iter().copied());
+            self.nearest_other_car_distance
+                .extend(other.nearest_other_car_distance.iter().copied());
+            self.car_speed.extend(other.car_speed.iter().copied());
+        }
+
+        fn held_share(&self) -> f32 {
+            recall(self.held_contained, self.total)
+        }
+
+        fn max_gap_p50(&self) -> f64 {
+            percentile_finite(self.max_gap.clone(), 0.50)
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct A10CeilingSummary {
+        observable_total: usize,
+        observable_hits: usize,
+        unobservable_total: usize,
+        unobservable_hits: usize,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A10CeilingSummary {
+        fn add(&mut self, row: &A10Row, hit: bool) {
+            if row.observable {
+                self.observable_total += 1;
+                self.observable_hits += usize::from(hit);
+            } else {
+                self.unobservable_total += 1;
+                self.unobservable_hits += usize::from(hit);
+            }
+        }
+
+        fn add_summary(&mut self, other: &Self) {
+            self.observable_total += other.observable_total;
+            self.observable_hits += other.observable_hits;
+            self.unobservable_total += other.unobservable_total;
+            self.unobservable_hits += other.unobservable_hits;
+        }
+
+        fn total(&self) -> usize {
+            self.observable_total + self.unobservable_total
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct A10ReplaySummary {
+        hit: A10PopulationSummary,
+        missed: A10PopulationSummary,
+        missed_neither: A10PopulationSummary,
+        hallucination: A10PopulationSummary,
+        ceiling: A10CeilingSummary,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A10ReplaySummary {
+        fn add(&mut self, other: &Self) {
+            self.hit.add(&other.hit);
+            self.missed.add(&other.missed);
+            self.missed_neither.add(&other.missed_neither);
+            self.hallucination.add(&other.hallucination);
+            self.ceiling.add_summary(&other.ceiling);
         }
     }
 
@@ -4806,6 +4956,302 @@ mod tests {
                 .collect(),
             q,
         )
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_probe_replay(replay: &str, series: &ReplaySeries) -> A10ReplaySummary {
+        let report = wp7c_replay_report(replay, series);
+        let known = coalesced_component_targets(series, is_component_flip_edge, false);
+        assert_eq!(
+            known.len(),
+            report.summary.known_flips,
+            "A10 probe population must match WP7c known flips"
+        );
+
+        let miss_classes: BTreeMap<_, _> = report
+            .misses
+            .iter()
+            .map(|miss| ((miss.player_id.clone(), miss.end_frame), miss.class))
+            .collect();
+        let player_index_by_id: BTreeMap<_, _> = series
+            .players
+            .iter()
+            .enumerate()
+            .map(|(idx, player)| (player.player_id.clone(), idx))
+            .collect();
+        let segmentation = crate::segment::segment_replay(series);
+        let freshness = freshness_by_player(series, &segmentation);
+        let mut summary = A10ReplaySummary::default();
+
+        for ((player_id, end_frame), target) in known {
+            let Some(player_index) = player_index_by_id.get(&player_id).copied() else {
+                continue;
+            };
+            let Some(player_freshness) = freshness.get(&player_id) else {
+                continue;
+            };
+            let miss_class = miss_classes.get(&(player_id.clone(), end_frame)).copied();
+            let a9_row = a9_probe_target(series, &segmentation, &player_id, &target, miss_class);
+            let row = a10_row(
+                series,
+                player_index,
+                player_freshness,
+                a10_truth_frame(&target),
+            );
+            if miss_class.is_some() {
+                summary.missed.add_row(&row);
+                if a9_row.class == A9Class::Neither {
+                    summary.missed_neither.add_row(&row);
+                }
+            } else {
+                summary.hit.add_row(&row);
+            }
+            summary.ceiling.add(&row, miss_class.is_none());
+        }
+
+        for hallucination in &report.hallucinations {
+            let Some(player_index) = player_index_by_id.get(&hallucination.player_id).copied()
+            else {
+                continue;
+            };
+            let Some(player_freshness) = freshness.get(&hallucination.player_id) else {
+                continue;
+            };
+            summary.hallucination.add_row(&a10_row(
+                series,
+                player_index,
+                player_freshness,
+                hallucination.end_frame,
+            ));
+        }
+
+        summary
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_truth_frame(target: &ComponentTarget) -> u32 {
+        target
+            .edge_frames
+            .iter()
+            .copied()
+            .min_by_key(|frame| target.end_frame.abs_diff(*frame))
+            .unwrap_or(target.end_frame)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_row(
+        series: &ReplaySeries,
+        player_index: usize,
+        freshness: &KinematicFreshness,
+        frame: u32,
+    ) -> A10Row {
+        let player = &series.players[player_index];
+        let frame_count = player.frames.pos.len().min(series.ball.pos.len()) as u32;
+        let frame = frame.min(frame_count.saturating_sub(1));
+        let gap_before = a10_fresh_gap_before(freshness, frame).unwrap_or(frame_count);
+        let gap_after = a10_fresh_gap_after(freshness, frame, frame_count).unwrap_or(frame_count);
+        let held_run_len = a10_held_run_len(freshness, frame, frame_count);
+        let state = frame_state(player, frame);
+        let ball_pos = series
+            .ball
+            .pos
+            .get(frame as usize)
+            .copied()
+            .unwrap_or([f32::NAN; 3]);
+
+        A10Row {
+            gap_before,
+            gap_after,
+            max_gap: gap_before.max(gap_after),
+            held_run_len,
+            fresh_rate_31: a10_fresh_rate(freshness, frame, frame_count),
+            observable: gap_before <= 1 && gap_after <= 1,
+            car_ball_distance: f64::from(norm(diff(state.pos, ball_pos))),
+            nearest_other_car_distance: f64::from(a10_nearest_other_car_distance(
+                series,
+                player_index,
+                frame,
+            )),
+            car_speed: f64::from(norm(state.vel)),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_fresh_gap_before(freshness: &KinematicFreshness, frame: u32) -> Option<u32> {
+        (0..=frame)
+            .rev()
+            .find(|candidate| freshness.is_fresh(*candidate))
+            .map(|fresh| frame - fresh)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_fresh_gap_after(
+        freshness: &KinematicFreshness,
+        frame: u32,
+        frame_count: u32,
+    ) -> Option<u32> {
+        (frame..frame_count)
+            .find(|candidate| freshness.is_fresh(*candidate))
+            .map(|fresh| fresh - frame)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_held_run_len(freshness: &KinematicFreshness, frame: u32, frame_count: u32) -> u32 {
+        if frame_count == 0 || freshness.is_fresh(frame) {
+            return 0;
+        }
+        let mut start = frame;
+        while start > 0 && !freshness.is_fresh(start - 1) {
+            start -= 1;
+        }
+        let mut end = frame;
+        while end + 1 < frame_count && !freshness.is_fresh(end + 1) {
+            end += 1;
+        }
+        end - start + 1
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_fresh_rate(freshness: &KinematicFreshness, frame: u32, frame_count: u32) -> f64 {
+        if frame_count == 0 {
+            return f64::NAN;
+        }
+        let start = frame.saturating_sub(15);
+        let end = frame.saturating_add(15).min(frame_count - 1);
+        let total = end - start + 1;
+        let fresh = (start..=end)
+            .filter(|candidate| freshness.is_fresh(*candidate))
+            .count();
+        fresh as f64 / f64::from(total)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a10_nearest_other_car_distance(
+        series: &ReplaySeries,
+        player_index: usize,
+        frame: u32,
+    ) -> f32 {
+        let Some(pos) = series.players[player_index]
+            .frames
+            .pos
+            .get(frame as usize)
+            .copied()
+        else {
+            return f32::NAN;
+        };
+        let min_distance = series
+            .players
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| *idx != player_index)
+            .filter_map(|(_, other)| other.frames.pos.get(frame as usize).copied())
+            .map(|other_pos| norm(diff(pos, other_pos)))
+            .fold(f32::INFINITY, f32::min);
+        if min_distance.is_finite() {
+            min_distance
+        } else {
+            f32::NAN
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a10_replay_summary(replay: &str, build_bucket: &str, summary: &A10ReplaySummary) {
+        print_a10_population_summary(replay, build_bucket, "HIT", &summary.hit);
+        print_a10_population_summary(replay, build_bucket, "MISSED", &summary.missed);
+        print_a10_population_summary(
+            replay,
+            build_bucket,
+            "MISSED_A9_NEITHER",
+            &summary.missed_neither,
+        );
+        print_a10_population_summary(
+            replay,
+            build_bucket,
+            "HALLUCINATION",
+            &summary.hallucination,
+        );
+        print_a10_ceiling_summary(replay, build_bucket, &summary.ceiling);
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a10_population_summary(
+        replay: &str,
+        build_bucket: &str,
+        population: &str,
+        summary: &A10PopulationSummary,
+    ) {
+        println!(
+            "wave_a10_coverage,replay={},build_bucket={},population={},total={},gap_before_p50={:.1},gap_after_p50={:.1},max_gap_p50={:.1},max_gap_p90={:.1},held_contained={},held_share={:.3},held_run_p50={:.1},held_run_p90={:.1},fresh_rate31_p50={:.3},observable={},observable_share={:.3},car_ball_dist_p50={:.1},nearest_other_car_dist_p50={:.1},car_speed_p50={:.1}",
+            replay,
+            build_bucket,
+            population,
+            summary.total,
+            percentile_finite(summary.gap_before.clone(), 0.50),
+            percentile_finite(summary.gap_after.clone(), 0.50),
+            percentile_finite(summary.max_gap.clone(), 0.50),
+            percentile_finite(summary.max_gap.clone(), 0.90),
+            summary.held_contained,
+            summary.held_share(),
+            percentile_finite(summary.held_run_len.clone(), 0.50),
+            percentile_finite(summary.held_run_len.clone(), 0.90),
+            percentile_finite(summary.fresh_rate_31.clone(), 0.50),
+            summary.observable,
+            recall(summary.observable, summary.total),
+            percentile_finite(summary.car_ball_distance.clone(), 0.50),
+            percentile_finite(summary.nearest_other_car_distance.clone(), 0.50),
+            percentile_finite(summary.car_speed.clone(), 0.50),
+        );
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a10_ceiling_summary(replay: &str, build_bucket: &str, ceiling: &A10CeilingSummary) {
+        println!(
+            "wave_a10_ceiling,replay={},build_bucket={},known_flips={},observable={},observable_share={:.3},observable_hits={},observable_hit_rate={:.3},unobservable={},unobservable_hits={},unobservable_hit_rate={:.3}",
+            replay,
+            build_bucket,
+            ceiling.total(),
+            ceiling.observable_total,
+            recall(ceiling.observable_total, ceiling.total()),
+            ceiling.observable_hits,
+            recall(ceiling.observable_hits, ceiling.observable_total),
+            ceiling.unobservable_total,
+            ceiling.unobservable_hits,
+            recall(ceiling.unobservable_hits, ceiling.unobservable_total),
+        );
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a10_verdict(summary: &A10ReplaySummary) {
+        let hit_gap = summary.hit.max_gap_p50();
+        let miss_gap = summary.missed.max_gap_p50();
+        let gap_ratio = if hit_gap > 0.0 {
+            miss_gap / hit_gap
+        } else if miss_gap > 0.0 {
+            f64::INFINITY
+        } else {
+            1.0
+        };
+        let gap_rule = gap_ratio >= 2.0;
+        let held_rule = summary.missed.held_share() >= 0.40 && summary.hit.held_share() <= 0.15;
+        let verdict = if gap_rule || held_rule {
+            "CONFIRMED"
+        } else {
+            "FALSIFIED"
+        };
+        println!(
+            "wave_a10_verdict,p_a10={},gap_rule={},hit_max_gap_p50={:.1},miss_max_gap_p50={:.1},gap_ratio={:.3},held_rule={},hit_held_share={:.3},miss_held_share={:.3},observable_share={:.3},observable_hit_rate={:.3},unobservable_hit_rate={:.3}",
+            verdict,
+            gap_rule,
+            hit_gap,
+            miss_gap,
+            gap_ratio,
+            held_rule,
+            summary.hit.held_share(),
+            summary.missed.held_share(),
+            recall(summary.ceiling.observable_total, summary.ceiling.total()),
+            recall(summary.ceiling.observable_hits, summary.ceiling.observable_total),
+            recall(summary.ceiling.unobservable_hits, summary.ceiling.unobservable_total),
+        );
     }
 
     #[cfg(feature = "sim")]
