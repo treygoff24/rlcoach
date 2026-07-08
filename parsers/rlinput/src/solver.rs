@@ -39,6 +39,7 @@ const RETRO_VELOCITY_RESIDUAL_UU_PER_S: f32 = 150.0;
 const RETRO_CAR_PROXIMITY_UU: f32 = 500.0;
 const LONG_GAP_CONFIDENCE_CAP: f32 = 0.5;
 const HYPOTHESIS_CAP: usize = 256;
+const LIFTOFF_PRESS_BOUNDARY_LOOKBACK_FRAMES: u32 = 6;
 #[cfg(feature = "sim")]
 const REFERENCE_SURVIVORS: usize = 2;
 
@@ -375,6 +376,10 @@ fn solve_player(
             .get(segment_base_frame as usize)
             .copied()
             .unwrap_or_default();
+        let boundary_press_event = (config.mode == Mode::Unseeded)
+            .then(|| implied_liftoff_boundary_press_event(player, segment, frame_times))
+            .flatten();
+        let mut segment_events = Vec::new();
 
         for scoring in fresh_scoring_intervals(segment, &freshness) {
             let start_frame = scoring.start_frame;
@@ -406,7 +411,7 @@ fn solve_player(
             );
             segment_confidence = segment_confidence.min(solved.confidence);
             samples.push(solved.sample);
-            events.extend(solved.events);
+            segment_events.extend(solved.events);
             if let Some(split) = solved.retro_split {
                 splits.push(split);
             }
@@ -421,6 +426,17 @@ fn solve_player(
                 tracker = interval_tracker;
             }
         }
+
+        if let Some(event) = boundary_press_event {
+            if !segment_events.iter().any(|existing| {
+                matches!(existing.kind, SolvedEventKind::JumpPress)
+                    && existing.frame_index.abs_diff(event.frame_index)
+                        <= LIFTOFF_PRESS_BOUNDARY_LOOKBACK_FRAMES
+            }) {
+                segment_events.insert(0, event);
+            }
+        }
+        events.extend(segment_events);
 
         if segment.lattice.intervals.is_empty() {
             segment_confidence = 0.0;
@@ -916,7 +932,7 @@ fn kinematic_candidate_events(
     if matches!(tracker.jump, JumpState::Holding { .. }) {
         push_unique_event(&mut events, CandidateEvent::JumpRelease);
     }
-    if second_available(tracker) {
+    if segment_kind == SegmentKind::Air && second_available(tracker) {
         if vertical_residual > 120.0 && ang_residual < 0.3 && planar_residual < 250.0 {
             push_unique_event(&mut events, CandidateEvent::DoubleJump);
         }
@@ -1618,8 +1634,7 @@ fn implied_liftoff_jump_edge(
         || !segment
             .summary
             .boundary_causes
-            .iter()
-            .any(|cause| *cause == crate::timeline::BoundaryCause::Liftoff)
+            .contains(&crate::timeline::BoundaryCause::Liftoff)
         || liftoff_frame <= start_frame
         || liftoff_frame > end_frame
         || seeded_edges.iter().any(timed_edge_is_jump_press)
@@ -1676,6 +1691,41 @@ fn timed_edge_is_jump_press(edge: &TimedSeededEdge) -> bool {
             .counter_delta
             .as_ref()
             .is_none_or(|delta| delta.current % 2 != 0)
+}
+
+fn implied_liftoff_boundary_press_event(
+    player: &PlayerSeries,
+    segment: &Segment,
+    frame_times: &[f64],
+) -> Option<SolvedEvent> {
+    if segment.kind != SegmentKind::Air {
+        return None;
+    }
+    let search_start = segment
+        .frame_span
+        .0
+        .saturating_sub(LIFTOFF_PRESS_BOUNDARY_LOOKBACK_FRAMES)
+        .max(1);
+    let search_end = segment.frame_span.0.saturating_add(1);
+    let liftoff_frame = (search_start..=search_end).find(|frame| press_liftoff(player, *frame))?;
+    let tick = segment
+        .lattice
+        .intervals
+        .iter()
+        .find(|interval| interval.frame_index >= liftoff_frame)
+        .map(|interval| interval.tick_range.0)
+        .unwrap_or(segment.summary.tick_span.0);
+    Some(SolvedEvent {
+        kind: SolvedEventKind::JumpPress,
+        tick,
+        t: frame_times
+            .get(liftoff_frame as usize)
+            .copied()
+            .unwrap_or_default(),
+        frame_index: liftoff_frame,
+        confidence: 0.3,
+        flags: AmbiguityFlags::LOW_MARGIN,
+    })
 }
 
 fn press_liftoff(player: &PlayerSeries, liftoff_frame: u32) -> bool {
@@ -1997,6 +2047,21 @@ mod tests {
     };
     #[cfg(feature = "sim")]
     use std::collections::{BTreeMap, BTreeSet};
+
+    #[cfg(feature = "sim")]
+    const PRESS_BOUNDARY_TOLERANCE_FRAMES: u32 = 2;
+    #[cfg(feature = "sim")]
+    const DIAG_SURFACE_FLOOR_Z: f32 = 40.0;
+    #[cfg(feature = "sim")]
+    const DIAG_SURFACE_CEILING_Z: f32 = 2044.0 - 40.0;
+    #[cfg(feature = "sim")]
+    const DIAG_SURFACE_SIDE_WALL_X: f32 = 4096.0 - 40.0;
+    #[cfg(feature = "sim")]
+    const DIAG_SURFACE_BACK_WALL_Y: f32 = 5120.0 - 40.0;
+    #[cfg(feature = "sim")]
+    const DIAG_SURFACE_CORNER_SUM: f32 = 8064.0 - 60.0;
+    #[cfg(feature = "sim")]
+    const DIAG_SURFACE_NEAR_UU: f32 = 256.0;
 
     #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
@@ -2495,10 +2560,12 @@ mod tests {
         let mut pooled_misses: BTreeMap<MissClass, usize> = BTreeMap::new();
         let mut pooled_hallucinations: Vec<HallucinationDiag> = Vec::new();
         let mut pooled_coverage: BTreeMap<&'static str, usize> = BTreeMap::new();
+        let mut pooled_confidence = ConfidenceDiag::default();
 
         for (replay_name, series) in replays {
             let report = wp7c_replay_report(&replay_name, &series);
             pooled.add(&report.summary);
+            pooled_confidence.add(&report.confidence);
             for miss in &report.misses {
                 *pooled_misses.entry(miss.class).or_default() += 1;
             }
@@ -2526,6 +2593,18 @@ mod tests {
                 recall(report.summary.press_hits, report.summary.press_known),
                 report.hallucinations.len(),
             );
+            println!(
+                "wp7c_press_recall_fixed,replay={},known={},exact_hits={},exact_recall={:.3},coalesced_hits={},coalesced_recall={:.3},tolerance_frames={}",
+                report.replay,
+                report.summary.press_known,
+                report.summary.press_exact_hits,
+                recall(report.summary.press_exact_hits, report.summary.press_known),
+                report.summary.press_hits,
+                recall(report.summary.press_hits, report.summary.press_known),
+                PRESS_BOUNDARY_TOLERANCE_FRAMES,
+            );
+            print_press_trace_summary(&report.replay, &report.press_traces);
+            print_confidence_summary(&report.replay, &report.confidence);
             print_hallucination_summary(&report.replay, &report.hallucinations);
             for miss in &report.misses {
                 println!(
@@ -2550,7 +2629,7 @@ mod tests {
             }
             for hallucination in report.hallucinations.iter().take(50) {
                 println!(
-                    "wp7c_hallucination_sample,replay={},player={},frames={}..{},coverage={},dodge_vectors={},jump_edges={},dodge_edges={},double_jump_edges={},margin={:.3},planar_delta={:.3},vertical_delta={:.3},ang_delta={:.3},car_proximity={},flags={:?}",
+                    "wp7c_hallucination_sample,replay={},player={},frames={}..{},coverage={},dodge_vectors={},jump_edges={},dodge_edges={},double_jump_edges={},margin={:.3},pos_x={:.3},pos_y={:.3},pos_z={:.3},surface_margin={:.3},min_car_distance={:.3},planar_delta={:.3},vertical_delta={:.3},ang_delta={:.3},car_proximity={},flags={:?}",
                     report.replay,
                     hallucination.player_id,
                     hallucination.start_frame,
@@ -2561,6 +2640,11 @@ mod tests {
                     hallucination.dodge_edges,
                     hallucination.double_jump_edges,
                     hallucination.margin,
+                    hallucination.pos[0],
+                    hallucination.pos[1],
+                    hallucination.pos[2],
+                    hallucination.surface_margin,
+                    hallucination.min_car_distance,
                     hallucination.planar_delta,
                     hallucination.vertical_delta,
                     hallucination.ang_delta,
@@ -2598,11 +2682,15 @@ mod tests {
                 .unwrap_or_default(),
         );
         println!(
-            "wp7c_pooled_press_recall,known={},hits={},recall={:.3}",
+            "wp7c_pooled_press_recall,known={},exact_hits={},exact_recall={:.3},coalesced_hits={},coalesced_recall={:.3},tolerance_frames={}",
             pooled.press_known,
+            pooled.press_exact_hits,
+            recall(pooled.press_exact_hits, pooled.press_known),
             pooled.press_hits,
             recall(pooled.press_hits, pooled.press_known),
+            PRESS_BOUNDARY_TOLERANCE_FRAMES,
         );
+        print_confidence_summary("POOLED", &pooled_confidence);
         print_hallucination_summary("POOLED", &pooled_hallucinations);
         for (coverage, count) in pooled_coverage {
             println!(
@@ -2816,6 +2904,8 @@ mod tests {
         summary: Wp7cReplaySummary,
         misses: Vec<MissDiag>,
         hallucinations: Vec<HallucinationDiag>,
+        press_traces: Vec<PressTraceDiag>,
+        confidence: ConfidenceDiag,
     }
 
     #[cfg(feature = "sim")]
@@ -2825,6 +2915,7 @@ mod tests {
         flip_hits: usize,
         flip_misses: usize,
         press_known: usize,
+        press_exact_hits: usize,
         press_hits: usize,
     }
 
@@ -2835,6 +2926,7 @@ mod tests {
             self.flip_hits += other.flip_hits;
             self.flip_misses += other.flip_misses;
             self.press_known += other.press_known;
+            self.press_exact_hits += other.press_exact_hits;
             self.press_hits += other.press_hits;
         }
     }
@@ -2906,11 +2998,60 @@ mod tests {
         dodge_edges: usize,
         double_jump_edges: usize,
         margin: f64,
+        pos: [f32; 3],
+        surface_margin: f32,
+        min_car_distance: f32,
         planar_delta: f32,
         vertical_delta: f32,
         ang_delta: f32,
         car_proximity: bool,
         flags: AmbiguityFlags,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug)]
+    struct PressTraceDiag {
+        player_id: String,
+        start_frame: u32,
+        end_frame: u32,
+        injected_frames: Vec<u32>,
+        raw_press_candidates: usize,
+        legal_press_candidates: usize,
+        selected: bool,
+        winner: &'static str,
+        rejection: &'static str,
+        emitted_raw_frames: Vec<u32>,
+        coalesced_hit: bool,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Debug, Default)]
+    struct ConfidenceDiag {
+        sample_confidences: Vec<f32>,
+        segment_confidences: Vec<f32>,
+        event_confidences: Vec<f32>,
+        sample_low_margin: usize,
+        sample_long_gap: usize,
+        sample_surface: usize,
+        sample_car_or_collision: usize,
+        event_low_margin: usize,
+    }
+
+    #[cfg(feature = "sim")]
+    impl ConfidenceDiag {
+        fn add(&mut self, other: &Self) {
+            self.sample_confidences
+                .extend(other.sample_confidences.iter().copied());
+            self.segment_confidences
+                .extend(other.segment_confidences.iter().copied());
+            self.event_confidences
+                .extend(other.event_confidences.iter().copied());
+            self.sample_low_margin += other.sample_low_margin;
+            self.sample_long_gap += other.sample_long_gap;
+            self.sample_surface += other.sample_surface;
+            self.sample_car_or_collision += other.sample_car_or_collision;
+            self.event_low_margin += other.event_low_margin;
+        }
     }
 
     #[cfg(feature = "sim")]
@@ -2988,6 +3129,12 @@ mod tests {
         let solved_flips = solved_flip_intervals(&output);
         let solved_jump_presses =
             solved_event_frame_sets(&output, |kind| matches!(kind, SolvedEventKind::JumpPress));
+        let solved_jump_press_targets = coalesced_solved_press_targets(
+            &known_presses,
+            &output,
+            |kind| matches!(kind, SolvedEventKind::JumpPress),
+            PRESS_BOUNDARY_TOLERANCE_FRAMES,
+        );
 
         let summary = Wp7cReplaySummary {
             known_flips: known_flips.len(),
@@ -3000,20 +3147,26 @@ mod tests {
                 .filter(|key| !solved_flips.contains(*key))
                 .count(),
             press_known: known_presses.len(),
-            press_hits: known_presses
+            press_exact_hits: known_presses
                 .keys()
                 .filter(|key| solved_jump_presses.contains_key(*key))
                 .count(),
+            press_hits: known_presses
+                .keys()
+                .filter(|key| solved_jump_press_targets.contains_key(*key))
+                .count(),
         };
 
-        let (mut misses, hallucinations) = wp7c_interval_diagnostics(
+        let (mut misses, hallucinations, press_traces) = wp7c_interval_diagnostics(
             series,
             &masked,
             &config,
             &retro_splits,
             &known_flips,
+            &known_presses,
             &solved_flips,
             &solved_jump_presses,
+            &solved_jump_press_targets,
             &component_press_frames,
             &component_coverage,
         );
@@ -3040,6 +3193,8 @@ mod tests {
             summary,
             misses,
             hallucinations,
+            press_traces,
+            confidence: confidence_diag(&output),
         }
     }
 
@@ -3061,11 +3216,13 @@ mod tests {
         config: &EstimatorConfig,
         retro_splits: &[RetroactiveSplit],
         known_flips: &BTreeMap<(String, u32), ComponentTarget>,
+        known_presses: &BTreeMap<(String, u32), ComponentTarget>,
         solved_flips: &HashSet<(String, u32)>,
         solved_jump_presses: &BTreeMap<(String, u32), ()>,
+        solved_jump_press_targets: &BTreeMap<(String, u32), Vec<u32>>,
         component_press_frames: &BTreeMap<String, BTreeSet<u32>>,
         coverage: &BTreeMap<String, ComponentCoverage>,
-    ) -> (Vec<MissDiag>, Vec<HallucinationDiag>) {
+    ) -> (Vec<MissDiag>, Vec<HallucinationDiag>, Vec<PressTraceDiag>) {
         let segmentation = segment_replay_with_splits_and_confidences(
             masked,
             retro_splits,
@@ -3074,6 +3231,8 @@ mod tests {
         );
         let mut misses = Vec::new();
         let mut hallucinations = Vec::new();
+        let mut press_traces = BTreeMap::new();
+        let mut seen_press_targets = BTreeSet::new();
 
         for segmented_player in &segmentation.players {
             let Some(player_index) = masked
@@ -3132,6 +3291,11 @@ mod tests {
                         interval,
                         config,
                     );
+                    let injected_press_frames: Vec<_> = seeded_edges
+                        .iter()
+                        .filter(|edge| timed_edge_is_jump_press(edge))
+                        .map(|edge| edge.edge.frame_index)
+                        .collect();
                     let generation = generate_candidates_for_wp7c_diag(
                         &state_k,
                         &observed_end,
@@ -3196,6 +3360,12 @@ mod tests {
                             (best_flip, coverage.get(&original_player.player_id))
                         {
                             let delta_v = diff(observed_end.vel, state_k.vel);
+                            let pos = original_player
+                                .frames
+                                .pos
+                                .get(end_frame as usize)
+                                .copied()
+                                .unwrap_or(observed_end.pos);
                             hallucinations.push(HallucinationDiag {
                                 player_id: player.player_id.clone(),
                                 start_frame,
@@ -3206,6 +3376,14 @@ mod tests {
                                 dodge_edges: player_coverage.dodge_edges,
                                 double_jump_edges: player_coverage.double_jump_edges,
                                 margin: null_energy - best_flip.energy,
+                                pos,
+                                surface_margin: nearest_arena_surface_margin(pos),
+                                min_car_distance: min_other_car_distance(
+                                    original,
+                                    player_index,
+                                    start_frame,
+                                    end_frame,
+                                ),
                                 planar_delta: norm2([delta_v[0], delta_v[1]]),
                                 vertical_delta: delta_v[2],
                                 ang_delta: norm(diff(observed_end.ang_vel, state_k.ang_vel)),
@@ -3215,6 +3393,60 @@ mod tests {
                                 ),
                                 flags: best_flip.flags,
                             });
+                        }
+                    }
+
+                    if let Some(target) = known_presses.get(&key) {
+                        seen_press_targets.insert(key.clone());
+                        record_press_trace(
+                            &mut press_traces,
+                            key.clone(),
+                            trace_press_target(
+                                player,
+                                target,
+                                &injected_press_frames,
+                                &generation,
+                                &scored,
+                                solved_jump_presses,
+                                solved_jump_press_targets,
+                            ),
+                        );
+                    }
+                    if !injected_press_frames.is_empty()
+                        || generation
+                            .raw_candidates
+                            .iter()
+                            .any(candidate_has_jump_press)
+                    {
+                        let mut match_frames = injected_press_frames.clone();
+                        match_frames.push(end_frame);
+                        for ((target_player_id, target_end_frame), target) in known_presses {
+                            if target_player_id != &player.player_id
+                                || !match_frames.iter().any(|frame| {
+                                    frame_in_press_target_window(
+                                        *frame,
+                                        target,
+                                        PRESS_BOUNDARY_TOLERANCE_FRAMES,
+                                    )
+                                })
+                            {
+                                continue;
+                            }
+                            let target_key = (target_player_id.clone(), *target_end_frame);
+                            seen_press_targets.insert(target_key.clone());
+                            record_press_trace(
+                                &mut press_traces,
+                                target_key,
+                                trace_press_target(
+                                    player,
+                                    target,
+                                    &injected_press_frames,
+                                    &generation,
+                                    &scored,
+                                    solved_jump_presses,
+                                    solved_jump_press_targets,
+                                ),
+                            );
                         }
                     }
 
@@ -3238,7 +3470,23 @@ mod tests {
             }
         }
 
-        (misses, hallucinations)
+        for ((player_id, end_frame), target) in known_presses {
+            if seen_press_targets.contains(&(player_id.clone(), *end_frame)) {
+                continue;
+            }
+            record_press_trace(
+                &mut press_traces,
+                (player_id.clone(), *end_frame),
+                unscored_press_trace(
+                    player_id,
+                    target,
+                    solved_jump_presses,
+                    solved_jump_press_targets,
+                ),
+            );
+        }
+
+        (misses, hallucinations, press_traces.into_values().collect())
     }
 
     #[cfg(feature = "sim")]
@@ -3731,6 +3979,297 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    fn coalesced_solved_press_targets(
+        known_presses: &BTreeMap<(String, u32), ComponentTarget>,
+        output: &SolveOutput,
+        keep: fn(&SolvedEventKind) -> bool,
+        tolerance_frames: u32,
+    ) -> BTreeMap<(String, u32), Vec<u32>> {
+        let mut out: BTreeMap<(String, u32), Vec<u32>> = BTreeMap::new();
+        for timeline in &output.timelines {
+            for event in &timeline.events {
+                if !keep(&event.kind) {
+                    continue;
+                }
+                if let Some((key, _target)) = known_presses
+                    .iter()
+                    .filter(|((player_id, _end_frame), target)| {
+                        player_id == &timeline.player_id
+                            && frame_in_press_target_window(
+                                event.frame_index,
+                                target,
+                                tolerance_frames,
+                            )
+                    })
+                    .min_by_key(|((_player_id, end_frame), _target)| {
+                        end_frame.abs_diff(event.frame_index)
+                    })
+                {
+                    out.entry(key.clone()).or_default().push(event.frame_index);
+                }
+            }
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn frame_in_press_target_window(
+        frame_index: u32,
+        target: &ComponentTarget,
+        tolerance_frames: u32,
+    ) -> bool {
+        let start = target.start_frame.saturating_sub(tolerance_frames);
+        let end = target.end_frame.saturating_add(tolerance_frames);
+        (start..=end).contains(&frame_index)
+    }
+
+    #[cfg(feature = "sim")]
+    fn trace_press_target(
+        player: &PlayerSeries,
+        target: &ComponentTarget,
+        injected_press_frames: &[u32],
+        generation: &CandidateGenerationDiag,
+        scored: &[ScoredCandidate],
+        solved_jump_presses: &BTreeMap<(String, u32), ()>,
+        solved_jump_press_targets: &BTreeMap<(String, u32), Vec<u32>>,
+    ) -> PressTraceDiag {
+        let key = (player.player_id.clone(), target.end_frame);
+        let raw_press_candidates = generation
+            .raw_candidates
+            .iter()
+            .filter(|candidate| candidate_has_jump_press(candidate))
+            .count();
+        let legal_press_candidates = generation
+            .legal_candidates
+            .iter()
+            .filter(|candidate| candidate_has_jump_press(candidate))
+            .count();
+        let selected = scored
+            .first()
+            .is_some_and(|item| candidate_has_jump_press(&item.candidate));
+        let winner = scored
+            .first()
+            .map_or("none", |item| candidate_name(&item.candidate));
+        let mut emitted_raw_frames = solved_jump_press_targets
+            .get(&key)
+            .cloned()
+            .unwrap_or_default();
+        emitted_raw_frames.extend(
+            solved_jump_presses
+                .keys()
+                .filter(|(player_id, frame)| {
+                    player_id == &player.player_id
+                        && frame_in_press_target_window(
+                            *frame,
+                            target,
+                            PRESS_BOUNDARY_TOLERANCE_FRAMES,
+                        )
+                })
+                .map(|(_player_id, frame)| *frame),
+        );
+        emitted_raw_frames.sort_unstable();
+        emitted_raw_frames.dedup();
+        let rejection = if selected {
+            "SELECTED"
+        } else if injected_press_frames.is_empty() && !emitted_raw_frames.is_empty() {
+            "BOUNDARY_EMITTED"
+        } else if injected_press_frames.is_empty() {
+            "NOT_INJECTED"
+        } else if raw_press_candidates == 0 {
+            "NO_PRESS_CANDIDATE"
+        } else if legal_press_candidates == 0 {
+            "ILLEGAL"
+        } else if winner == "Null" {
+            "OUTSCORED_BY_NULL"
+        } else {
+            "OUTSCORED_BY_EVENT"
+        };
+
+        PressTraceDiag {
+            player_id: player.player_id.clone(),
+            start_frame: target.start_frame,
+            end_frame: target.end_frame,
+            injected_frames: injected_press_frames.to_vec(),
+            raw_press_candidates,
+            legal_press_candidates,
+            selected,
+            winner,
+            rejection,
+            emitted_raw_frames,
+            coalesced_hit: solved_jump_press_targets.contains_key(&key),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn unscored_press_trace(
+        player_id: &str,
+        target: &ComponentTarget,
+        solved_jump_presses: &BTreeMap<(String, u32), ()>,
+        solved_jump_press_targets: &BTreeMap<(String, u32), Vec<u32>>,
+    ) -> PressTraceDiag {
+        let key = (player_id.to_string(), target.end_frame);
+        let mut emitted_raw_frames = solved_jump_press_targets
+            .get(&key)
+            .cloned()
+            .unwrap_or_default();
+        emitted_raw_frames.extend(
+            solved_jump_presses
+                .keys()
+                .filter(|(event_player_id, frame)| {
+                    event_player_id.as_str() == player_id
+                        && frame_in_press_target_window(
+                            *frame,
+                            target,
+                            PRESS_BOUNDARY_TOLERANCE_FRAMES,
+                        )
+                })
+                .map(|(_player_id, frame)| *frame),
+        );
+        emitted_raw_frames.sort_unstable();
+        emitted_raw_frames.dedup();
+        let rejection = if emitted_raw_frames.is_empty() {
+            "UNSCORED"
+        } else {
+            "BOUNDARY_EMITTED"
+        };
+        PressTraceDiag {
+            player_id: player_id.to_string(),
+            start_frame: target.start_frame,
+            end_frame: target.end_frame,
+            injected_frames: Vec::new(),
+            raw_press_candidates: 0,
+            legal_press_candidates: 0,
+            selected: false,
+            winner: "none",
+            rejection,
+            emitted_raw_frames,
+            coalesced_hit: solved_jump_press_targets.contains_key(&key),
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn record_press_trace(
+        traces: &mut BTreeMap<(String, u32), PressTraceDiag>,
+        key: (String, u32),
+        trace: PressTraceDiag,
+    ) {
+        match traces.get(&key) {
+            Some(existing) if press_trace_rank(existing) >= press_trace_rank(&trace) => {}
+            _ => {
+                traces.insert(key, trace);
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn press_trace_rank(trace: &PressTraceDiag) -> u8 {
+        let mut rank = 0;
+        if trace.coalesced_hit {
+            rank += 32;
+        }
+        if !trace.emitted_raw_frames.is_empty() {
+            rank += 16;
+        }
+        if trace.selected {
+            rank += 8;
+        }
+        if trace.legal_press_candidates > 0 {
+            rank += 4;
+        }
+        if trace.raw_press_candidates > 0 {
+            rank += 2;
+        }
+        if !trace.injected_frames.is_empty() {
+            rank += 1;
+        }
+        rank
+    }
+
+    #[cfg(feature = "sim")]
+    fn confidence_diag(output: &SolveOutput) -> ConfidenceDiag {
+        let mut diag = ConfidenceDiag::default();
+        for timeline in &output.timelines {
+            for sample in &timeline.samples {
+                diag.sample_confidences.push(sample.pitch.confidence);
+                if sample.pitch.flags.contains(AmbiguityFlags::LOW_MARGIN) {
+                    diag.sample_low_margin += 1;
+                }
+                if sample.pitch.flags.contains(AmbiguityFlags::LONG_GAP) {
+                    diag.sample_long_gap += 1;
+                }
+                if sample
+                    .pitch
+                    .flags
+                    .contains(AmbiguityFlags::SURFACE_PROXIMITY)
+                {
+                    diag.sample_surface += 1;
+                }
+                if sample
+                    .pitch
+                    .flags
+                    .intersects(AmbiguityFlags::CAR_PROXIMITY | AmbiguityFlags::COLLISION_SUSPECTED)
+                {
+                    diag.sample_car_or_collision += 1;
+                }
+            }
+            for segment in &timeline.segments {
+                diag.segment_confidences.push(segment.confidence);
+            }
+            for event in &timeline.events {
+                diag.event_confidences.push(event.confidence);
+                if event.flags.contains(AmbiguityFlags::LOW_MARGIN) {
+                    diag.event_low_margin += 1;
+                }
+            }
+        }
+        diag
+    }
+
+    #[cfg(feature = "sim")]
+    fn nearest_arena_surface_margin(pos: [f32; 3]) -> f32 {
+        let ax = pos[0].abs();
+        let ay = pos[1].abs();
+        [
+            pos[2] - DIAG_SURFACE_FLOOR_Z,
+            DIAG_SURFACE_CEILING_Z - pos[2],
+            DIAG_SURFACE_SIDE_WALL_X - ax,
+            DIAG_SURFACE_BACK_WALL_Y - ay,
+            DIAG_SURFACE_CORNER_SUM - (ax + ay),
+        ]
+        .into_iter()
+        .fold(f32::INFINITY, f32::min)
+    }
+
+    #[cfg(feature = "sim")]
+    fn min_other_car_distance(
+        series: &ReplaySeries,
+        player_index: usize,
+        start_frame: u32,
+        end_frame: u32,
+    ) -> f32 {
+        let mut min_distance = f32::INFINITY;
+        for frame in start_frame..=end_frame {
+            let frame = frame as usize;
+            let Some(pos) = series.players[player_index].frames.pos.get(frame).copied() else {
+                continue;
+            };
+            for (other_index, other) in series.players.iter().enumerate() {
+                if other_index == player_index {
+                    continue;
+                }
+                if let Some(other_pos) = other.frames.pos.get(frame).copied() {
+                    min_distance = min_distance.min(norm(diff(pos, other_pos)));
+                }
+            }
+        }
+        if min_distance.is_finite() {
+            min_distance
+        } else {
+            f32::NAN
+        }
+    }
+
+    #[cfg(feature = "sim")]
     fn legal_press_window_frames() -> u32 {
         ((crate::consts::JUMP_MAX_TIME + crate::consts::DOUBLEJUMP_MAX_DELAY) * 30.0).ceil() as u32
             + 1
@@ -3793,17 +4332,69 @@ mod tests {
             .iter()
             .filter(|diag| diag.car_proximity)
             .count();
+        let near_surface = hallucinations
+            .iter()
+            .filter(|diag| diag.surface_margin <= DIAG_SURFACE_NEAR_UU)
+            .count();
+        let near_car = hallucinations
+            .iter()
+            .filter(|diag| diag.min_car_distance <= 350.0)
+            .count();
         println!(
-            "wp7c_hallucination_summary,replay={},count={},full_component_stream={},sparse_or_absent={},sparse_or_absent_share={:.3},car_proximity={},margin_p50={:.3},margin_p68={:.3},margin_p90={:.3},planar_p50={:.3},ang_p50={:.3}",
+            "wp7c_hallucination_summary,replay={},count={},full_component_stream={},sparse_or_absent={},sparse_or_absent_share={:.3},car_proximity={},near_surface={},near_car={},margin_p50={:.3},margin_p68={:.3},margin_p90={:.3},surface_margin_p10={:.3},surface_margin_p50={:.3},surface_margin_p90={:.3},min_car_p10={:.3},min_car_p50={:.3},min_car_p90={:.3},planar_p50={:.3},ang_p50={:.3}",
             replay,
             hallucinations.len(),
             full,
             sparse_or_absent,
             recall(sparse_or_absent, hallucinations.len()),
             car_prox,
+            near_surface,
+            near_car,
             percentile(hallucinations.iter().map(|diag| diag.margin).collect(), 0.50),
             percentile(hallucinations.iter().map(|diag| diag.margin).collect(), 0.68),
             percentile(hallucinations.iter().map(|diag| diag.margin).collect(), 0.90),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.surface_margin))
+                    .collect(),
+                0.10,
+            ),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.surface_margin))
+                    .collect(),
+                0.50,
+            ),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.surface_margin))
+                    .collect(),
+                0.90,
+            ),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.min_car_distance))
+                    .collect(),
+                0.10,
+            ),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.min_car_distance))
+                    .collect(),
+                0.50,
+            ),
+            percentile(
+                hallucinations
+                    .iter()
+                    .map(|diag| f64::from(diag.min_car_distance))
+                    .collect(),
+                0.90,
+            ),
             percentile(
                 hallucinations
                     .iter()
@@ -4063,6 +4654,14 @@ mod tests {
         })
     }
 
+    #[cfg(feature = "sim")]
+    fn candidate_has_jump_press(candidate: &Candidate) -> bool {
+        candidate
+            .actions
+            .iter()
+            .any(|action| action.event == CandidateEvent::JumpPress)
+    }
+
     fn candidate_name(candidate: &Candidate) -> &'static str {
         if candidate.is_null() {
             "Null"
@@ -4098,6 +4697,181 @@ mod tests {
             "JumpRelease"
         } else {
             "Other"
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_press_trace_summary(replay: &str, traces: &[PressTraceDiag]) {
+        let injected = traces
+            .iter()
+            .filter(|trace| !trace.injected_frames.is_empty())
+            .count();
+        let raw_candidate = traces
+            .iter()
+            .filter(|trace| trace.raw_press_candidates > 0)
+            .count();
+        let legal_candidate = traces
+            .iter()
+            .filter(|trace| trace.legal_press_candidates > 0)
+            .count();
+        let selected = traces.iter().filter(|trace| trace.selected).count();
+        let emitted = traces
+            .iter()
+            .filter(|trace| !trace.emitted_raw_frames.is_empty())
+            .count();
+        let coalesced_hits = traces.iter().filter(|trace| trace.coalesced_hit).count();
+        println!(
+            "wp7c_press_trace_summary,replay={},known={},injected={},raw_candidate={},legal_candidate={},selected={},emitted_near_target={},coalesced_hits={}",
+            replay,
+            traces.len(),
+            injected,
+            raw_candidate,
+            legal_candidate,
+            selected,
+            emitted,
+            coalesced_hits,
+        );
+
+        let mut rejections = BTreeMap::new();
+        for trace in traces {
+            *rejections.entry(trace.rejection).or_insert(0usize) += 1;
+        }
+        for (reason, count) in rejections {
+            println!(
+                "wp7c_press_trace_rejection,replay={},reason={},count={},share={:.3}",
+                replay,
+                reason,
+                count,
+                recall(count, traces.len()),
+            );
+        }
+        for trace in traces {
+            println!(
+                "wp7c_press_trace,replay={},player={},frames={}..{},injected_frames={:?},raw_candidates={},legal_candidates={},selected={},winner={},rejection={},emitted_raw_frames={:?},coalesced_hit={}",
+                replay,
+                trace.player_id,
+                trace.start_frame,
+                trace.end_frame,
+                trace.injected_frames,
+                trace.raw_press_candidates,
+                trace.legal_press_candidates,
+                trace.selected,
+                trace.winner,
+                trace.rejection,
+                trace.emitted_raw_frames,
+                trace.coalesced_hit,
+            );
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_confidence_summary(replay: &str, diag: &ConfidenceDiag) {
+        let sample_le_03 = diag
+            .sample_confidences
+            .iter()
+            .filter(|confidence| **confidence <= 0.3)
+            .count();
+        let sample_le_05 = diag
+            .sample_confidences
+            .iter()
+            .filter(|confidence| **confidence <= 0.5)
+            .count();
+        let segment_le_03 = diag
+            .segment_confidences
+            .iter()
+            .filter(|confidence| **confidence <= 0.3)
+            .count();
+        let segment_le_05 = diag
+            .segment_confidences
+            .iter()
+            .filter(|confidence| **confidence <= 0.5)
+            .count();
+        let event_le_03 = diag
+            .event_confidences
+            .iter()
+            .filter(|confidence| **confidence <= 0.3)
+            .count();
+        println!(
+            "wp7c_confidence_summary,replay={},samples={},sample_p10={:.3},sample_p50={:.3},sample_p90={:.3},sample_le_0_3={},sample_le_0_5={},sample_low_margin={},sample_long_gap={},sample_surface={},sample_car_or_collision={},segments={},segment_p10={:.3},segment_p50={:.3},segment_p90={:.3},segment_le_0_3={},segment_le_0_5={},events={},event_le_0_3={},event_low_margin={}",
+            replay,
+            diag.sample_confidences.len(),
+            percentile(
+                diag.sample_confidences
+                    .iter()
+                    .map(|confidence| f64::from(*confidence))
+                    .collect(),
+                0.10,
+            ),
+            percentile(
+                diag.sample_confidences
+                    .iter()
+                    .map(|confidence| f64::from(*confidence))
+                    .collect(),
+                0.50,
+            ),
+            percentile(
+                diag.sample_confidences
+                    .iter()
+                    .map(|confidence| f64::from(*confidence))
+                    .collect(),
+                0.90,
+            ),
+            sample_le_03,
+            sample_le_05,
+            diag.sample_low_margin,
+            diag.sample_long_gap,
+            diag.sample_surface,
+            diag.sample_car_or_collision,
+            diag.segment_confidences.len(),
+            percentile(
+                diag.segment_confidences
+                    .iter()
+                    .map(|confidence| f64::from(*confidence))
+                    .collect(),
+                0.10,
+            ),
+            percentile(
+                diag.segment_confidences
+                    .iter()
+                    .map(|confidence| f64::from(*confidence))
+                    .collect(),
+                0.50,
+            ),
+            percentile(
+                diag.segment_confidences
+                    .iter()
+                    .map(|confidence| f64::from(*confidence))
+                    .collect(),
+                0.90,
+            ),
+            segment_le_03,
+            segment_le_05,
+            diag.event_confidences.len(),
+            event_le_03,
+            diag.event_low_margin,
+        );
+        print_confidence_hist(replay, "sample", &diag.sample_confidences);
+        print_confidence_hist(replay, "segment", &diag.segment_confidences);
+        print_confidence_hist(replay, "event", &diag.event_confidences);
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_confidence_hist(replay: &str, kind: &str, values: &[f32]) {
+        let mut bins = [0usize; 10];
+        for value in values {
+            let idx = ((*value * 10.0).floor() as usize).min(9);
+            bins[idx] += 1;
+        }
+        for (idx, count) in bins.iter().enumerate() {
+            println!(
+                "wp7c_confidence_hist,replay={},kind={},bin={:.1}-{:.1},count={},share={:.3}",
+                replay,
+                kind,
+                idx as f32 / 10.0,
+                (idx + 1) as f32 / 10.0,
+                count,
+                recall(*count, values.len()),
+            );
         }
     }
 
