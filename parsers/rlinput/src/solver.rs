@@ -29,8 +29,8 @@ use crate::{
         SolveDiagnostics, SolveOutput, SolvedEvent, SolvedEventKind, Source,
     },
     tracker::{
-        classify_dodge_torque_vector, BranchingTracker, CarTracker, ContactState, JumpState,
-        ReconstructedEdge, SecondAction, SecondActionClass,
+        classify_dodge_torque_vector, seconds_to_ticks, BranchingTracker, CarTracker, ContactState,
+        CounterDelta, EdgeEvidence, JumpState, ReconstructedEdge, SecondAction, SecondActionClass,
     },
 };
 
@@ -77,6 +77,8 @@ struct ScoringInterval {
 struct TimedSeededEdge {
     edge: ReconstructedEdge,
     tick_range: (u32, u32),
+    event_frame_index: Option<u32>,
+    fit_liftoff_release: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -493,16 +495,25 @@ fn solve_interval(
 ) -> IntervalSolve {
     let (start_frame, end_frame) = frames;
     let ticks = interval_ticks(interval);
-    let state_k = car_state(player, start_frame, tracker);
-    let observed_end = car_state(player, end_frame, tracker);
+    let state_k = car_state(player, start_frame, interval.tick_range.0, tracker);
+    let observed_end = car_state(player, end_frame, interval.tick_range.1, tracker);
     let base_controls = solve_controls(player, start_frame, end_frame, interval, tracker, config);
+    let seeded_edges = edges_for_interval_with_implied_liftoff(
+        player,
+        hints,
+        segment,
+        start_frame,
+        end_frame,
+        interval,
+        config,
+    );
     let candidates = generate_candidates(
         &state_k,
         &observed_end,
         tracker,
         interval,
         base_controls,
-        hints.edges_for_interval(segment, start_frame, end_frame, interval.tick_range.0),
+        seeded_edges,
         config,
         segment_kind,
     );
@@ -577,6 +588,33 @@ fn solve_interval(
         retro_split,
         branch_options,
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn edges_for_interval_with_implied_liftoff(
+    player: &PlayerSeries,
+    hints: &SeededHints,
+    segment: &Segment,
+    start_frame: u32,
+    end_frame: u32,
+    interval: &LatticeInterval,
+    config: &EstimatorConfig,
+) -> Vec<TimedSeededEdge> {
+    let mut seeded_edges =
+        hints.edges_for_interval(segment, start_frame, end_frame, interval.tick_range.0);
+    if config.mode == Mode::Unseeded {
+        if let Some(edge) = implied_liftoff_jump_edge(
+            player,
+            segment,
+            start_frame,
+            end_frame,
+            interval,
+            &seeded_edges,
+        ) {
+            seeded_edges.push(edge);
+        }
+    }
+    seeded_edges
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -711,7 +749,7 @@ fn add_long_gap_composites(
     base_controls: Vec<Controls>,
     dodge_dir: [f32; 2],
 ) {
-    if !matches!(tracker.contact, ContactState::Grounded { .. }) {
+    if !first_jump_available(tracker) {
         return;
     }
     let ticks = interval_ticks(interval);
@@ -795,7 +833,12 @@ fn seeded_candidate_action_sets(edges: &[TimedSeededEdge]) -> Vec<Vec<CandidateA
             ComponentKind::Boost => None,
         };
         if let Some(event) = event {
-            specs.push((event, edge.edge.frame_index, edge.tick_range));
+            specs.push((
+                event,
+                edge.event_frame_index,
+                edge.tick_range,
+                edge.fit_liftoff_release,
+            ));
         }
     }
     if specs.is_empty() {
@@ -803,7 +846,9 @@ fn seeded_candidate_action_sets(edges: &[TimedSeededEdge]) -> Vec<Vec<CandidateA
     }
 
     let mut sets = vec![Vec::new()];
-    for (idx, (event, frame_index, tick_range)) in specs.into_iter().enumerate() {
+    for (idx, (event, frame_index, tick_range, fit_liftoff_release)) in
+        specs.into_iter().enumerate()
+    {
         let offsets: Vec<u32> = if idx < 2 && tick_range.0 < tick_range.1 {
             (tick_range.0..tick_range.1).collect()
         } else {
@@ -816,17 +861,36 @@ fn seeded_candidate_action_sets(edges: &[TimedSeededEdge]) -> Vec<Vec<CandidateA
                 let action = CandidateAction {
                     tick_offset: *tick_offset,
                     event,
-                    frame_index: Some(frame_index),
+                    frame_index,
                 };
                 if !actions.contains(&action) {
-                    actions.push(action);
+                    actions.push(action.clone());
                 }
                 next.push(actions);
+                if fit_liftoff_release && event == CandidateEvent::JumpPress {
+                    for release_offset in liftoff_release_offsets(*tick_offset, tick_range.1) {
+                        let mut actions = existing.clone();
+                        actions.push(action.clone());
+                        actions.push(CandidateAction {
+                            tick_offset: release_offset,
+                            event: CandidateEvent::JumpRelease,
+                            frame_index,
+                        });
+                        next.push(actions);
+                    }
+                }
             }
         }
         sets = next;
     }
     sets
+}
+
+fn liftoff_release_offsets(press_offset: u32, max_offset: u32) -> impl Iterator<Item = u32> {
+    let min = press_offset + seconds_to_ticks(crate::consts::JUMP_MIN_TIME, 120.0) as u32;
+    let max = press_offset + seconds_to_ticks(crate::consts::JUMP_MAX_TIME, 120.0) as u32;
+    let end = max.min(max_offset);
+    (min..=end).step_by(2)
 }
 
 fn kinematic_candidate_events(
@@ -839,12 +903,13 @@ fn kinematic_candidate_events(
     let vel_residual = diff(observed_end.vel, state_k.vel);
     let planar_residual =
         (vel_residual[0] * vel_residual[0] + vel_residual[1] * vel_residual[1]).sqrt();
+    let up_residual = dot(vel_residual, up(state_k.rot));
     let vertical_residual = vel_residual[2];
     let ang_residual = norm(diff(observed_end.ang_vel, state_k.ang_vel));
 
     if segment_kind == SegmentKind::Air
-        && matches!(tracker.contact, ContactState::Grounded { .. })
-        && vertical_residual > 200.0
+        && first_jump_available(tracker)
+        && up_residual > crate::consts::JUMP_LIFTOFF_MIN_UP_VEL_STEP
     {
         push_unique_event(&mut events, CandidateEvent::JumpPress);
     }
@@ -1479,13 +1544,13 @@ fn tracker_for_segment(player: &PlayerSeries, segment: &Segment, tick_rate: f64)
     tracker
 }
 
-fn car_state(player: &PlayerSeries, frame: u32, tracker: &CarTracker) -> CarPhysState {
+fn car_state(
+    player: &PlayerSeries,
+    frame: u32,
+    current_tick: u64,
+    tracker: &CarTracker,
+) -> CarPhysState {
     let base = frame_state(player, frame);
-    let airborne = player
-        .frames
-        .on_ground
-        .get(frame as usize)
-        .is_some_and(|on_ground| !*on_ground);
     let boost = player
         .replicated
         .boost_amount_raw
@@ -1515,28 +1580,117 @@ fn car_state(player: &PlayerSeries, frame: u32, tracker: &CarTracker) -> CarPhys
         } else {
             0.0
         },
-        has_jumped: airborne || !matches!(tracker.jump, JumpState::Idle),
+        has_jumped: !matches!(tracker.jump, JumpState::Idle),
         has_double_jumped: matches!(tracker.second, SecondAction::UsedDoubleJump { .. }),
         has_flipped: flip.is_some(),
-        is_jumping: matches!(tracker.jump, JumpState::Holding { .. }),
+        is_jumping: tracker.jump_hold_accel_at(current_tick).is_some(),
         is_flipping: flip.is_some_and(|phase| phase.start_tick <= 120),
         jump_time: match tracker.jump {
-            JumpState::Holding { press_tick } => ticks_since(frame, press_tick),
-            JumpState::Released {
-                press_tick,
-                release_tick,
-                ..
-            } => ticks_since(frame, release_tick.max(press_tick)),
+            JumpState::Holding { press_tick } => ticks_since_tick(current_tick, press_tick),
+            JumpState::Released { press_tick, .. } => ticks_since_tick(current_tick, press_tick),
             JumpState::Idle => 0.0,
         },
         flip_time: flip
-            .map(|phase| ticks_since(frame, phase.start_tick))
+            .map(|phase| ticks_since_tick(current_tick, phase.start_tick))
             .unwrap_or(0.0),
-        air_time_since_jump: if airborne { 0.1 } else { 0.0 },
+        air_time_since_jump: match tracker.jump {
+            JumpState::Released { jump_end_tick, .. } => {
+                ticks_since_tick(current_tick, jump_end_tick)
+            }
+            _ => 0.0,
+        },
         flip_rel_torque: flip
             .map(|phase| [phase.rel_torque[0], phase.rel_torque[1], 0.0])
             .unwrap_or([0.0, 0.0, 0.0]),
     }
+}
+
+fn implied_liftoff_jump_edge(
+    player: &PlayerSeries,
+    segment: &Segment,
+    start_frame: u32,
+    end_frame: u32,
+    interval: &LatticeInterval,
+    seeded_edges: &[TimedSeededEdge],
+) -> Option<TimedSeededEdge> {
+    let liftoff_frame = segment.frame_span.0;
+    if segment.kind != SegmentKind::Air
+        || !segment
+            .summary
+            .boundary_causes
+            .iter()
+            .any(|cause| *cause == crate::timeline::BoundaryCause::Liftoff)
+        || liftoff_frame <= start_frame
+        || liftoff_frame > end_frame
+        || seeded_edges.iter().any(timed_edge_is_jump_press)
+        || !press_liftoff(player, liftoff_frame)
+    {
+        return None;
+    }
+    let tick_range = segment
+        .lattice
+        .intervals
+        .iter()
+        .find(|candidate| candidate.frame_index == liftoff_frame)
+        .map(|candidate| {
+            (
+                candidate
+                    .tick_range
+                    .0
+                    .saturating_sub(interval.tick_range.0)
+                    .min(u64::from(u32::MAX)) as u32,
+                candidate
+                    .tick_range
+                    .1
+                    .saturating_sub(interval.tick_range.0)
+                    .min(u64::from(u32::MAX)) as u32,
+            )
+        })
+        .unwrap_or((0, interval_ticks(interval)));
+    Some(TimedSeededEdge {
+        edge: ReconstructedEdge {
+            frame_index: liftoff_frame,
+            t: 0.0,
+            component: ComponentKind::Jump,
+            source: EdgeEvidence::RawCounter,
+            vector: None,
+            counter_delta: Some(CounterDelta {
+                previous: 0,
+                current: 1,
+                delta_mod_256: 1,
+                min_toggle_edges: 1,
+                net_parity_flip: true,
+                has_subframe_toggles: false,
+            }),
+        },
+        tick_range,
+        event_frame_index: None,
+        fit_liftoff_release: true,
+    })
+}
+
+fn timed_edge_is_jump_press(edge: &TimedSeededEdge) -> bool {
+    edge.edge.component == ComponentKind::Jump
+        && edge
+            .edge
+            .counter_delta
+            .as_ref()
+            .is_none_or(|delta| delta.current % 2 != 0)
+}
+
+fn press_liftoff(player: &PlayerSeries, liftoff_frame: u32) -> bool {
+    let frame = liftoff_frame as usize;
+    if frame == 0
+        || frame >= player.frames.vel.len()
+        || frame >= player.frames.on_ground.len()
+        || !player.frames.on_ground[frame - 1]
+        || player.frames.on_ground[frame]
+    {
+        return false;
+    }
+    let prev = frame_state(player, liftoff_frame - 1);
+    let curr = frame_state(player, liftoff_frame);
+    dot(diff(curr.vel, prev.vel), up(prev.rot)) >= crate::consts::JUMP_LIFTOFF_MIN_UP_VEL_STEP
 }
 
 #[derive(Clone, Copy)]
@@ -1598,12 +1752,12 @@ impl SeededHints {
                     .min(u64::from(u32::MAX)) as u32,
             );
             if let Some(edges) = self.edges.get(&frame) {
-                out.extend(
-                    edges
-                        .iter()
-                        .cloned()
-                        .map(|edge| TimedSeededEdge { edge, tick_range }),
-                );
+                out.extend(edges.iter().cloned().map(|edge| TimedSeededEdge {
+                    event_frame_index: Some(edge.frame_index),
+                    fit_liftoff_release: false,
+                    edge,
+                    tick_range,
+                }));
             }
         }
         out
@@ -1736,6 +1890,14 @@ fn second_available(tracker: &CarTracker) -> bool {
     matches!(tracker.second, SecondAction::Available { .. })
 }
 
+fn first_jump_available(tracker: &CarTracker) -> bool {
+    matches!(tracker.jump, JumpState::Idle)
+        && matches!(
+            tracker.contact,
+            ContactState::Grounded { .. } | ContactState::Airborne { .. }
+        )
+}
+
 fn dodge_dir_from_signature(state_k: &CarPhysState, observed_end: &CarPhysState) -> [f32; 2] {
     let residual = diff(observed_end.vel, state_k.vel);
     let f = forward(state_k.rot);
@@ -1772,8 +1934,8 @@ fn frame_out_of_bounds(player: &PlayerSeries, frame: u32) -> bool {
     frame as usize >= player.frames.pos.len()
 }
 
-fn ticks_since(frame: u32, tick: u64) -> f32 {
-    ((u64::from(frame) * 4).saturating_sub(tick) as f32) / 120.0
+fn ticks_since_tick(current_tick: u64, tick: u64) -> f32 {
+    (current_tick.saturating_sub(tick) as f32) / 120.0
 }
 
 fn reference_engine_available() -> bool {
@@ -1790,6 +1952,10 @@ fn forward(rot: RotationMatrix) -> [f32; 3] {
 
 fn right(rot: RotationMatrix) -> [f32; 3] {
     [rot[0][1], rot[1][1], rot[2][1]]
+}
+
+fn up(rot: RotationMatrix) -> [f32; 3] {
+    [rot[0][2], rot[1][2], rot[2][2]]
 }
 
 fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
@@ -1929,7 +2095,7 @@ mod tests {
         let interval = &crate::segment::segment_replay(&series).players[0].segments[0]
             .lattice
             .intervals[0];
-        let state = car_state(player, 0, &tracker);
+        let state = car_state(player, 0, interval.tick_range.0, &tracker);
         let observed = PortableEngine::new().rollout(
             &state,
             &TickPlan {
@@ -2014,6 +2180,53 @@ mod tests {
             "Stall not found in {:?}",
             output.timelines[0].events
         );
+    }
+
+    #[test]
+    fn liftoff_impulse_emits_unseeded_jump_press() {
+        let start = base_state(false);
+        let mut end = start;
+        end.pos = [0.0, 0.0, 80.0];
+        end.vel = [0.0, 0.0, crate::consts::JUMP_IMMEDIATE_FORCE + 20.0];
+        let series = series_from_states(vec![start, end], vec![0.0, 1.0 / 30.0], vec![true, false]);
+        let output = solve_series(
+            &series,
+            &EstimatorConfig {
+                mode: Mode::Unseeded,
+                ..default_estimator_config()
+            },
+        );
+        assert!(press_liftoff(&series.players[0], 1));
+
+        let press = output.timelines[0]
+            .events
+            .iter()
+            .find(|event| matches!(event.kind, SolvedEventKind::JumpPress))
+            .unwrap_or_else(|| {
+                panic!(
+                    "liftoff impulse should imply a first jump press, events={:?}, samples={:?}, segments={:?}",
+                    output.timelines[0].events,
+                    output.timelines[0].samples,
+                    output.timelines[0].segments,
+                )
+            });
+        assert_eq!(press.frame_index, 1);
+        assert!(output.timelines[0].samples[0].jump.value);
+    }
+
+    #[test]
+    fn drive_off_liftoff_keeps_first_jump_unused() {
+        let mut start = base_state(false);
+        start.vel = [300.0, 0.0, 40.0];
+        let mut end = start;
+        end.pos = [10.0, 0.0, 80.0];
+        end.vel = [300.0, 0.0, 70.0];
+        let series = series_from_states(vec![start, end], vec![0.0, 1.0 / 30.0], vec![true, false]);
+        let segment = &crate::segment::segment_replay(&series).players[0].segments[0];
+        let tracker = tracker_for_segment(&series.players[0], segment, 120.0);
+        assert!(!press_liftoff(&series.players[0], 1));
+        assert!(matches!(tracker.jump, JumpState::Idle));
+        assert!(matches!(tracker.second, SecondAction::Unavailable));
     }
 
     #[test]
@@ -2894,8 +3107,14 @@ mod tests {
                     }
                     let interval_tracker = branching.best_tracker().clone();
                     let ticks = interval_ticks(interval);
-                    let state_k = car_state(player, start_frame, &interval_tracker);
-                    let observed_end = car_state(player, end_frame, &interval_tracker);
+                    let state_k = car_state(
+                        player,
+                        start_frame,
+                        interval.tick_range.0,
+                        &interval_tracker,
+                    );
+                    let observed_end =
+                        car_state(player, end_frame, interval.tick_range.1, &interval_tracker);
                     let base_controls = solve_controls(
                         player,
                         start_frame,
@@ -2904,11 +3123,14 @@ mod tests {
                         &interval_tracker,
                         config,
                     );
-                    let seeded_edges = hints.edges_for_interval(
+                    let seeded_edges = edges_for_interval_with_implied_liftoff(
+                        player,
+                        &hints,
                         segment,
                         start_frame,
                         end_frame,
-                        interval.tick_range.0,
+                        interval,
+                        config,
                     );
                     let generation = generate_candidates_for_wp7c_diag(
                         &state_k,
@@ -3670,8 +3892,14 @@ mod tests {
                     }
                     let interval_tracker = branching.best_tracker().clone();
                     let ticks = interval_ticks(interval);
-                    let state_k = car_state(player, start_frame, &interval_tracker);
-                    let observed_end = car_state(player, end_frame, &interval_tracker);
+                    let state_k = car_state(
+                        player,
+                        start_frame,
+                        interval.tick_range.0,
+                        &interval_tracker,
+                    );
+                    let observed_end =
+                        car_state(player, end_frame, interval.tick_range.1, &interval_tracker);
                     let base_controls = solve_controls(
                         player,
                         start_frame,
@@ -3686,11 +3914,14 @@ mod tests {
                         &interval_tracker,
                         interval,
                         base_controls,
-                        hints.edges_for_interval(
+                        edges_for_interval_with_implied_liftoff(
+                            player,
+                            &hints,
                             segment,
                             start_frame,
                             end_frame,
-                            interval.tick_range.0,
+                            interval,
+                            &config,
                         ),
                         &config,
                         segment.kind,

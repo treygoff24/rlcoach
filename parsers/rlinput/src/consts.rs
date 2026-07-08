@@ -13,6 +13,11 @@ pub const THROTTLE_AIR_ACCEL: f32 = 200.0 / 3.0; // RocketSim `RLConst.h:92`, ap
 
 pub const JUMP_ACCEL: f32 = 4375.0 / 3.0; // RocketSim `RLConst.h:94`, applied at `Car.cpp:580-589`.
 pub const JUMP_IMMEDIATE_FORCE: f32 = 875.0 / 3.0; // RocketSim `RLConst.h:95`, applied at `Car.cpp:573-574,775-776`.
+
+// Press-liftoff discriminator: RocketSim applies `JUMP_IMMEDIATE_FORCE` along
+// car-local up in the jump tick (`Car.cpp:573-574`). A fresh-anchored replicated
+// frame can include gravity/hold noise, so require at least 90% of the impulse.
+pub const JUMP_LIFTOFF_MIN_UP_VEL_STEP: f32 = JUMP_IMMEDIATE_FORCE * 0.9;
 pub const JUMP_PRE_MIN_ACCEL_SCALE: f32 = 0.62; // RocketSim `Car.cpp:583-586`.
 pub const JUMP_MIN_TIME: f32 = 0.025; // RocketSim `RLConst.h:96`, gate at `Car.cpp:561-562`.
 pub const JUMP_MAX_TIME: f32 = 0.2; // RocketSim `RLConst.h:98`, gate at `Car.cpp:561-562`.

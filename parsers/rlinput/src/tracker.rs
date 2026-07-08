@@ -294,7 +294,11 @@ impl CarTracker {
     }
 
     pub fn first_jump_press(&mut self, tick: u64) -> Result<(), TrackerError> {
-        if !matches!(self.contact, ContactState::Grounded { .. }) {
+        if !matches!(
+            (&self.contact, &self.jump),
+            (ContactState::Grounded { .. }, JumpState::Idle)
+                | (ContactState::Airborne { .. }, JumpState::Idle)
+        ) {
             return Err(TrackerError::CannotFirstJumpFromCurrentContact);
         }
         self.contact = ContactState::Airborne { liftoff_tick: tick };
