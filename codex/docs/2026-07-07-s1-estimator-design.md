@@ -582,3 +582,17 @@ History: two falsified approaches (A5 frame-shift, recall 0.370→0.309; A6.1 lo
 3. **Pre-registered P-A8b (build):** pooled recall ≥ 0.50 (from 0.370) with hallucinations ≤ 900, dodge probe 1.000/1.000, press recall not degraded. If recall lands < 0.43, stop and report — no tuning pass.
 
 Event timestamps and truth keys remain unchanged (ratified). Composite fallback (≤16 press+dodge / dodge+dodge with complexity penalty ≈ margin/2) is authorized ONLY as step 3 if step 2 confirms but plateaus below 0.50 on residual-at-E evidence — separate commit, separate before/after.
+
+## H-LAG closure + H-CANCEL ruling (orchestrator, 2026-07-08)
+
+H-LAG is CLOSED after three independent falsifications: frame-shift (A5 fix attempt, recall 0.370→0.309), lookahead horizon (A6.1, 0.370→0.339, hallucinations 948), effect-anchored counterfactual (A8 probe, P-A8a = 3.0% vs ≥60% gate). The A8 probe additionally showed that 1297/1573 "lag" misses have NO angular-velocity step within +3 frames of the truth-interval terminator — the A5 edge-relative effect densities do not transfer to terminator-relative windows. Escalation to two-event composites is DENIED: composites over [N..E] cannot help misses whose evidence does not exist in [N..E].
+
+### The surviving explanation: flip cancels (H-CANCEL)
+
+Synthesis of previously unexplained facts: (a) null genuinely fits at T with energy as low as 14–185 (A3); (b) no nearby ang-vel step for 82% of "lag" misses (A8); (c) Table B true dodge candidates lose to null with residuals DOMINATED by ang_vel — the rollout predicts a FULL dodge torque arc; (d) the player population is high-MMR, where cancelled dodges (speedflips, half-flips, wavedash setups) are pervasive; a cancelled dodge carries the planar impulse but suppresses the sustained angular-velocity signature the full-flip model predicts. Model mismatch, not evidence locality.
+
+### Ruling — probe before build (Wave A9)
+
+1. **Cancel-signature probe.** For hits vs misses (both populations, matched per replay): roll out the FULL-dodge model from the truth parameters (kind, direction, tick) and compare against observed ang-vel/rotation over the subsequent ≤0.65s of fresh anchors. Classify each flip: FULL-CONSISTENT (observed tracks full-flip arc), CANCEL-CONSISTENT (initial impulse present, ang-vel suppressed/reversed early), NEITHER. Also report planar-impulse presence at/near the truth frame for both classes.
+2. **P-A9a (pre-registered):** misses are CANCEL-CONSISTENT at ≥ 45% while hits are ≤ 15%. If confirmed ⇒ Wave A10 adds a cancel dimension to dodge candidates (Dodge(dir, tick, cancel_tick) with a SMALL quantized cancel grid — e.g. {none, immediate, +0.1s, +0.2s} — complexity penalty per extra dimension, enumeration bounded). If < 25% ⇒ the unexplained miss mass is not cancels either; S1 flip recall likely caps near current levels and the frozen gate criteria adjudicate accordingly — no further speculative solver waves without new evidence.
+3. **P-A9b (build gate, only if P-A9a confirms):** cancel-aware candidates lift pooled recall ≥ 0.55 with hallucinations ≤ 900 (margin 256), dodge probe 1.000/1.000. Same stop discipline as prior waves.
