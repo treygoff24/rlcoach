@@ -570,3 +570,15 @@ Evidence: Wave B criterion-3 probes (`codex/docs/2026-07-07-s1-wp9-oracle.md`, W
 
 - **P-B1:** steer=yaw in air lifts criterion-3 steer ±0.15 from 0.515 to ≥ 0.70 (if it lands < 0.60 the yaw estimate itself is too weak and needs its own diagnosis).
 - **P-B2:** observable-frames throttle sign ≥ 0.85 with observable coverage ≥ 0.55 of scoring frames (ground share); if sign stays ≈ 0.5 on ground-only frames, the throttle channel has a real solver defect beyond air zeroing.
+
+## H-LAG ruling: effect-anchored lag pass (orchestrator, 2026-07-08)
+
+History: two falsified approaches (A5 frame-shift, recall 0.370→0.309; A6.1 lookahead horizon, 0.370→0.339 with hallucinations 948). Stuck-twice rule invoked; cross-family design consult obtained (Grok Composer, read-only, with the failing diff). Consult independently confirmed the density diagnosis AND identified three implementation defects in the lookahead attempt: null-energy asymmetry under the horizon, kinematic candidate re-seeding from whole-window residuals (manufactures candidates on quiet intervals), and ambiguity-flag OR across horizons.
+
+### Ruling — probe before build
+
+1. **Counterfactual probe first (Wave A8 step 1).** For each of the 1573 lag misses: T = truth interval terminator, E = first fresh frame in +1..+3 with the A5 ang-vel step. With frozen controls, tracker-at-N, and dodge onset ticks restricted to interval N, compute margin_T (adjusted, incl. 256) and margin_E. Tabulate the share with margin_T < 0 AND margin_E > 0 (dodge loses at T, wins at E). **Pre-registered P-A8a: ≥ 60% ⇒ build the lag pass; < 40% ⇒ effect-anchoring is dead, escalate to bounded two-event composites over [N..E] with complexity penalty.**
+2. **If P-A8a holds — effect-anchored lag pass (Wave A8 step 2):** a bounded second pass ONLY on intervals where pass-1 winner is null, the A5 lag signature holds at some E in +1..+3, and the tracker allows a dodge. Re-score dodge (and stall) candidates with onset ticks in N, rolled out THROUGH E and scored at E against null-at-E — same adjusted_event_energy and margin 256, same weights. NO global candidate re-seeding from lookahead residuals; NO flag OR across intervals; NO horizon-end scoring. Winner upgrade re-applies tracker state with a segment re-walk from the branch point. Guards: reject E frames flagged collision/saturation; require planar-impulse consistency at E.
+3. **Pre-registered P-A8b (build):** pooled recall ≥ 0.50 (from 0.370) with hallucinations ≤ 900, dodge probe 1.000/1.000, press recall not degraded. If recall lands < 0.43, stop and report — no tuning pass.
+
+Event timestamps and truth keys remain unchanged (ratified). Composite fallback (≤16 press+dodge / dodge+dodge with complexity penalty ≈ margin/2) is authorized ONLY as step 3 if step 2 confirms but plateaus below 0.50 on residual-at-E evidence — separate commit, separate before/after.
