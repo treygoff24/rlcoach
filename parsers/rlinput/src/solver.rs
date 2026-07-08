@@ -2117,6 +2117,14 @@ mod tests {
     const A5_BOUNDARY_WINDOW_FRAMES: u32 = 4;
     #[cfg(feature = "sim")]
     const A8_LAG_LOOKAHEAD_FRAMES: u32 = 3;
+    #[cfg(feature = "sim")]
+    const A9_FULL_ARC_TICKS: u32 = 78;
+    #[cfg(feature = "sim")]
+    const A9_LATE_TICKS: u32 = 24;
+    #[cfg(feature = "sim")]
+    const A9_PLANAR_IMPULSE_UU_PER_S: f32 = 120.0;
+    #[cfg(feature = "sim")]
+    const A9_ONSET_ANG_RAD_PER_S: f32 = 0.35;
 
     #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
@@ -2982,6 +2990,32 @@ mod tests {
     #[cfg(feature = "sim")]
     #[test]
     #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a9_cancel_signature_probe() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported dev-set ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A9 must run on all 10 dev replays");
+
+        let sanity = a9_synthetic_full_flip_sanity();
+        println!(
+            "wave_a9_sanity,synthetic_full_flips={},full={},full_share={:.3}",
+            sanity.total,
+            sanity.class_count(A9Class::FullConsistent),
+            recall(sanity.class_count(A9Class::FullConsistent), sanity.total)
+        );
+
+        let mut pooled = A9ReplaySummary::default();
+        for (replay, series) in replays {
+            let summary = a9_probe_replay(&replay, &series);
+            print_a9_replay_summary(&replay, &summary);
+            pooled.add(&summary);
+        }
+        print_a9_replay_summary("POOLED", &pooled);
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
     fn exported_dev_set_wave_a3_flip_recall_microscope() {
         let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
             .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
@@ -3693,6 +3727,134 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+    enum A9Class {
+        FullConsistent,
+        CancelConsistent,
+        Neither,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A9Class {
+        fn as_str(self) -> &'static str {
+            match self {
+                A9Class::FullConsistent => "FULL_CONSISTENT",
+                A9Class::CancelConsistent => "CANCEL_CONSISTENT",
+                A9Class::Neither => "NEITHER",
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone)]
+    struct A9Anchor {
+        tick: u32,
+        observed: CarPhysState,
+    }
+
+    #[cfg(feature = "sim")]
+    struct A9Trial {
+        class: A9Class,
+        score: f64,
+        planar_impulse: bool,
+        onset_ang_delta: f64,
+        late_ang_delta: f64,
+        late_ang_residual: f64,
+    }
+
+    #[cfg(feature = "sim")]
+    struct A9Row {
+        class: A9Class,
+        kind: &'static str,
+        hit: bool,
+        miss_class: Option<MissClass>,
+        planar_impulse: bool,
+        onset_ang_delta: f64,
+        late_ang_delta: f64,
+        late_ang_residual: f64,
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct A9PopulationSummary {
+        total: usize,
+        class_counts: BTreeMap<A9Class, usize>,
+        planar_impulses: usize,
+        onset_ang_delta: Vec<f64>,
+        late_ang_delta: Vec<f64>,
+        late_ang_residual: Vec<f64>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A9PopulationSummary {
+        fn add_row(&mut self, row: &A9Row) {
+            self.total += 1;
+            *self.class_counts.entry(row.class).or_default() += 1;
+            self.planar_impulses += usize::from(row.planar_impulse);
+            self.onset_ang_delta.push(row.onset_ang_delta);
+            self.late_ang_delta.push(row.late_ang_delta);
+            self.late_ang_residual.push(row.late_ang_residual);
+        }
+
+        fn add(&mut self, other: &Self) {
+            self.total += other.total;
+            for (class, count) in &other.class_counts {
+                *self.class_counts.entry(*class).or_default() += count;
+            }
+            self.planar_impulses += other.planar_impulses;
+            self.onset_ang_delta
+                .extend(other.onset_ang_delta.iter().copied());
+            self.late_ang_delta
+                .extend(other.late_ang_delta.iter().copied());
+            self.late_ang_residual
+                .extend(other.late_ang_residual.iter().copied());
+        }
+
+        fn class_count(&self, class: A9Class) -> usize {
+            self.class_counts.get(&class).copied().unwrap_or_default()
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct A9ReplaySummary {
+        hit: A9PopulationSummary,
+        missed: A9PopulationSummary,
+        by_kind: BTreeMap<(&'static str, &'static str), A9PopulationSummary>,
+        miss_xtab: BTreeMap<(MissClass, A9Class), usize>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl A9ReplaySummary {
+        fn add_row(&mut self, row: A9Row) {
+            let population = if row.hit { "HIT" } else { "MISSED" };
+            if row.hit {
+                self.hit.add_row(&row);
+            } else {
+                self.missed.add_row(&row);
+                if let Some(miss_class) = row.miss_class {
+                    *self.miss_xtab.entry((miss_class, row.class)).or_default() += 1;
+                }
+            }
+            self.by_kind
+                .entry((population, row.kind))
+                .or_default()
+                .add_row(&row);
+        }
+
+        fn add(&mut self, other: &Self) {
+            self.hit.add(&other.hit);
+            self.missed.add(&other.missed);
+            for (key, summary) in &other.by_kind {
+                self.by_kind.entry(*key).or_default().add(summary);
+            }
+            for (key, count) in &other.miss_xtab {
+                *self.miss_xtab.entry(*key).or_default() += count;
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
     enum A5CascadeClass {
         RealPrior,
         HallucinatedPrior(String),
@@ -4140,6 +4302,510 @@ mod tests {
         let best_dodge = best_dodge?;
         let adjusted = adjusted_event_energy(best_dodge, true, Some(null_energy), &miss.weights);
         Some((null_energy - adjusted, null_energy - best_dodge))
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_probe_replay(_replay: &str, series: &ReplaySeries) -> A9ReplaySummary {
+        let report = wp7c_replay_report(_replay, series);
+        let known = coalesced_component_targets(series, is_component_flip_edge, false);
+        assert_eq!(
+            known.len(),
+            report.summary.known_flips,
+            "A9 probe population must match WP7c known flips"
+        );
+        let miss_classes: BTreeMap<_, _> = report
+            .misses
+            .iter()
+            .map(|miss| ((miss.player_id.clone(), miss.end_frame), miss.class))
+            .collect();
+        let segmentation = crate::segment::segment_replay(series);
+        let mut summary = A9ReplaySummary::default();
+
+        for (key, target) in known {
+            let miss_class = miss_classes.get(&key).copied();
+            let row = a9_probe_target(series, &segmentation, &key.0, &target, miss_class);
+            summary.add_row(row);
+        }
+
+        summary
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_probe_target(
+        series: &ReplaySeries,
+        segmentation: &crate::segment::SegmentationOutput,
+        player_id: &str,
+        target: &ComponentTarget,
+        miss_class: Option<MissClass>,
+    ) -> A9Row {
+        let hit = miss_class.is_none();
+        let Some(player) = series
+            .players
+            .iter()
+            .find(|player| player.player_id == player_id)
+        else {
+            return a9_empty_row("unknown", hit, miss_class);
+        };
+        let Some(segmented_player) = segmentation
+            .players
+            .iter()
+            .find(|player| player.player_id == player_id)
+        else {
+            return a9_empty_row("unknown", hit, miss_class);
+        };
+
+        let mut freshness = KinematicFreshness::from_frames(&player.frames);
+        for segment in &segmented_player.segments {
+            freshness.mark_fresh(segment.frame_span.0);
+        }
+
+        for segment in &segmented_player.segments {
+            let Some(interval) = segment
+                .lattice
+                .intervals
+                .iter()
+                .find(|interval| interval.frame_index == target.end_frame)
+            else {
+                continue;
+            };
+            let Some(truth) = component_truth_for_target(player, segment, target, interval) else {
+                return a9_empty_row("unknown", hit, miss_class);
+            };
+            let event = match (truth.kind, truth.dir) {
+                ("Dodge", Some(dir)) => CandidateEvent::Dodge { dir },
+                ("DoubleJump", _) => CandidateEvent::DoubleJump,
+                ("Stall", _) => CandidateEvent::Stall,
+                _ => return a9_empty_row(truth.kind, hit, miss_class),
+            };
+            let start = permissive_event_state(player, target.start_frame);
+            let planar_impulse = a9_planar_impulse(player, target, truth.dir);
+            let onset_ang_delta = a9_onset_ang_delta(player, target);
+            let anchors = a9_anchors(player, segment, &freshness, target, interval, &truth);
+            let trial = a9_best_trial(
+                &start,
+                event,
+                truth.tick_range,
+                &anchors,
+                planar_impulse,
+                onset_ang_delta,
+            );
+            return A9Row {
+                class: trial.class,
+                kind: truth.kind,
+                hit,
+                miss_class,
+                planar_impulse: trial.planar_impulse,
+                onset_ang_delta: trial.onset_ang_delta,
+                late_ang_delta: trial.late_ang_delta,
+                late_ang_residual: trial.late_ang_residual,
+            };
+        }
+
+        a9_empty_row("unscored", hit, miss_class)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_empty_row(kind: &'static str, hit: bool, miss_class: Option<MissClass>) -> A9Row {
+        A9Row {
+            class: A9Class::Neither,
+            kind,
+            hit,
+            miss_class,
+            planar_impulse: false,
+            onset_ang_delta: f64::NAN,
+            late_ang_delta: f64::NAN,
+            late_ang_residual: f64::NAN,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_best_trial(
+        start: &CarPhysState,
+        event: CandidateEvent,
+        tick_range: (u32, u32),
+        anchors: &[A9Anchor],
+        planar_impulse: bool,
+        onset_ang_delta: f64,
+    ) -> A9Trial {
+        let start_tick = tick_range.0;
+        let end_tick = tick_range.1.max(start_tick + 1);
+        (start_tick..end_tick)
+            .map(|tick| {
+                a9_classify_trial(start, event, tick, anchors, planar_impulse, onset_ang_delta)
+            })
+            .min_by(|a, b| a.score.total_cmp(&b.score))
+            .unwrap_or(A9Trial {
+                class: A9Class::Neither,
+                score: f64::INFINITY,
+                planar_impulse,
+                onset_ang_delta,
+                late_ang_delta: f64::NAN,
+                late_ang_residual: f64::NAN,
+            })
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_classify_trial(
+        start: &CarPhysState,
+        event: CandidateEvent,
+        event_tick: u32,
+        anchors: &[A9Anchor],
+        planar_impulse: bool,
+        onset_ang_delta: f64,
+    ) -> A9Trial {
+        let anchors: Vec<_> = anchors
+            .iter()
+            .filter(|anchor| anchor.tick > event_tick)
+            .collect();
+        if anchors.is_empty() {
+            return A9Trial {
+                class: A9Class::Neither,
+                score: f64::INFINITY,
+                planar_impulse,
+                onset_ang_delta,
+                late_ang_delta: f64::NAN,
+                late_ang_residual: f64::NAN,
+            };
+        }
+
+        let mut angular_residuals = Vec::new();
+        let mut rotation_residuals = Vec::new();
+        let mut expected_ang = Vec::new();
+        let mut late: Option<(u32, f64, f64, f64, f64)> = None;
+        for anchor in anchors {
+            let full = a9_rollout(start, event, event_tick, anchor.tick);
+            let observed_delta = diff(anchor.observed.ang_vel, start.ang_vel);
+            let expected_delta = diff(full.ang_vel, start.ang_vel);
+            let residual = f64::from(norm(diff(anchor.observed.ang_vel, full.ang_vel)));
+            let expected = f64::from(norm(expected_delta));
+            let observed = f64::from(norm(observed_delta));
+            let alignment = f64::from(dot(observed_delta, expected_delta));
+            angular_residuals.push(residual);
+            rotation_residuals.push(crate::fit::rotation_distance_rad(
+                anchor.observed.rot,
+                full.rot,
+            ));
+            expected_ang.push(expected);
+
+            let target = event_tick + A9_LATE_TICKS;
+            let distance = anchor.tick.abs_diff(target);
+            if late
+                .as_ref()
+                .is_none_or(|(best_distance, _, _, _, _)| distance < *best_distance)
+            {
+                late = Some((distance, observed, residual, expected, alignment));
+            }
+        }
+
+        let med_residual = percentile(angular_residuals.clone(), 0.50);
+        let med_rot = percentile(rotation_residuals, 0.50);
+        let med_expected = percentile(expected_ang, 0.50);
+        let (_distance, late_observed, late_residual, late_expected, late_alignment) =
+            late.unwrap_or((u32::MAX, f64::NAN, f64::NAN, f64::NAN, f64::NAN));
+        let full_consistent = med_residual <= 0.35 * med_expected.max(1.0) && med_rot <= 0.15;
+        let initial_signature =
+            planar_impulse || onset_ang_delta >= f64::from(A9_ONSET_ANG_RAD_PER_S);
+        let cancel_possible = matches!(event, CandidateEvent::Dodge { dir } if dir[0].abs() >= crate::consts::DODGE_COMPONENT_DEADZONE);
+        let suppressed =
+            late_expected >= 0.7 && (late_observed <= 0.55 * late_expected || late_alignment < 0.0);
+        let class = if full_consistent {
+            A9Class::FullConsistent
+        } else if cancel_possible && initial_signature && suppressed {
+            A9Class::CancelConsistent
+        } else {
+            A9Class::Neither
+        };
+
+        A9Trial {
+            class,
+            score: med_residual + (10.0 * med_rot),
+            planar_impulse,
+            onset_ang_delta,
+            late_ang_delta: late_observed,
+            late_ang_residual: late_residual,
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_rollout(
+        start: &CarPhysState,
+        event: CandidateEvent,
+        event_tick: u32,
+        end_tick: u32,
+    ) -> CarPhysState {
+        let ticks = end_tick.max(event_tick + 1);
+        let kind = match event {
+            CandidateEvent::DoubleJump => TickEventKind::DoubleJump,
+            CandidateEvent::Dodge { dir } => TickEventKind::Dodge { dir },
+            CandidateEvent::Stall => TickEventKind::Dodge { dir: [0.0, 0.0] },
+            CandidateEvent::JumpPress => TickEventKind::JumpPress,
+            CandidateEvent::JumpRelease => TickEventKind::JumpRelease,
+        };
+        crate::engine::rocketsim::RocketSimEngine::new().rollout(
+            start,
+            &TickPlan {
+                controls: vec![Controls::default(); ticks as usize],
+                events: vec![TickEvent {
+                    tick_offset: event_tick,
+                    kind,
+                }],
+            },
+            ticks,
+        )
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_anchors(
+        player: &PlayerSeries,
+        segment: &Segment,
+        freshness: &KinematicFreshness,
+        target: &ComponentTarget,
+        interval: &LatticeInterval,
+        truth: &ComponentTruthDiag,
+    ) -> Vec<A9Anchor> {
+        let start_tick = interval.tick_range.0;
+        let max_tick = start_tick + u64::from(truth.tick_range.0) + u64::from(A9_FULL_ARC_TICKS);
+        let next_event = next_component_event_frame(player, truth.frame);
+        fresh_scoring_intervals(segment, freshness)
+            .into_iter()
+            .filter(|scoring| scoring.interval.frame_index >= target.end_frame)
+            .take_while(|scoring| {
+                next_event.is_none_or(|frame| scoring.interval.frame_index < frame)
+                    && scoring.interval.tick_range.1 <= max_tick
+            })
+            .map(|scoring| A9Anchor {
+                tick: scoring
+                    .interval
+                    .tick_range
+                    .1
+                    .saturating_sub(start_tick)
+                    .min(u64::from(u32::MAX)) as u32,
+                observed: permissive_event_state(player, scoring.interval.frame_index),
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn next_component_event_frame(player: &PlayerSeries, after_frame: u32) -> Option<u32> {
+        crate::tracker::reconstruct_seeded_edges(&player.component)
+            .into_iter()
+            .map(|edge| edge.frame_index)
+            .filter(|frame| *frame > after_frame)
+            .min()
+    }
+
+    #[cfg(feature = "sim")]
+    fn permissive_event_state(player: &PlayerSeries, frame: u32) -> CarPhysState {
+        let state = frame_state(player, frame);
+        CarPhysState {
+            pos: state.pos,
+            vel: state.vel,
+            rot: state.rot,
+            ang_vel: state.ang_vel,
+            boost: player
+                .replicated
+                .boost_amount_raw
+                .get(frame as usize)
+                .map(|raw| f32::from(*raw) * 100.0 / 255.0)
+                .unwrap_or(0.0),
+            is_boosting: player
+                .replicated
+                .boost_active_raw
+                .get(frame as usize)
+                .copied()
+                .unwrap_or(false),
+            boosting_time: 0.0,
+            has_jumped: true,
+            has_double_jumped: false,
+            has_flipped: false,
+            is_jumping: false,
+            is_flipping: false,
+            jump_time: crate::consts::JUMP_MAX_TIME,
+            flip_time: 0.0,
+            air_time_since_jump: 0.1,
+            flip_rel_torque: [0.0; 3],
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_planar_impulse(
+        player: &PlayerSeries,
+        target: &ComponentTarget,
+        dir: Option<[f32; 2]>,
+    ) -> bool {
+        let Some(dir) = dir else {
+            return false;
+        };
+        let start = frame_state(player, target.start_frame);
+        let forward_2d = normalize2_or([forward(start.rot)[0], forward(start.rot)[1]], [1.0, 0.0]);
+        let right_2d = [-forward_2d[1], forward_2d[0]];
+        let impulse_dir = normalize2_or(
+            [
+                (dir[0] * forward_2d[0]) + (dir[1] * right_2d[0]),
+                (dir[0] * forward_2d[1]) + (dir[1] * right_2d[1]),
+            ],
+            forward_2d,
+        );
+        (target.start_frame.saturating_add(1)..=target.end_frame).any(|frame| {
+            if frame as usize >= player.frames.vel.len() {
+                return false;
+            }
+            let prev = frame_state(player, frame - 1);
+            let curr = frame_state(player, frame);
+            let step = diff(curr.vel, prev.vel);
+            (step[0] * impulse_dir[0]) + (step[1] * impulse_dir[1]) >= A9_PLANAR_IMPULSE_UU_PER_S
+        })
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_onset_ang_delta(player: &PlayerSeries, target: &ComponentTarget) -> f64 {
+        let mut max_delta = 0.0_f32;
+        for frame in target.start_frame.saturating_add(1)..=target.end_frame {
+            if frame as usize >= player.frames.ang_vel.len() {
+                continue;
+            }
+            let prev = frame_state(player, frame - 1);
+            let curr = frame_state(player, frame);
+            max_delta = max_delta.max(norm(diff(curr.ang_vel, prev.ang_vel)));
+        }
+        f64::from(max_delta)
+    }
+
+    #[cfg(feature = "sim")]
+    fn a9_synthetic_full_flip_sanity() -> A9PopulationSummary {
+        let dirs = [
+            [1.0, 0.0],
+            [-1.0, 0.0],
+            [0.75, 0.66],
+            [0.75, -0.66],
+            [-0.75, 0.66],
+            [-0.75, -0.66],
+            [0.2, 0.98],
+            [0.2, -0.98],
+        ];
+        let mut summary = A9PopulationSummary::default();
+        for (idx, dir) in dirs.into_iter().cycle().take(64).enumerate() {
+            let event_tick = (idx % 4) as u32;
+            let start = CarPhysState {
+                pos: [100.0 + idx as f32, -200.0, 500.0],
+                vel: [300.0, -50.0, 20.0],
+                rot: identity_rot_mat(),
+                ang_vel: [0.1, -0.2, 0.05],
+                boost: 100.0,
+                is_boosting: false,
+                boosting_time: 0.0,
+                has_jumped: true,
+                has_double_jumped: false,
+                has_flipped: false,
+                is_jumping: false,
+                is_flipping: false,
+                jump_time: crate::consts::JUMP_MAX_TIME,
+                flip_time: 0.0,
+                air_time_since_jump: 0.1,
+                flip_rel_torque: [0.0; 3],
+            };
+            let anchors: Vec<_> = (4..=A9_FULL_ARC_TICKS)
+                .step_by(4)
+                .map(|tick| A9Anchor {
+                    tick,
+                    observed: a9_rollout(&start, CandidateEvent::Dodge { dir }, event_tick, tick),
+                })
+                .collect();
+            let trial = a9_classify_trial(
+                &start,
+                CandidateEvent::Dodge { dir },
+                event_tick,
+                &anchors,
+                true,
+                1.0,
+            );
+            summary.add_row(&A9Row {
+                class: trial.class,
+                kind: "Dodge",
+                hit: true,
+                miss_class: None,
+                planar_impulse: trial.planar_impulse,
+                onset_ang_delta: trial.onset_ang_delta,
+                late_ang_delta: trial.late_ang_delta,
+                late_ang_residual: trial.late_ang_residual,
+            });
+        }
+        summary
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a9_replay_summary(replay: &str, summary: &A9ReplaySummary) {
+        print_a9_population_summary(replay, "HIT", "all", &summary.hit);
+        print_a9_population_summary(replay, "MISSED", "all", &summary.missed);
+        for ((population, kind), kind_summary) in &summary.by_kind {
+            print_a9_population_summary(replay, population, kind, kind_summary);
+        }
+        for miss_class in [
+            MissClass::NoCandidate,
+            MissClass::OutscoredByNull,
+            MissClass::Illegal,
+            MissClass::OutscoredByEvent,
+            MissClass::Unscored,
+        ] {
+            for class in [
+                A9Class::FullConsistent,
+                A9Class::CancelConsistent,
+                A9Class::Neither,
+            ] {
+                let count = summary
+                    .miss_xtab
+                    .get(&(miss_class, class))
+                    .copied()
+                    .unwrap_or_default();
+                println!(
+                    "wave_a9_miss_xtab,replay={},taxonomy={},class={},count={}",
+                    replay,
+                    miss_class.as_str(),
+                    class.as_str(),
+                    count
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn print_a9_population_summary(
+        replay: &str,
+        population: &str,
+        kind: &str,
+        summary: &A9PopulationSummary,
+    ) {
+        let full = summary.class_count(A9Class::FullConsistent);
+        let cancel = summary.class_count(A9Class::CancelConsistent);
+        let neither = summary.class_count(A9Class::Neither);
+        println!(
+            "wave_a9_probe,replay={},population={},kind={},total={},full={},cancel={},neither={},full_share={:.3},cancel_share={:.3},planar_impulse={},planar_impulse_share={:.3},onset_ang_delta_p50={:.3},late_ang_delta_p50={:.3},late_ang_residual_p50={:.3}",
+            replay,
+            population,
+            kind,
+            summary.total,
+            full,
+            cancel,
+            neither,
+            recall(full, summary.total),
+            recall(cancel, summary.total),
+            summary.planar_impulses,
+            recall(summary.planar_impulses, summary.total),
+            percentile_finite(summary.onset_ang_delta.clone(), 0.50),
+            percentile_finite(summary.late_ang_delta.clone(), 0.50),
+            percentile_finite(summary.late_ang_residual.clone(), 0.50),
+        );
+    }
+
+    #[cfg(feature = "sim")]
+    fn percentile_finite(values: Vec<f64>, q: f64) -> f64 {
+        percentile(
+            values
+                .into_iter()
+                .filter(|value| value.is_finite())
+                .collect(),
+            q,
+        )
     }
 
     #[cfg(feature = "sim")]
