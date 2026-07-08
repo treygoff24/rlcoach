@@ -2046,6 +2046,8 @@ mod tests {
     #[cfg(feature = "sim")]
     const PRESS_BOUNDARY_TOLERANCE_FRAMES: u32 = 2;
     #[cfg(feature = "sim")]
+    const FLIP_MATCH_TOLERANCE_INTERVALS: i32 = 1;
+    #[cfg(feature = "sim")]
     const DIAG_SURFACE_FLOOR_Z: f32 = 40.0;
     #[cfg(feature = "sim")]
     const DIAG_SURFACE_CEILING_Z: f32 = 2044.0 - 40.0;
@@ -2702,6 +2704,179 @@ mod tests {
     #[cfg(feature = "sim")]
     #[test]
     #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
+    fn exported_dev_set_wave_a4_flip_adjacency_probe() {
+        let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
+            .expect("RLINPUT_DEV_SERIES_DIR should point to exported dev-set ReplaySeries JSONs");
+        let replays = read_dev_series(&dir);
+        assert_eq!(replays.len(), 10, "A4 must run on all 10 dev replays");
+
+        let mut pooled = AdjacencySummary::default();
+        let mut by_bucket: BTreeMap<String, AdjacencySummary> = BTreeMap::new();
+
+        for (replay, series) in replays {
+            let known = coalesced_component_targets(&series, is_component_flip_edge, false);
+            let solved = solved_flip_intervals(&solve_unseeded_reference(&series));
+            let ordinals = coalesced_interval_ordinals(&series);
+            let exact = match_flips(&known, &solved, &ordinals, FlipMatchTolerance::Exact);
+            let exact_truth = matched_truth_keys(&exact);
+            let exact_pred = matched_pred_keys(&exact);
+            let misses: BTreeSet<_> = known
+                .keys()
+                .filter(|key| !exact_truth.contains(*key))
+                .cloned()
+                .collect();
+            let hallucinations: BTreeSet<_> = solved
+                .iter()
+                .filter(|key| !exact_pred.contains(*key))
+                .cloned()
+                .collect();
+            let miss_adjacent = misses
+                .iter()
+                .filter(|miss| {
+                    hallucinations.iter().any(|hallucination| {
+                        coalesced_interval_distance(miss, hallucination, &ordinals)
+                            .is_some_and(|distance| distance.abs() == 1)
+                    })
+                })
+                .count();
+            let hallucination_adjacent = hallucinations
+                .iter()
+                .filter(|hallucination| {
+                    misses.iter().any(|miss| {
+                        coalesced_interval_distance(miss, hallucination, &ordinals)
+                            .is_some_and(|distance| distance.abs() == 1)
+                    })
+                })
+                .count();
+
+            println!(
+                "wave_a4_adjacency_cross_tab,replay={},build_bucket={},misses={},miss_adjacent_hallucination={},miss_adjacent_share={:.3},hallucinations={},hallucination_adjacent_miss={},hallucination_adjacent_share={:.3}",
+                replay,
+                series.build_bucket,
+                misses.len(),
+                miss_adjacent,
+                recall(miss_adjacent, misses.len()),
+                hallucinations.len(),
+                hallucination_adjacent,
+                recall(hallucination_adjacent, hallucinations.len()),
+            );
+
+            let interval_1_matches = match_flips(
+                &known,
+                &solved,
+                &ordinals,
+                FlipMatchTolerance::Interval(FLIP_MATCH_TOLERANCE_INTERVALS),
+            );
+            let frames_2_matches =
+                match_flips(&known, &solved, &ordinals, FlipMatchTolerance::Frames(2));
+            let frames_4_matches =
+                match_flips(&known, &solved, &ordinals, FlipMatchTolerance::Frames(4));
+            for (tolerance, matches) in [
+                (FlipMatchTolerance::Exact, exact.clone()),
+                (
+                    FlipMatchTolerance::Interval(FLIP_MATCH_TOLERANCE_INTERVALS),
+                    interval_1_matches.clone(),
+                ),
+                (FlipMatchTolerance::Frames(2), frames_2_matches.clone()),
+                (FlipMatchTolerance::Frames(4), frames_4_matches.clone()),
+            ] {
+                println!(
+                    "wave_a4_tolerance_curve,replay={},tolerance={},known_flips={},solved_flips={},matched={},recall={:.3},hallucinations={}",
+                    replay,
+                    tolerance.as_label(),
+                    known.len(),
+                    solved.len(),
+                    matches.len(),
+                    recall(matches.len(), known.len()),
+                    solved.len().saturating_sub(matches.len()),
+                );
+            }
+
+            let pairs = adjacency_pairs(&known, &misses, &hallucinations, &ordinals);
+            let mut summary = AdjacencySummary::from_parts(
+                known.len(),
+                solved.len(),
+                exact.len(),
+                misses.len(),
+                miss_adjacent,
+                hallucinations.len(),
+                hallucination_adjacent,
+                &pairs,
+            );
+            summary.interval_1_matches = interval_1_matches.len();
+            summary.frames_2_matches = frames_2_matches.len();
+            summary.frames_4_matches = frames_4_matches.len();
+            println!(
+                "wave_a4_lag_distribution,replay={},build_bucket={},pairs={},offset_hist={},offset_p50={:.1},offset_p90={:.1}",
+                replay,
+                series.build_bucket,
+                pairs.len(),
+                frame_offset_histogram(&summary.frame_offsets),
+                percentile_i32(summary.frame_offsets.clone(), 0.50),
+                percentile_i32(summary.frame_offsets.clone(), 0.90),
+            );
+
+            pooled.add(&summary);
+            by_bucket
+                .entry(series.build_bucket.clone())
+                .or_default()
+                .add(&summary);
+        }
+
+        println!(
+            "wave_a4_adjacency_cross_tab,replay=POOLED,build_bucket=ALL,misses={},miss_adjacent_hallucination={},miss_adjacent_share={:.3},hallucinations={},hallucination_adjacent_miss={},hallucination_adjacent_share={:.3}",
+            pooled.misses,
+            pooled.miss_adjacent,
+            recall(pooled.miss_adjacent, pooled.misses),
+            pooled.hallucinations,
+            pooled.hallucination_adjacent,
+            recall(pooled.hallucination_adjacent, pooled.hallucinations),
+        );
+        for tolerance in [
+            FlipMatchTolerance::Exact,
+            FlipMatchTolerance::Interval(1),
+            FlipMatchTolerance::Frames(2),
+            FlipMatchTolerance::Frames(4),
+        ] {
+            let matched = match tolerance {
+                FlipMatchTolerance::Exact => pooled.exact_matches,
+                FlipMatchTolerance::Interval(1) => pooled.interval_1_matches,
+                FlipMatchTolerance::Frames(2) => pooled.frames_2_matches,
+                FlipMatchTolerance::Frames(4) => pooled.frames_4_matches,
+                _ => 0,
+            };
+            println!(
+                "wave_a4_tolerance_curve,replay=POOLED,tolerance={},known_flips={},solved_flips={},matched={},recall={:.3},hallucinations={}",
+                tolerance.as_label(),
+                pooled.known,
+                pooled.solved,
+                matched,
+                recall(matched, pooled.known),
+                pooled.solved.saturating_sub(matched),
+            );
+        }
+        println!(
+            "wave_a4_lag_distribution,replay=POOLED,build_bucket=ALL,pairs={},offset_hist={},offset_p50={:.1},offset_p90={:.1}",
+            pooled.frame_offsets.len(),
+            frame_offset_histogram(&pooled.frame_offsets),
+            percentile_i32(pooled.frame_offsets.clone(), 0.50),
+            percentile_i32(pooled.frame_offsets.clone(), 0.90),
+        );
+        for (bucket, summary) in by_bucket {
+            println!(
+                "wave_a4_lag_distribution,replay=BUCKET,build_bucket={},pairs={},offset_hist={},offset_p50={:.1},offset_p90={:.1}",
+                bucket,
+                summary.frame_offsets.len(),
+                frame_offset_histogram(&summary.frame_offsets),
+                percentile_i32(summary.frame_offsets.clone(), 0.50),
+                percentile_i32(summary.frame_offsets.clone(), 0.90),
+            );
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[test]
+    #[ignore = "set RLINPUT_DEV_SERIES_DIR to exported dev-set ReplaySeries JSON directory"]
     fn exported_dev_set_wave_a3_flip_recall_microscope() {
         let dir = std::env::var("RLINPUT_DEV_SERIES_DIR")
             .expect("RLINPUT_DEV_SERIES_DIR should point to exported ReplaySeries JSONs");
@@ -2999,6 +3174,7 @@ mod tests {
         span_frames: u32,
         span_ticks: u64,
         reached_scoring: bool,
+        edge_frames: Vec<u32>,
     }
 
     #[cfg(feature = "sim")]
@@ -3206,6 +3382,95 @@ mod tests {
     }
 
     #[cfg(feature = "sim")]
+    type FlipKey = (String, u32);
+    #[cfg(feature = "sim")]
+    type FlipMatch = (FlipKey, FlipKey);
+
+    #[cfg(feature = "sim")]
+    #[derive(Clone, Copy)]
+    enum FlipMatchTolerance {
+        Exact,
+        Interval(i32),
+        Frames(u32),
+    }
+
+    #[cfg(feature = "sim")]
+    impl FlipMatchTolerance {
+        fn as_label(self) -> String {
+            match self {
+                FlipMatchTolerance::Exact => "exact".to_string(),
+                FlipMatchTolerance::Interval(intervals) => format!("interval_{intervals}"),
+                FlipMatchTolerance::Frames(frames) => format!("frames_{frames}"),
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    #[derive(Default)]
+    struct AdjacencySummary {
+        known: usize,
+        solved: usize,
+        exact_matches: usize,
+        interval_1_matches: usize,
+        frames_2_matches: usize,
+        frames_4_matches: usize,
+        misses: usize,
+        miss_adjacent: usize,
+        hallucinations: usize,
+        hallucination_adjacent: usize,
+        frame_offsets: Vec<i32>,
+    }
+
+    #[cfg(feature = "sim")]
+    impl AdjacencySummary {
+        #[allow(clippy::too_many_arguments)]
+        fn from_parts(
+            known: usize,
+            solved: usize,
+            exact_matches: usize,
+            misses: usize,
+            miss_adjacent: usize,
+            hallucinations: usize,
+            hallucination_adjacent: usize,
+            pairs: &[FlipAdjacencyPair],
+        ) -> Self {
+            Self {
+                known,
+                solved,
+                exact_matches,
+                interval_1_matches: 0,
+                frames_2_matches: 0,
+                frames_4_matches: 0,
+                misses,
+                miss_adjacent,
+                hallucinations,
+                hallucination_adjacent,
+                frame_offsets: pairs.iter().map(|pair| pair.frame_offset).collect(),
+            }
+        }
+
+        fn add(&mut self, other: &Self) {
+            self.known += other.known;
+            self.solved += other.solved;
+            self.exact_matches += other.exact_matches;
+            self.interval_1_matches += other.interval_1_matches;
+            self.frames_2_matches += other.frames_2_matches;
+            self.frames_4_matches += other.frames_4_matches;
+            self.misses += other.misses;
+            self.miss_adjacent += other.miss_adjacent;
+            self.hallucinations += other.hallucinations;
+            self.hallucination_adjacent += other.hallucination_adjacent;
+            self.frame_offsets
+                .extend(other.frame_offsets.iter().copied());
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    struct FlipAdjacencyPair {
+        frame_offset: i32,
+    }
+
+    #[cfg(feature = "sim")]
     fn read_dev_series(dir: &str) -> Vec<(String, ReplaySeries)> {
         let mut paths: Vec<_> = std::fs::read_dir(dir)
             .expect("dev series dir should read")
@@ -3226,6 +3491,182 @@ mod tests {
                 (replay, series)
             })
             .collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn solve_unseeded_reference(series: &ReplaySeries) -> SolveOutput {
+        let mut config = default_estimator_config();
+        config.mode = Mode::Unseeded;
+        config.engine = EnginePreference::PreferReference;
+        solve_series(series, &config)
+    }
+
+    #[cfg(feature = "sim")]
+    fn coalesced_interval_ordinals(series: &ReplaySeries) -> BTreeMap<String, BTreeMap<u32, i32>> {
+        let segmentation = crate::segment::segment_replay(series);
+        let mut out = BTreeMap::new();
+        for segmented_player in &segmentation.players {
+            let Some(player) = series
+                .players
+                .iter()
+                .find(|player| player.player_id == segmented_player.player_id)
+            else {
+                continue;
+            };
+            let mut freshness = KinematicFreshness::from_frames(&player.frames);
+            for segment in &segmented_player.segments {
+                freshness.mark_fresh(segment.frame_span.0);
+            }
+            let mut ordinals = BTreeMap::new();
+            let mut ordinal = 0;
+            for segment in &segmented_player.segments {
+                for scoring in fresh_scoring_intervals(segment, &freshness) {
+                    ordinals.insert(scoring.interval.frame_index, ordinal);
+                    ordinal += 1;
+                }
+            }
+            out.insert(player.player_id.clone(), ordinals);
+        }
+        out
+    }
+
+    #[cfg(feature = "sim")]
+    fn match_flips(
+        truth: &BTreeMap<FlipKey, ComponentTarget>,
+        predicted: &HashSet<FlipKey>,
+        ordinals: &BTreeMap<String, BTreeMap<u32, i32>>,
+        tolerance: FlipMatchTolerance,
+    ) -> Vec<FlipMatch> {
+        let mut unmatched: BTreeSet<_> = truth.keys().cloned().collect();
+        let mut predictions: Vec<_> = predicted.iter().cloned().collect();
+        predictions.sort();
+        let mut matches = Vec::new();
+        for pred in predictions {
+            let Some(best) = unmatched
+                .iter()
+                .filter(|candidate| {
+                    flip_match_distance(candidate, &pred, ordinals, tolerance).is_some()
+                })
+                .min_by_key(|candidate| {
+                    let distance = flip_match_distance(candidate, &pred, ordinals, tolerance)
+                        .unwrap_or(i32::MAX);
+                    (distance.abs(), candidate.1.abs_diff(pred.1), candidate.1)
+                })
+                .cloned()
+            else {
+                continue;
+            };
+            unmatched.remove(&best);
+            matches.push((best, pred));
+        }
+        matches
+    }
+
+    #[cfg(feature = "sim")]
+    fn flip_match_distance(
+        truth: &FlipKey,
+        predicted: &FlipKey,
+        ordinals: &BTreeMap<String, BTreeMap<u32, i32>>,
+        tolerance: FlipMatchTolerance,
+    ) -> Option<i32> {
+        if truth.0 != predicted.0 {
+            return None;
+        }
+        match tolerance {
+            FlipMatchTolerance::Exact => (truth.1 == predicted.1).then_some(0),
+            FlipMatchTolerance::Interval(intervals) => {
+                let distance = coalesced_interval_distance(truth, predicted, ordinals)?;
+                (distance.abs() <= intervals).then_some(distance)
+            }
+            FlipMatchTolerance::Frames(frames) => {
+                let distance = predicted.1 as i32 - truth.1 as i32;
+                (truth.1.abs_diff(predicted.1) <= frames).then_some(distance)
+            }
+        }
+    }
+
+    #[cfg(feature = "sim")]
+    fn coalesced_interval_distance(
+        truth: &FlipKey,
+        predicted: &FlipKey,
+        ordinals: &BTreeMap<String, BTreeMap<u32, i32>>,
+    ) -> Option<i32> {
+        if truth.0 != predicted.0 {
+            return None;
+        }
+        let player_ordinals = ordinals.get(&truth.0)?;
+        Some(player_ordinals.get(&predicted.1)? - player_ordinals.get(&truth.1)?)
+    }
+
+    #[cfg(feature = "sim")]
+    fn matched_truth_keys(matches: &[FlipMatch]) -> BTreeSet<FlipKey> {
+        matches.iter().map(|(truth, _pred)| truth.clone()).collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn matched_pred_keys(matches: &[FlipMatch]) -> BTreeSet<FlipKey> {
+        matches.iter().map(|(_truth, pred)| pred.clone()).collect()
+    }
+
+    #[cfg(feature = "sim")]
+    fn adjacency_pairs(
+        known: &BTreeMap<FlipKey, ComponentTarget>,
+        misses: &BTreeSet<FlipKey>,
+        hallucinations: &BTreeSet<FlipKey>,
+        ordinals: &BTreeMap<String, BTreeMap<u32, i32>>,
+    ) -> Vec<FlipAdjacencyPair> {
+        let mut unused_hallucinations = hallucinations.clone();
+        let mut pairs = Vec::new();
+        for miss in misses {
+            let Some(hallucination) = unused_hallucinations
+                .iter()
+                .filter(|hallucination| {
+                    coalesced_interval_distance(miss, hallucination, ordinals)
+                        .is_some_and(|distance| distance.abs() == 1)
+                })
+                .min_by_key(|hallucination| miss.1.abs_diff(hallucination.1))
+                .cloned()
+            else {
+                continue;
+            };
+            unused_hallucinations.remove(&hallucination);
+            let component_frame = known
+                .get(miss)
+                .and_then(|target| {
+                    target
+                        .edge_frames
+                        .iter()
+                        .min_by_key(|frame| frame.abs_diff(hallucination.1))
+                        .copied()
+                })
+                .unwrap_or(miss.1);
+            pairs.push(FlipAdjacencyPair {
+                frame_offset: hallucination.1 as i32 - component_frame as i32,
+            });
+        }
+        pairs
+    }
+
+    #[cfg(feature = "sim")]
+    fn frame_offset_histogram(offsets: &[i32]) -> String {
+        let mut hist = BTreeMap::new();
+        for offset in offsets {
+            *hist.entry(*offset).or_insert(0usize) += 1;
+        }
+        hist.into_iter()
+            .map(|(offset, count)| format!("{offset}:{count}"))
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
+    #[cfg(feature = "sim")]
+    fn percentile_i32(mut values: Vec<i32>, percentile_value: f64) -> f64 {
+        if values.is_empty() {
+            return f64::NAN;
+        }
+        values.sort_unstable();
+        let idx = ((values.len() - 1) as f64 * percentile_value).round() as usize;
+        f64::from(values[idx])
     }
 
     #[cfg(feature = "sim")]
@@ -4803,6 +5244,11 @@ mod tests {
                         .entry(key)
                         .and_modify(|target: &mut ComponentTarget| {
                             target.flags |= scoring.interval.flags;
+                            for frame in &edge_frames {
+                                if !target.edge_frames.contains(frame) {
+                                    target.edge_frames.push(*frame);
+                                }
+                            }
                         })
                         .or_insert_with(|| ComponentTarget {
                             start_frame: scoring.start_frame,
@@ -4820,6 +5266,7 @@ mod tests {
                                 .1
                                 .saturating_sub(scoring.interval.tick_range.0),
                             reached_scoring: true,
+                            edge_frames,
                         });
                 }
             }
@@ -4839,6 +5286,7 @@ mod tests {
                             span_frames: u32::from(edge.frame_index > 0),
                             span_ticks: 0,
                             reached_scoring: false,
+                            edge_frames: vec![edge.frame_index],
                         });
                 }
             }
