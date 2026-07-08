@@ -336,6 +336,16 @@ impl CarTracker {
         }
     }
 
+    pub fn restore_second_action_from_surface_contact(&mut self, tick: u64) {
+        if matches!(self.contact, ContactState::Airborne { .. })
+            && !matches!(self.second, SecondAction::Available { .. })
+        {
+            self.second = SecondAction::Available {
+                deadline_tick: tick + self.ticks(DOUBLEJUMP_MAX_DELAY),
+            };
+        }
+    }
+
     pub fn second_action_from_controls(
         &mut self,
         tick: u64,
@@ -696,6 +706,32 @@ mod tests {
         assert_eq!(
             tracker.second_action_from_controls(154, 0.0, 0.0, 0.0),
             Err(TrackerError::SecondActionExpired)
+        );
+    }
+
+    #[test]
+    fn surface_contact_restores_expired_second_action_once() {
+        let mut tracker = CarTracker::new_grounded(0);
+        tracker.first_jump_press(0).unwrap();
+        let jump_end = tracker.jump_release(3).unwrap();
+        let expired_tick = jump_end + seconds_to_ticks(DOUBLEJUMP_MAX_DELAY, 120.0);
+        tracker.advance_to(expired_tick);
+        assert_eq!(tracker.second, SecondAction::Expired);
+
+        tracker.restore_second_action_from_surface_contact(200);
+        assert_eq!(
+            tracker.second,
+            SecondAction::Available {
+                deadline_tick: 200 + seconds_to_ticks(DOUBLEJUMP_MAX_DELAY, 120.0)
+            }
+        );
+
+        tracker.restore_second_action_from_surface_contact(220);
+        assert_eq!(
+            tracker.second,
+            SecondAction::Available {
+                deadline_tick: 200 + seconds_to_ticks(DOUBLEJUMP_MAX_DELAY, 120.0)
+            }
         );
     }
 

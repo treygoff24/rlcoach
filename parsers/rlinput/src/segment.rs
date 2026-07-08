@@ -3,6 +3,10 @@
 //! Intervals are addressed by their terminating replay frame, matching
 //! [`crate::lattice::LatticeInterval::frame_index`].
 
+use crate::consts::{
+    SURFACE_BACK_WALL_Y, SURFACE_CEILING_Z, SURFACE_CORNER_SUM, SURFACE_FLOOR_Z,
+    SURFACE_SIDE_WALL_X, SURFACE_TRANSITION_DIST, SURFACE_TRANSITION_Z,
+};
 use crate::lattice::{build_segment_lattice, SegmentLattice};
 use crate::model::{PlayerSeries, ReplaySeries};
 use crate::timeline::{
@@ -16,13 +20,6 @@ const BALL_PROXIMITY_UU: f32 = 190.0;
 const BALL_VELOCITY_KINK_UU_PER_S: f32 = 150.0;
 const CAR_CONTACT_UU: f32 = 170.0;
 const CAR_PROXIMITY_UU: f32 = 350.0;
-const SURFACE_FLOOR_Z: f32 = 40.0;
-const SURFACE_CEILING_Z: f32 = 2044.0 - 40.0;
-const SURFACE_SIDE_WALL_X: f32 = 4096.0 - 40.0;
-const SURFACE_BACK_WALL_Y: f32 = 5120.0 - 40.0;
-const SURFACE_CORNER_SUM: f32 = 8064.0 - 60.0;
-const SURFACE_TRANSITION_Z: f32 = 256.0;
-const SURFACE_TRANSITION_DIST: f32 = 256.0;
 const RESPAWN_TELEPORT_UU: f32 = 500.0;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
