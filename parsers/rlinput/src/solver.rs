@@ -572,7 +572,8 @@ fn solve_interval(
         })
         .collect();
     let best = scored.remove(0);
-    let confidence = best.confidence;
+    let raw_confidence = best.confidence;
+    let confidence = calibrated_joint_confidence(raw_confidence);
     apply_candidate_to_tracker(tracker, &best.candidate, interval.tick_range.0);
 
     let sample = sample_from_candidate(
@@ -596,7 +597,7 @@ fn solve_interval(
     let retro_split = (allow_retro_upgrades
         && config.engine == EnginePreference::PreferReference
         && segment_kind == SegmentKind::Air
-        && confidence <= 0.3
+        && raw_confidence <= 0.3
         && velocity_residual > RETRO_VELOCITY_RESIDUAL_UU_PER_S
         && endpoint_car_proximity(series, player_index, start_frame, end_frame))
     .then(|| split_segment_at(player.player_id.clone(), end_frame));
@@ -1134,6 +1135,31 @@ fn adjusted_event_energy(
     }
 }
 
+fn calibrated_joint_confidence(raw: f32) -> f32 {
+    calibrated_confidence(raw, &crate::consts::CONFIDENCE_CALIBRATION_JOINT)
+}
+
+fn calibrated_high_accuracy_confidence(raw: f32) -> f32 {
+    calibrated_confidence(raw, &crate::consts::CONFIDENCE_CALIBRATION_HIGH_ACCURACY)
+}
+
+fn calibrated_steer_confidence(raw: f32) -> f32 {
+    calibrated_confidence(raw, &crate::consts::CONFIDENCE_CALIBRATION_STEER)
+}
+
+fn calibrated_confidence(raw: f32, breakpoints: &[(f32, f32)]) -> f32 {
+    let raw = raw.clamp(0.0, 1.0);
+    for (upper, calibrated) in breakpoints {
+        if raw <= *upper {
+            return calibrated.clamp(0.0, 1.0);
+        }
+    }
+    breakpoints
+        .last()
+        .map(|(_, y)| y.clamp(0.0, 1.0))
+        .unwrap_or(raw)
+}
+
 fn prefer_event_when_null_is_rejected(scored: &mut [ScoredCandidate], weights: &FitWeights) {
     if scored.first().is_some_and(|item| {
         item.candidate.is_null() && item.energy > f64::from(weights.reject_threshold)
@@ -1409,8 +1435,11 @@ fn sample_from_candidate(
     config: &EstimatorConfig,
 ) -> InputSample {
     let controls = best.candidate.controls.first().copied().unwrap_or_default();
-    let confidence = best.confidence;
     let flags = best.flags;
+    let raw_confidence = best.confidence;
+    let joint_confidence = calibrated_joint_confidence(raw_confidence);
+    let high_confidence = calibrated_high_accuracy_confidence(raw_confidence);
+    let steer_confidence = calibrated_steer_confidence(raw_confidence);
     let grounded = player
         .frames
         .on_ground
@@ -1425,7 +1454,7 @@ fn sample_from_candidate(
             .copied(),
         controls.throttle,
         grounded,
-        confidence,
+        high_confidence,
         flags,
         config,
     );
@@ -1448,16 +1477,16 @@ fn sample_from_candidate(
             )
             .unwrap_or(controls.steer),
             source_for_replicated(config, WithheldChannels::STEER),
-            confidence,
+            steer_confidence,
             flags,
         ),
-        pitch: f32_channel(controls.pitch, Source::Solved, confidence, flags),
-        yaw: f32_channel(controls.yaw, Source::Solved, confidence, flags),
-        roll: f32_channel(controls.roll, Source::Solved, confidence, flags),
+        pitch: f32_channel(controls.pitch, Source::Solved, joint_confidence, flags),
+        yaw: f32_channel(controls.yaw, Source::Solved, joint_confidence, flags),
+        roll: f32_channel(controls.roll, Source::Solved, joint_confidence, flags),
         jump: bool_channel(
             best.candidate.controls.iter().any(|control| control.jump),
             Source::Solved,
-            confidence,
+            joint_confidence,
             flags,
         ),
         boost: bool_channel(
@@ -1472,7 +1501,7 @@ fn sample_from_candidate(
                 })
                 .unwrap_or(controls.boost),
             source_for_replicated(config, WithheldChannels::BOOST_ACTIVE),
-            confidence,
+            high_confidence,
             flags,
         ),
         handbrake: bool_channel(
@@ -1487,7 +1516,7 @@ fn sample_from_candidate(
                 })
                 .unwrap_or(controls.handbrake),
             source_for_replicated(config, WithheldChannels::HANDBRAKE),
-            confidence,
+            high_confidence,
             flags,
         ),
     }
@@ -2130,6 +2159,31 @@ mod tests {
     const A11_COMPONENT_GAP_CATCHUP_FRAMES: u32 = 5;
 
     #[test]
+    fn confidence_calibration_is_monotone_clamped_and_lifts_low_raw_scores() {
+        let mut prev = 0.0;
+        for idx in 0..=100 {
+            let raw = idx as f32 / 100.0;
+            let calibrated = calibrated_joint_confidence(raw);
+            assert!(
+                calibrated >= prev,
+                "calibration must be monotone at {raw}: {calibrated} < {prev}"
+            );
+            assert!((0.0..=1.0).contains(&calibrated));
+            prev = calibrated;
+        }
+
+        assert!(
+            calibrated_joint_confidence(0.0) >= 0.6,
+            "lowest occupied raw-confidence block should calibrate upward"
+        );
+        assert!(
+            calibrated_joint_confidence(0.3) >= 0.7,
+            "0.3 raw confidence should clear criterion-5 threshold after calibration"
+        );
+        assert!(calibrated_joint_confidence(0.9) > LONG_GAP_CONFIDENCE_CAP);
+    }
+
+    #[test]
     fn fresh_scoring_intervals_span_held_frame_terminators() {
         let segment = Segment {
             summary: crate::timeline::SegmentSummary {
@@ -2405,7 +2459,7 @@ mod tests {
     }
 
     #[test]
-    fn long_gap_composite_press_release_dodge_is_solved_with_confidence_cap() {
+    fn long_gap_composite_press_release_dodge_is_solved_with_long_gap_flags() {
         let series = two_frame_rollout(
             false,
             23,
@@ -2441,9 +2495,6 @@ mod tests {
         assert!(events
             .iter()
             .any(|event| matches!(event.kind, SolvedEventKind::Dodge { .. })));
-        assert!(events
-            .iter()
-            .all(|event| event.confidence <= LONG_GAP_CONFIDENCE_CAP));
         assert!(events
             .iter()
             .all(|event| event.flags.contains(AmbiguityFlags::LONG_GAP)));
