@@ -86,7 +86,6 @@ def summarize_report(data: dict[str, Any], focus_player: str | None = None) -> s
     # Optional per-player section
     if focus_player:
         per_player = data.get("analysis", {}).get("per_player", {})
-        # Find player id by display name match
         target_id = None
         for p in players:
             if focus_player.lower() in str(p.get("display_name", "")).lower():

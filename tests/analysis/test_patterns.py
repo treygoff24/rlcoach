@@ -1,4 +1,3 @@
-# tests/analysis/test_patterns.py
 """Tests for win/loss pattern analysis."""
 
 import pytest

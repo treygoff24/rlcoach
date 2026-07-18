@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/players.py
 """Players API endpoints."""
 
 from __future__ import annotations
@@ -58,10 +57,8 @@ async def list_players(
         if min_games > 0:
             query = query.filter(Player.games_with_me >= min_games)
 
-        # Get total count before pagination
         total = query.count()
 
-        # Apply sorting with allowlist validation
         if sort.startswith("-"):
             sort_field = sort[1:]
             descending = True
@@ -79,7 +76,6 @@ async def list_players(
         order_col = getattr(Player, sort_field)
         query = query.order_by(order_col.desc() if descending else order_col)
 
-        # Apply pagination
         players = query.offset(offset).limit(limit).all()
 
         items = []
@@ -142,7 +138,6 @@ async def get_player(player_id: str) -> dict[str, Any]:
             ),
         }
 
-        # Compute tendency profile if we have stats
         stats = (
             session.query(PlayerGameStats)
             .filter(PlayerGameStats.player_id == player_id)

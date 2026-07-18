@@ -95,11 +95,9 @@ def _normalize_playlist_id(raw_value: Any) -> tuple[str, list[str]]:
     if not playlist_str or playlist_str == "unknown":
         return "UNKNOWN", []
 
-    # Check numeric ID mapping first
     if playlist_str in _PLAYLIST_ID_MAP:
         return _PLAYLIST_ID_MAP[playlist_str], []
 
-    # Try string normalization
     normalized = playlist_str.upper().replace("-", "_").replace(" ", "_")
     if normalized in _ALLOWED_PLAYLISTS:
         return normalized, []
@@ -257,7 +255,6 @@ def generate_report(
     { "error": "unreadable_replay_file", "details": str(e) }
     """
     try:
-        # Ingest for file metadata and validation
         ingest_info = ingest_replay(replay_path)
 
         # Parse header via adapter. Prefer rust adapter when available for richer
@@ -269,12 +266,10 @@ def generate_report(
             adapter = get_adapter("null")
             header = adapter.parse_header(replay_path)
 
-        # Network frames optional (null adapter returns None)
         raw_frames = None
         if not header_only and adapter.supports_network_parsing:
             raw_frames = adapter.parse_network(replay_path)
 
-        # Normalize timeline
         # Normalize timeline; accept either a list of frames or a NetworkFrames
         # wrapper.
         frames_input = []
@@ -299,7 +294,6 @@ def generate_report(
             network_diagnostics,
         )
 
-        # Events detection (can be empty in header-only)
         # When header_only=True or network_data_available=False, do not emit
         # network-derived events (goals) even if header.goals exists.
         # header.goals is derived from network frame data and should not be
@@ -323,14 +317,11 @@ def generate_report(
         }
         timeline = build_timeline(events_dict)
 
-        # Aggregate analysis
         analysis_out = aggregate_analysis(normalized_frames, events_dict, header)
 
-        # Build top-level fields
         replay_id = ingest_info.get("sha256", "unknown")
         schema_version = get_schema_version()
 
-        # Metadata
         recorded_hz = measure_frame_rate(normalized_frames)
         playlist_value, playlist_warnings = _normalize_playlist_id(
             getattr(header, "playlist_id", None)
@@ -372,7 +363,6 @@ def generate_report(
         if declared_record_fps is not None:
             metadata["declared_record_fps"] = float(declared_record_fps)
 
-        # Quality
         crc_info = ingest_info.get("crc_check", {})
         crc_msg = str(crc_info.get("message", ""))
         crc_passed = bool(crc_info.get("passed", False))
@@ -405,14 +395,11 @@ def generate_report(
             quality["warnings"] = list(quality["warnings"]) + [
                 "network_data_unavailable_fell_back_to_header_only"
             ]
-        # Incorporate analysis warnings if present
         if isinstance(analysis_out, dict) and analysis_out.get("warnings"):
             quality["warnings"] = list(quality["warnings"]) + list(
                 analysis_out["warnings"]
             )  # type: ignore[index]
 
-        # Teams block
-        # Construct minimal players array based on header
         team_players: dict[str, list[str]] = {"BLUE": [], "ORANGE": []}
         players_block: list[dict[str, Any]] = []
 
@@ -495,7 +482,6 @@ def generate_report(
             },
         }
 
-        # Events block (serialize dataclasses to dicts)
         goal_dicts: list[dict[str, Any]] = []
         for g in goals:
             data = {
@@ -546,7 +532,6 @@ def generate_report(
             ],
         }
 
-        # Analysis block: adapt per_player list -> mapping keyed by player_id
         per_team = analysis_out.get("per_team", {"blue": {}, "orange": {}})
         per_player_list = analysis_out.get("per_player", [])
         per_player_map: dict[str, Any] = {}
@@ -574,7 +559,6 @@ def generate_report(
             "analysis": analysis_block,
         }
 
-        # Validate before returning
         validate_report(report)
         return report
 

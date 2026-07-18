@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 //! PyO3 boundary for `rlinput`.
 //!
 //! `solve_timeline` accepts the final columnar payload shape and returns the
@@ -19,10 +18,14 @@ use rlinput::timeline::{
 };
 
 #[pyfunction]
-fn solve_timeline(py: Python<'_>, payload: &PyAny, config: Option<&PyAny>) -> PyResult<PyObject> {
-    let payload = payload.downcast::<PyDict>()?;
+fn solve_timeline(
+    py: Python<'_>,
+    payload: &Bound<'_, PyAny>,
+    config: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyObject> {
+    let payload = payload.as_gil_ref().downcast::<PyDict>()?;
     let series = parse_replay_series(payload)?;
-    let config = parse_config(config)?;
+    let config = parse_config(config.map(Bound::as_gil_ref))?;
     let output = solve_series(&series, &config);
     solve_output_to_py(py, &output)
 }
@@ -406,8 +409,8 @@ where
 }
 
 fn solve_output_to_py(py: Python<'_>, output: &SolveOutput) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
-    let timelines = PyList::empty(py);
+    let out = PyDict::new_bound(py);
+    let timelines = PyList::empty_bound(py);
     for timeline in &output.timelines {
         timelines.append(timeline_to_py(py, timeline)?)?;
     }
@@ -418,19 +421,19 @@ fn solve_output_to_py(py: Python<'_>, output: &SolveOutput) -> PyResult<PyObject
 }
 
 fn timeline_to_py(py: Python<'_>, timeline: &InputTimeline) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("player_id", &timeline.player_id)?;
-    let samples = PyList::empty(py);
+    let samples = PyList::empty_bound(py);
     for sample in &timeline.samples {
         samples.append(sample_to_py(py, sample)?)?;
     }
     out.set_item("samples", samples)?;
-    let events = PyList::empty(py);
+    let events = PyList::empty_bound(py);
     for event in &timeline.events {
         events.append(event_to_py(py, event)?)?;
     }
     out.set_item("events", events)?;
-    let segments = PyList::empty(py);
+    let segments = PyList::empty_bound(py);
     for segment in &timeline.segments {
         segments.append(segment_to_py(py, segment)?)?;
     }
@@ -439,7 +442,7 @@ fn timeline_to_py(py: Python<'_>, timeline: &InputTimeline) -> PyResult<PyObject
 }
 
 fn sample_to_py(py: Python<'_>, sample: &InputSample) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("frame_index", sample.frame_index)?;
     out.set_item("tick_range", vec![sample.tick_range.0, sample.tick_range.1])?;
     out.set_item("time_range", vec![sample.time_range.0, sample.time_range.1])?;
@@ -455,7 +458,7 @@ fn sample_to_py(py: Python<'_>, sample: &InputSample) -> PyResult<PyObject> {
 }
 
 fn f32_channel_to_py(py: Python<'_>, channel: &Channel<f32>) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("value", channel.value)?;
     out.set_item("source", source_name(channel.source))?;
     out.set_item("confidence", channel.confidence)?;
@@ -464,7 +467,7 @@ fn f32_channel_to_py(py: Python<'_>, channel: &Channel<f32>) -> PyResult<PyObjec
 }
 
 fn bool_channel_to_py(py: Python<'_>, channel: &Channel<bool>) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("value", channel.value)?;
     out.set_item("source", source_name(channel.source))?;
     out.set_item("confidence", channel.confidence)?;
@@ -482,7 +485,7 @@ fn source_name(source: Source) -> &'static str {
 }
 
 fn event_to_py(py: Python<'_>, event: &SolvedEvent) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     let (kind, detail) = event_kind_to_py(py, &event.kind)?;
     out.set_item("kind", kind)?;
     out.set_item("detail", detail)?;
@@ -495,7 +498,7 @@ fn event_to_py(py: Python<'_>, event: &SolvedEvent) -> PyResult<PyObject> {
 }
 
 fn event_kind_to_py(py: Python<'_>, kind: &SolvedEventKind) -> PyResult<(&'static str, PyObject)> {
-    let detail = PyDict::new(py);
+    let detail = PyDict::new_bound(py);
     let name = match kind {
         SolvedEventKind::JumpPress => "JumpPress",
         SolvedEventKind::JumpRelease => "JumpRelease",
@@ -505,7 +508,7 @@ fn event_kind_to_py(py: Python<'_>, kind: &SolvedEventKind) -> PyResult<(&'stati
         SolvedEventKind::Landing => "Landing",
         SolvedEventKind::Dodge { dir, cancel } => {
             detail.set_item("dir", vec![dir[0], dir[1]])?;
-            let cancel_py = PyDict::new(py);
+            let cancel_py = PyDict::new_bound(py);
             cancel_py.set_item("onset_tick", cancel.onset_tick)?;
             cancel_py.set_item("peak_pitch", cancel.peak_pitch)?;
             cancel_py.set_item("full_cancel", cancel.full_cancel)?;
@@ -517,7 +520,7 @@ fn event_kind_to_py(py: Python<'_>, kind: &SolvedEventKind) -> PyResult<(&'stati
 }
 
 fn segment_to_py(py: Python<'_>, segment: &SegmentSummary) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("id", segment.id)?;
     out.set_item("tick_span", vec![segment.tick_span.0, segment.tick_span.1])?;
     out.set_item(
@@ -533,7 +536,7 @@ fn segment_to_py(py: Python<'_>, segment: &SegmentSummary) -> PyResult<PyObject>
 }
 
 fn coverage_to_py(py: Python<'_>, coverage: &CoverageReport) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("air_segments", coverage.air_segments)?;
     out.set_item("air_segments_confident", coverage.air_segments_confident)?;
     out.set_item("coverage", coverage.coverage)?;
@@ -541,7 +544,7 @@ fn coverage_to_py(py: Python<'_>, coverage: &CoverageReport) -> PyResult<PyObjec
         "duration_weighted_coverage",
         coverage.duration_weighted_coverage,
     )?;
-    let excluded = PyList::empty(py);
+    let excluded = PyList::empty_bound(py);
     for item in &coverage.excluded_player_seconds_by_cause {
         excluded.append(exclusion_to_py(py, item)?)?;
     }
@@ -550,18 +553,18 @@ fn coverage_to_py(py: Python<'_>, coverage: &CoverageReport) -> PyResult<PyObjec
 }
 
 fn exclusion_to_py(py: Python<'_>, item: &ExclusionBreakdown) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("cause", cause_name(&item.cause))?;
     out.set_item("player_seconds", item.player_seconds)?;
     Ok(out.into())
 }
 
 fn diagnostics_to_py(py: Python<'_>, diagnostics: &SolveDiagnostics) -> PyResult<PyObject> {
-    let out = PyDict::new(py);
+    let out = PyDict::new_bound(py);
     out.set_item("nonstandard_cadence", diagnostics.nonstandard_cadence)?;
-    let lattice = PyList::empty(py);
+    let lattice = PyList::empty_bound(py);
     for item in &diagnostics.lattice {
-        let item_py = PyDict::new(py);
+        let item_py = PyDict::new_bound(py);
         item_py.set_item("kind", &item.kind)?;
         item_py.set_item("first_frame_index", item.first_frame_index)?;
         item_py.set_item("count", item.count)?;
@@ -588,7 +591,7 @@ fn cause_name(cause: &BoundaryCause) -> &'static str {
 }
 
 #[pymodule]
-fn rlinput_py(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn rlinput_py(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_timeline, m)?)?;
     m.add("RUST_CORE", true)?;
     m.add(

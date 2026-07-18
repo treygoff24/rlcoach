@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/coach.py
 """AI Coach API endpoints.
 
 Pro subscription required for full access.
@@ -475,10 +474,8 @@ async def get_session_messages(
         .all()
     )
 
-    # Note: Content is sanitized on storage now. Avoid re-sanitizing on retrieval
-    # as that would double-escape entities and corrupt formatting.
-    # Frontend uses React which escapes HTML by default when rendering text.
-    # Legacy pre-sanitization messages are handled by React's auto-escaping.
+    # Re-sanitizing stored content would double-escape entities; React escapes
+    # both current and older messages when rendering text.
     return [
         {
             "id": msg.id,
@@ -730,9 +727,6 @@ async def get_session_recap(
     )
 
 
-# --- Notes endpoints ---
-
-
 @router.post("/notes", response_model=NoteResponse)
 async def create_note(
     request: NoteRequest,
@@ -840,9 +834,6 @@ async def delete_note(
     db.commit()
 
     return {"status": "deleted"}
-
-
-# --- Internal helpers ---
 
 
 def _parse_content_blocks(

@@ -21,7 +21,6 @@ def build_timeline(events_dict: dict[str, list[Any]]) -> list[TimelineEvent]:
     """
     timeline = []
 
-    # Convert each event type to timeline entries
     for goals in events_dict.get("goals", []):
         timeline.append(
             TimelineEvent(

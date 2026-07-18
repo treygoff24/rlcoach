@@ -1,4 +1,3 @@
-# src/rlcoach/db/__init__.py
 """Database module for RLCoach."""
 
 from .models import (
@@ -46,7 +45,6 @@ __all__ = [
     "PlayerGameStats",
     "DailyStats",
     "Benchmark",
-    # New SaaS models
     "User",
     "OAuthAccount",
     "Session",

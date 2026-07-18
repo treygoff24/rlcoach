@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rlreplay_rust::debug_first_frames;
@@ -68,14 +66,14 @@ fn run() -> Result<(), String> {
         let frames = debug_first_frames(replay_path, max_frames).map_err(|err| err.to_string())?;
 
         Python::with_gil(|py| -> PyResult<()> {
-            let frames_obj = frames.as_ref(py);
-            let json_mod = py.import("json")?;
+            let frames_obj = frames.bind(py);
+            let json_mod = py.import_bound("json")?;
             let dumps = json_mod.getattr("dumps")?;
             let json_str: String = if pretty {
-                let kwargs = PyDict::new(py);
+                let kwargs = PyDict::new_bound(py);
                 kwargs.set_item("indent", 2)?;
                 kwargs.set_item("sort_keys", true)?;
-                dumps.call((frames_obj,), Some(kwargs))?.extract()?
+                dumps.call((frames_obj,), Some(&kwargs))?.extract()?
             } else {
                 dumps.call1((frames_obj,))?.extract()?
             };

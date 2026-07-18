@@ -1,4 +1,3 @@
-# src/rlcoach/config_templates.py
 """Configuration file templates."""
 
 CONFIG_TEMPLATE = """# RLCoach Configuration

@@ -101,10 +101,6 @@ class _MarkdownComposer:
         self._emit_appendices()
         return "\n".join(self.lines) + "\n"
 
-    # ------------------------------------------------------------------
-    # Section helpers
-    # ------------------------------------------------------------------
-
     def _emit(self, text: str = "") -> None:
         self.lines.append(text)
 
@@ -600,10 +596,6 @@ class _MarkdownComposer:
         self._emit(raw_json)
         self._emit("```")
         self._emit()
-
-    # ------------------------------------------------------------------
-    # Formatting helpers
-    # ------------------------------------------------------------------
 
     def _tabulate(
         self,

@@ -1,4 +1,3 @@
-# src/rlcoach/services/coach/budget.py
 """Token budget management for AI Coach."""
 
 import logging
@@ -79,7 +78,6 @@ def get_budget_status(user: User) -> BudgetStatus:
     total = MONTHLY_TOKEN_BUDGET
     remaining = max(0, total - used)
 
-    # Calculate reset date (next month anniversary)
     reset_at = user.token_budget_reset_at
     if reset_at is not None and reset_at.tzinfo is None:
         reset_at = reset_at.replace(tzinfo=timezone.utc)
@@ -150,10 +148,8 @@ def update_budget(
     Returns:
         Updated BudgetStatus
     """
-    # Check if we need to reset (new billing period)
     _maybe_reset_budget(user, db)
 
-    # Update usage
     user.token_budget_used = (user.token_budget_used or 0) + tokens_used
     user.updated_at = datetime.now(timezone.utc)
 
@@ -308,7 +304,6 @@ def _maybe_reset_budget(user: User, db: DBSession, *, commit: bool = True) -> bo
             db.flush()
         return True
 
-    # Check if we've passed the reset date
     now = datetime.now(timezone.utc)
     next_reset = reset_at + relativedelta(months=1)
     if next_reset.tzinfo is None:

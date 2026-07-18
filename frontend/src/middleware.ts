@@ -1,4 +1,3 @@
-// frontend/src/middleware.ts
 /**
  * Next.js middleware for authentication.
  *
@@ -9,7 +8,6 @@
 import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
-// Routes that require authentication
 const protectedRoutes = [
   '/dashboard',
   '/replays',
@@ -19,7 +17,6 @@ const protectedRoutes = [
   '/profile',
 ];
 
-// Routes that require Pro subscription
 // Note: /coach allows free preview (1 message) so it's handled by the backend
 const proRoutes: string[] = [];
 
@@ -27,7 +24,6 @@ export default auth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = !!req.auth;
 
-  // Check if path starts with any protected route
   const isProtectedRoute = protectedRoutes.some(
     (route) =>
       nextUrl.pathname === route || nextUrl.pathname.startsWith(`${route}/`)
@@ -38,14 +34,12 @@ export default auth((req) => {
       nextUrl.pathname === route || nextUrl.pathname.startsWith(`${route}/`)
   );
 
-  // Redirect unauthenticated users to login
   if (isProtectedRoute && !isLoggedIn) {
     const loginUrl = new URL('/login', nextUrl.origin);
     loginUrl.searchParams.set('callbackUrl', `${nextUrl.pathname}${nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Check Pro subscription for coach routes
   if (isProRoute && isLoggedIn) {
     const tier = req.auth?.user?.subscriptionTier;
     if (tier !== 'pro') {
@@ -56,7 +50,6 @@ export default auth((req) => {
   return NextResponse.next();
 });
 
-// Configure which paths the middleware runs on
 export const config = {
   matcher: [
     /*

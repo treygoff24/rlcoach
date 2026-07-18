@@ -1,4 +1,3 @@
-# src/rlcoach/analysis/weaknesses.py
 """Weakness Detection Algorithm.
 
 Compares player metrics against benchmarks to identify areas for improvement.
@@ -128,7 +127,6 @@ def detect_weaknesses(
         z_score = compute_z_score(my_value, p25, median, p75)
         severity = _assign_severity(z_score, direction)
 
-        # Compute gap from median
         gap = my_value - median
 
         results.append(
@@ -145,7 +143,6 @@ def detect_weaknesses(
             )
         )
 
-    # Sort by severity (worst first)
     severity_order = {
         Severity.CRITICAL: 0,
         Severity.HIGH: 1,

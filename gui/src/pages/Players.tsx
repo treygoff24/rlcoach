@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getPlayers, tagPlayer } from '../api/client';
-import { Card, CardHeader, CardContent, SkeletonTable, ErrorState, NoDataEmpty } from '../components';
+import { Card, CardHeader, CardContent, SkeletonTable, ErrorState, NoDataEmpty, Pagination } from '../components';
 
 export function Players() {
   const queryClient = useQueryClient();
@@ -150,27 +150,14 @@ export function Players() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between p-4 border-t border-[var(--color-border)]">
-                  <div className="text-sm text-[var(--color-text-muted)]">
-                    Page {currentPage} of {totalPages}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setFilters({ ...filters, offset: filters.offset - filters.limit })}
-                      disabled={filters.offset === 0}
-                      className="px-3 py-1 rounded text-sm bg-[var(--color-bg-tertiary)] text-[var(--color-text)] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--color-border)] transition-colors"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => setFilters({ ...filters, offset: filters.offset + filters.limit })}
-                      disabled={currentPage >= totalPages}
-                      className="px-3 py-1 rounded text-sm bg-[var(--color-bg-tertiary)] text-[var(--color-text)] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--color-border)] transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  previousDisabled={filters.offset === 0}
+                  nextDisabled={currentPage >= totalPages}
+                  onPrevious={() => setFilters({ ...filters, offset: filters.offset - filters.limit })}
+                  onNext={() => setFilters({ ...filters, offset: filters.offset + filters.limit })}
+                />
               )}
             </>
           )}

@@ -1,4 +1,3 @@
-// frontend/src/lib/errors.ts
 /**
  * Error utilities for mapping API errors to user-friendly messages.
  */
@@ -8,7 +7,6 @@ interface ErrorMapping {
   action?: string;
 }
 
-// HTTP status code to user-friendly message
 const HTTP_ERROR_MESSAGES: Record<number, ErrorMapping> = {
   400: {
     message: 'Invalid request. Please check your input and try again.',
@@ -60,9 +58,7 @@ const HTTP_ERROR_MESSAGES: Record<number, ErrorMapping> = {
   },
 };
 
-// API error codes to user-friendly messages
 const API_ERROR_MESSAGES: Record<string, ErrorMapping> = {
-  // Auth errors
   INVALID_CREDENTIALS: {
     message: 'Invalid email or password.',
     action: 'Check your credentials',
@@ -80,7 +76,6 @@ const API_ERROR_MESSAGES: Record<string, ErrorMapping> = {
     action: 'Contact support',
   },
 
-  // Subscription errors
   SUBSCRIPTION_REQUIRED: {
     message: 'This feature requires a Pro subscription.',
     action: 'Upgrade to Pro',
@@ -94,7 +89,6 @@ const API_ERROR_MESSAGES: Record<string, ErrorMapping> = {
     action: 'Update payment',
   },
 
-  // Upload errors
   FILE_TOO_LARGE: {
     message: 'File is too large. Maximum size is 50MB.',
     action: 'Choose a smaller file',
@@ -116,7 +110,6 @@ const API_ERROR_MESSAGES: Record<string, ErrorMapping> = {
     action: 'Check status later',
   },
 
-  // General errors
   VALIDATION_ERROR: {
     message: 'Please check your input and try again.',
     action: 'Review input',
@@ -134,21 +127,9 @@ const API_ERROR_MESSAGES: Record<string, ErrorMapping> = {
 /**
  * Get a user-friendly error message from an HTTP status code.
  */
-export function getHttpErrorMessage(status: number): ErrorMapping {
+function getHttpErrorMessage(status: number): ErrorMapping {
   return (
     HTTP_ERROR_MESSAGES[status] || {
-      message: 'An unexpected error occurred. Please try again.',
-      action: 'Try again',
-    }
-  );
-}
-
-/**
- * Get a user-friendly error message from an API error code.
- */
-export function getApiErrorMessage(code: string): ErrorMapping {
-  return (
-    API_ERROR_MESSAGES[code] || {
       message: 'An unexpected error occurred. Please try again.',
       action: 'Try again',
     }
@@ -162,15 +143,12 @@ export function parseApiError(
   response: Response,
   body?: { detail?: string; code?: string; error?: string }
 ): ErrorMapping {
-  // Check for known error codes first
   if (body?.code && API_ERROR_MESSAGES[body.code]) {
     return API_ERROR_MESSAGES[body.code];
   }
 
-  // Fall back to HTTP status
   const httpError = getHttpErrorMessage(response.status);
 
-  // If the API provided a detail message, use it
   if (body?.detail) {
     return {
       message: body.detail,
@@ -186,7 +164,6 @@ export function parseApiError(
  */
 export function formatError(error: unknown): string {
   if (error instanceof Error) {
-    // Handle common network errors
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       return 'Unable to connect. Check your internet connection.';
     }
@@ -201,24 +178,4 @@ export function formatError(error: unknown): string {
   }
 
   return 'An unexpected error occurred. Please try again.';
-}
-
-/**
- * Check if an error is a network connectivity error.
- */
-export function isNetworkError(error: unknown): boolean {
-  if (error instanceof TypeError && error.message.includes('fetch')) {
-    return true;
-  }
-  if (error instanceof Error && error.name === 'NetworkError') {
-    return true;
-  }
-  return false;
-}
-
-/**
- * Check if an error is retriable.
- */
-export function isRetriableError(status: number): boolean {
-  return [408, 429, 500, 502, 503, 504].includes(status);
 }

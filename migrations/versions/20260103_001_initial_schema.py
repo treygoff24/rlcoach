@@ -10,7 +10,6 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-# revision identifiers, used by Alembic.
 revision: str = "001_initial"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
@@ -18,10 +17,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # ==========================================================================
-    # USERS & AUTH (NextAuth compatible)
-    # ==========================================================================
-
     op.create_table(
         "users",
         sa.Column("id", sa.String(), primary_key=True),
@@ -29,19 +24,15 @@ def upgrade() -> None:
         sa.Column("email_verified", sa.DateTime(timezone=True), nullable=True),
         sa.Column("display_name", sa.String(), nullable=True),
         sa.Column("image", sa.String(), nullable=True),
-        # Subscription
         sa.Column("subscription_tier", sa.String(), nullable=False, default="free"),
         sa.Column("subscription_status", sa.String(), nullable=True),
         sa.Column("stripe_customer_id", sa.String(), unique=True, nullable=True, index=True),
         sa.Column("stripe_subscription_id", sa.String(), unique=True, nullable=True),
         sa.Column("subscription_period_end", sa.DateTime(timezone=True), nullable=True),
-        # Token budget
         sa.Column("token_budget_used", sa.Integer(), nullable=False, default=0),
         sa.Column("token_budget_reset_at", sa.DateTime(timezone=True), nullable=True),
-        # Compliance
         sa.Column("tos_accepted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deletion_requested_at", sa.DateTime(timezone=True), nullable=True),
-        # Timestamps
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
@@ -78,10 +69,6 @@ def upgrade() -> None:
         sa.Column("token", sa.String(), primary_key=True),
         sa.Column("expires", sa.DateTime(timezone=True), nullable=False),
     )
-
-    # ==========================================================================
-    # REPLAY DATA (existing tables, adapted)
-    # ==========================================================================
 
     op.create_table(
         "players",
@@ -131,7 +118,6 @@ def upgrade() -> None:
         sa.Column("is_me", sa.Boolean(), default=False),
         sa.Column("is_teammate", sa.Boolean(), default=False),
         sa.Column("is_opponent", sa.Boolean(), default=False),
-        # Fundamentals
         sa.Column("goals", sa.Integer(), default=0),
         sa.Column("assists", sa.Integer(), default=0),
         sa.Column("saves", sa.Integer(), default=0),
@@ -140,7 +126,6 @@ def upgrade() -> None:
         sa.Column("score", sa.Integer(), default=0),
         sa.Column("demos_inflicted", sa.Integer(), default=0),
         sa.Column("demos_taken", sa.Integer(), default=0),
-        # Boost
         sa.Column("bcpm", sa.Float(), nullable=True),
         sa.Column("avg_boost", sa.Float(), nullable=True),
         sa.Column("time_zero_boost_s", sa.Float(), nullable=True),
@@ -149,7 +134,6 @@ def upgrade() -> None:
         sa.Column("boost_stolen", sa.Float(), nullable=True),
         sa.Column("big_pads", sa.Integer(), nullable=True),
         sa.Column("small_pads", sa.Integer(), nullable=True),
-        # Movement
         sa.Column("avg_speed_kph", sa.Float(), nullable=True),
         sa.Column("distance_km", sa.Float(), nullable=True),
         sa.Column("max_speed_kph", sa.Float(), nullable=True),
@@ -158,7 +142,6 @@ def upgrade() -> None:
         sa.Column("time_ground_s", sa.Float(), nullable=True),
         sa.Column("time_low_air_s", sa.Float(), nullable=True),
         sa.Column("time_high_air_s", sa.Float(), nullable=True),
-        # Positioning
         sa.Column("time_offensive_third_s", sa.Float(), nullable=True),
         sa.Column("time_middle_third_s", sa.Float(), nullable=True),
         sa.Column("time_defensive_third_s", sa.Float(), nullable=True),
@@ -168,27 +151,21 @@ def upgrade() -> None:
         sa.Column("first_man_pct", sa.Float(), nullable=True),
         sa.Column("second_man_pct", sa.Float(), nullable=True),
         sa.Column("third_man_pct", sa.Float(), nullable=True),
-        # Challenges
         sa.Column("challenge_wins", sa.Integer(), nullable=True),
         sa.Column("challenge_losses", sa.Integer(), nullable=True),
         sa.Column("challenge_neutral", sa.Integer(), nullable=True),
         sa.Column("first_to_ball_pct", sa.Float(), nullable=True),
-        # Kickoffs
         sa.Column("kickoffs_participated", sa.Integer(), nullable=True),
         sa.Column("kickoff_first_touches", sa.Integer(), nullable=True),
-        # Mechanics
         sa.Column("wavedash_count", sa.Integer(), nullable=True),
         sa.Column("halfflip_count", sa.Integer(), nullable=True),
         sa.Column("speedflip_count", sa.Integer(), nullable=True),
         sa.Column("aerial_count", sa.Integer(), nullable=True),
         sa.Column("flip_cancel_count", sa.Integer(), nullable=True),
-        # Recovery
         sa.Column("total_recoveries", sa.Integer(), nullable=True),
         sa.Column("avg_recovery_momentum", sa.Float(), nullable=True),
-        # Defense
         sa.Column("time_last_defender_s", sa.Float(), nullable=True),
         sa.Column("time_shadow_defense_s", sa.Float(), nullable=True),
-        # xG
         sa.Column("total_xg", sa.Float(), nullable=True),
         sa.Column("shots_xg_list", sa.Text(), nullable=True),
     )
@@ -245,10 +222,6 @@ def upgrade() -> None:
     op.create_unique_constraint("uq_benchmark", "benchmarks", ["metric", "playlist", "rank_tier"])
     op.create_index("ix_benchmarks_lookup", "benchmarks", ["metric", "playlist", "rank_tier"])
 
-    # ==========================================================================
-    # AI COACH TABLES
-    # ==========================================================================
-
     op.create_table(
         "coach_sessions",
         sa.Column("id", sa.String(), primary_key=True),
@@ -286,10 +259,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_coach_notes_user", "coach_notes", ["user_id"])
-
-    # ==========================================================================
-    # UPLOAD & OWNERSHIP TABLES
-    # ==========================================================================
 
     op.create_table(
         "uploaded_replays",

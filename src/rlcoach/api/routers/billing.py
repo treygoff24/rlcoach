@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/billing.py
 """Stripe billing endpoints for subscription management."""
 
 import logging

@@ -1,4 +1,3 @@
-// frontend/src/components/Toast.tsx
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
@@ -155,5 +154,3 @@ function ToastItem({
     </div>
   );
 }
-
-export default ToastProvider;

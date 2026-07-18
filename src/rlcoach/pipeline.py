@@ -1,4 +1,3 @@
-# src/rlcoach/pipeline.py
 """Integrated ingestion pipeline for processing replay files.
 
 This module provides the complete pipeline for:
@@ -82,14 +81,11 @@ def process_replay_file(
         IngestionResult with status and details
     """
     try:
-        # Initialize database
         init_db(config.db_path)
 
-        # Step 1: Ingest (validate + hash)
         ingest_result = ingest_replay(path)
         file_hash = ingest_result["sha256"]
 
-        # Step 2: Generate report
         report = generate_report(
             path,
             header_only=header_only,
@@ -97,7 +93,6 @@ def process_replay_file(
             identity_config=config.identity,
         )
 
-        # Check for error report
         if "error" in report:
             return IngestionResult(
                 status=IngestionStatus.ERROR,
@@ -105,8 +100,7 @@ def process_replay_file(
                 error=report.get("error", "Unknown error"),
             )
 
-        # Check if "me" should be excluded
-        # Logic: excluded_names are user's accounts they don't want analyzed.
+        # Excluded names are accounts the user does not want analyzed.
         # If find_me succeeds -> that's "me", can't be excluded (validation
         # prevents overlap).
         # If find_me fails -> check if any player matches excluded_names (that
@@ -115,7 +109,6 @@ def process_replay_file(
         players = report.get("players", [])
         me = resolver.find_me(players)
         if me is None:
-            # "me" not found via display_names - check if playing on excluded account
             for player in players:
                 display_name = player.get("display_name", "")
                 if resolver.should_exclude(display_name):
@@ -125,10 +118,8 @@ def process_replay_file(
                         path=path,
                     )
 
-        # Add source_file to report
         report["source_file"] = str(path)
 
-        # Step 3: Write JSON report to disk
         # Compute json_report_path matching what insert_replay stores
         metadata = report.get("metadata", {})
         played_at_str = metadata.get("started_at_utc", "")
@@ -145,7 +136,6 @@ def process_replay_file(
         )
         write_report_atomically(report, json_report_path, pretty=True)
 
-        # Step 4: Write to database
         write_report(report, file_hash, config)
 
         logger.info(f"Processed {path} -> {replay_id}")

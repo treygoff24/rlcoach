@@ -31,15 +31,11 @@ def is_schema_compatible(version: str) -> bool:
     Returns:
         True if compatible (same major version)
     """
-    try:
-        parts = version.split(".")
-        current_parts = SCHEMA_VERSION.split(".")
+    parts = version.split(".")
+    current_parts = SCHEMA_VERSION.split(".")
 
-        if len(parts) != 3 or len(current_parts) != 3:
-            return False
-
-        # Same major version means compatible
-        return parts[0] == current_parts[0]
-
-    except (ValueError, IndexError):
+    if len(parts) != 3 or len(current_parts) != 3:
         return False
+
+    # Same major version means compatible
+    return parts[0] == current_parts[0]

@@ -1,4 +1,3 @@
-// frontend/src/app/api/auth/[...nextauth]/route.ts
 /**
  * NextAuth.js API route handler.
  *

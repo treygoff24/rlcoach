@@ -1,4 +1,3 @@
-# tests/test_cli_config.py
 from unittest.mock import patch
 
 from rlcoach.cli import main

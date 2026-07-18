@@ -113,7 +113,6 @@ def _kickoffs_from_parser_markers(frames: list[Frame]) -> list[KickoffEvent]:
                 continue
             seen.add(key)
 
-            # Build player states to infer roles from spawn positions
             player_states: dict[str, dict[str, Any]] = {}
             for p in frame.players:
                 player_states[p.player_id] = {
@@ -234,7 +233,6 @@ def _start_kickoff(frame: Frame) -> dict[str, Any]:
             "max_distance": 0.0,
             "first_touch_time": None,
             "role": "BACK",  # Placeholder until assigned from spawn ordering
-            # New tracking fields for improved classification
             "velocities": [],  # List of (t, speed) tuples
             "max_speed": 0.0,
             "speed_at_contact": 0.0,
@@ -299,23 +297,18 @@ def _update_kickoff_state(state: dict[str, Any], frame: Frame) -> None:
         if pdata["movement_start_time"] is None and distance_from_start > 150.0:
             pdata["movement_start_time"] = t
 
-        # Track velocity for delay/speedflip detection
         speed = vector_magnitude(player.velocity)
         pdata["velocities"].append((rel_time, speed))
         pdata["max_speed"] = max(pdata["max_speed"], speed)
 
-        # Track position trajectory
         pdata["positions"].append((rel_time, player.position))
 
-        # Track minimum distance to ball
         separation = distance_3d(player.position, ball.position)
         pdata["distance_to_ball_min"] = min(pdata["distance_to_ball_min"], separation)
 
-        # Track if player reached ball proximity
         if separation < TOUCH_PROXIMITY_THRESHOLD * 1.2:
             pdata["reached_ball"] = True
 
-        # Track directional movement relative to ball (at center)
         ball_center = KICKOFF_CENTER_POSITION
         start_dist_to_ball = distance_3d(pdata["start_pos"], ball_center)
         current_dist_to_ball = distance_3d(player.position, ball_center)
@@ -324,7 +317,6 @@ def _update_kickoff_state(state: dict[str, Any], frame: Frame) -> None:
         if current_dist_to_ball > start_dist_to_ball + 100.0:
             pdata["moved_away_from_ball"] = True
 
-        # Track if player has jumped (for aerial/flip detection)
         if not player.is_on_ground and player.position.z > 30.0:
             pdata["jumped"] = True
 
@@ -364,7 +356,7 @@ def _finalize_kickoff(
 
         boost_used = max(0.0, pdata["start_boost"] - pdata["min_boost"])
         time_to_contact = pdata["first_touch_time"]
-        approach_type = _classify_approach_type(pdata, state["t_start"])
+        approach_type = _classify_approach_type(pdata)
 
         players_payload.append(
             {
@@ -467,7 +459,6 @@ def _is_delay_kickoff(pdata: dict[str, Any]) -> bool:
     if max_speed < 1800.0:
         return False
 
-    # Find velocity profile near contact (last 0.5s before touch)
     pre_contact_velocities = [
         (t, v) for t, v in velocities if contact_time - 0.5 < t < contact_time
     ]
@@ -558,7 +549,7 @@ def _classify_standard_kickoff(pdata: dict[str, Any]) -> str:
     return "STANDARD_FRONTFLIP"
 
 
-def _classify_approach_type(pdata: dict[str, Any], kickoff_start_time: float) -> str:
+def _classify_approach_type(pdata: dict[str, Any]) -> str:
     """Classify kickoff approach type from movement, velocity, and timing data.
 
     Classification priority:

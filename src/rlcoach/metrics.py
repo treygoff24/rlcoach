@@ -1,4 +1,3 @@
-# src/rlcoach/metrics.py
 """Metric catalog - single source of truth for all tracked metrics.
 
 This module defines all metrics used throughout RLCoach for:
@@ -54,14 +53,9 @@ class MetricDefinition:
     db_column: str | None = None  # Override if different from key
 
     def __post_init__(self):
-        # Set db_column to key if not specified
         if self.db_column is None:
             object.__setattr__(self, "db_column", self.key)
 
-
-# ============================================================================
-# METRIC CATALOG - Single Source of Truth
-# ============================================================================
 
 METRIC_CATALOG: dict[str, MetricDefinition] = {}
 
@@ -72,7 +66,6 @@ def _register(m: MetricDefinition) -> MetricDefinition:
     return m
 
 
-# --- Fundamentals ---
 _register(
     MetricDefinition(
         key="goals",
@@ -154,7 +147,6 @@ _register(
     )
 )
 
-# --- Boost ---
 _register(
     MetricDefinition(
         key="bcpm",
@@ -236,7 +228,6 @@ _register(
     )
 )
 
-# --- Movement ---
 _register(
     MetricDefinition(
         key="avg_speed_kph",
@@ -318,7 +309,6 @@ _register(
     )
 )
 
-# --- Positioning ---
 _register(
     MetricDefinition(
         key="time_offensive_third_s",
@@ -413,7 +403,6 @@ _register(
     )
 )
 
-# --- Challenges ---
 _register(
     MetricDefinition(
         key="challenge_wins",
@@ -445,7 +434,6 @@ _register(
     )
 )
 
-# --- Kickoffs ---
 _register(
     MetricDefinition(
         key="kickoffs_participated",
@@ -467,7 +455,6 @@ _register(
     )
 )
 
-# --- Mechanics ---
 _register(
     MetricDefinition(
         key="wavedash_count",
@@ -519,7 +506,6 @@ _register(
     )
 )
 
-# --- Recovery ---
 _register(
     MetricDefinition(
         key="total_recoveries",
@@ -541,7 +527,6 @@ _register(
     )
 )
 
-# --- Defense ---
 _register(
     MetricDefinition(
         key="time_last_defender_s",
@@ -563,7 +548,6 @@ _register(
     )
 )
 
-# --- xG ---
 _register(
     MetricDefinition(
         key="total_xg",
@@ -574,11 +558,6 @@ _register(
         description="Sum of shot xG values",
     )
 )
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
 
 
 def get_metric(key: str) -> MetricDefinition | None:

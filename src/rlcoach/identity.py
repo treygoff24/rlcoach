@@ -1,4 +1,3 @@
-# src/rlcoach/identity.py
 """Player identity resolution for matching "me" in replays."""
 
 from __future__ import annotations

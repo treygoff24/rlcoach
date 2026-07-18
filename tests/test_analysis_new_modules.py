@@ -513,7 +513,6 @@ class TestXGAnalysis:
 
         # xG should be higher for close shot
         # Note: calculate_xg takes position, velocity, shooter_team, frames
-        # We'll just verify the analyze_shots_xg runs without error for now
         player = create_test_player("player1", 0, position=Vec3(0.0, -4600.0, 17.0))
         frames = [
             create_test_frame(
@@ -729,11 +728,9 @@ class TestIntegrationWithAggregator:
 
         result = aggregate_analysis(frames, events, header)
 
-        # Check that per_player includes new analysis fields
         per_player = result.get("per_player", [])
         assert len(per_player) >= 0  # May have players from frames
 
-        # Check that per_team includes defense
         per_team = result.get("per_team", {})
         assert "blue" in per_team
         assert "orange" in per_team

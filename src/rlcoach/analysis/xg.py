@@ -21,6 +21,7 @@ from enum import Enum
 from ..events import TouchContext, TouchEvent
 from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, PlayerFrame
+from .protocol import get_player_teams
 
 
 class ShotType(Enum):
@@ -111,27 +112,6 @@ class XGConfig:
 # Default configuration instance
 DEFAULT_XG_CONFIG = XGConfig()
 
-# Legacy constants for backwards compatibility
-OPTIMAL_DISTANCE_M = DEFAULT_XG_CONFIG.optimal_distance_m
-MAX_DISTANCE_PENALTY_M = DEFAULT_XG_CONFIG.max_distance_penalty_m
-OPTIMAL_ANGLE = DEFAULT_XG_CONFIG.optimal_angle
-MAX_ANGLE_PENALTY = DEFAULT_XG_CONFIG.max_angle_penalty
-POWER_SHOT_SPEED_KPH = DEFAULT_XG_CONFIG.power_shot_speed_kph
-OPTIMAL_SHOT_SPEED_KPH = DEFAULT_XG_CONFIG.optimal_shot_speed_kph
-MIN_SHOT_SPEED_KPH = DEFAULT_XG_CONFIG.min_shot_speed_kph
-
-# Base xG values by shot type (legacy dict)
-BASE_XG = {
-    ShotType.GROUND: DEFAULT_XG_CONFIG.base_xg_ground,
-    ShotType.AERIAL: DEFAULT_XG_CONFIG.base_xg_aerial,
-    ShotType.WALL: DEFAULT_XG_CONFIG.base_xg_wall,
-    ShotType.CEILING: DEFAULT_XG_CONFIG.base_xg_ceiling,
-    ShotType.REDIRECT: DEFAULT_XG_CONFIG.base_xg_redirect,
-    ShotType.POWER_SHOT: DEFAULT_XG_CONFIG.base_xg_power_shot,
-    ShotType.LOB: DEFAULT_XG_CONFIG.base_xg_lob,
-    ShotType.UNKNOWN: DEFAULT_XG_CONFIG.base_xg_unknown,
-}
-
 
 def _calculate_goal_distance(position: Vec3, target_team: int) -> float:
     """Calculate distance to target goal in meters.
@@ -170,7 +150,6 @@ def _calculate_goal_angle(position: Vec3, velocity: Vec3, target_team: int) -> f
         goal_center.z - position.z,
     )
 
-    # Normalize vectors
     to_goal_mag = math.sqrt(to_goal.x**2 + to_goal.y**2 + to_goal.z**2)
     vel_mag = math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
 
@@ -210,7 +189,6 @@ def _calculate_defender_coverage(
     goal_center = GOAL_CENTER_BLUE if target_team == 0 else GOAL_CENTER_ORANGE
     goal_y = goal_center.y
 
-    # Calculate shot trajectory
     ball_speed = math.sqrt(ball_velocity.x**2 + ball_velocity.y**2 + ball_velocity.z**2)
     if ball_speed < 10.0:
         return 0.0, True  # Ball not moving, assume open
@@ -223,7 +201,6 @@ def _calculate_defender_coverage(
     else:
         time_to_goal = dy / vy
 
-    # Check each defender's ability to reach the ball path
     coverage_scores = []
     for defender in defenders:
         # Distance from defender to shot path
@@ -268,7 +245,6 @@ def _calculate_defender_coverage(
     if not coverage_scores:
         return 0.0, True
 
-    # Return max coverage (best positioned defender)
     max_coverage = max(coverage_scores)
     return max_coverage, max_coverage < 0.3
 
@@ -307,7 +283,7 @@ def _classify_shot_type(
             return ShotType.REDIRECT
 
     # Classify by characteristics
-    if speed_kph > POWER_SHOT_SPEED_KPH and height < 200.0:
+    if speed_kph > DEFAULT_XG_CONFIG.power_shot_speed_kph and height < 200.0:
         return ShotType.POWER_SHOT
 
     if height > 800.0:
@@ -344,7 +320,6 @@ def calculate_xg(
     # Target is opposite goal
     target_team = 1 - shooter_team
 
-    # Calculate base factors
     distance_m = _calculate_goal_distance(ball_position, target_team)
     angle_deg = _calculate_goal_angle(ball_position, ball_velocity, target_team)
     ball_speed_kph = (
@@ -352,7 +327,6 @@ def calculate_xg(
         * UU_S_TO_KPH
     )
 
-    # Get defenders (opponents)
     defenders = []
     if frame is not None:
         for player in frame.players:
@@ -367,39 +341,47 @@ def calculate_xg(
     shot_type = _classify_shot_type(ball_position, ball_velocity, touch_context)
 
     # Start with base xG for shot type
-    base_xg = BASE_XG.get(shot_type, BASE_XG[ShotType.UNKNOWN])
+    base_xg = DEFAULT_XG_CONFIG.get_base_xg(shot_type)
 
     # Distance factor (peaks around optimal distance)
-    if distance_m < OPTIMAL_DISTANCE_M:
+    if distance_m < DEFAULT_XG_CONFIG.optimal_distance_m:
         # Close range - slightly easier
-        distance_factor = 1.0 + 0.2 * (1.0 - distance_m / OPTIMAL_DISTANCE_M)
-    elif distance_m > MAX_DISTANCE_PENALTY_M:
+        distance_factor = 1.0 + 0.2 * (
+            1.0 - distance_m / DEFAULT_XG_CONFIG.optimal_distance_m
+        )
+    elif distance_m > DEFAULT_XG_CONFIG.max_distance_penalty_m:
         # Very long range - much harder
         distance_factor = 0.2
     else:
         # Normal range - linear decay
-        range_pct = (distance_m - OPTIMAL_DISTANCE_M) / (
-            MAX_DISTANCE_PENALTY_M - OPTIMAL_DISTANCE_M
+        range_pct = (distance_m - DEFAULT_XG_CONFIG.optimal_distance_m) / (
+            DEFAULT_XG_CONFIG.max_distance_penalty_m
+            - DEFAULT_XG_CONFIG.optimal_distance_m
         )
         distance_factor = 1.0 - 0.7 * range_pct
 
     # Angle factor (direct shots easier)
     if angle_deg < 20.0:
         angle_factor = 1.0
-    elif angle_deg > MAX_ANGLE_PENALTY:
+    elif angle_deg > DEFAULT_XG_CONFIG.max_angle_penalty:
         angle_factor = 0.15
     else:
-        angle_pct = (angle_deg - 20.0) / (MAX_ANGLE_PENALTY - 20.0)
+        angle_pct = (angle_deg - 20.0) / (DEFAULT_XG_CONFIG.max_angle_penalty - 20.0)
         angle_factor = 1.0 - 0.75 * angle_pct
 
     # Speed factor
-    if ball_speed_kph < MIN_SHOT_SPEED_KPH:
+    if ball_speed_kph < DEFAULT_XG_CONFIG.min_shot_speed_kph:
         speed_factor = 0.4  # Very slow shots easy to save
-    elif ball_speed_kph < OPTIMAL_SHOT_SPEED_KPH:
-        speed_factor = 0.6 + 0.4 * (ball_speed_kph / OPTIMAL_SHOT_SPEED_KPH)
+    elif ball_speed_kph < DEFAULT_XG_CONFIG.optimal_shot_speed_kph:
+        speed_factor = 0.6 + 0.4 * (
+            ball_speed_kph / DEFAULT_XG_CONFIG.optimal_shot_speed_kph
+        )
     else:
         # Faster = better, up to a point
-        speed_factor = min(1.3, 1.0 + 0.003 * (ball_speed_kph - OPTIMAL_SHOT_SPEED_KPH))
+        speed_factor = min(
+            1.3,
+            1.0 + 0.003 * (ball_speed_kph - DEFAULT_XG_CONFIG.optimal_shot_speed_kph),
+        )
 
     # Defender factor
     defender_factor = 1.0 - 0.7 * defender_coverage
@@ -446,7 +428,7 @@ def analyze_shots_xg(
         Dict with xG analysis results
     """
     # Only count actual SHOT outcomes for xG calculation
-    # Previously included PASS which inflated shot counts
+    # PASS outcomes are not shots and would inflate the count.
     shot_outcomes = {"SHOT"}
 
     shots_xg: list[dict] = []
@@ -461,19 +443,13 @@ def analyze_shots_xg(
         sorted_timestamps.append(ts)
     sorted_timestamps.sort()
 
-    # Get player teams
-    player_teams: dict[str, int] = {}
-    for frame in frames:
-        for player in frame.players:
-            if player.player_id not in player_teams:
-                player_teams[player.player_id] = player.team
+    player_teams = get_player_teams(frames)
 
     def find_nearest_frame(target_time: float) -> Frame | None:
         """Find frame nearest to target_time using binary search."""
         if not sorted_timestamps:
             return None
 
-        # Try exact match first
         exact_key = round(target_time, 3)
         if exact_key in frame_by_time:
             return frame_by_time[exact_key]
@@ -495,20 +471,16 @@ def analyze_shots_xg(
         return frame_by_time.get(nearest_ts)
 
     for touch in touches:
-        # Check if this is a shot-like touch
         if touch.outcome not in shot_outcomes:
             continue
 
-        # Find the frame for this touch using binary search
         frame = find_nearest_frame(touch.t)
 
         if frame is None:
             continue
 
-        # Get shooter team
         shooter_team = player_teams.get(touch.player_id, 0)
 
-        # Calculate xG
         xg_result = calculate_xg(
             ball_position=frame.ball.position,
             ball_velocity=frame.ball.velocity,
@@ -532,7 +504,6 @@ def analyze_shots_xg(
         }
         shots_xg.append(shot_data)
 
-        # Aggregate per player
         if touch.player_id not in per_player:
             per_player[touch.player_id] = {
                 "total_shots": 0,
@@ -544,7 +515,6 @@ def analyze_shots_xg(
         per_player[touch.player_id]["total_xg"] += xg_result.xg
         per_player[touch.player_id]["shots"].append(shot_data)
 
-    # Calculate team totals
     team_xg = {0: 0.0, 1: 0.0}
     team_shots = {0: 0, 1: 0}
     for player_id, data in per_player.items():

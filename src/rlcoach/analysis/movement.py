@@ -133,7 +133,6 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
 
     frame_durations = _compute_frame_durations(frames)
 
-    # Initialize counters
     total_speed_distance = 0.0
     total_distance_uu = 0.0
     total_time = 0.0
@@ -151,7 +150,6 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     aerial_count = 0
     aerial_time = 0.0
 
-    # Track state for event detection
     prev_player_frame = None
     prev_timestamp = None
     in_powerslide = False
@@ -164,11 +162,10 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
     prev_dt = DEFAULT_FRAME_DT
 
     for idx, frame in enumerate(frames):
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if not player_frame:
             continue
 
-        # Calculate speed and height
         linear_speed = _calculate_speed(player_frame.velocity)
         linear_ground_speed = _horizontal_speed(player_frame.velocity)
         position_speed, position_ground_speed = _estimate_frame_position_speeds(
@@ -261,14 +258,12 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
         prev_player_frame = player_frame
         prev_timestamp = frame.timestamp
 
-    # Handle ongoing powerslide at end
     if in_powerslide and prev_timestamp is not None:
         slide_duration = prev_timestamp - powerslide_start
         if slide_duration >= MIN_POWERSLIDE_DURATION:
             powerslide_count += 1
             powerslide_duration += slide_duration
 
-    # Handle ongoing aerial at end
     if in_aerial and prev_timestamp is not None:
         aerial_count, aerial_time, _ = _close_aerial(
             prev_timestamp,
@@ -277,7 +272,6 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
             aerial_time,
         )
 
-    # Calculate average speed in kph
     avg_speed_kph = 0.0
     if total_time > 0:
         avg_speed_uu_s = total_speed_distance / total_time
@@ -306,19 +300,17 @@ def _analyze_player_movement(frames: list[Frame], player_id: str) -> dict[str, A
 def _analyze_team_movement(frames: list[Frame], team: str) -> dict[str, Any]:
     """Analyze movement metrics for a team (aggregate all players)."""
 
-    # Get all unique player IDs for the team
     team_players = set()
     team_id = 0 if team == "BLUE" else 1
 
     for frame in frames:
-        for player in frame.players:
-            if player.team == team_id:
-                team_players.add(player.player_id)
+        team_players.update(
+            player.player_id for player in frame.get_players_by_team(team_id)
+        )
 
     if not team_players:
         return _empty_movement()
 
-    # Aggregate metrics from all team members
     team_metrics = _empty_movement()
     player_count = len(team_players)
 
@@ -347,7 +339,6 @@ def _analyze_team_movement(frames: list[Frame], team: str) -> dict[str, Any]:
         # Average speed calculation
         team_metrics["avg_speed_kph"] += player_metrics["avg_speed_kph"]
 
-    # Calculate team average speed
     if player_count > 0:
         team_metrics["avg_speed_kph"] = round(
             team_metrics["avg_speed_kph"] / player_count, 2
@@ -356,18 +347,10 @@ def _analyze_team_movement(frames: list[Frame], team: str) -> dict[str, Any]:
     return team_metrics
 
 
-def _find_player_in_frame(frame: Frame, player_id: str) -> PlayerFrame | None:
-    """Find player frame by ID, or None if not found."""
-    for player in frame.players:
-        if player.player_id == player_id:
-            return player
-    return None
-
-
 def _player_has_supersonic_flags(frames: list[Frame], player_id: str) -> bool:
     """Return True when the parser supplied any positive supersonic state."""
     for frame in frames:
-        player = _find_player_in_frame(frame, player_id)
+        player = frame.get_player_by_id(player_id)
         if player is not None and player.is_supersonic:
             return True
     return False
@@ -497,7 +480,7 @@ def _estimate_frame_position_speeds(
     previous_dt = 0.0
     if frame_index > 0:
         previous_frame = frames[frame_index - 1]
-        previous_player = _find_player_in_frame(previous_frame, player_id)
+        previous_player = previous_frame.get_player_by_id(player_id)
         previous_dt = frames[frame_index].timestamp - previous_frame.timestamp
 
     if previous_player is not None and previous_dt > MIN_FRAME_DT:
@@ -512,7 +495,7 @@ def _estimate_frame_position_speeds(
 
     if frame_index < len(frames) - 1:
         next_frame = frames[frame_index + 1]
-        next_player = _find_player_in_frame(next_frame, player_id)
+        next_player = next_frame.get_player_by_id(player_id)
         next_dt = next_frame.timestamp - frames[frame_index].timestamp
         if next_player is not None and next_dt > MIN_FRAME_DT:
             return (

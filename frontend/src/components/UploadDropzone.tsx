@@ -1,4 +1,3 @@
-// frontend/src/components/UploadDropzone.tsx
 /**
  * Drag-and-drop file upload component for replay files.
  *
@@ -41,7 +40,6 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// Exponential backoff intervals in ms: 2s, 5s, 10s, 30s
 const POLL_INTERVALS = [2000, 5000, 10000, 30000];
 
 export function UploadDropzone({ onUploadComplete, className }: UploadDropzoneProps) {
@@ -97,7 +95,6 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
-    // Filter for .replay files
     const replayFiles = acceptedFiles.filter((file) =>
       file.name.toLowerCase().endsWith('.replay')
     );
@@ -106,7 +103,6 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
       return;
     }
 
-    // Add files to state
     const newFiles: UploadFile[] = replayFiles.map((file) => ({
       id: Math.random().toString(36).substring(7),
       file,
@@ -116,14 +112,12 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
 
     setFiles((prev) => [...prev, ...newFiles]);
 
-    // Upload each file
     for (const uploadFile of newFiles) {
       await uploadSingleFile(uploadFile);
     }
   };
 
   const uploadSingleFile = async (uploadFile: UploadFile) => {
-    // Update status to uploading
     setFiles((prev) =>
       prev.map((f) =>
         f.id === uploadFile.id ? { ...f, status: 'uploading', progress: 0 } : f
@@ -153,7 +147,6 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         return;
       }
 
-      // Update status based on result
       setFiles((prev) =>
         prev.map((f) =>
           f.id === uploadFile.id
@@ -168,7 +161,6 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         )
       );
 
-      // Start polling for processing status if needed
       if (result.status === 'pending' || result.status === 'processing') {
         pollUploadStatus(uploadFile.id, result.upload_id);
       } else if (result.status === 'completed' && onUploadComplete) {
@@ -277,7 +269,6 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
           return;
         }
 
-        // Continue polling with exponential backoff
         const interval = POLL_INTERVALS[Math.min(pollIndex, POLL_INTERVALS.length - 1)];
         pollIndex++;
         schedulePoll(poll, interval);
@@ -285,7 +276,6 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
         if (!isMountedRef.current) {
           return;
         }
-        // On network error, retry with backoff
         const interval = POLL_INTERVALS[Math.min(pollIndex, POLL_INTERVALS.length - 1)];
         pollIndex++;
         schedulePoll(poll, interval);
@@ -299,7 +289,6 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
     const file = files.find((f) => f.id === fileId);
     if (!file) return;
 
-    // Reset status
     setFiles((prev) =>
       prev.map((f) =>
         f.id === fileId ? { ...f, status: 'pending', error: undefined, progress: 0 } : f
@@ -527,5 +516,3 @@ export function UploadDropzone({ onUploadComplete, className }: UploadDropzonePr
     </div>
   );
 }
-
-export default UploadDropzone;

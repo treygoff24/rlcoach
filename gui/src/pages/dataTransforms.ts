@@ -1,14 +1,11 @@
 import type { GamesParams } from '../api/client';
-import type { Comparison } from '../types/api';
+import type { Comparison, GameResult } from '../types/api';
 
-export type GameResult = 'WIN' | 'LOSS' | 'DRAW';
+export type { GameResult } from '../types/api';
 
-export interface GameFilters {
-  playlist: string;
+export type GameFilters = Required<Pick<GamesParams, 'playlist' | 'limit' | 'offset'>> & {
   result: GameResult | '';
-  limit: number;
-  offset: number;
-}
+};
 
 export function hasBenchmarkValue(value: number | null | undefined): value is number {
   return value != null;

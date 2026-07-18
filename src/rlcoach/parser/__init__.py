@@ -7,7 +7,6 @@ a null adapter that provides header-only fallback functionality.
 Example usage:
     from rlcoach.parser import get_adapter
 
-    # Get the default null adapter
     adapter = get_adapter()
 
     # Parse header information

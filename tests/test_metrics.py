@@ -1,4 +1,3 @@
-# tests/test_metrics.py
 from rlcoach.metrics import (
     METRIC_CATALOG,
     MetricDirection,

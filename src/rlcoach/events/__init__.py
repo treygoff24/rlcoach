@@ -22,7 +22,7 @@ Example:
 """
 
 # Types - all event dataclasses and enums
-from .boost import _merge_pickup_events, detect_boost_pickups, determine_team_sides
+from .boost import detect_boost_pickups, determine_team_sides
 from .challenges import detect_challenge_events
 
 # Constants - detection thresholds (exported for analyzer compatibility)
@@ -68,20 +68,6 @@ from .types import (
     TouchEvent,
 )
 
-# Utilities (exported for backward compatibility)
-from .utils import (
-    distance_3d as _distance_3d,
-)
-from .utils import (
-    relative_speed as _relative_speed,
-)
-from .utils import (
-    team_name as _team_name,
-)
-from .utils import (
-    vector_magnitude as _vector_magnitude,
-)
-
 __all__ = [
     # Event types
     "GoalEvent",
@@ -123,10 +109,4 @@ __all__ = [
     "PAD_ENVELOPES",
     "CENTERLINE_TOLERANCE",
     "PAD_NEUTRAL_TOLERANCE",
-    # Private helpers (for backward compat with underscore prefix)
-    "_distance_3d",
-    "_vector_magnitude",
-    "_relative_speed",
-    "_team_name",
-    "_merge_pickup_events",
 ]

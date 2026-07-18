@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/users.py
 """User API endpoints.
 
 Provides endpoints for user profile, subscription management,

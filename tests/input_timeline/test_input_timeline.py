@@ -136,6 +136,19 @@ def test_solver_degrades_to_none_without_wheel(monkeypatch: pytest.MonkeyPatch) 
     assert solve_input_timelines(_frames(), Header()) is None
 
 
+def test_solver_import_propagates_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        input_timeline.importlib,
+        "import_module",
+        lambda _: (_ for _ in ()).throw(RuntimeError("broken wheel")),
+    )
+
+    with pytest.raises(RuntimeError, match="broken wheel"):
+        solve_input_timelines(_frames(), Header())
+
+
 def test_solver_off_switch_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RLCOACH_INPUT_SOLVER", "off")
     monkeypatch.setattr(

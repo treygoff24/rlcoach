@@ -263,7 +263,6 @@ class TestMovementAnalysis:
 
     def test_powerslide_detection(self):
         """Test powerslide detection based on angular velocity."""
-        # Create frames with rotation changes indicating powersliding
         players = [
             # Starting position
             create_test_player(
@@ -356,7 +355,6 @@ class TestMovementAnalysis:
 
     def test_team_analysis_aggregation(self):
         """Test team analysis aggregates all players correctly."""
-        # Create players with different movement patterns
         players_frame1 = [
             create_test_player(
                 "player1", 0, velocity=Vec3(500.0, 0.0, 0.0)
@@ -587,7 +585,6 @@ class TestMovementAnalysis:
         assert result["time_low_air_s"] == 1.0  # frame 2
         assert result["time_high_air_s"] == 1.0  # frame 3
 
-        # Calculate expected average speed
         speeds = [300.0, 1800.0, 2400.0, 800.0]
         expected_avg_uu_s = sum(speeds) / len(speeds)
         expected_avg_kph = _uu_s_to_kph(expected_avg_uu_s)

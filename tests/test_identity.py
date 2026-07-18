@@ -1,4 +1,3 @@
-# tests/test_identity.py
 from rlcoach.config import IdentityConfig
 from rlcoach.identity import PlayerIdentityResolver
 

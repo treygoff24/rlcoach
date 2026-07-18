@@ -391,7 +391,6 @@ class TestKickoffApproachTypeVariants:
         p2 = make_player("o1", 1)
         frames = [make_frame(0.0, [p1, p2])]
 
-        # Create kickoffs with different fake subtypes
         k1 = KickoffEvent(
             phase="INITIAL",
             t_start=0.0,

@@ -1,4 +1,3 @@
-# tests/api/test_coach_chat_preflight.py
 """Tests for coach chat preflight endpoint."""
 
 from unittest.mock import patch

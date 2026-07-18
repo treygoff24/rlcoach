@@ -13,6 +13,7 @@ import type {
   PlayerDetail,
   PaginatedResponse,
   TagRequest,
+  GameResult,
 } from '../types/api';
 
 const api = axios.create({
@@ -27,14 +28,17 @@ export async function getDashboard(): Promise<DashboardResponse> {
 }
 
 // Games
-export interface GamesParams {
-  playlist?: string;
-  result?: 'WIN' | 'LOSS' | 'DRAW';
-  date_from?: string;
-  date_to?: string;
+interface ListParams {
   limit?: number;
   offset?: number;
   sort?: string;
+}
+
+export interface GamesParams extends ListParams {
+  playlist?: string;
+  result?: GameResult;
+  date_from?: string;
+  date_to?: string;
 }
 
 export async function getGames(params: GamesParams = {}): Promise<PaginatedResponse<Game>> {
@@ -97,11 +101,7 @@ export async function getPatterns(params: PatternsParams = {}): Promise<Patterns
   return data;
 }
 
-export interface WeaknessesParams {
-  playlist?: string;
-  rank?: string;
-  period?: string;
-}
+export type WeaknessesParams = Partial<CompareParams>;
 
 export async function getWeaknesses(params: WeaknessesParams = {}): Promise<WeaknessesResponse> {
   const { data } = await api.get<WeaknessesResponse>('/weaknesses', { params });
@@ -109,12 +109,9 @@ export async function getWeaknesses(params: WeaknessesParams = {}): Promise<Weak
 }
 
 // Players
-export interface PlayersParams {
+export interface PlayersParams extends ListParams {
   tagged?: boolean;
   min_games?: number;
-  limit?: number;
-  offset?: number;
-  sort?: string;
 }
 
 export async function getPlayers(params: PlayersParams = {}): Promise<PaginatedResponse<Player>> {

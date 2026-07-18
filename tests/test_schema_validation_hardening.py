@@ -25,7 +25,6 @@ def test_enum_error_has_validator_and_path():
         cause = _get_cause(e)
         assert cause is not None
         assert cause.validator == "enum"
-        # Ensure the error points at the 'error' field
         path = list(getattr(cause, "path", []))
         assert path and path[-1] == "error"
     else:

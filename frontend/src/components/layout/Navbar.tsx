@@ -1,4 +1,3 @@
-// frontend/src/components/layout/Navbar.tsx
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -24,7 +23,6 @@ export function Navbar({ onMenuClick, onUploadClick }: NavbarProps) {
     { type: 'button' as const, action: () => signOut({ callbackUrl: '/' }), label: 'Sign out' },
   ];
 
-  // Handle menu keyboard navigation
   const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
     switch (e.key) {
       case 'ArrowDown':
@@ -50,14 +48,12 @@ export function Navbar({ onMenuClick, onUploadClick }: NavbarProps) {
     }
   }, [menuItems.length]);
 
-  // Focus menu item when focusedIndex changes
   useEffect(() => {
     if (showUserMenu && focusedIndex >= 0) {
       menuItemsRef.current[focusedIndex]?.focus();
     }
   }, [focusedIndex, showUserMenu]);
 
-  // Reset focus index and focus first item when menu opens
   useEffect(() => {
     if (showUserMenu) {
       setFocusedIndex(0);
@@ -66,7 +62,6 @@ export function Navbar({ onMenuClick, onUploadClick }: NavbarProps) {
     }
   }, [showUserMenu]);
 
-  // Close dropdown on Escape key or focus out
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && showUserMenu) {

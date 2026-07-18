@@ -1,12 +1,14 @@
 """Custom exceptions for parser layer."""
 
-from ..errors import RLCoachError
+from ..errors import ErrorDetails, RLCoachError
 
 
 class ParserError(RLCoachError):
     """Base exception for all parser-related errors."""
 
-    def __init__(self, message: str, path: str = None, details: dict = None):
+    def __init__(
+        self, message: str, path: str | None = None, details: ErrorDetails | None = None
+    ):
         base_details = {"path": path} if path else {}
         if details:
             base_details.update(details)
@@ -57,7 +59,7 @@ class NetworkParseError(ParserError):
 class AdapterNotFoundError(ParserError):
     """Raised when a requested parser adapter is not found."""
 
-    def __init__(self, adapter_name: str, available_adapters: list = None):
+    def __init__(self, adapter_name: str, available_adapters: list[str] | None = None):
         available = available_adapters or []
         if available:
             available_list = ", ".join(available)

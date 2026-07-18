@@ -1,4 +1,3 @@
-# src/rlcoach/services/coach/tools.py
 """Data access tools for AI Coach."""
 
 import json
@@ -63,7 +62,6 @@ async def _get_recent_games(
     limit = min(params.get("limit", 10), 50)
     playlist = params.get("playlist")
 
-    # Get replay IDs owned by user through UserReplay join table
     user_replay_ids = (
         db.query(UserReplay.replay_id)
         .filter(UserReplay.user_id == user_id)
@@ -122,7 +120,6 @@ async def _get_stats_by_mode(
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Get replay IDs owned by user
     user_replay_ids = (
         db.query(UserReplay.replay_id)
         .filter(UserReplay.user_id == user_id)
@@ -158,7 +155,6 @@ async def _get_stats_by_mode(
     replay_ids = [r.replay_id for r in replays]
     stats_by_replay = _get_my_player_stats_batch(db, replay_ids)
 
-    # Aggregate stats from PlayerGameStats
     stats = {
         "goals": 0,
         "assists": 0,
@@ -212,7 +208,6 @@ async def _get_game_details(
     if not game_id:
         return {"error": "game_id is required"}
 
-    # Check user owns this replay
     ownership = (
         db.query(UserReplay)
         .filter(
@@ -305,7 +300,6 @@ async def _save_coaching_note(
     if not content:
         return {"error": "Note content is required"}
 
-    # Validate category against allowed values
     allowed_categories = {"strength", "weakness", "goal", "observation"}
     if category not in allowed_categories:
         return {"error": f"Invalid category. Allowed: {allowed_categories}"}
@@ -315,7 +309,6 @@ async def _save_coaching_note(
     if not safe_content:
         return {"error": "Note content is empty after sanitization"}
 
-    # Check if content was redacted due to injection attempt
     if "redacted" in safe_content.lower():
         return {"error": "Note content contains disallowed patterns"}
 
@@ -360,7 +353,6 @@ def _get_my_player_stats_batch(db: DBSession, replay_ids: list[str]) -> dict[str
         .all()
     )
 
-    # Build lookup dict
     result = {}
     for stats in all_stats:
         result[stats.replay_id] = {

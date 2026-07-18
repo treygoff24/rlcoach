@@ -1,4 +1,3 @@
-# tests/db/test_writer_players.py
 import pytest
 
 from rlcoach.config import IdentityConfig

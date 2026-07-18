@@ -71,10 +71,8 @@ def analyze_boost(
             "waste": float
         }
     """
-    # Extract boost pickup events
     boost_pickups = events.get("boost_pickups", [])
 
-    # Calculate match duration from frames
     match_duration = frames[-1].timestamp - frames[0].timestamp if frames else 0.0
     frame_timestamps = [frame.timestamp for frame in frames]
 
@@ -99,21 +97,18 @@ def _analyze_player_boost(
 ) -> dict[str, Any]:
     """Analyze boost metrics for a specific player."""
 
-    # Initialize counters
     time_zero_boost = 0.0
     time_hundred_boost = 0.0
     total_boost_sum = 0.0
     frame_count = 0
     waste = 0.0
 
-    # Track previous frame for calculations
     prev_boost = None
     prev_speed = None
     prev_timestamp = None
 
-    # Process frames for time-based metrics
     for frame in frames:
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if not player_frame:
             continue
 
@@ -121,7 +116,6 @@ def _analyze_player_boost(
         boost_amount = player_frame.boost_amount
         total_boost_sum += boost_amount
 
-        # Calculate time deltas based on previous boost state
         if prev_timestamp is not None:
             time_delta = frame.timestamp - prev_timestamp
 
@@ -159,7 +153,6 @@ def _analyze_player_boost(
         )
         prev_timestamp = frame.timestamp
 
-    # Process pickup events for collection metrics
     amount_collected = 0.0
     amount_stolen = 0.0
     big_pads = 0
@@ -305,12 +298,10 @@ def _analyze_player_boost(
                 gain,
             )
 
-    # Calculate rates (per minute)
     minutes = max(match_duration / 60.0, 1.0)  # Avoid division by zero
     bpm = amount_collected / minutes
     bcpm = (big_pads + small_pads) / minutes
 
-    # Calculate average boost
     avg_boost = total_boost_sum / frame_count if frame_count > 0 else 0.0
 
     return {
@@ -426,7 +417,7 @@ def _collect_boost_delta_events(
     prev_timestamp: float | None = None
 
     for frame in frames:
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if player_frame is None:
             continue
         current_boost = float(player_frame.boost_amount)
@@ -493,7 +484,7 @@ def _to_float(value: Any) -> float | None:
 def _infer_player_team(frames: list[Frame], player_id: str) -> int | None:
     """Infer player's team from frame data."""
     for frame in frames:
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if player_frame is not None:
             return player_frame.team
     return None
@@ -508,19 +499,17 @@ def _analyze_team_boost(
 ) -> dict[str, Any]:
     """Analyze aggregated boost metrics for a team."""
 
-    # Get all player IDs for this team from frames
     team_players = set()
     team_num = 0 if team == "BLUE" else 1
 
     for frame in frames:
-        for player in frame.players:
-            if player.team == team_num:
-                team_players.add(player.player_id)
+        team_players.update(
+            player.player_id for player in frame.get_players_by_team(team_num)
+        )
 
     if not team_players:
         return _empty_boost()
 
-    # Aggregate metrics across all team players
     team_metrics = _empty_boost()
 
     for player_id in team_players:
@@ -543,7 +532,6 @@ def _analyze_team_boost(
         # Average these metrics
         team_metrics["avg_boost"] += player_metrics["avg_boost"]
 
-    # Calculate team rates
     minutes = max(match_duration / 60.0, 1.0)
     team_metrics["bpm"] = round(team_metrics["boost_collected"] / minutes, 2)
     team_metrics["bcpm"] = round(
@@ -583,14 +571,6 @@ def _empty_boost() -> dict[str, Any]:
         "overfill": 0.0,
         "waste": 0.0,
     }
-
-
-def _find_player_in_frame(frame: Frame, player_id: str) -> Any | None:
-    """Find specific player's data in a frame."""
-    for player in frame.players:
-        if player.player_id == player_id:
-            return player
-    return None
 
 
 def _calculate_speed(velocity: Vec3) -> float:

@@ -1,4 +1,3 @@
-# src/rlcoach/db/models.py
 """SQLAlchemy models for RLCoach database.
 
 IMPORTANT: All datetime fields store UTC. Use datetime.now(timezone.utc).
@@ -40,11 +39,6 @@ def _generate_uuid() -> str:
 
 class Base(DeclarativeBase):
     pass
-
-
-# =============================================================================
-# EXISTING TABLES (adapted for PostgreSQL)
-# =============================================================================
 
 
 class Replay(Base):
@@ -254,11 +248,6 @@ class Benchmark(Base):
         UniqueConstraint("metric", "playlist", "rank_tier", name="uq_benchmark"),
         Index("ix_benchmarks_lookup", "metric", "playlist", "rank_tier"),
     )
-
-
-# =============================================================================
-# NEW SAAS TABLES
-# =============================================================================
 
 
 class SubscriptionTier(str, Enum):

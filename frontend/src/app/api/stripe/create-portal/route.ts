@@ -1,4 +1,3 @@
-// frontend/src/app/api/stripe/create-portal/route.ts
 import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 

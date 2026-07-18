@@ -1,4 +1,3 @@
-# tests/api/test_coach_tools_api.py
 """Tests for coach tool schema and execution endpoints."""
 
 from unittest.mock import patch

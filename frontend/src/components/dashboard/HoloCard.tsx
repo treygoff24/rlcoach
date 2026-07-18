@@ -20,11 +20,9 @@ export function HoloCard({
 	function handleMouseMove({ currentTarget, clientX, clientY }: MouseEvent) {
 		const { left, top, width, height } = currentTarget.getBoundingClientRect();
 
-		// Calculate normalized position (0-1)
 		const x = (clientX - left) / width;
 		const y = (clientY - top) / height;
 
-		// Set motion values for the glow effect
 		mouseX.set(clientX - left);
 		mouseY.set(clientY - top);
 	}

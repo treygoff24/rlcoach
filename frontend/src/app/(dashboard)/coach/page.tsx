@@ -1,4 +1,3 @@
-// frontend/src/app/(dashboard)/coach/page.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';

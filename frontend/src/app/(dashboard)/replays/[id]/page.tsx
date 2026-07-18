@@ -1,10 +1,10 @@
-// frontend/src/app/(dashboard)/replays/[id]/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { formatMapName } from '@/lib/utils';
+import type { ReplayDetail } from '@/types/api';
 
 type TabId = 'overview' | 'mechanics' | 'boost' | 'positioning' | 'timeline' | 'defense' | 'offense';
 
@@ -50,21 +50,7 @@ interface PlayerStats {
   aerial_count: number | null;
 }
 
-interface ReplayData {
-  id: string;
-  filename: string;
-  status: string;
-  map_name: string | null;
-  playlist: string | null;
-  team_size: number | null;
-  duration_seconds: number | null;
-  played_at: string | null;
-  result: string | null;
-  my_score: number | null;
-  opponent_score: number | null;
-  overtime: boolean;
-  players: PlayerStats[];
-}
+type ReplayData = ReplayDetail<PlayerStats>;
 
 function formatDuration(seconds: number | null) {
   if (seconds == null) return '--:--';
@@ -479,7 +465,6 @@ export default function ReplayDetailPage() {
     }
 
     setActiveTab(tabs[newIndex].id);
-    // Focus the new tab button
     const tabButton = document.getElementById(`tab-${tabs[newIndex].id}`);
     tabButton?.focus();
   }, []);

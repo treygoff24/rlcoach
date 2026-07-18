@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/analysis.py
 """Analysis API endpoints (trends, benchmarks, patterns, weaknesses)."""
 
 from __future__ import annotations

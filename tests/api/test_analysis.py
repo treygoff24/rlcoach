@@ -1,4 +1,3 @@
-# tests/api/test_analysis.py
 """Tests for analysis API endpoints."""
 
 from datetime import date, datetime, timezone
@@ -46,10 +45,8 @@ def db_with_analysis_data(mock_config):
     init_db(mock_config.db_path)
     session = create_session()
 
-    # Add player
     session.add(Player(player_id="steam:me123", display_name="TestPlayer", is_me=True))
 
-    # Add replays with varying stats for pattern analysis
     for i in range(10):
         result = "WIN" if i % 2 == 0 else "LOSS"
         bcpm = 400.0 if result == "WIN" else 320.0  # Clear pattern
@@ -87,7 +84,6 @@ def db_with_analysis_data(mock_config):
             )
         )
 
-    # Add benchmarks
     session.add(
         Benchmark(
             metric="bcpm",

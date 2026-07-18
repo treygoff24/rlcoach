@@ -49,7 +49,6 @@ declare module 'next-auth/jwt' {
   }
 }
 
-// Steam OpenID provider (custom implementation)
 const Steam = {
   id: 'steam',
   name: 'Steam',
@@ -70,15 +69,18 @@ const Steam = {
   },
   userinfo: {
     url: 'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/',
-    async request({ tokens, provider }: { tokens: any; provider: any }) {
-      // Extract Steam ID from the claimed_id response
+    async request({ tokens }: { tokens: { id?: string } }) {
       const steamId = tokens.id?.match(/\d+$/)?.[0];
       if (!steamId) return null;
 
       const res = await fetch(
         `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${process.env.STEAM_API_KEY}&steamids=${steamId}`
       );
-      const data = await res.json();
+      const data: {
+        response?: {
+          players?: Array<{ personaname?: string; avatarfull?: string }>;
+        };
+      } = await res.json();
       const player = data.response?.players?.[0];
 
       return {
@@ -88,7 +90,7 @@ const Steam = {
       };
     },
   },
-  profile(profile: any) {
+  profile(profile: { id: string; name?: string; image?: string }) {
     return {
       id: profile.id,
       name: profile.name,
@@ -97,10 +99,8 @@ const Steam = {
   },
 };
 
-// Backend URL for server-side calls during auth
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
-// Dev-only mock user for local testing
 const DevCredentials = Credentials({
   id: 'dev-login',
   name: 'Dev Login',
@@ -116,9 +116,8 @@ const DevCredentials = Credentials({
   },
 });
 
-export const authConfig: NextAuthConfig = {
+const authConfig: NextAuthConfig = {
   providers: [
-    // Dev login - only works in development
     ...(IS_DEV ? [DevCredentials] : []),
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,
@@ -128,8 +127,6 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    // Steam provider disabled until we implement proper OpenID handling
-    // Steam,
   ],
   pages: {
     signIn: '/login',
@@ -141,10 +138,8 @@ export const authConfig: NextAuthConfig = {
   },
   callbacks: {
     async jwt({ token, user, account, trigger }) {
-      // Initial sign in - bootstrap user in our database
       if (account && user) {
         try {
-          // Compute HMAC signature for bootstrap request
           const crypto = await import('crypto');
           const bootstrapSecret = process.env.BOOTSTRAP_SECRET || '';
           // For credentials providers (like dev-login), providerAccountId is undefined
@@ -155,7 +150,6 @@ export const authConfig: NextAuthConfig = {
             ? crypto.createHmac('sha256', bootstrapSecret).update(payload).digest('hex')
             : '';
 
-          // Call our backend to create/find the user
           const res = await fetch(`${BACKEND_URL}/api/v1/users/bootstrap`, {
             method: 'POST',
             headers: {
@@ -197,7 +191,6 @@ export const authConfig: NextAuthConfig = {
       session.user.id = token.userId;
       session.user.subscriptionTier = token.subscriptionTier;
 
-      // Create a signed JWT for backend API calls
       // Backend expects JWT with userId/sub signed with NEXTAUTH_SECRET
       const secretStr = process.env.NEXTAUTH_SECRET;
       if (secretStr && token.userId && !token.bootstrapFailed) {
@@ -214,11 +207,9 @@ export const authConfig: NextAuthConfig = {
 
         session.accessToken = jwt;
       }
-      // If no secret, accessToken stays undefined (API calls will fail with auth error)
       return session;
     },
     async signIn({ user, account, profile }) {
-      // Allow all sign-ins by default
       // Bootstrap happens in jwt callback
       return true;
     },
@@ -233,4 +224,4 @@ export const authConfig: NextAuthConfig = {
   debug: process.env.NODE_ENV === 'development',
 };
 
-export const { handlers, signIn, signOut, auth } = NextAuth(authConfig);
+export const { handlers, auth } = NextAuth(authConfig);

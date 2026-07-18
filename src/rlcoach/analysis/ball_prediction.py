@@ -14,6 +14,7 @@ from enum import Enum
 
 from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, PlayerFrame
+from .protocol import get_player_ids
 
 
 class ReadQuality(Enum):
@@ -115,10 +116,8 @@ def _predict_ball_position(
         remaining = time_delta - t
         step = min(dt, remaining)
 
-        # Apply gravity
         vz += GRAVITY * step
 
-        # Apply air resistance (simplified)
         speed = math.sqrt(vx * vx + vy * vy + vz * vz)
         if speed > 10.0:
             drag = 1.0 - AIR_RESISTANCE * step
@@ -126,7 +125,6 @@ def _predict_ball_position(
             vy *= drag
             vz *= drag
 
-        # Update position
         x += vx * step
         y += vy * step
         z += vz * step
@@ -244,13 +242,11 @@ def _assess_read_quality(
     Returns:
         Tuple of (quality, prediction error, was proactive)
     """
-    # Calculate prediction error
     dx = predicted_pos.x - actual_future_pos.x
     dy = predicted_pos.y - actual_future_pos.y
     dz = predicted_pos.z - actual_future_pos.z
     error = math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    # Check if velocity is toward predicted position
     player_to_pred = Vec3(
         predicted_pos.x - player.position.x,
         predicted_pos.y - player.position.y,
@@ -318,17 +314,11 @@ def analyze_player_reads(
         if frame.timestamp - last_sample_time < sample_interval:
             continue
 
-        # Find player in frame
-        player: PlayerFrame | None = None
-        for p in frame.players:
-            if p.player_id == player_id:
-                player = p
-                break
+        player = frame.get_player_by_id(player_id)
 
         if player is None:
             continue
 
-        # Find future frame for validation
         future_frame: Frame | None = None
         for j in range(i + 1, len(frames)):
             if frames[j].timestamp >= frame.timestamp + lookahead_time:
@@ -345,7 +335,6 @@ def analyze_player_reads(
             lookahead_time,
         )
 
-        # Calculate where player was trying to go
         intercept_pos, intercept_time = _calculate_intercept_point(
             player.position,
             player.velocity,
@@ -387,11 +376,7 @@ def analyze_ball_prediction(frames: list[Frame]) -> dict:
     Returns:
         Dict with ball prediction analysis results
     """
-    # Get all unique player IDs
-    player_ids: set[str] = set()
-    for frame in frames:
-        for player in frame.players:
-            player_ids.add(player.player_id)
+    player_ids = get_player_ids(frames)
 
     per_player: dict[str, dict] = {}
     all_reads: list[dict] = []
@@ -442,10 +427,8 @@ def analyze_ball_prediction(frames: list[Frame]) -> dict:
                 "proactive_rate": 0.0,
             }
 
-    # Sort reads by timestamp
     all_reads.sort(key=lambda r: r["timestamp"])
 
-    # Aggregate stats
     total_excellent = sum(p.get("excellent_reads", 0) for p in per_player.values())
     total_poor = sum(p.get("poor_reads", 0) for p in per_player.values())
     avg_proactive = (

@@ -1,4 +1,3 @@
-// frontend/src/components/layout/Sidebar.tsx
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -87,7 +86,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const sidebarRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Handle Escape key and focus management for mobile overlay
   useEffect(() => {
     if (!isOpen) return;
 

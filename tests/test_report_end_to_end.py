@@ -65,7 +65,6 @@ class _FakeNetworkAdapterWithoutHeaderPlayers(_FakeNetworkAdapter):
 
 
 def test_cli_analyze_header_only_success(tmp_path: Path, monkeypatch):
-    # Create dummy replay file
     replay = tmp_path / "sample.replay"
     _make_dummy_replay(replay)
 
@@ -94,7 +93,6 @@ def test_cli_analyze_header_only_success(tmp_path: Path, monkeypatch):
     out_file = out_dir / "sample.json"
     assert out_file.exists(), "Report file should be written"
 
-    # Validate JSON file against schema (should pass)
     validate_report_file(str(out_file))
 
 
@@ -498,7 +496,6 @@ def test_generate_report_with_identity_config():
     """Test that is_me is set when identity_config is provided."""
     from rlcoach.config import IdentityConfig
 
-    # Create identity config that won't match any player
     identity_config = IdentityConfig(
         platform_ids=["steam:12345"],
         display_names=["TestPlayer"],
@@ -521,7 +518,6 @@ def test_generate_report_with_identity_config():
         # None of these players should match our fake identity
         assert player["is_me"] is False, "No players should match fake identity"
 
-    # Validate report still passes schema
     validate_report(report)
 
 
@@ -538,7 +534,6 @@ def test_generate_report_without_identity_config():
             "is_me" not in player
         ), "is_me field should NOT be present without identity_config"
 
-    # Validate report still passes schema
     validate_report(report)
 
 
@@ -557,7 +552,6 @@ class _FakeAdapterWithHeaderGoalsButNoFrames:
         return True
 
     def parse_header(self, path: Path):
-        # Return header WITH goals metadata but no actual frame data
         from rlcoach.parser.types import GoalHeader, Highlight, PlayerInfo
 
         return Header(
@@ -587,7 +581,6 @@ class _FakeAdapterWithHeaderGoalsButNoFrames:
         )
 
     def parse_network(self, path: Path):
-        # Return empty frames - no actual network data
         return NetworkFrames(
             frame_count=0,
             sample_rate=30.0,

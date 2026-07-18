@@ -1,4 +1,3 @@
-# src/rlcoach/analysis/patterns.py
 """Win/Loss Pattern Analysis.
 
 Identifies metrics that significantly differ between wins and losses
@@ -45,7 +44,6 @@ def compute_cohens_d(
     Returns:
         Cohen's d value. Positive means win_avg > loss_avg.
     """
-    # Handle zero variance case
     if win_std == 0 and loss_std == 0:
         if win_avg == loss_avg:
             return 0.0
@@ -96,11 +94,9 @@ def compute_pattern_analysis(
         List of PatternResult for metrics with significant differences,
         sorted by absolute effect size descending.
     """
-    # Check minimum games
     if len(win_stats) < min_games or len(loss_stats) < min_games:
         return []
 
-    # Collect all metrics present in stats
     all_metrics: set[str] = set()
     for stats in win_stats + loss_stats:
         all_metrics.update(k for k, v in stats.items() if isinstance(v, (int, float)))
@@ -108,7 +104,6 @@ def compute_pattern_analysis(
     results: list[PatternResult] = []
 
     for metric in all_metrics:
-        # Extract values for this metric
         win_values = [
             s[metric] for s in win_stats if metric in s and s[metric] is not None
         ]
@@ -120,18 +115,14 @@ def compute_pattern_analysis(
         if len(win_values) < min_games or len(loss_values) < min_games:
             continue
 
-        # Compute statistics
         win_avg, win_std = _compute_stats(win_values)
         loss_avg, loss_std = _compute_stats(loss_values)
 
-        # Compute effect size
         effect_size = compute_cohens_d(win_avg, loss_avg, win_std, loss_std)
 
-        # Filter by minimum effect size
         if abs(effect_size) < min_effect_size:
             continue
 
-        # Determine direction
         direction = "higher_in_wins" if effect_size > 0 else "lower_in_wins"
 
         results.append(
@@ -147,7 +138,6 @@ def compute_pattern_analysis(
             )
         )
 
-    # Sort by absolute effect size descending
     results.sort(key=lambda r: abs(r.effect_size), reverse=True)
 
     return results

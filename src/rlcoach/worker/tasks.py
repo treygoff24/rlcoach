@@ -84,7 +84,6 @@ def get_db_session():
     """Get a database session for worker tasks."""
     from rlcoach.db.session import create_session, init_db
 
-    # Initialize DB if not already done
     database_url = os.getenv("DATABASE_URL")
     if database_url:
         from rlcoach.db.session import init_db_from_url
@@ -126,7 +125,6 @@ def process_replay(self, upload_id: str) -> dict:
     try:
         from rlcoach.db import UploadedReplay, UserReplay
 
-        # Get the upload record
         upload = session.query(UploadedReplay).filter_by(id=upload_id).first()
         if not upload:
             logger.error(f"Upload record not found: {upload_id}")
@@ -142,7 +140,6 @@ def process_replay(self, upload_id: str) -> dict:
             session.commit()
             return {"status": "failed", "error": "Invalid user ID format"}
 
-        # Update status to processing
         upload.status = "processing"
         session.commit()
 
@@ -171,15 +168,12 @@ def process_replay(self, upload_id: str) -> dict:
         result = _run_parser_subprocess(replay_path, output_dir, upload_id)
 
         if result["status"] == "success":
-            # Track if replay was persisted to DB (for status reporting)
             replay_persisted = True  # Default True, set False on DB failure
-            # Read the parsed JSON to extract replay_id and metadata
             output_file = Path(result["output_path"])
             if output_file.exists():
                 with open(output_file) as f:
                     parsed_data = json.load(f)
 
-                # Extract replay_id from parsed data (at root level of report)
                 replay_id = parsed_data.get("replay_id")
                 if replay_id:
                     upload.replay_id = replay_id
@@ -193,7 +187,6 @@ def process_replay(self, upload_id: str) -> dict:
                             write_report_saas,
                         )
 
-                        # Get file hash from the upload record
                         file_hash = upload.file_hash or ""
 
                         write_report_saas(
@@ -279,7 +272,6 @@ def _run_parser_subprocess(
     output_file = output_dir / f"{upload_id}.json"
 
     try:
-        # Build the command
         cmd = [
             "python",
             "-m",
@@ -349,7 +341,6 @@ def migrate_to_cold_storage(self, replay_id: str, file_path: str) -> dict:
     try:
         import b2sdk.v2 as b2
 
-        # Get B2 credentials
         key_id = os.getenv("BACKBLAZE_KEY_ID")
         app_key = os.getenv("BACKBLAZE_APPLICATION_KEY")
         bucket_name = os.getenv("BACKBLAZE_BUCKET_NAME")
@@ -360,7 +351,6 @@ def migrate_to_cold_storage(self, replay_id: str, file_path: str) -> dict:
                 "error": "B2 credentials not configured",
             }
 
-        # Initialize B2
         info = b2.InMemoryAccountInfo()
         b2_api = b2.B2Api(info)
         b2_api.authorize_account("production", key_id, app_key)
@@ -377,10 +367,8 @@ def migrate_to_cold_storage(self, replay_id: str, file_path: str) -> dict:
             file_name=remote_name,
         )
 
-        # Get the download URL
         download_url = f"https://f002.backblazeb2.com/file/{bucket_name}/{remote_name}"
 
-        # Update database with new storage path
         session = get_db_session()
         try:
             from rlcoach.db import UploadedReplay
@@ -518,7 +506,6 @@ def can_accept_upload() -> tuple[bool, str | None]:
     """
     import shutil
 
-    # Check disk usage
     try:
         total, used, _ = shutil.disk_usage(STORAGE_PATH)
         usage_pct = (used / total) * 100
@@ -527,7 +514,6 @@ def can_accept_upload() -> tuple[bool, str | None]:
     except Exception:
         pass
 
-    # Check queue length
     queue_len = get_queue_length()
     if queue_len >= 1000:
         return False, f"Processing queue full ({queue_len} pending). Try again later."
@@ -558,7 +544,6 @@ def process_scheduled_deletions(self) -> dict:
     deleted_count = 0
 
     try:
-        # Find users with deletion requests older than 30 days
         cutoff = datetime.now(timezone.utc) - timedelta(days=30)
 
         users_to_delete = (

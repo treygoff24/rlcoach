@@ -150,7 +150,6 @@ class TestBasicFormatCheck:
 
     def test_format_check_valid_replay_magic(self):
         """Test format check with valid replay magic sequence."""
-        # Create data with valid magic sequence
         magic = REPLAY_MAGIC_SEQUENCES[0]
         data = b"\x00" * 100 + magic + b"\x00" * 1000
 
@@ -167,7 +166,6 @@ class TestBasicFormatCheck:
 
     def test_format_check_binary_but_no_magic(self):
         """Test format check with binary data but no magic sequence."""
-        # Create binary data without replay magic.
         # Avoid ASCII range that looks like text.
         data = bytes([i + 128 for i in range(128)] * 20)  # Non-ASCII binary data
         valid, message = basic_format_check(data)
@@ -264,7 +262,6 @@ class TestReadReplayBytes:
 
     def test_read_replay_bytes_success(self):
         """Test successful replay file reading."""
-        # Create a valid-sized replay file with magic sequence
         magic = REPLAY_MAGIC_SEQUENCES[0]
         content = b"\x00" * 5000 + magic + b"\x00" * 10000  # 15KB total
 
@@ -308,7 +305,6 @@ class TestReadReplayBytes:
 
     def test_read_replay_bytes_too_large(self):
         """Test reading file that's too large."""
-        # Create a file larger than MAX_REPLAY_SIZE
         large_size = MAX_REPLAY_SIZE + 1000
 
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -373,20 +369,16 @@ class TestIngestReplay:
             try:
                 result = ingest_replay(tmp_path)
 
-                # Check all expected fields are present
                 assert result["file_path"] == str(tmp_path)
                 assert result["sha256"] == expected_hash
                 assert result["size_bytes"] == len(content)
                 assert result["size_human"] is not None
                 assert result["status"] == "success"
 
-                # Check bounds check
                 assert result["bounds_check"]["passed"] is True
 
-                # Check format check
                 assert result["format_check"]["passed"] is True
 
-                # Check CRC check
                 assert result["crc_check"]["passed"] is True
                 assert result["crc_check"]["details"]["header"]["passed"] is True
                 assert result["crc_check"]["details"]["content"]["passed"] is True
@@ -427,7 +419,6 @@ class TestIngestReplay:
 
     def test_ingest_replay_invalid_format(self):
         """Test ingesting invalid format file."""
-        # Create file with no magic sequence
         content = self.create_test_replay(include_magic=False)
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".replay") as tmp:

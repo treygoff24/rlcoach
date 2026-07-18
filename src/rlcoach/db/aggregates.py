@@ -1,4 +1,3 @@
-# src/rlcoach/db/aggregates.py
 """Daily stats aggregation.
 
 Computes and stores aggregated statistics per day/playlist
@@ -39,14 +38,12 @@ def update_daily_stats(play_date: date, playlist: str) -> None:
             # No games, nothing to do
             return
 
-        # Compute win/loss/draw counts
         games_played = len(replays)
         wins = sum(1 for r in replays if r.result == "WIN")
         losses = sum(1 for r in replays if r.result == "LOSS")
         draws = sum(1 for r in replays if r.result == "DRAW")
         win_rate = (wins / games_played * 100) if games_played > 0 else 0
 
-        # Get all my stats for these replays
         replay_ids = [r.replay_id for r in replays]
         my_stats = (
             session.query(PlayerGameStats)
@@ -57,7 +54,6 @@ def update_daily_stats(play_date: date, playlist: str) -> None:
             .all()
         )
 
-        # Compute averages
         def safe_avg(values):
             valid = [v for v in values if v is not None]
             return sum(valid) / len(valid) if valid else None

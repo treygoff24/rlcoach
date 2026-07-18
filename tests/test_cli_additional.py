@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from rlcoach.cli import (
     _load_identity_config,
     check_exclusion,
@@ -55,6 +57,16 @@ def test_load_identity_config_returns_identity(monkeypatch):
     monkeypatch.setattr("rlcoach.cli.load_config", lambda _: cfg)
     identity = _load_identity_config()
     assert identity is cfg.identity
+
+
+@pytest.mark.parametrize("load", [check_exclusion, _load_identity_config])
+def test_config_helpers_propagate_unexpected_errors(monkeypatch, load):
+    monkeypatch.setattr(
+        "rlcoach.cli.load_config", lambda _: (_ for _ in ()).throw(RuntimeError("bug"))
+    )
+
+    with pytest.raises(RuntimeError, match="bug"):
+        load({"players": []}) if load is check_exclusion else load()
 
 
 def test_handle_ingest_watch_delegates(monkeypatch):

@@ -1,4 +1,3 @@
-// frontend/src/app/(dashboard)/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,11 +8,7 @@ import { HoloCard } from "@/components/dashboard/HoloCard";
 import { BoostGauge } from "@/components/dashboard/BoostGauge";
 import { MechanicsEqualizer } from "@/components/dashboard/MechanicsEqualizer";
 import { TelemetryFeed } from "@/components/dashboard/TelemetryFeed";
-
-interface MechanicStat {
-	name: string;
-	count: number;
-}
+import type { BenchmarkResponse, MechanicStat } from "@/types/api";
 
 interface DashboardStats {
 	total_replays: number;
@@ -27,17 +22,10 @@ interface DashboardStats {
 	has_data: boolean;
 }
 
-interface BenchmarkData {
-	rank_tier: number;
-	rank_name: string;
-	comparisons: Record<string, any>;
-	has_data: boolean;
-}
-
 export default function DashboardHome() {
 	const { data: session } = useSession();
 	const [stats, setStats] = useState<DashboardStats | null>(null);
-	const [benchmarks, setBenchmarks] = useState<BenchmarkData | null>(null);
+	const [benchmarks, setBenchmarks] = useState<BenchmarkResponse | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -119,8 +107,6 @@ export default function DashboardHome() {
 		);
 	}
 
-	// Placeholder empty state or "no data" state logic can go here,
-	// but for now let's render the dashboard with whatever we have or 0s.
 	const safeStats = stats || {
 		total_replays: 0,
 		recent_win_rate: 0,

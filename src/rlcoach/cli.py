@@ -27,9 +27,6 @@ def check_exclusion(report: dict) -> str | None:
     except (ConfigError, FileNotFoundError):
         # No config = no exclusion rules
         return None
-    except Exception:
-        # Malformed config (TOML decode error, etc.) - best-effort, don't crash
-        return None
 
     if not config.identity.excluded_names:
         return None
@@ -37,12 +34,10 @@ def check_exclusion(report: dict) -> str | None:
     resolver = PlayerIdentityResolver(config.identity)
     players = report.get("players", [])
 
-    # Check if "me" is found via display_names - if so, not excluded
     me = resolver.find_me(players)
     if me is not None:
         return None
 
-    # Check if playing on an excluded account
     for player in players:
         display_name = player.get("display_name", "")
         if resolver.should_exclude(display_name):
@@ -58,8 +53,6 @@ def _load_identity_config() -> IdentityConfig | None:
         config.validate()
     except (ConfigError, FileNotFoundError):
         return None
-    except Exception:
-        return None
     return config.identity
 
 
@@ -70,7 +63,6 @@ def handle_ingest_watch(args) -> int:
     from .pipeline import IngestionStatus, process_replay_file
     from .watcher import ReplayWatcher
 
-    # Load config
     config_path = get_default_config_path()
     try:
         config = load_config(config_path)
@@ -88,7 +80,6 @@ def handle_ingest_watch(args) -> int:
         print(f"Watch folder does not exist: {watch_dir}")
         return 1
 
-    # Track stats
     stats = {"success": 0, "duplicate": 0, "excluded": 0, "error": 0}
 
     def process_callback(path: Path) -> None:
@@ -118,13 +109,11 @@ def handle_ingest_watch(args) -> int:
         process_existing=args.process_existing,
     )
 
-    # Handle Ctrl+C gracefully
     stop_requested = False
 
     def signal_handler(sig, frame):
         nonlocal stop_requested
         if stop_requested:
-            # Force exit on second Ctrl+C
             sys.exit(1)
         stop_requested = True
         print("\nStopping watcher...")
@@ -134,7 +123,6 @@ def handle_ingest_watch(args) -> int:
 
     watcher.start()
 
-    # Block until stop is requested
     try:
         while not stop_requested:
             import time
@@ -163,11 +151,9 @@ def handle_ingest_command(args) -> int:
     Returns:
         Exit code (0 for success, 1 for error)
     """
-    # Check for watch mode
     if args.watch:
         return handle_ingest_watch(args)
 
-    # Require replay_file for non-watch mode
     if not args.replay_file:
         print("Error: replay_file is required when not using --watch")
         return 1
@@ -178,10 +164,8 @@ def handle_ingest_command(args) -> int:
         result = ingest_replay(replay_path)
 
         if args.json:
-            # Output machine-readable JSON
             print(json.dumps(result, indent=2))
         else:
-            # Output human-readable format
             print(f"Ingestion Results for: {result['file_path']}")
             print(f"SHA256: {result['sha256']}")
             print(f"Size: {result['size_human']} ({result['size_bytes']:,} bytes)")
@@ -288,7 +272,6 @@ def handle_benchmarks_command(args) -> int:
     from .db.models import Benchmark
     from .db.session import create_session, init_db
 
-    # Load config to get db path
     config_path = get_default_config_path()
     try:
         config = load_config(config_path)
@@ -300,7 +283,6 @@ def handle_benchmarks_command(args) -> int:
         print("Run 'rlcoach config --init' to create one.")
         return 1
 
-    # Initialize database
     init_db(config.db_path)
 
     if args.benchmarks_command == "import":
@@ -375,10 +357,8 @@ def main(argv: list[str] | None = None) -> int:
         version=f"rlcoach {__version__}",
     )
 
-    # Create subparsers for different commands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Ingest subcommand
     ingest_parser = subparsers.add_parser(
         "ingest", help="Ingest and validate a Rocket League replay file"
     )
@@ -402,7 +382,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Process existing files when starting watch mode",
     )
 
-    # Analyze subcommand
     analyze_parser = subparsers.add_parser(
         "analyze", help="Analyze a Rocket League replay and write JSON report"
     )
@@ -476,7 +455,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Process replay even if playing on an excluded account",
     )
 
-    # Config subcommand
     config_parser = subparsers.add_parser("config", help="Manage RLCoach configuration")
     config_parser.add_argument(
         "--init", action="store_true", help="Create template config file"
@@ -491,7 +469,6 @@ def main(argv: list[str] | None = None) -> int:
         "--force", action="store_true", help="Force overwrite existing config"
     )
 
-    # Benchmarks subcommand
     benchmarks_parser = subparsers.add_parser(
         "benchmarks", help="Manage benchmark data"
     )
@@ -499,7 +476,6 @@ def main(argv: list[str] | None = None) -> int:
         dest="benchmarks_command", help="Benchmark commands"
     )
 
-    # benchmarks import
     benchmarks_import = benchmarks_subparsers.add_parser(
         "import", help="Import benchmarks from JSON file"
     )
@@ -508,13 +484,11 @@ def main(argv: list[str] | None = None) -> int:
         "--replace", action="store_true", help="Replace all existing benchmarks"
     )
 
-    # benchmarks list
     benchmarks_list = benchmarks_subparsers.add_parser("list", help="List benchmarks")
     benchmarks_list.add_argument("--metric", type=str, help="Filter by metric name")
     benchmarks_list.add_argument("--playlist", type=str, help="Filter by playlist")
     benchmarks_list.add_argument("--rank", type=str, help="Filter by rank tier")
 
-    # Serve subcommand
     serve_parser = subparsers.add_parser("serve", help="Start the API server")
     serve_parser.add_argument(
         "--host",
@@ -531,11 +505,9 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    # Route to appropriate handler
     if args.command == "ingest":
         return handle_ingest_command(args)
     elif args.command == "analyze":
-        # Generate report and write to output directory
         replay_path = Path(args.replay_file)
         identity_config = _load_identity_config()
         report = generate_report(
@@ -545,7 +517,6 @@ def main(argv: list[str] | None = None) -> int:
             identity_config=identity_config,
         )
 
-        # Check exclusion unless --ignore-exclusion is set
         if not args.ignore_exclusion and "error" not in report:
             excluded_name = check_exclusion(report)
             if excluded_name:
@@ -553,15 +524,12 @@ def main(argv: list[str] | None = None) -> int:
                 print("Use --ignore-exclusion to process anyway")
                 return 0
 
-        # Determine output file path
         out_dir = Path(args.out)
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / (replay_path.stem + ".json")
 
-        # If error report, still write JSON but signal non-zero exit
         is_error = "error" in report
 
-        # Validate before writing (for clarity in dev/test); skip if error payload
         if not is_error:
             try:
                 from .schema import validate_report
@@ -573,7 +541,6 @@ def main(argv: list[str] | None = None) -> int:
 
         write_report_atomically(report, out_file, pretty=args.pretty)
 
-        # Print path for convenience
         print(str(out_file))
         return 0 if not is_error else 1
     elif args.command == "report-md":
@@ -586,7 +553,6 @@ def main(argv: list[str] | None = None) -> int:
             identity_config=identity_config,
         )
 
-        # Check exclusion unless --ignore-exclusion is set
         if not args.ignore_exclusion and "error" not in report:
             excluded_name = check_exclusion(report)
             if excluded_name:
@@ -623,7 +589,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "serve":
         return handle_serve_command(args)
     else:
-        # No subcommand provided, show help
         parser.print_help()
         return 0
 
@@ -634,7 +599,6 @@ def handle_serve_command(args) -> int:
 
     from .api import create_app
 
-    # Load and validate config first
     config_path = get_default_config_path()
     try:
         config = load_config(config_path)

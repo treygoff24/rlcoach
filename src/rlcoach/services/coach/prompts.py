@@ -1,4 +1,3 @@
-# src/rlcoach/services/coach/prompts.py
 """System prompts for AI Coach."""
 
 import re

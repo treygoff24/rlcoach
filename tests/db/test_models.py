@@ -1,4 +1,3 @@
-# tests/db/test_models.py
 from datetime import date, datetime, timezone
 
 from sqlalchemy import create_engine, inspect
@@ -74,11 +73,9 @@ def test_indexes_exist(tmp_path):
 
     inspector = inspect(engine)
 
-    # Check replays indexes
     replay_indexes = {idx["name"] for idx in inspector.get_indexes("replays")}
     assert "ix_replays_play_date" in replay_indexes
     assert "ix_replays_playlist" in replay_indexes
 
-    # Check player_game_stats indexes
     pgs_indexes = {idx["name"] for idx in inspector.get_indexes("player_game_stats")}
     assert "ix_player_game_stats_is_me" in pgs_indexes

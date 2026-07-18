@@ -1,4 +1,3 @@
-# tests/api/test_players.py
 """Tests for players API endpoints."""
 
 from datetime import date, datetime, timezone
@@ -46,7 +45,6 @@ def db_with_players(mock_config):
     init_db(mock_config.db_path)
     session = create_session()
 
-    # Add players
     session.add(
         Player(
             player_id="steam:me123",
@@ -82,7 +80,6 @@ def db_with_players(mock_config):
         )
     )
 
-    # Add replays and stats for tendency analysis
     for i in range(5):
         session.add(
             Replay(
@@ -103,7 +100,6 @@ def db_with_players(mock_config):
                 json_report_path=f"/path/replay_{i}.json",
             )
         )
-        # Add teammate stats
         session.add(
             PlayerGameStats(
                 replay_id=f"replay_{i}",

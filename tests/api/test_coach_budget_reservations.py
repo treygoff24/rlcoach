@@ -1,4 +1,3 @@
-# tests/api/test_coach_budget_reservations.py
 """Tests for coach token reservation helpers."""
 
 from datetime import datetime, timedelta, timezone

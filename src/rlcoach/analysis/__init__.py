@@ -57,13 +57,11 @@ def aggregate_analysis(
     """
     warnings = []
 
-    # Check data quality
     if not frames:
         warnings.append("no_frame_data_available")
     if not events:
         warnings.append("no_events_detected")
 
-    # Get unique players and their teams from frames
     players = _extract_players_from_frames(frames)
 
     # Cache expensive analysis results that analyze all players/teams in one pass
@@ -115,7 +113,6 @@ def aggregate_analysis(
     # Generate team-level coaching insights
     coaching_insights = generate_team_insights(per_team, per_player_map)
 
-    # Add data quality warnings
     if not frames and events:
         warnings.append("header_only_mode_limited_metrics")
 
@@ -155,7 +152,6 @@ def _analyze_team(
     team_key = "blue" if team == "BLUE" else "orange"
     defense_team = cached_defense.get("per_team", {}).get(team_key, {})
 
-    # Aggregate team-level mechanics from cached per-player data
     if cached_mechanics is None:
         cached_mechanics = analyze_mechanics(frames)
     team_mechanics = _aggregate_team_mechanics(frames, team, cached_mechanics)
@@ -189,15 +185,13 @@ def _aggregate_team_mechanics(
     cached_mechanics: dict[str, Any],
 ) -> dict[str, Any]:
     """Aggregate mechanics counts for a team from per-player data."""
-    # Build team player mapping
     team_idx = 0 if team == "BLUE" else 1
     team_player_ids: set[str] = set()
     for frame in frames:
-        for player in frame.players:
-            if player.team == team_idx:
-                team_player_ids.add(player.player_id)
+        team_player_ids.update(
+            player.player_id for player in frame.get_players_by_team(team_idx)
+        )
 
-    # Aggregate mechanics counts
     total_wavedashes = 0
     total_halfflips = 0
     total_speedflips = 0
@@ -304,7 +298,6 @@ def _analyze_player(
         frames, events, player_id=player_id, header=header
     )
 
-    # Calculate rotation compliance (player-only analysis)
     rotation_compliance = calculate_rotation_compliance(frames, player_id)
 
     # Additional analyzers
@@ -314,7 +307,6 @@ def _analyze_player(
     heatmaps = generate_heatmaps(frames, player_id, events)
 
     # Use cached results if available, otherwise compute
-    # Extract player-specific data from aggregated results
     if cached_mechanics is None:
         cached_mechanics = analyze_mechanics(frames)
     mechanics_player = cached_mechanics.get("per_player", {}).get(

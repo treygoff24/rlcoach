@@ -54,7 +54,6 @@ def measure_frame_rate(frames: list[Any]) -> float:
     if not frames or len(frames) < 2:
         return DEFAULT_FRAME_RATE
 
-    # Extract timestamps - handle different frame formats
     timestamps = []
     for frame in frames:
         try:
@@ -72,7 +71,6 @@ def measure_frame_rate(frames: list[Any]) -> float:
     if len(timestamps) < 2:
         return DEFAULT_FRAME_RATE
 
-    # Calculate time deltas between consecutive frames
     deltas = []
     for i in range(1, len(timestamps)):
         delta = timestamps[i] - timestamps[i - 1]
@@ -87,7 +85,6 @@ def measure_frame_rate(frames: list[Any]) -> float:
     if median_delta <= 0:
         return DEFAULT_FRAME_RATE
 
-    # Convert to Hz and clamp to reasonable range
     fps = 1.0 / median_delta
     return max(1.0, min(240.0, fps))
 
@@ -101,7 +98,6 @@ def to_field_coords(vec: Any) -> Vec3:
     Returns:
         Vec3 in RLBot coordinate system (x=±4096, y=±5120, z≈2044)
     """
-    # Handle different input formats
     if isinstance(vec, Vec3):
         return vec
     elif hasattr(vec, "x") and hasattr(vec, "y") and hasattr(vec, "z"):
@@ -115,7 +111,6 @@ def to_field_coords(vec: Any) -> Vec3:
     else:
         return Vec3(0.0, 0.0, 0.0)
 
-    # Convert to float and ensure reasonable bounds
     try:
         x_norm = float(x)
         y_norm = float(y)
@@ -171,7 +166,6 @@ def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
     if isinstance(rot_data, Rotation):
         return rot_data
 
-    # Handle dict format
     if isinstance(rot_data, dict):
         # New format: has pitch/yaw/roll keys
         if "pitch" in rot_data or "yaw" in rot_data or "roll" in rot_data:
@@ -220,12 +214,10 @@ def _parse_rotation(rot_data: Any) -> Rotation | Vec3:
         except (TypeError, ValueError):
             pass
 
-    # Handle object with pitch/yaw/roll attributes (new format)
     pitch_val = getattr(rot_data, "pitch", None)
     yaw_val = getattr(rot_data, "yaw", None)
     roll_val = getattr(rot_data, "roll", None)
 
-    # Check if any of pitch/yaw/roll are actual numbers (not Mock objects)
     has_real_pitch = isinstance(pitch_val, (int, float))
     has_real_yaw = isinstance(yaw_val, (int, float))
     has_real_roll = isinstance(roll_val, (int, float))
@@ -631,18 +623,15 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             )
         ]
 
-    # Get player mapping
     players_index, alias_lookup = normalize_players(header, frames)
 
     player_prev_position: dict[str, Vec3] = {}
     player_prev_timestamp: dict[str, float] = {}
 
-    # Convert frames to normalized format
     normalized_frames = []
 
     for frame_data in frames:
         try:
-            # Extract timestamp
             timestamp = 0.0
             if hasattr(frame_data, "timestamp"):
                 timestamp = float(frame_data.timestamp)
@@ -655,7 +644,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
 
             delta = _extract_optional_float(frame_data, "delta")
 
-            # Extract ball state
             ball_pos = Vec3(0.0, 0.0, 93.15)
             ball_vel = Vec3(0.0, 0.0, 0.0)
             ball_ang_vel = Vec3(0.0, 0.0, 0.0)
@@ -683,7 +671,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 sleeping=ball_sleeping,
             )
 
-            # Extract player states
             # Collect latest player state per player_id to avoid duplicates
             player_frames_map: dict[str, PlayerFrame] = {}
             players_data = []
@@ -695,7 +682,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
 
             for player_data in players_data:
                 try:
-                    # Extract player ID
                     player_id = "unknown"
                     if hasattr(player_data, "player_id"):
                         player_id = str(player_data.player_id)
@@ -708,7 +694,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                     if canonical_id not in players_index and player_id in players_index:
                         canonical_id = player_id
 
-                    # Get team from player index or frame data
                     team = 0
                     index_entry = players_index.get(canonical_id)
                     if index_entry and index_entry.get("team_index") is not None:
@@ -724,7 +709,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         elif isinstance(player_data, dict) and "team" in player_data:
                             team = int(player_data["team"])
 
-                    # Extract position and other data
                     position = Vec3(0.0, 0.0, 17.0)  # Car height
                     velocity = Vec3(0.0, 0.0, 0.0)
                     angular_velocity: Vec3 | None = None
@@ -767,7 +751,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                         elif "boost" in player_data:
                             boost_amount = max(0, min(100, int(player_data["boost"])))
 
-                    # Extract boolean flags with proper handling
                     raw_supersonic_flag = False
                     sleeping = False
                     is_on_ground = True
@@ -1018,7 +1001,6 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
                 frame_data, "parser_kickoff_markers", _convert_kickoff_marker
             )
 
-            # Create normalized frame
             normalized_frame = Frame(
                 timestamp=timestamp,
                 ball=ball_frame,
@@ -1039,13 +1021,11 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             # Skip malformed frames
             continue
 
-    # Sort by timestamp to ensure chronological order
     normalized_frames.sort(key=lambda f: f.timestamp)
 
     # Align timestamps to the in-game clock (kickoff = 0) and drop postgame junk
     normalized_frames = _align_match_clock(normalized_frames, header)
 
-    # Return frames or minimal fallback
     return (
         normalized_frames
         if normalized_frames
@@ -1080,7 +1060,6 @@ def _align_match_clock(frames: list[Frame], header: Header | None) -> list[Frame
     end_time = frames[-1].timestamp
     frame_rate = measure_frame_rate(frames)
 
-    # Collect candidate end times (absolute timestamps) from header metadata
     candidates: list[float] = []
     if header is not None:
         header_duration = float(getattr(header, "match_length", 0.0) or 0.0)

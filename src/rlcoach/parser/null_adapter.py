@@ -73,17 +73,14 @@ class NullAdapter(ParserAdapter):
         try:
             file_size_mb = file_size_bytes / (1024 * 1024) if file_size_bytes else 0.0
 
-            # Create minimal header with placeholders
             quality_warnings = [
                 "network_data_unparsed_fallback_header_only",
                 f"using_null_adapter_file_size_{file_size_mb:.1f}mb",
             ]
 
-            # Add any warnings from ingest
             if warnings_from_ingest:
                 quality_warnings.extend(warnings_from_ingest)
 
-            # Create placeholder player info (we don't have real player data)
             placeholder_players = [
                 PlayerInfo(name="Unknown Player 1", team=0),
                 PlayerInfo(name="Unknown Player 2", team=1),
@@ -103,7 +100,6 @@ class NullAdapter(ParserAdapter):
             return header
 
         except Exception as e:
-            # Convert any errors to HeaderParseError
             raise HeaderParseError(
                 str(path), f"Null adapter failed to process file: {str(e)}"
             ) from e

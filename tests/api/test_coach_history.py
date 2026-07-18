@@ -1,4 +1,3 @@
-# tests/api/test_coach_history.py
 """Tests for coach session history endpoints."""
 
 from unittest.mock import patch

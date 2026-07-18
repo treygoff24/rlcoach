@@ -1,4 +1,3 @@
-# tests/api/test_app.py
 """Tests for FastAPI app setup."""
 
 from unittest.mock import patch
@@ -32,7 +31,6 @@ def mock_config(tmp_path):
             target_rank="GC1",
         ),
     )
-    # Create directories
     config.paths.data_dir.mkdir(parents=True, exist_ok=True)
     return config
 

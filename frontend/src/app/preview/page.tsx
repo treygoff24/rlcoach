@@ -1,4 +1,3 @@
-// frontend/src/app/preview/page.tsx
 // Development preview page to view dashboard UI without authentication
 'use client';
 

@@ -1,4 +1,3 @@
-# src/rlcoach/api/security.py
 """Security utilities for API input validation and sanitization."""
 
 import re

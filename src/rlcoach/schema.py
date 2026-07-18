@@ -66,7 +66,6 @@ def _format_validation_error(error: jsonschema.ValidationError) -> str:
                     path_parts.append(str(part))
         path_str = f" at path '{'.'.join(path_parts)}'"
 
-    # Format the error message based on the validation failure type
     if error.validator == "required":
         missing_props = error.message.split("'")[1::2]  # Extract property names
         return f"Missing required field(s): {', '.join(missing_props)}{path_str}"

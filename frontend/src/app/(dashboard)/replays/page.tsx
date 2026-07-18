@@ -1,31 +1,9 @@
-// frontend/src/app/(dashboard)/replays/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { formatMapName } from '@/lib/utils';
-
-interface Replay {
-  id: string;
-  replay_id?: string | null;
-  filename: string;
-  status: string;
-  played_at: string | null;
-  map_name: string | null;
-  playlist: string | null;
-  team_size: number | null;
-  result: string | null;  // WIN, LOSS, DRAW
-  my_score: number | null;
-  opponent_score: number | null;
-  created_at: string;
-}
-
-interface PaginatedResponse {
-  items: Replay[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+import type { PaginatedResponse, ReplayListItem } from '@/types/api';
 
 function formatDate(dateStr: string) {
   const date = new Date(dateStr);
@@ -143,7 +121,7 @@ function FilterButton({
   );
 }
 
-function ReplayRow({ replay, index }: { replay: Replay; index: number }) {
+function ReplayRow({ replay, index }: { replay: ReplayListItem; index: number }) {
   const replayId = replay.replay_id ?? replay.id;
   return (
     <tr
@@ -201,7 +179,7 @@ function ReplayRow({ replay, index }: { replay: Replay; index: number }) {
 }
 
 export default function ReplaysPage() {
-  const [replays, setReplays] = useState<Replay[]>([]);
+  const [replays, setReplays] = useState<ReplayListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'completed' | 'processing'>('all');
@@ -222,7 +200,7 @@ export default function ReplaysPage() {
           throw new Error(`Failed to fetch replays: ${response.status}`);
         }
         
-        const data: PaginatedResponse = await response.json();
+        const data: PaginatedResponse<ReplayListItem> = await response.json();
         setReplays(data.items);
       } catch (err) {
         console.error('Error fetching replays:', err);

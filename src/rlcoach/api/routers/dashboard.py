@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/dashboard.py
 """Dashboard API endpoints."""
 
 from __future__ import annotations

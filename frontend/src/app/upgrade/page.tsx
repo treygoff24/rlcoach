@@ -1,4 +1,3 @@
-// frontend/src/app/upgrade/page.tsx
 /**
  * Upgrade page for free users trying to access Pro features.
  *

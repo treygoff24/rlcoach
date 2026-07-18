@@ -1,4 +1,3 @@
-# tests/db/test_session.py
 import pytest
 from sqlalchemy import inspect
 

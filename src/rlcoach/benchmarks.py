@@ -1,4 +1,3 @@
-# src/rlcoach/benchmarks.py
 """Benchmark data import and validation.
 
 Uses the metric catalog as single source of truth for valid metrics.
@@ -95,7 +94,6 @@ def import_benchmarks(file_path: Path, replace: bool = False) -> int:
 
         count = 0
         for b in data["benchmarks"]:
-            # Check for existing (upsert)
             existing = (
                 session.query(Benchmark)
                 .filter_by(

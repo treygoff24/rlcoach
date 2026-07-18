@@ -1,4 +1,3 @@
-// frontend/src/app/terms/page.tsx
 /**
  * Terms of Service Page
  *

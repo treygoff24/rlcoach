@@ -569,7 +569,6 @@ class TestSchemaValidation:
 
     def test_additional_properties_not_allowed(self):
         """Test validation fails when additional properties are present."""
-        # Create a minimal valid success report and add an extra property
         valid_report = {
             "replay_id": "test123",
             "schema_version": "1.0.0",
@@ -1301,7 +1300,6 @@ class TestSchemaValidation:
 
     def test_empty_arrays_allowed(self):
         """Test that empty arrays are allowed where appropriate."""
-        # Create a valid report with empty event arrays
         report_with_empty_arrays = {
             "replay_id": "test123",
             "schema_version": "1.0.0",

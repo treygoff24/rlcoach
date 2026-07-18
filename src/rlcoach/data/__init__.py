@@ -1,4 +1,3 @@
-# src/rlcoach/data/__init__.py
 """Data modules for rlcoach."""
 
 from .benchmarks import (

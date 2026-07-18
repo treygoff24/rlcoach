@@ -1,4 +1,3 @@
-# src/rlcoach/api/rate_limit.py
 """Rate limiting for API endpoints.
 
 Uses Redis for distributed rate limiting in production,
@@ -71,7 +70,6 @@ class InMemoryRateLimiter:
         now = time.time()
         cutoff = now - window_seconds
 
-        # Get recent requests within window
         user_requests = self._requests[user_id][endpoint]
         user_requests[:] = [ts for ts in user_requests if ts > cutoff]
 
@@ -116,9 +114,7 @@ class RedisRateLimiter:
 
             # Remove old entries outside window
             pipe.zremrangebyscore(key, 0, now - window_seconds)
-            # Count requests in window
             pipe.zcard(key)
-            # Add current request with score = timestamp
             pipe.zadd(key, {str(now): now})
             # Set TTL to clean up old keys
             pipe.expire(key, window_seconds + 1)
@@ -232,7 +228,6 @@ def require_rate_limit(endpoint: str = "default"):
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Find user in kwargs (from dependency injection)
             user = kwargs.get("user")
             if user and hasattr(user, "id"):
                 result = check_rate_limit(user.id, endpoint)

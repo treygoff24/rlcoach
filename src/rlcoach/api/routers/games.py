@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/games.py
 """Games and replays API endpoints."""
 
 from __future__ import annotations

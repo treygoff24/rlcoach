@@ -230,7 +230,6 @@ class TestBoostAnalysis:
 
     def test_overfill_detection(self):
         """Test overfill calculation when collecting boost above threshold."""
-        # Create frames showing player with high boost before pickups
         frames = [
             create_test_frame(
                 0.0, [create_test_player("player1", 0, boost=85)]

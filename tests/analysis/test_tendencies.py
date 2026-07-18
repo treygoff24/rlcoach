@@ -1,4 +1,3 @@
-# tests/analysis/test_tendencies.py
 """Tests for teammate tendency analysis."""
 
 import pytest

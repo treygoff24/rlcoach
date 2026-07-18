@@ -48,7 +48,6 @@ def generate_player_insights(analysis_data: dict[str, Any]) -> list[dict[str, An
     challenges = analysis_data.get("challenges", {})
     insights.extend(_analyze_challenges_insights(challenges, player_id))
 
-    # Sort by priority (highest first)
     insights.sort(key=lambda x: x.get("priority", 0), reverse=True)
 
     return insights

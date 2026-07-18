@@ -1,4 +1,3 @@
-# tests/db/test_writer_replay.py
 from datetime import date
 from pathlib import Path
 
@@ -91,7 +90,6 @@ def test_insert_replay_rejects_duplicate_replay_id(tmp_path, config, sample_repo
 
     insert_replay(sample_report, "filehash123", config)
 
-    # Try to insert same replay_id
     with pytest.raises(ReplayExistsError, match="replay_id"):
         insert_replay(sample_report, "different_hash", config)
 

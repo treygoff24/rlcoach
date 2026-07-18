@@ -1,4 +1,3 @@
-# src/rlcoach/api/auth.py
 """JWT authentication for FastAPI.
 
 Verifies JWT tokens issued by NextAuth.js and provides

@@ -11,10 +11,7 @@ export function Card({ children, className = '' }: CardProps) {
   );
 }
 
-interface CardHeaderProps {
-  children: React.ReactNode;
-  className?: string;
-}
+type CardHeaderProps = CardProps;
 
 export function CardHeader({ children, className = '' }: CardHeaderProps) {
   return (
@@ -24,10 +21,7 @@ export function CardHeader({ children, className = '' }: CardHeaderProps) {
   );
 }
 
-interface CardContentProps {
-  children: React.ReactNode;
-  className?: string;
-}
+type CardContentProps = CardProps;
 
 export function CardContent({ children, className = '' }: CardContentProps) {
   return (

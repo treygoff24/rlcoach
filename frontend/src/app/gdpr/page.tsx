@@ -1,4 +1,3 @@
-// frontend/src/app/gdpr/page.tsx
 /**
  * GDPR Data Removal Request Page
  *

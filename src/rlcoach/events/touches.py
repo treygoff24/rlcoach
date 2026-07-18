@@ -122,10 +122,7 @@ def _touches_from_parser_events(frames: list[Frame]) -> list[TouchEvent]:
                 continue
             seen.add(key)
 
-            player = next(
-                (p for p in frame.players if p.player_id == event.player_id),
-                None,
-            )
+            player = frame.get_player_by_id(event.player_id)
 
             if player:
                 car_height = round(player.position.z, 2)

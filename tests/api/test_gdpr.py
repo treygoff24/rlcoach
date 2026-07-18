@@ -1,4 +1,3 @@
-# tests/api/test_gdpr.py
 """Tests for GDPR data removal functionality.
 
 Tests the ID prefixing logic that was added to properly match
@@ -42,7 +41,6 @@ class TestGDPRIDPrefixing:
         steam_id = "76561198012345678"
         expected_db_format = f"steam:{steam_id}"
 
-        # This is how GDPR code now builds the query
         prefixed_id = f"steam:{steam_id}"
         assert prefixed_id == expected_db_format
 

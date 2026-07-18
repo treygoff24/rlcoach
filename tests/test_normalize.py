@@ -384,7 +384,6 @@ class TestTimelineBuilding:
         """Multiple frames sorted chronologically."""
         header = Header()
 
-        # Create frames out of order
         frame1 = Mock(timestamp=2.0, ball=Mock(), players=[])
         frame1.ball.position = Mock(x=0, y=0, z=93.15)
         frame1.ball.velocity = Mock(x=0, y=0, z=0)
@@ -765,7 +764,6 @@ class TestIntegration:
 
     def test_full_normalization_pipeline(self):
         """Full pipeline from raw data to normalized timeline."""
-        # Create realistic header
         header = Header(
             playlist_id="STANDARD",
             map_name="DFH Stadium",
@@ -783,7 +781,6 @@ class TestIntegration:
             ],
         )
 
-        # Create frame sequence
         frames = []
         for i in range(5):
             timestamp = i / 30.0  # 30 FPS

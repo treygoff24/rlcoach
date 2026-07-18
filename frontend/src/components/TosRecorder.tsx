@@ -26,7 +26,6 @@ export function TosRecorder() {
   }, []);
 
   useEffect(() => {
-    // Only run once per session when authenticated
     if (status !== 'authenticated' || !session?.user || recordedRef.current) {
       return;
     }
@@ -36,10 +35,8 @@ export function TosRecorder() {
       return;
     }
 
-    // Mark as recorded to prevent duplicate calls
     recordedRef.current = true;
 
-    // Record acceptance via API
     fetch('/api/v1/users/me/accept-tos', {
       method: 'POST',
       headers: {
@@ -49,7 +46,6 @@ export function TosRecorder() {
     })
       .then((res) => {
         if (res.ok) {
-          // Clear storage on success
           sessionStorage.removeItem('tos_accepted_at');
           return;
         }
@@ -68,6 +64,5 @@ export function TosRecorder() {
       });
   }, [session, status, retryToken]);
 
-  // This component renders nothing
   return null;
 }

@@ -1,5 +1,8 @@
 """Custom exceptions for rlcoach with structured error information."""
 
+ErrorDetail = str | int | list[str] | None
+ErrorDetails = dict[str, ErrorDetail]
+
 
 class RLCoachError(Exception):
     """Base exception for all rlcoach errors.
@@ -7,7 +10,7 @@ class RLCoachError(Exception):
     Provides structured error information with actionable messages.
     """
 
-    def __init__(self, message: str, details: dict = None):
+    def __init__(self, message: str, details: ErrorDetails | None = None):
         super().__init__(message)
         self.details = details or {}
 

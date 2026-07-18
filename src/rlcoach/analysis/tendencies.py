@@ -1,4 +1,3 @@
-# src/rlcoach/analysis/tendencies.py
 """Teammate Tendency Analysis.
 
 Computes playstyle profiles for players to help with adaptation recommendations.
@@ -48,7 +47,6 @@ def compute_tendencies(stats: list[dict[str, Any]]) -> TendencyProfile | None:
     if not stats:
         return None
 
-    # Extract metrics across games
     goals = [s.get("goals") for s in stats]
     saves = [s.get("saves") for s in stats]
     shots = [s.get("shots") for s in stats]
@@ -68,13 +66,11 @@ def compute_tendencies(stats: list[dict[str, Any]]) -> TendencyProfile | None:
     time_last_defender = [s.get("time_last_defender_s") for s in stats]
     behind_ball_pct = [s.get("behind_ball_pct") for s in stats]
 
-    # Compute aggression score (0-100)
     # Based on: shots, goals, low defensive time
     avg_shots = _safe_avg(shots)
     avg_goals = _safe_avg(goals)
     avg_behind_ball = _safe_avg(behind_ball_pct)
 
-    # Normalize components (rough scaling)
     shots_component = min(avg_shots * 15, 40)  # Max 40 points
     goals_component = min(avg_goals * 20, 30)  # Max 30 points
     forward_component = max(0, (50 - avg_behind_ball)) * 0.6  # Max 30 points
@@ -155,7 +151,6 @@ def compute_adaptation_score(
     Returns:
         Adaptation score 0-100
     """
-    # Compute differences for each dimension
     diffs = [
         abs(my_profile.aggression_score - teammate_profile.aggression_score),
         abs(my_profile.challenge_rate - teammate_profile.challenge_rate),

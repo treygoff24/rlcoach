@@ -76,7 +76,6 @@ def detect_demos(frames: list[Frame]) -> list[DemoEvent]:
                 )
                 demos.append(demo)
 
-            # Update state tracking
             previous_demo_states[player_id] = is_demolished
 
     return demos

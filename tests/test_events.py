@@ -1113,7 +1113,6 @@ class TestTimelineAggregation:
         timeline = build_timeline(events)
         assert len(timeline) == 3
 
-        # Check chronological order
         assert timeline[0].t == 1.0
         assert timeline[0].type == "DEMO"
         assert timeline[1].t == 2.0

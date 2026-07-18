@@ -1,14 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-
-interface Mechanic {
-	name: string;
-	count: number;
-}
+import type { MechanicStat } from "@/types/api";
 
 interface MechanicsEqualizerProps {
-	mechanics: Mechanic[];
+	mechanics: MechanicStat[];
 	maxCount?: number;
 }
 
@@ -16,7 +12,6 @@ export function MechanicsEqualizer({
 	mechanics,
 	maxCount,
 }: MechanicsEqualizerProps) {
-	// Determine max value for scaling if not provided
 	const max = maxCount || Math.max(...mechanics.map((m) => m.count), 1);
 
 	return (

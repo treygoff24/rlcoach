@@ -1,4 +1,3 @@
-// frontend/src/components/ErrorBoundary.tsx
 'use client';
 
 import React from 'react';
@@ -24,9 +23,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Log to console in development
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    // TODO: Send to error tracking service in production
   }
 
   handleReset = (): void => {
@@ -112,5 +109,3 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return this.props.children;
   }
 }
-
-export default ErrorBoundary;

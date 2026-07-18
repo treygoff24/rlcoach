@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/gdpr.py
 """GDPR compliance endpoints for data removal requests.
 
 Allows third parties to request removal of their data from replays

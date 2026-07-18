@@ -1,4 +1,3 @@
-# tests/api/test_replays_security.py
 """Security tests for replay router endpoints.
 
 Tests for fixes to:

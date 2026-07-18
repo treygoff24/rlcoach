@@ -69,7 +69,6 @@ def analyze_passing(
     if not frames and not events:
         return _empty_passing()
 
-    # Build player->team mapping from frames
     player_team = _extract_players_from_frames(frames)
 
     # Gather touches
@@ -80,16 +79,12 @@ def analyze_passing(
         # Deterministic fallback: derive touches from frames
         touches = detect_touches(frames)
 
-    # Sort touches chronologically
     touches.sort(key=lambda t: t.t)
 
-    # Compute possession time for each team
     team_possession = _compute_possession_time(frames, touches)
 
-    # Compute pass/turnover metrics from touch sequence
     team_metrics, player_metrics = _compute_pass_metrics(touches, player_team)
 
-    # Return scoped result
     if player_id:
         # Resolve player's team for possession attribution
         player_team_name = player_team.get(player_id)
@@ -139,10 +134,8 @@ def _compute_possession_time(
     blue_poss = 0.0
     orange_poss = 0.0
 
-    # Prepare fast access to last touch times by team
     last_touch_time = {0: None, 1: None}  # team index -> time
 
-    # Build player->team index mapping (0 blue, 1 orange)
     player_team_idx: dict[str, int] = {}
     for f in frames:
         for p in f.players:
@@ -203,7 +196,6 @@ def _compute_pass_metrics(
       - team_metrics: [blue_dict, orange_dict]
       - player_metrics: dict[player_id] -> counts dict
     """
-    # Initialize team metrics
     team_metrics = [
         {
             "attempted": 0,
@@ -221,7 +213,6 @@ def _compute_pass_metrics(
         },  # ORANGE
     ]
 
-    # Initialize per-player metrics lazily
     player_metrics: dict[str, dict[str, int]] = {}
 
     def ensure_player(pid: str) -> None:
@@ -236,7 +227,6 @@ def _compute_pass_metrics(
             return 1
         return None
 
-    # Track last completed pass for give-and-go detection
     last_completed: tuple[str, str, float] | None = None  # (from_id, to_id, t)
 
     for i in range(len(touches) - 1):
@@ -266,7 +256,6 @@ def _compute_pass_metrics(
             # Too slow or invalid ordering
             continue
 
-        # Count an attempted pass by passer regardless of forward-ness
         team_metrics[a_team]["attempted"] += 1
         ensure_player(a.player_id)
         ensure_player(b.player_id)
@@ -296,7 +285,6 @@ def _compute_pass_metrics(
                 player_metrics[a.player_id]["give_and_go"] += 1
                 player_metrics[b.player_id]["give_and_go"] += 1
 
-        # Update last completed pass record
         last_completed = (a.player_id, b.player_id, a.t)
 
     return team_metrics, player_metrics

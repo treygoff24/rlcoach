@@ -1,4 +1,3 @@
-# tests/test_ingest_pipeline.py
 """Tests for the integrated ingestion pipeline."""
 
 from unittest.mock import patch
@@ -45,7 +44,6 @@ class TestProcessReplayFile:
 
     def test_process_replay_returns_result(self, mock_config, tmp_path):
         """Should return IngestionResult with correct status."""
-        # Create a minimal mock replay file path
         replay_path = tmp_path / "test.replay"
         replay_path.write_bytes(b"x" * 100)
 

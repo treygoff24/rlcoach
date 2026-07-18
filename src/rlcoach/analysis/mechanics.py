@@ -10,6 +10,7 @@ from enum import Enum
 from ..events.utils import is_toward_opponent_goal
 from ..field_constants import FIELD, Vec3
 from ..parser.types import Frame, PlayerFrame, Rotation
+from .protocol import get_player_ids
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,6 @@ logger = logging.getLogger(__name__)
 class MechanicType(Enum):
     """Types of mechanics that can be detected."""
 
-    # Existing mechanics
     JUMP = "jump"
     DOUBLE_JUMP = "double_jump"
     FLIP = "flip"
@@ -28,25 +28,21 @@ class MechanicType(Enum):
     HALF_FLIP = "half_flip"
     SPEEDFLIP = "speedflip"
 
-    # Phase 1 - New mechanics
     FAST_AERIAL = "fast_aerial"
     FLIP_RESET = "flip_reset"
     AIR_ROLL = "air_roll"
 
-    # Phase 2 - New mechanics
     DRIBBLE = "dribble"
     FLICK = "flick"
     MUSTY_FLICK = "musty_flick"
     CEILING_SHOT = "ceiling_shot"
     POWER_SLIDE = "power_slide"
 
-    # Phase 3 - New mechanics
     GROUND_PINCH = "ground_pinch"
     DOUBLE_TOUCH = "double_touch"
     REDIRECT = "redirect"
     STALL = "stall"
 
-    # Phase 5 - Advanced mechanics
     SKIM = "skim"  # Underside contact + ball acceleration toward goal
     PSYCHO = "psycho"  # Backboard slam + invert + skim combo
 
@@ -60,11 +56,9 @@ class MechanicEvent:
     mechanic_type: MechanicType
     position: Vec3
     velocity: Vec3
-    # Additional context
     direction: str | None = None  # forward, backward, left, right, diagonal
     height: float = 0.0  # height above ground when mechanic started
     duration: float | None = None  # how long the mechanic lasted (for flips)
-    # New fields for extended mechanics
     ball_position: Vec3 | None = None  # For ball-related mechanics (flicks, pinches)
     ball_velocity_change: float | None = None  # Velocity delta for flicks/pinches
     boost_used: int | None = None  # Boost consumed for fast aerial tracking
@@ -101,11 +95,11 @@ class PlayerMechanicsState:
     flip_initial_rotation: tuple[float, float, float] | None = None
     flip_direction: str | None = None  # Direction of most recent flip
     flip_cancel_detected: bool = False  # Was flip cancelled?
-    # Flip cancel persistence (Phase 8)
+    # Flip cancel persistence
     flip_pitch_intent: int = 0  # +1 = front flip, -1 = back flip, 0 = side
     flip_cancel_start_time: float | None = None  # When cancel criteria first met
     flip_cancel_confirmed: bool = False  # Cancel persisted for 3+ frames
-    # Speedflip tracking (Phase 10)
+    # Speedflip tracking
     vel_at_flip_start: Vec3 | None = None  # For forward accel check
     boost_used_since_flip: int = 0
 
@@ -115,11 +109,9 @@ class PlayerMechanicsState:
     # Half-flip/speedflip tracking
     initial_yaw: float = 0.0  # Yaw at flip start for 180° detection
     prev_yaw: float = 0.0  # Previous yaw for rotation tracking
-    # Wavedash tracking (Phase 4)
+    # Wavedash tracking
     pitch_at_flip_start: float = 0.0  # For dash setup check
     roll_at_flip_start: float = 0.0
-
-    # === NEW: Extended mechanics tracking ===
 
     # Fast aerial tracking
     first_jump_time: float | None = None
@@ -128,7 +120,7 @@ class PlayerMechanicsState:
     boost_used_since_jump: int = 0
     boost_used_in_window: bool = False  # Boost used within 0.3s of first jump
     fast_aerial_detected: bool = False  # Prevent duplicate detections
-    # Phase 7: Same-frame boost check
+    # Timestamped deltas preserve same-frame boost evidence.
     recent_boost_deltas: list = None  # list of (timestamp, delta)
 
     # Flip reset tracking
@@ -150,7 +142,7 @@ class PlayerMechanicsState:
     power_slide_start_time: float | None = None
     is_power_sliding: bool = False
 
-    # Ceiling shot tracking (Phase 5)
+    # Ceiling shot tracking
     last_ceiling_touch_time: float | None = None
     ceiling_contact_frames: int = 0  # Persistence counter
     has_ceiling_flip: bool = False  # Ceiling-granted flip available
@@ -168,7 +160,7 @@ class PlayerMechanicsState:
     stall_start_time: float | None = None
     is_stalling: bool = False
 
-    # Psycho tracking (Phase 14)
+    # Psycho tracking
     psycho_state: str | None = None  # "INVERTING" or "SKIM_READY"
     psycho_slam_time: float | None = None  # When backboard slam occurred
     psycho_waiting_for_bounce: bool = False  # Waiting for wall bounce after slam
@@ -185,14 +177,14 @@ class PlayerMechanicsState:
 # Physics constants for detection thresholds
 GROUND_HEIGHT_THRESHOLD = 25.0  # Car is on ground if z < this
 JUMP_Z_VELOCITY_THRESHOLD = 250.0  # Minimum z velocity spike for jump (UU/s)
-# Lowered from 292 to 250 to account for gravity decay between 30 Hz samples
+# At 30 Hz, gravity can decay the nominal 292 UU/s impulse before sampling.
 DOUBLE_JUMP_Z_VELOCITY_THRESHOLD = 250.0  # Same threshold for double jump
 FLIP_ANGULAR_THRESHOLD = 3.5  # Radians/second rotation rate for flip detection
-# Lowered from 5.0 to 3.5 - 91% of max was too tight, missed early cancels
+# A 5 rad/s threshold misses early cancels.
 JUMP_COOLDOWN = 0.1  # Minimum time between jump detections (seconds)
 AERIAL_HEIGHT_THRESHOLD = 200.0  # Height threshold for aerial classification
 WAVEDASH_LANDING_WINDOW_MIN = 0.05  # Min time after flip for wavedash (tight!)
-WAVEDASH_LANDING_WINDOW_MAX = 0.125  # Max time - reduced from 0.4
+WAVEDASH_LANDING_WINDOW_MAX = 0.125  # Maximum post-flip landing delay
 WAVEDASH_SPEED_GAIN_MIN = 100.0  # Minimum forward speed gain for wavedash
 
 # Half-flip and speedflip detection constants
@@ -201,8 +193,6 @@ FLIP_CANCEL_WINDOW = 0.25  # Time window after flip to detect cancel
 HALF_FLIP_YAW_CHANGE_THRESHOLD = 2.5  # ~143 degrees in radians for half-flip
 HALF_FLIP_DETECTION_WINDOW = 0.6  # Time window to complete half-flip
 SPEEDFLIP_CANCEL_WINDOW = 0.10  # Speedflip cancel within 100ms (~3 frames at 30 Hz)
-
-# === NEW: Extended mechanics thresholds ===
 
 # Fast aerial detection
 FAST_AERIAL_BOOST_WINDOW = (
@@ -276,10 +266,10 @@ STALL_MIN_DURATION = 0.15  # seconds - minimum duration
 # Ball contact proximity (for inline touch detection)
 BALL_CONTACT_PROXIMITY = 200.0  # UU - distance threshold for ball contact
 
-# Skim detection (Phase 13)
+# Skim detection
 SKIM_DOT_THRESHOLD = -0.7  # Ball below car (underside contact)
 
-# Psycho detection (Phase 14)
+# Psycho detection
 PSYCHO_WINDOW = 3.0  # seconds - max time from backboard slam to skim
 PSYCHO_INVERT_THRESHOLD = -0.5  # car_up · world_up < this = inverted
 
@@ -389,7 +379,6 @@ def _rotation_to_up_vector(rotation: Rotation | Vec3) -> Vec3:
     """
     pitch, yaw, roll = _get_rotation_values(rotation)
 
-    # Compute rotation matrix components
     # Up vector is the third column of the rotation matrix
     # For Euler angles (pitch, yaw, roll) in ZYX order:
     cp = math.cos(pitch)
@@ -457,7 +446,6 @@ def _rotation_to_forward_vector(rotation: Rotation | Vec3) -> Vec3:
     """
     pitch, yaw, roll = _get_rotation_values(rotation)
 
-    # Compute rotation matrix components
     # Forward vector is the first column of the rotation matrix
     # For Euler angles (pitch, yaw, roll) in ZYX order:
     cp = math.cos(pitch)
@@ -496,11 +484,9 @@ def detect_mechanics_for_player(
     # Lookup player team (needed for redirect goal direction check)
     player_team: int | None = None
     for frame in frames:
-        for p in frame.players:
-            if p.player_id == player_id:
-                player_team = p.team
-                break
-        if player_team is not None:
+        player = frame.get_player_by_id(player_id)
+        if player is not None:
+            player_team = player.team
             break
 
     parser_touch_authority_available = any(
@@ -508,12 +494,7 @@ def detect_mechanics_for_player(
     )
 
     for frame in frames:
-        # Find player in this frame
-        player: PlayerFrame | None = None
-        for p in frame.players:
-            if p.player_id == player_id:
-                player = p
-                break
+        player = frame.get_player_by_id(player_id)
 
         if player is None:
             prev_frame = frame
@@ -535,7 +516,6 @@ def detect_mechanics_for_player(
             player, "is_double_jumping"
         )
 
-        # Calculate derivatives if we have previous frame
         if prev_player is not None and prev_frame is not None:
             dt = max(timestamp - prev_frame.timestamp, 0.001)  # Prevent div by zero
 
@@ -676,7 +656,6 @@ def detect_mechanics_for_player(
 
             if is_on_ground and was_airborne:
                 # Just landed
-                # Check for wavedash (Phase 4 fix)
                 # Tight window + pitch/roll setup + speed gain
                 if state.flip_start_time is not None:
                     landing_window = timestamp - state.flip_start_time
@@ -685,14 +664,12 @@ def detect_mechanics_for_player(
                         <= landing_window
                         <= WAVEDASH_LANDING_WINDOW_MAX
                     ):
-                        # Check pitch/roll at flip time (dash setup)
                         flip_pitch = state.pitch_at_flip_start
                         flip_roll = state.roll_at_flip_start
                         is_dash_setup = (
                             abs(flip_pitch) > 0.2 or abs(flip_roll) > 0.2
                         )  # ~11 degrees
 
-                        # Check speed gain in car's forward direction
                         car_forward = _rotation_to_forward_vector(rot)
                         forward_speed_now = _dot(vel, car_forward)
                         forward_speed_before = (
@@ -795,7 +772,6 @@ def detect_mechanics_for_player(
                     and time_since_ground > JUMP_COOLDOWN
                 ):
 
-                    # Check rotation rate to distinguish jump vs flip
                     total_rot_rate = math.sqrt(
                         pitch_rate * pitch_rate + roll_rate * roll_rate
                     )
@@ -809,7 +785,6 @@ def detect_mechanics_for_player(
                             if not state.has_jumped:
                                 state.has_jumped = True
                                 if infer_jump:
-                                    # Track for fast aerial detection
                                     state.first_jump_time = timestamp
                                     state.boost_at_first_jump = player.boost_amount
                                     state.boost_used_since_jump = 0
@@ -829,7 +804,6 @@ def detect_mechanics_for_player(
                             state.flip_start_time = timestamp
                             state.flip_cancel_detected = False
                             state.flip_cancel_confirmed = False  # Reset for new flip
-                            # Track if flip occurred after ceiling contact
                             if state.has_ceiling_flip:
                                 state.flip_after_ceiling = True
                             state.flip_cancel_start_time = None
@@ -890,7 +864,6 @@ def detect_mechanics_for_player(
                         # Pure vertical jump (jump or double jump)
                         if not state.has_jumped and infer_jump:
                             state.has_jumped = True
-                            # Track for fast aerial detection
                             state.first_jump_time = timestamp
                             state.boost_at_first_jump = player.boost_amount
                             state.boost_used_since_jump = 0
@@ -921,7 +894,6 @@ def detect_mechanics_for_player(
                                     height=pos.z,
                                 )
                             )
-                            # Check for fast aerial on double jump
                             if (
                                 state.first_jump_time is not None
                                 and not state.fast_aerial_detected
@@ -990,7 +962,7 @@ def detect_mechanics_for_player(
                             )
                         )
 
-                # Flip cancel detection (Phase 8)
+                # Flip cancel detection
                 # pitch reversal relative to intent, 3+ frames persistence
                 if (
                     state.has_flipped
@@ -999,7 +971,6 @@ def detect_mechanics_for_player(
                 ):
                     flip_elapsed = timestamp - state.flip_start_time
                     if flip_elapsed <= FLIP_CANCEL_WINDOW:  # Within 0.25s
-                        # Check pitch reversal relative to intent
                         # Use FLIP_CANCEL_PITCH_REVERSAL_THRESHOLD (3.0 rad/s)
                         threshold = FLIP_CANCEL_PITCH_REVERSAL_THRESHOLD
                         pitch_reversed = (
@@ -1036,12 +1007,10 @@ def detect_mechanics_for_player(
                 ):
                     flip_elapsed = timestamp - state.flip_start_time
 
-                    # Check for half-flip (backward flip + cancel + 180° turn)
                     if (
                         state.flip_direction == "backward"
                         and flip_elapsed < HALF_FLIP_DETECTION_WINDOW
                     ):
-                        # Calculate yaw change from flip start
                         yaw_change = abs(_normalize_angle(yaw - state.initial_yaw))
                         if yaw_change > HALF_FLIP_YAW_CHANGE_THRESHOLD:
                             # This is a half-flip
@@ -1064,13 +1033,11 @@ def detect_mechanics_for_player(
                                     )
                                 )
 
-                    # Check for speedflip (diagonal flip + cancel within 100ms)
                     elif (
                         state.flip_direction == "diagonal"
                         and flip_elapsed < SPEEDFLIP_CANCEL_WINDOW
                     ):
                         # Speedflip = diagonal flip with immediate cancel
-                        # Already detected cancel, now classify as speedflip
                         if not any(
                             e.mechanic_type == MechanicType.SPEEDFLIP
                             and e.player_id == player_id
@@ -1090,10 +1057,9 @@ def detect_mechanics_for_player(
                                 )
                             )
 
-                # Flip reset detection (Phase 2)
+                # Flip reset detection
                 # Ball contact on underside while airborne restores flip
                 if state.is_airborne and frame.ball is not None:
-                    # Check for expiry of existing reset
                     if (
                         state.flip_available_from_reset
                         and state.flip_reset_touch_time is not None
@@ -1104,7 +1070,6 @@ def detect_mechanics_for_player(
                             state.flip_available_from_reset = False
                             state.flip_reset_touch_time = None
 
-                    # Check for new underside contact (allows refresh)
                     if state.has_flipped or state.flip_available_from_reset:
                         ball_pos = frame.ball.position
                         car_up = _rotation_to_up_vector(rot)
@@ -1117,7 +1082,6 @@ def detect_mechanics_for_player(
                         )
                         btc_norm = _normalize_vec(btc)
 
-                        # Check underside contact: ball below/behind car
                         dot_product = _dot(car_up, btc_norm)
                         if (
                             dot_product > FLIP_RESET_DOT_THRESHOLD
@@ -1134,10 +1098,8 @@ def detect_mechanics_for_player(
                             # Underside contact detected - refresh reset
                             state.flip_available_from_reset = True
                             state.flip_reset_touch_time = timestamp
-                            # Reset has_flipped so new flips can be detected
                             state.has_flipped = False
 
-                # Check if flip was used after reset (emit FLIP_RESET event)
                 if (
                     state.flip_available_from_reset
                     and state.flip_reset_touch_time is not None
@@ -1172,7 +1134,7 @@ def detect_mechanics_for_player(
                         state.flip_available_from_reset = False
                         state.flip_reset_touch_time = None
 
-                # Skim detection (Phase 13)
+                # Skim detection
                 # Underside ball contact + ball acceleration + toward opponent goal
                 if state.is_airborne and frame.ball is not None:
                     ball_pos = frame.ball.position
@@ -1199,7 +1161,6 @@ def detect_mechanics_for_player(
                     ):
                         current_speed = _magnitude(frame.ball.velocity)
                         if current_speed > state.prev_ball_speed:  # Ball accelerated
-                            # Check toward opponent goal
                             if player_team is not None and is_toward_opponent_goal(
                                 player_team, frame.ball.velocity
                             ):
@@ -1223,7 +1184,6 @@ def detect_mechanics_for_player(
                                         )
                                     )
 
-                                    # Check for psycho (skim after backboard slam)
                                     slam_time = state.psycho_slam_time
                                     psycho_in_window = (
                                         slam_time
@@ -1248,7 +1208,7 @@ def detect_mechanics_for_player(
                                         state.psycho_state = None
                                         state.psycho_slam_time = None
 
-                # Psycho state machine (Phase 14)
+                # Psycho state machine
                 # State 1: Detect intentional backboard slam
                 if frame.ball is not None and player_team is not None:
                     ball_pos = frame.ball.position
@@ -1274,7 +1234,6 @@ def detect_mechanics_for_player(
                             BALL_CONTACT_PROXIMITY,
                             parser_touch_authority_available=parser_touch_authority_available,
                         ):
-                            # Check if ball velocity toward own goal INCREASED
                             if state.prev_ball_velocity is not None:
                                 prev_toward = abs(state.prev_ball_velocity.y)
                                 curr_toward = abs(ball_vel.y)
@@ -1314,7 +1273,7 @@ def detect_mechanics_for_player(
                     state.psycho_state = None
                     state.psycho_slam_time = None
 
-                # Air roll detection (Phase 2)
+                # Air roll detection
                 # Sustained roll rotation > 2.0 rad/s for > 0.3s while airborne
                 if state.is_airborne:
                     # Skip air roll check during flip-induced rotation
@@ -1371,16 +1330,14 @@ def detect_mechanics_for_player(
                     state.is_air_rolling = False
                     state.air_roll_start_time = None
 
-            # === GROUND-BASED MECHANICS (run when grounded) ===
-            # These must be OUTSIDE the airborne-only block
+            # Grounded mechanics must stay outside the airborne-only branch.
 
-            # Dribble detection (Phase 3)
+            # Dribble detection
             # Ball on car roof for > 0.5s, ground dribbles only
             if is_on_ground and frame.ball is not None:
                 ball_pos = frame.ball.position
                 ball_vel = frame.ball.velocity
 
-                # Calculate ball-to-car offset
                 dx = ball_pos.x - pos.x
                 dy = ball_pos.y - pos.y
                 dz = ball_pos.z - pos.z
@@ -1396,7 +1353,6 @@ def detect_mechanics_for_player(
                 )
                 rel_speed = _magnitude(rel_vel)
 
-                # Check dribble conditions
                 is_in_dribble_envelope = (
                     xy_dist < DRIBBLE_XY_RADIUS
                     and DRIBBLE_Z_MIN < dz < DRIBBLE_Z_MAX
@@ -1452,7 +1408,7 @@ def detect_mechanics_for_player(
 
             # Flick and Musty detection
             # Flick: Ball departs car during flip from dribble with velocity gain
-            # Musty: Backflip + ball acceleration (ANYWHERE - Phase 6 fix)
+            # Musty: backflip plus ball acceleration, with no dribble prerequisite.
             if (
                 state.has_flipped
                 and state.flip_start_time is not None
@@ -1465,7 +1421,6 @@ def detect_mechanics_for_player(
                     pre_speed = state.ball_speed_at_flip_start or 0
                     speed_delta = current_ball_speed - pre_speed
 
-                    # Phase 6: Musty flick works ANYWHERE - no dribble requirement
                     # Just needs: backward flip + ball proximity + ball acceleration
                     if (
                         state.flip_direction == "backward"
@@ -1532,7 +1487,7 @@ def detect_mechanics_for_player(
                                 )
                             )
 
-            # Ceiling shot detection (Phase 5 - flip-based with persistence)
+            # Ceiling shot detection
             # Requires: ceiling contact with orientation check, grants flip,
             # ceiling shot emits when flip is used before any surface contact
             car_up_check = _rotation_to_up_vector(rot)
@@ -1602,10 +1557,9 @@ def detect_mechanics_for_player(
                     state.has_ceiling_flip = False  # Reset after use
                     state.flip_after_ceiling = False
 
-            # Power slide detection (Phase 4)
+            # Power slide detection
             # Sideways velocity > 500 UU/s while grounded for > 0.2s
             if not state.is_airborne:
-                # Compute car forward vector from yaw
                 forward_x = math.cos(yaw)
                 forward_y = math.sin(yaw)
 
@@ -1661,7 +1615,7 @@ def detect_mechanics_for_player(
                 state.is_power_sliding = False
                 state.power_slide_start_time = None
 
-            # Ground pinch detection (Phase 5)
+            # Ground pinch detection
             # Ball pinched with ground, velocity gain > 1500 UU/s
             if frame.ball is not None:
                 ball_pos = frame.ball.position
@@ -1701,14 +1655,13 @@ def detect_mechanics_for_player(
                                 )
                             )
 
-            # Double touch detection (Phase 9 - velocity sign-flip bounce)
+            # Double touch detection
             # Two aerial touches without landing, VERIFIED wall bounce between
             if frame.ball is not None and state.is_airborne:
                 ball_pos = frame.ball.position
                 ball_vel = frame.ball.velocity
 
-                # Phase 9: Use velocity sign-flip to verify actual wall bounce
-                # Not just position near wall - actual velocity reversal
+                # Proximity alone cannot prove a bounce; require velocity reversal.
                 near_back_wall = abs(ball_pos.y) > FIELD.BACK_WALL_Y - WALL_PROXIMITY
                 near_side_wall = abs(ball_pos.x) > FIELD.SIDE_WALL_X - WALL_PROXIMITY
 
@@ -1733,7 +1686,6 @@ def detect_mechanics_for_player(
                         if bounced:
                             state.wall_bounce_detected = True
 
-                # Check for aerial touch (with debounce)
                 if (
                     _player_touched_ball(
                         frame,
@@ -1784,7 +1736,7 @@ def detect_mechanics_for_player(
                             state.first_aerial_touch_time = timestamp
                             state.wall_bounce_detected = False
 
-            # Redirect detection (Phase 5)
+            # Redirect detection
             # Aerial touch that changes ball direction > 45 degrees
             if (
                 frame.ball is not None
@@ -1805,7 +1757,6 @@ def detect_mechanics_for_player(
                         current_ball_speed > REDIRECT_MIN_BALL_SPEED
                         and state.prev_ball_velocity is not None
                     ):
-                        # Compute direction change using actual velocities
                         pre_dir = _normalize_vec(state.prev_ball_velocity)
                         post_dir = _normalize_vec(frame.ball.velocity)
                         dot_val = _dot(pre_dir, post_dir)
@@ -1839,7 +1790,7 @@ def detect_mechanics_for_player(
                                     )
                                 )
 
-            # Stall detection (Phase 5)
+            # Stall detection
             # Tornado spin with near-zero vertical velocity mid-air
             if (
                 state.is_airborne
@@ -1849,7 +1800,6 @@ def detect_mechanics_for_player(
                 abs_roll_rate = abs(roll_rate)
                 abs_yaw_rate = abs(yaw_rate)
 
-                # Check tornado pattern
                 is_tornado = (
                     abs_roll_rate > STALL_ROLL_RATE_MIN
                     and abs_yaw_rate > STALL_YAW_RATE_MIN
@@ -1859,7 +1809,6 @@ def detect_mechanics_for_player(
                     )
                 )
 
-                # Check hover condition
                 abs_z_vel = abs(vel.z)
                 xy_speed = math.sqrt(vel.x * vel.x + vel.y * vel.y)
                 is_hovering = (
@@ -1873,7 +1822,6 @@ def detect_mechanics_for_player(
                         state.is_stalling = True
                         state.stall_start_time = timestamp
                     elif state.stall_start_time is not None:
-                        # Check if we've stalled long enough
                         stall_duration = timestamp - state.stall_start_time
                         if stall_duration >= STALL_MIN_DURATION:
                             if not any(
@@ -1898,7 +1846,6 @@ def detect_mechanics_for_player(
                     state.is_stalling = False
                     state.stall_start_time = None
 
-        # Update state for next frame
         state.prev_z_velocity = vel.z
         state.prev_z_position = pos.z
         state.prev_velocity = vel  # Full velocity for car-local transforms
@@ -1908,19 +1855,16 @@ def detect_mechanics_for_player(
         state.last_velocity_z = vel.z
         state.prev_yaw = yaw
 
-        # Track boost usage for fast aerial detection
         if state.first_jump_time is not None:
             # Boost decreased = boost used
             boost_delta = state.prev_boost_amount - player.boost_amount
             if boost_delta > 0:
                 state.boost_used_since_jump += boost_delta
-                # Check if boost was used within the 0.3s window
                 time_since_jump = timestamp - state.first_jump_time
                 if time_since_jump <= FAST_AERIAL_BOOST_WINDOW:
                     state.boost_used_in_window = True
         state.prev_boost_amount = player.boost_amount
 
-        # Track ball state for future mechanics
         if frame.ball is not None:
             ball_speed = _magnitude(frame.ball.velocity)
             state.prev_ball_speed = ball_speed
@@ -1931,7 +1875,6 @@ def detect_mechanics_for_player(
         state.prev_authoritative_is_dodging = authoritative_is_dodging
         state.prev_authoritative_is_double_jumping = authoritative_is_double_jumping
 
-        # Store angular rates for flip cancel/discrimination
         if prev_player is not None and prev_frame is not None:
             state.prev_angular_x = pitch_rate
             state.prev_angular_y = yaw_rate
@@ -1952,11 +1895,7 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
     Returns:
         Dict with mechanics analysis results
     """
-    # Get all unique player IDs
-    player_ids: set[str] = set()
-    for frame in frames:
-        for player in frame.players:
-            player_ids.add(player.player_id)
+    player_ids = get_player_ids(frames)
 
     # Detect mechanics for each player
     per_player: dict[str, dict] = {}
@@ -1965,13 +1904,11 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
     for player_id in sorted(player_ids):
         events = detect_mechanics_for_player(frames, player_id)
 
-        # Aggregate counts by mechanic type
         counts: dict[str, int] = {}
         for event in events:
             mtype = event.mechanic_type.value
             counts[mtype] = counts.get(mtype, 0) + 1
 
-            # Add to flat event list
             event_dict = {
                 "timestamp": event.timestamp,
                 "player_id": event.player_id,
@@ -1990,7 +1927,6 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
                 "height": event.height,
                 "duration": event.duration,
             }
-            # Add optional fields if present
             if event.ball_position is not None:
                 event_dict["ball_position"] = {
                     "x": event.ball_position.x,
@@ -2003,7 +1939,6 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
                 event_dict["boost_used"] = event.boost_used
             all_events.append(event_dict)
 
-        # Compute duration totals for mechanics that have durations
         air_roll_events = [
             e for e in events if e.mechanic_type == MechanicType.AIR_ROLL
         ]
@@ -2017,7 +1952,6 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
         power_slide_total_time = sum((e.duration or 0) for e in power_slide_events)
 
         per_player[player_id] = {
-            # Existing mechanics
             "jump_count": counts.get("jump", 0),
             "double_jump_count": counts.get("double_jump", 0),
             "flip_count": counts.get("flip", 0),
@@ -2026,7 +1960,6 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
             "halfflip_count": counts.get("half_flip", 0),
             "speedflip_count": counts.get("speedflip", 0),
             "flip_cancel_count": counts.get("flip_cancel", 0),
-            # New mechanics
             "fast_aerial_count": counts.get("fast_aerial", 0),
             "flip_reset_count": counts.get("flip_reset", 0),
             "air_roll_count": len(air_roll_events),
@@ -2047,13 +1980,11 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
             "total_mechanics": sum(counts.values()),
         }
 
-    # Sort events by timestamp
     all_events.sort(key=lambda e: e["timestamp"])
 
     return {
         "per_player": per_player,
         "events": all_events,
-        # Existing totals
         "total_jumps": sum(p.get("jump_count", 0) for p in per_player.values()),
         "total_flips": sum(p.get("flip_count", 0) for p in per_player.values()),
         "total_aerials": sum(p.get("aerial_count", 0) for p in per_player.values()),
@@ -2064,7 +1995,6 @@ def analyze_mechanics(frames: list[Frame]) -> dict:
         "total_speedflips": sum(
             p.get("speedflip_count", 0) for p in per_player.values()
         ),
-        # New totals
         "total_fast_aerials": sum(
             p.get("fast_aerial_count", 0) for p in per_player.values()
         ),

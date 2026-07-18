@@ -176,7 +176,6 @@ class TestParserInterface:
     def test_interface_methods_are_abstract(self):
         """Test that interface methods are marked as abstract."""
 
-        # Create a concrete implementation that's missing methods
         class IncompleteAdapter(BaseParserAdapter):
             pass
 
@@ -199,7 +198,6 @@ class TestNullAdapter:
         from rlcoach.ingest import REPLAY_MAGIC_SEQUENCES
 
         magic = REPLAY_MAGIC_SEQUENCES[0]
-        # Create properly binary content that won't be detected as text
         header_content = bytes([i % 256 for i in range(1000)])  # Binary header
         content = header_content + magic + b"\x00" * 14000  # 15KB total
 
@@ -326,7 +324,6 @@ class TestAdapterRegistry:
         register_adapter("test", TestAdapter)
 
         try:
-            # Should now be available
             assert "test" in list_adapters()
             adapter = get_adapter("test")
             assert isinstance(adapter, TestAdapter)
@@ -396,11 +393,9 @@ class TestIntegrationWithTestReplay:
         if not replay_path.exists():
             pytest.skip("testing_replay.replay not found - skipping integration test")
 
-        # Get list of available adapters
         available = list_adapters()
         assert "null" in available
 
-        # Try each adapter
         for adapter_name in available:
             adapter = get_adapter(adapter_name)
             header = adapter.parse_header(replay_path)

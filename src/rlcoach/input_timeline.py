@@ -262,7 +262,7 @@ def mirror_solve_output(raw: dict[str, Any]) -> dict[str, InputTimeline]:
 def _load_solver() -> Any | None:
     try:
         return importlib.import_module("rlinput_py")
-    except Exception:
+    except ImportError:
         return None
 
 

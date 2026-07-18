@@ -1,4 +1,3 @@
-# src/rlcoach/watcher.py
 """Watch folder service and file stability utilities.
 
 This module provides:
@@ -80,11 +79,9 @@ def wait_for_stable_file(
 
         current_size = path.stat().st_size
         if current_size != last_size:
-            # File changed, reset stability timer
             last_size = current_size
             stable_since = time.monotonic()
         else:
-            # File unchanged, check if stable long enough
             stable_duration = time.monotonic() - stable_since
             if stable_duration >= stability_seconds:
                 return True
@@ -105,7 +102,6 @@ class ReplayWatcher:
             callback=process_replay,
         )
         watcher.start()
-        # ... later ...
         watcher.stop()
     """
 
@@ -146,7 +142,6 @@ class ReplayWatcher:
 
         self._stop_event.clear()
 
-        # If not processing existing, mark them as already processed
         if not self.process_existing:
             for path in self.watch_dir.glob("*.replay"):
                 self._processed.add(path)
@@ -171,7 +166,6 @@ class ReplayWatcher:
             except Exception as e:
                 logger.error(f"Error during scan: {e}")
 
-            # Wait for poll interval or stop signal
             self._stop_event.wait(self.poll_interval)
 
     def _scan_for_new_files(self) -> None:
@@ -187,8 +181,6 @@ class ReplayWatcher:
                 break
 
             try:
-                # Wait for file to stabilize
-                # Use check_interval proportional to stability_seconds
                 check_interval = min(0.5, self.stability_seconds / 2)
                 wait_for_stable_file(
                     path,
@@ -197,14 +189,13 @@ class ReplayWatcher:
                     timeout=self.stability_timeout,
                 )
 
-                # Process the file
                 self._process_file(path)
 
             except FileStabilityTimeout:
                 logger.warning(f"File {path} did not stabilize, skipping for now")
             except Exception as e:
                 logger.error(f"Error processing {path}: {e}")
-                # Mark as processed to avoid infinite retry
+                # Do not retry callback failures forever.
                 self._processed.add(path)
 
     def _process_file(self, path: Path) -> None:
@@ -215,5 +206,5 @@ class ReplayWatcher:
             logger.info(f"Processed: {path}")
         except Exception as e:
             logger.error(f"Callback error for {path}: {e}")
-            # Still mark as processed to avoid infinite retry
+            # Do not retry callback failures forever.
             self._processed.add(path)

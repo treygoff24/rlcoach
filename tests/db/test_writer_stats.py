@@ -1,4 +1,3 @@
-# tests/db/test_writer_stats.py
 from datetime import date, datetime, timezone
 from pathlib import Path
 

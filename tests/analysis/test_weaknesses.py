@@ -1,4 +1,3 @@
-# tests/analysis/test_weaknesses.py
 """Tests for weakness detection algorithm."""
 
 import pytest

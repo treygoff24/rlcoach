@@ -1,4 +1,3 @@
-// frontend/src/app/privacy/page.tsx
 /**
  * Privacy Policy Page
  *

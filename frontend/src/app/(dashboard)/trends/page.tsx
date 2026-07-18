@@ -1,8 +1,8 @@
-// frontend/src/app/(dashboard)/trends/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { LoadError } from '@/components/dashboard/LoadError';
 
 type MetricId = 'goals' | 'saves' | 'assists' | 'shots' | 'bcpm';
 type TimeRange = '7d' | '30d' | '90d' | 'all';
@@ -42,28 +42,24 @@ const axisTypes: Array<{ id: AxisType; label: string; description: string }> = [
   { id: 'replay', label: 'By Game', description: 'Each game individually' },
 ];
 
-// Aggregate data points into buckets for display
 function aggregateData(
   dataPoints: TrendDataPoint[],
   maxBuckets: number
 ): Array<{ label: string; value: number }> {
   if (dataPoints.length === 0) return [];
   if (dataPoints.length <= maxBuckets) {
-    // Use the label from the API response
     return dataPoints.map((d) => ({
       label: d.label,
       value: d.value,
     }));
   }
 
-  // Group into buckets
   const bucketSize = Math.ceil(dataPoints.length / maxBuckets);
   const buckets: Array<{ label: string; value: number }> = [];
 
   for (let i = 0; i < dataPoints.length; i += bucketSize) {
     const chunk = dataPoints.slice(i, i + bucketSize);
     const avgValue = chunk.reduce((sum, d) => sum + d.value, 0) / chunk.length;
-    // Use the first label in the bucket
     buckets.push({
       label: chunk[0]?.label || `${i + 1}`,
       value: avgValue,
@@ -138,7 +134,6 @@ export default function TrendsPage() {
     };
   }, [session?.accessToken, selectedMetric, timeRange, axisType]);
 
-  // Aggregate data into buckets for display (max 10 bars)
   const aggregatedData = aggregateData(trendData, 10);
   const data = aggregatedData.map((d) => d.value);
   const max = data.length > 0 ? Math.max(...data) : 0;
@@ -164,19 +159,7 @@ export default function TrendsPage() {
   }
 
   if (error) {
-    return (
-      <div className="p-6 lg:p-8">
-        <div className="text-center py-16">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
-            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
-          <p className="text-gray-400">{error}</p>
-        </div>
-      </div>
-    );
+    return <LoadError message={error} />;
   }
 
   return (

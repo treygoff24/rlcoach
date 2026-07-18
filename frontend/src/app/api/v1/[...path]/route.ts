@@ -27,33 +27,26 @@ async function proxyRequest(
   const path = params.path.join('/');
   const url = new URL(`/api/v1/${path}`, BACKEND_URL);
 
-  // Preserve query parameters
   request.nextUrl.searchParams.forEach((value, key) => {
     url.searchParams.append(key, value);
   });
 
-  // Get session using NextAuth v5 auth() function
   const session = await auth();
 
-  // Build headers, forwarding relevant ones
   const headers = new Headers();
 
-  // Forward content-type for POST/PUT/PATCH
   const contentType = request.headers.get('content-type');
   if (contentType) {
     headers.set('Content-Type', contentType);
   }
 
-  // Add JWT authorization if user is authenticated
   // session.accessToken is created in the session callback in auth.ts
   if (session?.accessToken) {
     headers.set('Authorization', `Bearer ${session.accessToken}`);
   }
 
-  // Forward request body for methods that have one
   let body: BodyInit | null = null;
   if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
-    // Handle multipart form data (file uploads)
     if (contentType?.includes('multipart/form-data')) {
       body = await request.blob();
     } else {
@@ -68,7 +61,6 @@ async function proxyRequest(
       body,
     });
 
-    // Get response body
     const responseContentType = response.headers.get('content-type');
     let responseBody: string | Blob;
 
@@ -78,13 +70,11 @@ async function proxyRequest(
       responseBody = await response.blob();
     }
 
-    // Create response with same status and headers
     const proxyResponse = new NextResponse(responseBody, {
       status: response.status,
       statusText: response.statusText,
     });
 
-    // Forward relevant response headers
     const headersToForward = [
       'content-type',
       'content-disposition',
@@ -113,7 +103,6 @@ async function proxyRoute(request: NextRequest, { params }: RouteContext) {
   return proxyRequest(request, await params);
 }
 
-// Export handlers for all HTTP methods
 export async function GET(request: NextRequest, context: RouteContext) {
   return proxyRoute(request, context);
 }

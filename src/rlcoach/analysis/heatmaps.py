@@ -60,17 +60,14 @@ def _generate_position_heatmap(
 ) -> dict[str, Any]:
     """Generate position occupancy heatmap from frame data."""
 
-    # Initialize grid
     grid = [[0.0 for _ in range(x_bins)] for _ in range(y_bins)]
     total_frames = 0
 
-    # Collect player positions
     for frame in frames:
         player_frame = _get_player_frame(frame, player_id)
         if not player_frame:
             continue
 
-        # Convert position to grid coordinates
         x_idx, y_idx = _position_to_grid_coords(
             player_frame.position, x_bins, y_bins, extent
         )
@@ -79,7 +76,6 @@ def _generate_position_heatmap(
             grid[y_idx][x_idx] += 1.0
             total_frames += 1
 
-    # Normalize to [0, 1] range
     if total_frames > 0:
         for y in range(y_bins):
             for x in range(x_bins):
@@ -97,11 +93,9 @@ def _generate_touch_heatmap(
 ) -> dict[str, Any]:
     """Generate touch density heatmap from touch events."""
 
-    # Initialize grid
     grid = [[0.0 for _ in range(x_bins)] for _ in range(y_bins)]
     total_touches = 0
 
-    # Process touch events
     for touch in touch_events:
         # Support both dataclass TouchEvent and dict representation
         t_pid = None
@@ -124,14 +118,12 @@ def _generate_touch_heatmap(
         else:
             pos = Vec3(0.0, 0.0, 0.0)
 
-        # Convert to grid coordinates
         x_idx, y_idx = _position_to_grid_coords(pos, x_bins, y_bins, extent)
 
         if 0 <= x_idx < x_bins and 0 <= y_idx < y_bins:
             grid[y_idx][x_idx] += 1.0
             total_touches += 1
 
-    # Normalize to [0, 1] range
     if total_touches > 0:
         max_touches = max(max(row) for row in grid)
         if max_touches > 0:
@@ -151,11 +143,9 @@ def _generate_boost_pickup_heatmap(
 ) -> dict[str, Any]:
     """Generate boost pickup heatmap from boost pickup events."""
 
-    # Initialize grid
     grid = [[0.0 for _ in range(x_bins)] for _ in range(y_bins)]
     total_pickups = 0
 
-    # Process boost pickup events
     for pickup in boost_events:
         # Support both dataclass BoostPickupEvent and dict representation
         p_pid = None
@@ -181,7 +171,6 @@ def _generate_boost_pickup_heatmap(
         else:
             pos = Vec3(0.0, 0.0, 0.0)
 
-        # Convert to grid coordinates
         x_idx, y_idx = _position_to_grid_coords(pos, x_bins, y_bins, extent)
 
         if 0 <= x_idx < x_bins and 0 <= y_idx < y_bins:
@@ -190,7 +179,6 @@ def _generate_boost_pickup_heatmap(
             grid[y_idx][x_idx] += weight
             total_pickups += weight
 
-    # Normalize to [0, 1] range
     if total_pickups > 0:
         max_pickups = max(max(row) for row in grid)
         if max_pickups > 0:
@@ -206,11 +194,9 @@ def _position_to_grid_coords(
 ) -> tuple[int, int]:
     """Convert world position to grid coordinates."""
 
-    # Normalize position to [0, 1] within extent
     x_norm = (pos.x - extent["xmin"]) / (extent["xmax"] - extent["xmin"])
     y_norm = (pos.y - extent["ymin"]) / (extent["ymax"] - extent["ymin"])
 
-    # Convert to grid indices
     x_idx = int(x_norm * x_bins)
     y_idx = int(y_norm * y_bins)
 

@@ -1,4 +1,3 @@
-# tests/api/test_coach_recap.py
 """Tests for the session recap endpoint.
 
 Covers:
@@ -15,10 +14,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
-# ---------------------------------------------------------------------------
-# Shared fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture()
@@ -177,11 +172,6 @@ def client_insufficient_messages(mock_config, monkeypatch):
             yield test_client
 
 
-# ---------------------------------------------------------------------------
-# Helper: build a fake Anthropic response and mock module
-# ---------------------------------------------------------------------------
-
-
 def _fake_anthropic_response(payload: dict) -> MagicMock:
     text_block = SimpleNamespace(text=json.dumps(payload))
     response = MagicMock()
@@ -194,11 +184,6 @@ def _make_anthropic_module(fake_client: MagicMock) -> MagicMock:
     mock_module = MagicMock()
     mock_module.Anthropic.return_value = fake_client
     return mock_module
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 def test_recap_uses_ai_when_api_key_set(client_with_messages: TestClient, monkeypatch):

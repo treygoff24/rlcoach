@@ -6,7 +6,8 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 
-from ..parser.types import Frame, PlayerFrame, Vec3
+from ..parser.types import Frame, Vec3
+from .protocol import get_player_ids
 
 
 class RecoveryQuality(Enum):
@@ -169,12 +170,7 @@ def detect_recoveries_for_player(
     prev_velocity: Vec3 | None = None
 
     for frame in frames:
-        # Find player in this frame
-        player: PlayerFrame | None = None
-        for p in frame.players:
-            if p.player_id == player_id:
-                player = p
-                break
+        player = frame.get_player_by_id(player_id)
 
         if player is None:
             continue
@@ -187,7 +183,6 @@ def detect_recoveries_for_player(
 
         is_on_ground = pos.z < GROUND_HEIGHT_THRESHOLD or player.is_on_ground
 
-        # Track airborne state
         if not state.is_airborne and not is_on_ground and pos.z > AIRBORNE_MIN_HEIGHT:
             # Just became airborne
             state.is_airborne = True
@@ -216,11 +211,9 @@ def detect_recoveries_for_player(
                 state.landing_velocity = vel
                 state.speed_at_landing = speed
 
-        # Track recovery after landing
         if state.landed_time is not None and not state.recovery_complete:
             time_since_landing = timestamp - state.landed_time
 
-            # Check for wavedash (speed boost shortly after landing)
             if (
                 not state.wavedash_detected
                 and time_since_landing < WAVEDASH_WINDOW
@@ -228,7 +221,6 @@ def detect_recoveries_for_player(
             ):
                 state.wavedash_detected = True
 
-            # Check for stable movement (velocity not changing dramatically)
             if prev_velocity is not None:
                 vel_change = _calculate_speed(
                     Vec3(
@@ -307,11 +299,7 @@ def analyze_recoveries(frames: list[Frame]) -> dict:
     Returns:
         Dict with recovery analysis results
     """
-    # Get all unique player IDs
-    player_ids: set[str] = set()
-    for frame in frames:
-        for player in frame.players:
-            player_ids.add(player.player_id)
+    player_ids = get_player_ids(frames)
 
     # Detect recoveries for each player
     per_player: dict[str, dict] = {}
@@ -320,7 +308,6 @@ def analyze_recoveries(frames: list[Frame]) -> dict:
     for player_id in sorted(player_ids):
         events = detect_recoveries_for_player(frames, player_id)
 
-        # Aggregate statistics
         if events:
             quality_counts = {q.value: 0 for q in RecoveryQuality}
             total_momentum = 0.0
@@ -332,7 +319,6 @@ def analyze_recoveries(frames: list[Frame]) -> dict:
                 if event.was_wavedash:
                     wavedash_count += 1
 
-                # Add to flat event list
                 all_events.append(
                     {
                         "timestamp": event.timestamp,
@@ -378,10 +364,8 @@ def analyze_recoveries(frames: list[Frame]) -> dict:
                 "wavedash_count": 0,
             }
 
-    # Sort events by timestamp
     all_events.sort(key=lambda e: e["timestamp"])
 
-    # Calculate team aggregates
     total_recoveries = sum(p.get("total_recoveries", 0) for p in per_player.values())
     total_excellent = sum(p.get("excellent_count", 0) for p in per_player.values())
     total_wavedashes = sum(p.get("wavedash_count", 0) for p in per_player.values())

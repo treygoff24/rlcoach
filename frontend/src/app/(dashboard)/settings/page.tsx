@@ -1,4 +1,3 @@
-// frontend/src/app/(dashboard)/settings/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -13,7 +12,6 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const user = session?.user as { id?: string; name?: string | null; email?: string | null; image?: string | null; subscriptionTier?: string } | undefined;
-  // Check subscription tier from session (auth.ts exposes it in session.user.subscriptionTier)
   const isPro = user?.subscriptionTier === 'pro';
 
   const handleManageSubscription = async () => {

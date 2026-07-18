@@ -1,4 +1,3 @@
-# src/rlcoach/db/writer.py
 """Transform JSON reports into database records."""
 
 from __future__ import annotations
@@ -200,20 +199,17 @@ def insert_replay(
 
     session = create_session()
     try:
-        # Check for duplicate replay_id
         if session.get(Replay, replay_id):
             raise ReplayExistsError(
                 f"Replay with replay_id '{replay_id}' already exists"
             )
 
-        # Check for duplicate file_hash
         existing_hash = session.query(Replay).filter_by(file_hash=file_hash).first()
         if existing_hash:
             raise ReplayExistsError(
                 f"Replay with file_hash '{file_hash}' already exists"
             )
 
-        # Find "me" in players
         resolver = PlayerIdentityResolver(config.identity)
         my_player = resolver.find_me(players)
         if not my_player:
@@ -226,7 +222,6 @@ def insert_replay(
         my_player_id = my_player["player_id"]
         my_team = my_player["team"]
 
-        # Determine result
         my_score = (
             teams["blue"]["score"] if my_team == "BLUE" else teams["orange"]["score"]
         )
@@ -251,7 +246,6 @@ def insert_replay(
 
         play_date = compute_play_date(played_at_utc, config.preferences.timezone)
 
-        # Build json_report_path
         json_report_path = str(
             config.paths.reports_dir / play_date.isoformat() / f"{replay_id}.json"
         )
@@ -297,7 +291,6 @@ def insert_player_stats(report: dict[str, Any], config: RLCoachConfig) -> None:
     players = report["players"]
     per_player = report.get("analysis", {}).get("per_player", {})
 
-    # Find "me" and my team for flag determination
     resolver = PlayerIdentityResolver(config.identity)
     my_player = resolver.find_me(players)
     my_player_id = my_player["player_id"] if my_player else None
@@ -310,7 +303,6 @@ def insert_player_stats(report: dict[str, Any], config: RLCoachConfig) -> None:
             team = p["team"]
             player_data = per_player.get(pid, {})
 
-            # Extract metrics from nested structure
             fundamentals = player_data.get("fundamentals", {})
             boost = player_data.get("boost", {})
             movement = player_data.get("movement", {})
@@ -322,7 +314,6 @@ def insert_player_stats(report: dict[str, Any], config: RLCoachConfig) -> None:
             defense = player_data.get("defense", {})
             xg = player_data.get("xg", {})
 
-            # Determine role flags
             is_me = pid == my_player_id
             is_teammate = not is_me and team == my_team
             is_opponent = team != my_team
@@ -343,7 +334,6 @@ def insert_player_stats(report: dict[str, Any], config: RLCoachConfig) -> None:
                 score=fundamentals.get("score"),
                 demos_inflicted=fundamentals.get("demos_inflicted"),
                 demos_taken=fundamentals.get("demos_taken"),
-                # Boost - keys now match between analyzer and metrics catalog
                 bcpm=boost.get(
                     "bpm"
                 ),  # Boost amount per minute (industry-standard BCPM)
@@ -445,11 +435,9 @@ def write_report(
     insert_player_stats(report, config)
 
     # Step 4: Update daily stats aggregation
-    # Get play_date and playlist from the inserted replay
     metadata = report.get("metadata", {})
     playlist = metadata.get("playlist", "UNKNOWN")
 
-    # Compute play_date same way as insert_replay
     played_at_str = metadata.get("started_at_utc", "")
     if played_at_str:
         played_at_str = played_at_str.replace("Z", "+00:00")
@@ -496,13 +484,11 @@ def write_report_saas(
 
     session = create_session()
     try:
-        # Check for duplicate replay_id
         if session.get(Replay, replay_id):
             raise ReplayExistsError(
                 f"Replay with replay_id '{replay_id}' already exists"
             )
 
-        # Check for duplicate file_hash
         existing_hash = session.query(Replay).filter_by(file_hash=file_hash).first()
         if existing_hash:
             raise ReplayExistsError(
@@ -527,7 +513,6 @@ def write_report_saas(
         my_player_id = my_player.get("player_id") if my_player else None
         my_team = my_player.get("team") if my_player else None
 
-        # Get scores
         blue_score = teams.get("blue", {}).get("score", 0)
         orange_score = teams.get("orange", {}).get("score", 0)
         my_score = None
@@ -549,7 +534,6 @@ def write_report_saas(
             else:
                 result = "DRAW"
 
-        # Create replay record (without my_player_id since no identity config)
         replay = Replay(
             replay_id=replay_id,
             source_file=report.get("source_file", ""),
@@ -613,7 +597,6 @@ def write_report_saas(
                 elif team != my_team:
                     is_opponent = True
 
-            # Extract metrics from nested structure
             fundamentals = player_data.get("fundamentals", {})
             boost = player_data.get("boost", {})
             movement = player_data.get("movement", {})

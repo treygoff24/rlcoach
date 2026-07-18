@@ -1,4 +1,3 @@
-# src/rlcoach/db/session.py
 """Database session management.
 
 Supports both SQLite (local CLI, tests) and PostgreSQL (SaaS).

@@ -55,12 +55,10 @@ def analyze_fundamentals(
     if not events:
         return _empty_fundamentals()
 
-    # Extract event lists with safe defaults
     goals = events.get("goals", [])
     demos = events.get("demos", [])
     touches = events.get("touches", [])
 
-    # Count goals
     goals_count = 0
     assists_count = 0
 
@@ -72,7 +70,6 @@ def analyze_fundamentals(
         if goal.assist and _matches_filter(goal.assist, goal.team, player_id, team):
             assists_count += 1
 
-    # Count demos inflicted and taken
     demos_inflicted = 0
     demos_taken = 0
 
@@ -87,7 +84,6 @@ def analyze_fundamentals(
         if _matches_filter(demo.victim, demo.team_victim, player_id, team):
             demos_taken += 1
 
-    # Count shots and saves from touch events
     shots_count = 0
     saves_count = 0
 
@@ -178,12 +174,10 @@ def _infer_team_from_events(
 
     This is a fallback for touch events which don't include team info.
     """
-    # Check goals where this player was scorer
     for goal in goals:
         if goal.scorer == player_id:
             return goal.team
 
-    # Check demos where this player was victim or attacker
     for demo in demos:
         if demo.victim == player_id:
             return demo.team_victim

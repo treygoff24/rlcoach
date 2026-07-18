@@ -16,6 +16,7 @@ from enum import Enum
 from ..field_constants import FIELD, Vec3
 from ..normalize import DEFAULT_FRAME_RATE
 from ..parser.types import Frame, PlayerFrame
+from .protocol import get_player_teams
 
 
 class DefensiveRole(Enum):
@@ -216,7 +217,6 @@ def _calculate_defensive_coverage(
     goal_y = -FIELD.BACK_WALL_Y if team == 0 else FIELD.BACK_WALL_Y
     Vec3(0.0, goal_y, FIELD.GOAL_HEIGHT / 2)
 
-    # Check coverage at different goal positions
     goal_positions = [
         Vec3(-FIELD.GOAL_WIDTH * 0.4, goal_y, FIELD.GOAL_HEIGHT * 0.3),
         Vec3(0.0, goal_y, FIELD.GOAL_HEIGHT * 0.3),
@@ -228,7 +228,6 @@ def _calculate_defensive_coverage(
 
     covered_points = 0
     for _goal_point in goal_positions:
-        # Check if any defender is in the path
         for defender in defenders:
             if not _is_goal_side(defender.position, ball_pos, team):
                 continue
@@ -255,8 +254,7 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
     ball_pos = frame.ball.position
     ball_dist_to_goal = _distance_to_own_goal(ball_pos, team)
 
-    # Get team's players
-    team_players = [p for p in frame.players if p.team == team]
+    team_players = frame.get_players_by_team(team)
 
     if not team_players:
         return DefensiveSnapshot(
@@ -271,7 +269,6 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
             player_roles={},
         )
 
-    # Sort by distance to own goal (closest = last defender)
     sorted_by_goal_dist = sorted(
         team_players, key=lambda p: _distance_to_own_goal(p.position, team)
     )
@@ -305,7 +302,6 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
         else:
             player_roles[player.player_id] = DefensiveRole.OUT_OF_POSITION
 
-    # Calculate coverage
     defenders_goal_side = [
         p for p in team_players if _is_goal_side(p.position, ball_pos, team)
     ]
@@ -313,7 +309,6 @@ def analyze_defensive_frame(frame: Frame, team: int) -> DefensiveSnapshot:
         defenders_goal_side, ball_pos, team
     )
 
-    # Check danger zone
     in_defensive_third = (team == 0 and ball_pos.y < -DEFENSIVE_THIRD_Y) or (
         team == 1 and ball_pos.y > DEFENSIVE_THIRD_Y
     )
@@ -347,14 +342,8 @@ def analyze_defense(frames: list[Frame]) -> dict:
     per_player: dict[str, dict] = {}
     danger_moments: list[dict] = []
 
-    # Get all unique player IDs with their teams
-    player_teams: dict[str, int] = {}
-    for frame in frames:
-        for player in frame.players:
-            if player.player_id not in player_teams:
-                player_teams[player.player_id] = player.team
+    player_teams = get_player_teams(frames)
 
-    # Initialize per-player stats
     for player_id in player_teams:
         per_player[player_id] = {
             "time_as_last_defender": 0.0,
@@ -384,7 +373,6 @@ def analyze_defense(frames: list[Frame]) -> dict:
         for team in [0, 1]:
             snapshot = analyze_defensive_frame(frame, team)
 
-            # Track danger zone time
             if snapshot.is_danger_zone:
                 if team == 0:
                     blue_danger_time += dt
@@ -400,7 +388,6 @@ def analyze_defense(frames: list[Frame]) -> dict:
                     }
                 )
 
-            # Update player role times
             for player_id, role in snapshot.player_roles.items():
                 if player_id not in per_player:
                     continue
@@ -412,10 +399,7 @@ def analyze_defense(frames: list[Frame]) -> dict:
                 elif role == DefensiveRole.SHADOW:
                     per_player[player_id]["time_shadowing"] += dt
 
-                    # Calculate shadow quality for this moment
-                    player_frame = next(
-                        (p for p in frame.players if p.player_id == player_id), None
-                    )
+                    player_frame = frame.get_player_by_id(player_id)
                     if player_frame:
                         shadow_angle = _calculate_shadow_angle(
                             player_frame.position, frame.ball.position, team

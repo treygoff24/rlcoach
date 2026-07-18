@@ -1,4 +1,3 @@
-// frontend/src/app/login/page.tsx
 /**
  * Login page with OAuth provider buttons.
  *
@@ -21,9 +20,6 @@ function LoginForm() {
   const [tosAccepted, setTosAccepted] = useState(false);
 
   const handleSignIn = (provider: string) => {
-    if (!tosAccepted) {
-      return; // Button is disabled anyway, but extra safety
-    }
     // Store ToS acceptance in sessionStorage so we can record it after OAuth callback
     try {
       sessionStorage.setItem('tos_accepted_at', new Date().toISOString());

@@ -9,22 +9,13 @@ from __future__ import annotations
 from ..field_constants import FIELD, Vec3
 from .types import PadEnvelope
 
-# =============================================================================
-# Goal Detection
-# =============================================================================
 GOAL_LINE_THRESHOLD = FIELD.BACK_WALL_Y - FIELD.GOAL_DEPTH  # Front plane of goal
 GOAL_EXIT_THRESHOLD = GOAL_LINE_THRESHOLD - 200.0
 GOAL_LOOKBACK_WINDOW_S = 1.0  # Look back up to 1 second before goal frame
 MIN_SHOT_VELOCITY_UU_S = 500.0  # Minimum velocity to consider as valid shot speed
 
-# =============================================================================
-# Demo Detection
-# =============================================================================
 DEMO_POSITION_TOLERANCE = 500.0  # Max distance for demo attacker detection (units)
 
-# =============================================================================
-# Touch Detection
-# =============================================================================
 TOUCH_PROXIMITY_THRESHOLD = 200.0  # Distance for player-ball contact (units)
 TOUCH_DEBOUNCE_TIME = 0.2  # seconds
 TOUCH_LOCATION_EPS = 120.0  # uu
@@ -37,9 +28,6 @@ CEILING_HEIGHT_THRESHOLD = 1900.0  # Height to consider ceiling touch
 AERIAL_HEIGHT_THRESHOLD = 300.0  # Height to consider aerial touch
 HALF_VOLLEY_HEIGHT = 100.0  # Height for half volley detection
 
-# =============================================================================
-# Boost Pickup Detection
-# =============================================================================
 BOOST_PICKUP_MIN_GAIN = 1.0  # Minimum net gain to record a pickup event
 BOOST_HISTORY_WINDOW_S = 0.45
 BOOST_HISTORY_MAX_SAMPLES = 18
@@ -59,9 +47,6 @@ CHAIN_PAD_RADIUS = 1500.0
 CENTERLINE_TOLERANCE = 1200.0  # Within this Y range is considered neutral half
 PAD_NEUTRAL_TOLERANCE = 1200.0
 
-# =============================================================================
-# Kickoff Detection
-# =============================================================================
 BALL_STATIONARY_THRESHOLD = 50.0  # Ball speed for kickoff detection (units/s)
 KICKOFF_CENTER_POSITION = Vec3(0.0, 0.0, 93.15)
 KICKOFF_POSITION_TOLERANCE = 120.0
@@ -84,9 +69,6 @@ APPROACH_TYPE_KEYS = [
     "UNKNOWN",
 ]
 
-# =============================================================================
-# Challenge Detection
-# =============================================================================
 CHALLENGE_WINDOW_S = 1.2
 CHALLENGE_RADIUS_UU = 1000.0
 CHALLENGE_MIN_DISTANCE_UU = 200.0
@@ -99,9 +81,6 @@ RISK_AHEAD_OF_BALL_WEIGHT = 0.4
 RISK_LOW_BOOST_WEIGHT = 0.3
 RISK_LAST_MAN_WEIGHT = 0.3
 
-# =============================================================================
-# Precomputed Pad Envelopes
-# =============================================================================
 PAD_ENVELOPES: dict[int, PadEnvelope] = {}
 for _pad in FIELD.BOOST_PADS:
     _base_radius = _pad.radius + (

@@ -62,7 +62,6 @@ def test_normalization_and_events_from_rust_like_frames():
         ]
     )
 
-    # Build a short kickoff + touch sequence at ~30 Hz
     frames = []
     # Two stationary frames at center (kickoff phase)
     frames.append(
@@ -102,7 +101,6 @@ def test_normalization_and_events_from_rust_like_frames():
         )
     )
 
-    # Normalize frames
     normalized = build_timeline(header, frames)
 
     # Frame rate should be sane (20..60 Hz)

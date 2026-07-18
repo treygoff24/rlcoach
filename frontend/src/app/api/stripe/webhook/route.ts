@@ -1,4 +1,3 @@
-// frontend/src/app/api/stripe/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
@@ -13,7 +12,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
     }
 
-    // Forward to FastAPI backend
     const response = await fetch(`${BACKEND_URL}/stripe/webhook`, {
       method: 'POST',
       headers: {

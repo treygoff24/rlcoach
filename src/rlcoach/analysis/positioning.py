@@ -17,7 +17,7 @@ import math
 from typing import Any
 
 from ..field_constants import FieldConstants, Vec3
-from ..parser.types import Frame, Header, PlayerFrame
+from ..parser.types import Frame, Header
 
 # Role detection thresholds (distance-based)
 FIRST_MAN_DISTANCE_THRESHOLD = 800.0  # Distance to ball for first man
@@ -79,7 +79,6 @@ def analyze_positioning(
 def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str, Any]:
     """Analyze positioning metrics for a specific player."""
 
-    # Initialize counters
     total_frames = 0
     total_distance_to_ball = 0.0
     total_distance_to_teammates = 0.0
@@ -101,14 +100,12 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
     second_man_frames = 0
     third_man_frames = 0
 
-    # Determine player's team and team size from first valid frame
     player_team = None
     team_size = 0
     for frame in frames:
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if player_frame:
             player_team = player_frame.team
-            # Count teammates (including this player)
             team_size = sum(1 for p in frame.players if p.team == player_team)
             break
 
@@ -118,7 +115,7 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
     prev_timestamp: float | None = None
 
     for idx, frame in enumerate(frames):
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if not player_frame:
             continue
 
@@ -130,7 +127,6 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
         # Field occupancy analysis
         player_pos = player_frame.position
 
-        # Determine offensive/defensive based on team
         if player_team == 0:  # Blue team defends negative Y
             is_offensive_half = player_pos.y > 0
         else:  # Orange team defends positive Y
@@ -183,7 +179,6 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
         ]
 
         if teammates:
-            # Calculate distance to teammates
             teammate_distances = []
             for teammate in teammates:
                 teammate_dist = _calculate_distance(player_pos, teammate.position)
@@ -191,13 +186,11 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
                 total_distance_to_teammates += teammate_dist
                 teammate_distance_count += 1
 
-            # Determine role based on distance to ball relative to teammates
             teammate_ball_distances = [
                 _calculate_distance(t.position, ball_pos) for t in teammates
             ]
             player_ball_distance = distance_to_ball
 
-            # Count how many teammates are closer to ball
             closer_teammates = sum(
                 1 for dist in teammate_ball_distances if dist < player_ball_distance
             )
@@ -214,7 +207,6 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
 
         prev_timestamp = frame.timestamp
 
-    # Calculate percentages and averages
     if total_frames == 0:
         return _empty_positioning()
 
@@ -256,20 +248,18 @@ def _analyze_player_positioning(frames: list[Frame], player_id: str) -> dict[str
 def _analyze_team_positioning(frames: list[Frame], team: str) -> dict[str, Any]:
     """Analyze positioning metrics for a team (aggregate all players)."""
 
-    # Get all unique player IDs for the team and determine team size
     team_players = set()
     team_id = 0 if team == "BLUE" else 1
 
     for frame in frames:
-        for player in frame.players:
-            if player.team == team_id:
-                team_players.add(player.player_id)
+        team_players.update(
+            player.player_id for player in frame.get_players_by_team(team_id)
+        )
 
     team_size = len(team_players)
     if team_size == 0:
         return _empty_positioning(team_size=0)
 
-    # Aggregate metrics from all team members
     # third_man_pct is only meaningful for 3v3 (team_size >= 3)
     team_metrics = {
         "time_offensive_half_s": 0.0,
@@ -315,7 +305,6 @@ def _analyze_team_positioning(frames: list[Frame], team: str) -> dict[str, Any]:
         if team_size >= 3 and player_metrics["third_man_pct"] is not None:
             team_metrics["third_man_pct"] += player_metrics["third_man_pct"]
 
-    # Calculate team averages for percentage metrics
     if team_size > 0:
         team_metrics["behind_ball_pct"] = round(
             team_metrics["behind_ball_pct"] / team_size, 2
@@ -361,17 +350,15 @@ def calculate_rotation_compliance(
     if not frames:
         return {"score_0_to_100": 0.0, "flags": []}
 
-    # Initialize violation counters
     double_commit_count = 0
     overcommit_count = 0
     total_frames = 0
 
     flags = []
 
-    # Determine player's team
     player_team = None
     for frame in frames:
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if player_frame:
             player_team = player_frame.team
             break
@@ -380,13 +367,12 @@ def calculate_rotation_compliance(
         return {"score_0_to_100": 0.0, "flags": []}
 
     for frame in frames:
-        player_frame = _find_player_in_frame(frame, player_id)
+        player_frame = frame.get_player_by_id(player_id)
         if not player_frame:
             continue
 
         total_frames += 1
 
-        # Get teammates
         teammates = [
             p
             for p in frame.players
@@ -395,7 +381,6 @@ def calculate_rotation_compliance(
         ball_pos = frame.ball.position
         player_pos = player_frame.position
 
-        # Check for double commit (multiple teammates very close to ball)
         close_to_ball_count = 0
         distance_to_ball = _calculate_distance(player_pos, ball_pos)
 
@@ -410,9 +395,7 @@ def calculate_rotation_compliance(
         if close_to_ball_count >= 2:
             double_commit_count += 1
 
-        # Check for overcommit (last man going forward with low boost)
         if teammates:
-            # Check if this player is furthest back
             teammate_y_positions = [t.position.y for t in teammates]
 
             if player_team == 0:  # Blue team
@@ -429,7 +412,6 @@ def calculate_rotation_compliance(
             ):
                 overcommit_count += 1
 
-    # Calculate base score (start with 100, deduct for violations)
     base_score = 100.0
 
     if total_frames > 0:
@@ -458,14 +440,6 @@ def calculate_rotation_compliance(
             flags.append("critical_positioning")
 
     return {"score_0_to_100": round(final_score, 2), "flags": flags}
-
-
-def _find_player_in_frame(frame: Frame, player_id: str) -> PlayerFrame | None:
-    """Find player frame by ID, or None if not found."""
-    for player in frame.players:
-        if player.player_id == player_id:
-            return player
-    return None
 
 
 def _calculate_distance(pos1: Vec3, pos2: Vec3) -> float:

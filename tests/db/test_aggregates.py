@@ -1,4 +1,3 @@
-# tests/db/test_aggregates.py
 """Tests for daily stats aggregation."""
 
 from datetime import date, datetime, timezone
@@ -18,12 +17,10 @@ def reset_db():
 
 def _create_test_data(session, play_date: date, games: list[dict]):
     """Create test replays with stats."""
-    # Ensure player exists
     if not session.get(Player, "steam:me123"):
         session.add(Player(player_id="steam:me123", display_name="Me", is_me=True))
         session.commit()
 
-    # Count existing replays to avoid ID collision
     existing_count = session.query(Replay).filter(Replay.play_date == play_date).count()
 
     for i, game in enumerate(games):
@@ -144,7 +141,6 @@ def test_update_daily_stats_updates_existing(tmp_path):
     session = create_session()
     today = date(2024, 12, 23)
 
-    # Create initial games
     _create_test_data(
         session,
         today,
@@ -172,7 +168,6 @@ def test_update_daily_stats_updates_existing(tmp_path):
     assert daily.games_played == 1
     session.close()
 
-    # Add more games
     session = create_session()
     _create_test_data(
         session,

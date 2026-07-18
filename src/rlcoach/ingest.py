@@ -74,15 +74,12 @@ def read_replay_bytes(path: Path) -> bytes:
     """
     path_str = str(path)
 
-    # Check if file exists
     if not path.exists():
         raise ReplayFileNotFoundError(path_str)
 
-    # Check if it's actually a file (not a directory)
     if not path.is_file():
         raise InvalidReplayFormatError(path_str, "Path is not a regular file")
 
-    # Check file size bounds before reading
     try:
         file_size = path.stat().st_size
     except OSError as e:
@@ -94,7 +91,6 @@ def read_replay_bytes(path: Path) -> bytes:
     if file_size > MAX_REPLAY_SIZE:
         raise FileTooLargeError(file_size, MAX_REPLAY_SIZE, path_str)
 
-    # Read file contents
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -188,7 +184,6 @@ def basic_format_check(data: bytes) -> tuple[bool, str]:
     if len(data) < 100:
         return False, "File too short to be a valid replay"
 
-    # Check for known replay magic sequences in the first 2KB
     header_chunk = data[:2048]
 
     for magic_sequence in REPLAY_MAGIC_SEQUENCES:
@@ -199,7 +194,6 @@ def basic_format_check(data: bytes) -> tuple[bool, str]:
                 f"(found '{magic_sequence.decode('ascii', errors='replace')}')",
             )
 
-    # Check if it looks like binary data (not text)
     try:
         data[:100].decode("utf-8")
         return False, "File appears to be text, not a binary replay file"
@@ -319,12 +313,10 @@ def ingest_replay(path: Path) -> dict:
     """
     path_str = str(path)
 
-    # Read file and get basic info
     data = read_replay_bytes(path)
     file_size = len(data)
     file_hash = file_sha256(path)
 
-    # Validate bounds
     bounds_ok, bounds_msg = bounds_check(file_size)
     if not bounds_ok:
         if file_size < MIN_REPLAY_SIZE:
@@ -332,7 +324,6 @@ def ingest_replay(path: Path) -> dict:
         else:
             raise FileTooLargeError(file_size, MAX_REPLAY_SIZE, path_str)
 
-    # Check basic format
     format_ok, format_msg = basic_format_check(data)
     if not format_ok:
         raise InvalidReplayFormatError(path_str, format_msg)

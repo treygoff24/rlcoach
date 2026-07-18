@@ -1,4 +1,3 @@
-# src/rlcoach/db/replay_sessions.py
 """Session detection for grouping replays.
 
 Replays within a configurable time gap are considered part of the same
@@ -114,7 +113,6 @@ def assign_sessions_to_replays(
     if not replays:
         return {}
 
-    # Sort by played_at
     sorted_replays = sorted(replays, key=lambda r: r.played_at_utc)
     gap = timedelta(minutes=session_gap_minutes)
 
@@ -123,7 +121,6 @@ def assign_sessions_to_replays(
     last_played_at: datetime | None = None
 
     for replay in sorted_replays:
-        # Check if this replay starts a new session
         if last_played_at is None or (replay.played_at_utc - last_played_at) > gap:
             # New session
             current_session_id = generate_session_id(user_id, replay.played_at_utc)

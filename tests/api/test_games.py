@@ -1,4 +1,3 @@
-# tests/api/test_games.py
 """Tests for games and replays endpoints."""
 
 from datetime import date, datetime, timezone
@@ -56,7 +55,6 @@ def db_with_data(mock_config):
     init_db(mock_config.db_path)
     session = create_session()
 
-    # Add test user
     session.add(
         User(
             id=TEST_USER_ID,
@@ -65,10 +63,8 @@ def db_with_data(mock_config):
         )
     )
 
-    # Add player
     session.add(Player(player_id="steam:me123", display_name="TestPlayer", is_me=True))
 
-    # Add replays and link to test user
     for i in range(5):
         result = "WIN" if i % 2 == 0 else "LOSS"
         session.add(
@@ -110,7 +106,6 @@ def db_with_data(mock_config):
             )
         )
 
-    # Add daily stats
     session.add(
         DailyStats(
             play_date=date(2024, 12, 23),

@@ -1,4 +1,3 @@
-# src/rlcoach/api/app.py
 """FastAPI application setup."""
 
 from __future__ import annotations
@@ -51,7 +50,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger = logging.getLogger(__name__)
 
-    # Check for SaaS mode via DATABASE_URL
     database_url = os.getenv("DATABASE_URL")
 
     if database_url:
@@ -169,7 +167,6 @@ def _register_routes(app: FastAPI) -> None:
         db_status = "not_initialized"
         redis_status = "not_configured"
 
-        # Check database
         try:
             session = create_session()
             session.close()
@@ -177,7 +174,6 @@ def _register_routes(app: FastAPI) -> None:
         except Exception:
             db_status = "disconnected"
 
-        # Check Redis if configured
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
             try:

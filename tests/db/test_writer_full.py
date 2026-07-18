@@ -1,4 +1,3 @@
-# tests/db/test_writer_full.py
 from datetime import date
 from pathlib import Path
 
@@ -92,7 +91,6 @@ def test_write_report_full_pipeline(tmp_path, config, full_report):
 
     session = create_session()
     try:
-        # Check players were created
         players = session.query(Player).all()
         assert len(players) == 2
 
@@ -100,13 +98,11 @@ def test_write_report_full_pipeline(tmp_path, config, full_report):
         assert me is not None
         assert me.is_me is True
 
-        # Check replay was created
         replay = session.get(Replay, "abc123hash")
         assert replay is not None
         assert replay.result == "WIN"
         assert replay.play_date == date(2024, 12, 23)
 
-        # Check stats were created
         stats = session.query(PlayerGameStats).all()
         assert len(stats) == 2
 

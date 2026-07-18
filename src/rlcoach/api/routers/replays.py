@@ -1,4 +1,3 @@
-# src/rlcoach/api/routers/replays.py
 """Replay upload and management API endpoints.
 
 Handles replay file uploads, processing status, and retrieval.
@@ -70,7 +69,6 @@ def _validate_replay_content(content: bytes) -> bool:
     if len(content) < 100:
         return False
 
-    # Check for TAGame marker within first 1000 bytes
     # This appears in all valid Rocket League replays
     header_section = content[:1000]
     return REPLAY_HEADER_MARKER in header_section
@@ -144,7 +142,6 @@ async def upload_replay(
     if not rate_result.allowed:
         raise rate_limit_response(rate_result)
 
-    # Check if system can accept uploads (backpressure)
     try:
         from ...worker.tasks import can_accept_upload
 
@@ -158,7 +155,6 @@ async def upload_replay(
         # Worker not available - continue without backpressure check
         pass
 
-    # Validate and sanitize filename
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename required")
 
@@ -191,7 +187,6 @@ async def upload_replay(
                 ),
             )
 
-    # Read file in streaming mode to check size and compute hash
     # without duplicating memory (write to temp file as we read)
     import tempfile
 
@@ -199,7 +194,6 @@ async def upload_replay(
     chunk_size = 64 * 1024  # 64KB chunks
     hasher = hashlib.sha256()
 
-    # Create temp file for streaming
     # Use run_in_executor for file blocking I/O in async endpoint
     import asyncio
 
@@ -243,7 +237,6 @@ async def upload_replay(
             status_code=400, detail="File too small to be a valid replay"
         )
 
-    # Validate replay file content (magic bytes check)
     if not _validate_replay_content(header_content):
         await loop.run_in_executor(None, lambda: temp_path.unlink(missing_ok=True))
         raise HTTPException(
@@ -255,7 +248,6 @@ async def upload_replay(
     # SHA256 already computed during streaming
     file_hash = hasher.hexdigest()
 
-    # Check for duplicate
     existing = (
         db.query(UploadedReplay)
         .filter(
@@ -274,7 +266,7 @@ async def upload_replay(
             sha256=existing.file_hash,
         )
 
-    # Save file to upload directory - SECURITY FIX: use secure temp dir
+    # A relative upload root could fall back to a shared temporary directory.
     upload_dir = Path(os.getenv("UPLOAD_DIR", ""))
     if not upload_dir or not upload_dir.is_absolute():
         # Fallback to secure temp directory instead of /tmp
@@ -282,7 +274,6 @@ async def upload_replay(
 
         upload_dir = Path(tempfile.gettempdir()) / f"rlcoach-{os.getuid()}" / "uploads"
 
-    # Create directory if needed (blocking I/O)
     def _create_upload_dir():
         upload_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
@@ -295,7 +286,6 @@ async def upload_replay(
 
     await loop.run_in_executor(None, shutil.move, str(temp_path), str(file_path))
 
-    # Create upload record
     upload = UploadedReplay(
         id=upload_id,
         user_id=user.id,
@@ -541,7 +531,7 @@ def list_library(
         .all()
     )
 
-    # Get upload info for each replay - SECURITY FIX: filter by user_id
+    # Replay IDs are not authorization; scope metadata to the owner.
     items = []
     for replay in replays:
         upload = (
@@ -675,7 +665,7 @@ def get_replay_analysis(
     if not replay:
         raise HTTPException(status_code=404, detail="Replay not found")
 
-    # Get upload info for filename - SECURITY FIX: filter by user_id
+    # Replay IDs are not authorization; scope metadata to the owner.
     upload = (
         db.query(UploadedReplay)
         .filter(

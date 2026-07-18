@@ -1,6 +1,6 @@
 import type { AspEvent } from "@/lib/coach/asp";
 
-export type Message = { role: "assistant" | "user"; content: string };
+type Message = { role: "assistant" | "user"; content: string };
 
 export type StreamAction = AspEvent | { type: "user_message"; text: string };
 

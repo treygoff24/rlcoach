@@ -1,4 +1,3 @@
-# src/rlcoach/config.py
 """Configuration management for RLCoach."""
 
 from __future__ import annotations
@@ -71,7 +70,6 @@ class RLCoachConfig:
                 "in [identity]"
             )
 
-        # Validate platform ID format
         for pid in self.identity.platform_ids:
             if not PLATFORM_ID_PATTERN.match(pid):
                 raise ConfigError(
@@ -80,21 +78,18 @@ class RLCoachConfig:
                     f"{', '.join(sorted(VALID_PLATFORMS))}"
                 )
 
-        # Validate target rank
         if self.preferences.target_rank not in VALID_RANKS:
             raise ConfigError(
                 f"Invalid target_rank '{self.preferences.target_rank}'. "
                 f"Must be one of: {', '.join(sorted(VALID_RANKS))}"
             )
 
-        # Validate playlist
         if self.preferences.primary_playlist not in VALID_PLAYLISTS:
             raise ConfigError(
                 f"Invalid primary_playlist '{self.preferences.primary_playlist}'. "
                 f"Must be one of: {', '.join(sorted(VALID_PLAYLISTS))}"
             )
 
-        # Validate timezone (IANA format)
         if self.preferences.timezone is not None:
             try:
                 ZoneInfo(self.preferences.timezone)
@@ -104,7 +99,6 @@ class RLCoachConfig:
                     "Must be a valid IANA timezone (e.g., 'America/Los_Angeles')"
                 ) from e
 
-        # Validate no overlap between display_names and excluded_names
         display_set = {n.casefold().strip() for n in self.identity.display_names}
         excluded_set = {n.casefold().strip() for n in self.identity.excluded_names}
         overlap = display_set & excluded_set

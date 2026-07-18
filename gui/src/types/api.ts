@@ -1,5 +1,7 @@
 // API response types for RLCoach
 
+export type GameResult = 'WIN' | 'LOSS' | 'DRAW';
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -16,15 +18,17 @@ export interface QuickStats {
   avg_bcpm_today: number | null;
 }
 
-export interface RecentGame {
+interface ReplaySummary {
   replay_id: string;
   played_at_utc: string;
   playlist: string;
-  result: 'WIN' | 'LOSS' | 'DRAW';
+  result: GameResult;
   my_score: number;
   opponent_score: number;
   duration_seconds: number;
 }
+
+export type RecentGame = ReplaySummary;
 
 export interface DashboardResponse {
   quick_stats: QuickStats;
@@ -33,15 +37,8 @@ export interface DashboardResponse {
 }
 
 // Game/Replay types
-export interface Game {
-  replay_id: string;
-  played_at_utc: string;
+export interface Game extends ReplaySummary {
   play_date: string;
-  playlist: string;
-  result: 'WIN' | 'LOSS' | 'DRAW';
-  my_score: number;
-  opponent_score: number;
-  duration_seconds: number;
   map: string;
 }
 
@@ -62,14 +59,7 @@ export interface PlayerStats {
   third_man_pct: number | null;
 }
 
-export interface ReplayDetail {
-  replay_id: string;
-  played_at_utc: string;
-  playlist: string;
-  result: 'WIN' | 'LOSS' | 'DRAW';
-  my_score: number;
-  opponent_score: number;
-  duration_seconds: number;
+export interface ReplayDetail extends ReplaySummary {
   map: string;
   players: PlayerStats[];
 }

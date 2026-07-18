@@ -1,4 +1,3 @@
-# tests/test_watcher.py
 """Tests for watch folder service and file stability check."""
 
 import threading
@@ -34,7 +33,6 @@ class TestFileStabilityCheck:
         test_file = tmp_path / "growing.replay"
         test_file.write_bytes(b"x" * 500)
 
-        # Track size changes
         sizes = []
 
         def record_and_check():
@@ -139,7 +137,6 @@ class TestReplayWatcher:
             # Give watcher time to start
             time.sleep(0.1)
 
-            # Create a new replay file
             test_file = watch_dir / "test.replay"
             test_file.write_bytes(b"x" * 1000)
 
@@ -173,7 +170,6 @@ class TestReplayWatcher:
         try:
             time.sleep(0.1)
 
-            # Create non-replay files
             (watch_dir / "test.txt").write_text("hello")
             (watch_dir / "test.json").write_text("{}")
             (watch_dir / "test.mp4").write_bytes(b"video")
@@ -206,7 +202,6 @@ class TestReplayWatcher:
         try:
             time.sleep(0.1)
 
-            # Create a replay file
             test_file = watch_dir / "test.replay"
             test_file.write_bytes(b"x" * 1000)
 
@@ -225,7 +220,6 @@ class TestReplayWatcher:
         watch_dir = tmp_path / "replays"
         watch_dir.mkdir()
 
-        # Create files before starting watcher
         (watch_dir / "existing1.replay").write_bytes(b"x" * 1000)
         (watch_dir / "existing2.replay").write_bytes(b"y" * 1000)
 
@@ -255,7 +249,6 @@ class TestReplayWatcher:
         watch_dir = tmp_path / "replays"
         watch_dir.mkdir()
 
-        # Create files before starting watcher
         (watch_dir / "existing.replay").write_bytes(b"x" * 1000)
 
         processed_files = []

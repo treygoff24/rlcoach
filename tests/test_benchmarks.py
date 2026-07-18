@@ -1,4 +1,3 @@
-# tests/test_benchmarks.py
 import importlib.util
 import json
 import subprocess

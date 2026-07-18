@@ -1,4 +1,3 @@
-// frontend/src/components/layout/UploadModal.tsx
 'use client';
 
 import { useEffect, useRef } from 'react';
