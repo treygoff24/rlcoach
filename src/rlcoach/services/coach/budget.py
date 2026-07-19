@@ -227,14 +227,10 @@ def release_expired_reservations(
     return len(reservations)
 
 
-def finalize_reservation(
-    user: User,
-    reservation_id: str,
-    tokens_used: int,
-    db: DBSession,
-) -> None:
-    """Finalize a reservation by reconciling estimated and actual usage."""
-    reservation = (
+def _find_reservation(
+    user: User, reservation_id: str, db: DBSession
+) -> CoachTokenReservation | None:
+    return (
         db.query(CoachTokenReservation)
         .filter(
             CoachTokenReservation.id == reservation_id,
@@ -242,6 +238,16 @@ def finalize_reservation(
         )
         .first()
     )
+
+
+def finalize_reservation(
+    user: User,
+    reservation_id: str,
+    tokens_used: int,
+    db: DBSession,
+) -> None:
+    """Finalize a reservation by reconciling estimated and actual usage."""
+    reservation = _find_reservation(user, reservation_id, db)
     if not reservation:
         return
 
@@ -262,14 +268,7 @@ def finalize_reservation(
 
 def abort_reservation(user: User, reservation_id: str, db: DBSession) -> None:
     """Abort a reservation and restore the estimated tokens immediately."""
-    reservation = (
-        db.query(CoachTokenReservation)
-        .filter(
-            CoachTokenReservation.id == reservation_id,
-            CoachTokenReservation.user_id == user.id,
-        )
-        .first()
-    )
+    reservation = _find_reservation(user, reservation_id, db)
     if not reservation:
         return
 

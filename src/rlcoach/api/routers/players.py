@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ...analysis.tendencies import compute_tendencies
 from ...db.models import Player, PlayerGameStats
 from ...db.session import create_session
+from ._sorting import apply_sort
 
 router = APIRouter(tags=["players"])
 
@@ -59,22 +60,7 @@ async def list_players(
 
         total = query.count()
 
-        if sort.startswith("-"):
-            sort_field = sort[1:]
-            descending = True
-        else:
-            sort_field = sort
-            descending = False
-
-        # Security: Only allow sorting by allowlisted fields
-        if sort_field not in ALLOWED_SORT_FIELDS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
-            )
-
-        order_col = getattr(Player, sort_field)
-        query = query.order_by(order_col.desc() if descending else order_col)
+        query = apply_sort(query, Player, sort, ALLOWED_SORT_FIELDS)
 
         players = query.offset(offset).limit(limit).all()
 

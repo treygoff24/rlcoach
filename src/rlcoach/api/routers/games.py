@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ...db.models import PlayerGameStats, Replay
 from ...db.session import create_session
+from ._sorting import apply_sort
 
 router = APIRouter(tags=["games"])
 
@@ -62,23 +63,7 @@ async def list_games(
         # Get total count before pagination
         total = query.count()
 
-        # Apply sorting with allowlist validation
-        if sort.startswith("-"):
-            sort_field = sort[1:]
-            descending = True
-        else:
-            sort_field = sort
-            descending = False
-
-        # Security: Only allow sorting by allowlisted fields
-        if sort_field not in ALLOWED_SORT_FIELDS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
-            )
-
-        order_col = getattr(Replay, sort_field)
-        query = query.order_by(order_col.desc() if descending else order_col)
+        query = apply_sort(query, Replay, sort, ALLOWED_SORT_FIELDS)
 
         # Apply pagination
         replays = query.offset(offset).limit(limit).all()

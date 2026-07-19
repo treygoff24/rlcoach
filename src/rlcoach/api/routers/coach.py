@@ -102,6 +102,20 @@ class SessionListItem(BaseModel):
     message_count: int
 
 
+def _get_user_session(db: DBSession, user_id: str, session_id: str) -> CoachSession:
+    session = (
+        db.query(CoachSession)
+        .filter(
+            CoachSession.id == session_id,
+            CoachSession.user_id == user_id,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
 class NoteRequest(BaseModel):
     """Coach note request."""
 
@@ -184,16 +198,7 @@ async def chat_preflight(
         is_free_preview = True
 
     if request.session_id:
-        session = (
-            db.query(CoachSession)
-            .filter(
-                CoachSession.id == request.session_id,
-                CoachSession.user_id == user.id,
-            )
-            .first()
-        )
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+        session = _get_user_session(db, user.id, request.session_id)
     else:
         session = CoachSession(
             id=str(uuid.uuid4()),
@@ -283,16 +288,7 @@ async def chat_record(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    session = (
-        db.query(CoachSession)
-        .filter(
-            CoachSession.id == request.session_id,
-            CoachSession.user_id == user.id,
-        )
-        .first()
-    )
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    session = _get_user_session(db, user.id, request.session_id)
 
     for message in request.messages:
         content_blocks = message.content_blocks or []
@@ -364,16 +360,7 @@ async def chat_abort(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    session = (
-        db.query(CoachSession)
-        .filter(
-            CoachSession.id == request.session_id,
-            CoachSession.user_id == user.id,
-        )
-        .first()
-    )
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    session = _get_user_session(db, user.id, request.session_id)
 
     if request.partial_messages:
         for message in request.partial_messages:
@@ -456,16 +443,7 @@ async def get_session_messages(
 
     Requires Pro subscription.
     """
-    session = (
-        db.query(CoachSession)
-        .filter(
-            CoachSession.id == session_id,
-            CoachSession.user_id == user.id,
-        )
-        .first()
-    )
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    _get_user_session(db, user.id, session_id)
 
     messages = (
         db.query(CoachMessage)
@@ -500,16 +478,7 @@ async def delete_session(
 
     Requires Pro subscription.
     """
-    session = (
-        db.query(CoachSession)
-        .filter(
-            CoachSession.id == session_id,
-            CoachSession.user_id == user.id,
-        )
-        .first()
-    )
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    session = _get_user_session(db, user.id, session_id)
 
     # Delete messages first
     db.query(CoachMessage).filter(CoachMessage.session_id == session_id).delete()
@@ -691,16 +660,7 @@ async def get_session_recap(
     Requires at least 3 messages in the session.
     Available to both free and pro users for sessions they participated in.
     """
-    session = (
-        db.query(CoachSession)
-        .filter(
-            CoachSession.id == session_id,
-            CoachSession.user_id == user.id,
-        )
-        .first()
-    )
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    _get_user_session(db, user.id, session_id)
 
     messages = (
         db.query(CoachMessage)

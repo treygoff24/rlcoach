@@ -232,6 +232,12 @@ class TestGamesEndpoint:
                 data["items"][0]["played_at_utc"] >= data["items"][1]["played_at_utc"]
             )
 
+    def test_games_list_rejects_unknown_sort_field(self, client):
+        response = client.get("/games?sort=password_hash")
+
+        assert response.status_code == 400
+        assert response.json()["detail"].startswith("Invalid sort field.")
+
 
 class TestReplayEndpoint:
     """Tests for GET /replays/{id}."""
