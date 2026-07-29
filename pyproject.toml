@@ -25,7 +25,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     # Background tasks
     "celery[redis]>=5.3.0",
-    "redis>=5.0.0",
+    "redis>=7.4.0",
     # Payments & Auth
     "stripe>=8.0.0",
     "PyJWT>=2.8.0",
