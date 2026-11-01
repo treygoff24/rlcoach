@@ -38,9 +38,6 @@ from .utils.identity import (
 # Default frame rate when unable to measure from replay data
 DEFAULT_FRAME_RATE = 30.0
 
-# Seconds to keep after the last recorded goal to account for replays + kickoff
-GOAL_POST_BUFFER_S = 7.0
-
 
 def measure_frame_rate(frames: list[Any]) -> float:
     """Measure actual frame rate from frame timestamps.
@@ -1023,8 +1020,8 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
 
     normalized_frames.sort(key=lambda f: f.timestamp)
 
-    # Align timestamps to the in-game clock (kickoff = 0) and drop postgame junk
-    normalized_frames = _align_match_clock(normalized_frames, header)
+    # Align timestamps so the first frame is at 0
+    normalized_frames = _align_match_clock(normalized_frames)
 
     return (
         normalized_frames
@@ -1050,52 +1047,25 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
     )
 
 
-def _align_match_clock(frames: list[Frame], header: Header | None) -> list[Frame]:
-    """Shift frame timestamps so kickoff starts at 0 and prune post-game frames."""
+def _align_match_clock(frames: list[Frame]) -> list[Frame]:
+    """Shift frame timestamps so the first frame starts at 0.
+
+    Every frame is kept, because the header has no usable end of match. Its
+    `match_length` is NumFrames / RecordFPS, which falls short of the last frame
+    since the recording pauses after each goal and runs below RecordFPS. Goals
+    don't mark the end either: a game can run on long after the last one.
+    """
 
     if not frames:
         return frames
 
     start_time = frames[0].timestamp
-    end_time = frames[-1].timestamp
-    frame_rate = measure_frame_rate(frames)
-
-    candidates: list[float] = []
-    if header is not None:
-        header_duration = float(getattr(header, "match_length", 0.0) or 0.0)
-        if header_duration > 0:
-            candidates.append(start_time + header_duration)
-
-        goal_times: list[float] = []
-        for goal in getattr(header, "goals", []) or []:
-            if goal.frame is None:
-                continue
-            if frame_rate > 0:
-                goal_times.append(start_time + (int(goal.frame) / frame_rate))
-            else:
-                idx = int(goal.frame)
-                if idx < 0:
-                    continue
-                if idx >= len(frames):
-                    idx = len(frames) - 1
-                goal_times.append(frames[idx].timestamp)
-
-        if goal_times:
-            candidates.append(max(goal_times) + GOAL_POST_BUFFER_S)
-
-    if candidates:
-        end_time = min(end_time, max(candidates))
-
-    if end_time <= start_time:
-        end_time = frames[-1].timestamp
 
     adjusted: list[Frame] = []
     for frame in frames:
         t = frame.timestamp
         if t < start_time - 1e-3:
             continue
-        if t > end_time + 1e-3:
-            break
         shifted = t - start_time
         if abs(shifted) < 1e-6:
             shifted = 0.0

@@ -1,19 +1,36 @@
 """Tests for the normalization layer."""
 
 from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 from rlcoach.field_constants import FIELD, Vec3
 from rlcoach.normalize import (
-    GOAL_POST_BUFFER_S,
     build_timeline,
     measure_frame_rate,
     normalize_players,
     to_field_coords,
     to_vec3,
 )
+from rlcoach.parser import get_adapter
 from rlcoach.parser.types import GoalHeader, Header, PlayerInfo
+
+PARITY_REPLAY_PATH = Path(__file__).resolve().parents[1] / "Replay_files/0925.replay"
+
+
+def _make_frame(ts: float):
+    ball = Mock()
+    ball.position = Mock(x=0, y=0, z=93.15)
+    ball.velocity = Mock(x=0, y=0, z=0)
+    ball.angular_velocity = Mock(x=0, y=0, z=0)
+    frame = Mock()
+    frame.timestamp = ts
+    frame.ball = ball
+    frame.players = []
+    return frame
 
 
 class TestFrameRateMeasurement:
@@ -579,59 +596,57 @@ class TestTimelineBuilding:
         assert len(timeline) == 1  # Only good frame
         assert timeline[0].timestamp == 0.0
 
-    def test_post_game_frames_trimmed_by_header_length(self):
-        """Frames beyond header match length are pruned after alignment."""
+    def test_frames_past_header_length_are_kept(self):
+        """Header match length does not end the timeline."""
         header = Header(match_length=1.0)
-
-        def make_frame(ts: float):
-            ball = Mock()
-            ball.position = Mock(x=0, y=0, z=93.15)
-            ball.velocity = Mock(x=0, y=0, z=0)
-            ball.angular_velocity = Mock(x=0, y=0, z=0)
-            frame = Mock()
-            frame.timestamp = ts
-            frame.ball = ball
-            frame.players = []
-            return frame
-
-        frames = [
-            make_frame(5.0),
-            make_frame(5.5),
-            make_frame(7.0),  # Beyond match length window
-        ]
+        frames = [_make_frame(5.0), _make_frame(5.5), _make_frame(7.0)]
 
         timeline = build_timeline(header, frames)
 
-        assert len(timeline) == 2
-        assert timeline[0].timestamp == 0.0
-        assert timeline[1].timestamp == 0.5
+        assert [frame.timestamp for frame in timeline] == [0.0, 0.5, 2.0]
 
-    def test_goal_buffer_extends_beyond_header_duration(self):
-        """Goal metadata keeps frames when header duration is too short."""
+    def test_timestamp_gap_does_not_shorten_timeline(self):
+        """A pause after a goal leaves the replay longer than NumFrames / 30."""
+        frames = [_make_frame(i / 30.0) for i in range(300)]
+        frames += [_make_frame(19.0 + i / 30.0) for i in range(300)]
         header = Header(
-            match_length=0.5,
-            goals=[GoalHeader(frame=90, player_name="Player", player_team=0)],
+            match_length=len(frames) / 30.0,
+            goals=[GoalHeader(frame=299, player_name="Player", player_team=0)],
         )
 
-        def make_frame(ts: float):
-            ball = Mock()
-            ball.position = Mock(x=0, y=0, z=93.15)
-            ball.velocity = Mock(x=0, y=0, z=0)
-            ball.angular_velocity = Mock(x=0, y=0, z=0)
-            frame = Mock()
-            frame.timestamp = ts
-            frame.ball = ball
-            frame.players = []
-            return frame
+        timeline = build_timeline(header, frames)
 
-        start = 10.0
-        frames = [make_frame(start + i / 30.0) for i in range(120)]
+        assert len(timeline) == len(frames)
+        assert timeline[-1].timestamp == pytest.approx(19.0 + 299 / 30.0)
+
+    def test_frames_long_after_last_goal_are_kept(self):
+        """A game that ends on time can run on long after its last goal."""
+        frames = [_make_frame(10.0 + i / 30.0) for i in range(600)]
+        header = Header(
+            goals=[GoalHeader(frame=30, player_name="Player", player_team=0)]
+        )
 
         timeline = build_timeline(header, frames)
 
-        # Without goal metadata we'd clamp near 0.5 seconds; ensure we kept longer span
-        assert timeline[-1].timestamp > GOAL_POST_BUFFER_S / 2
         assert len(timeline) == len(frames)
+        assert timeline[-1].timestamp == pytest.approx(599 / 30.0)
+
+    @pytest.mark.skipif(
+        not PARITY_REPLAY_PATH.exists(), reason="replay fixture missing"
+    )
+    def test_real_replay_keeps_every_frame(self):
+        """Regression: 0925 used to stop at 304.88 s, before its 320.11 s goal."""
+        pytest.importorskip("rlreplay_rust")
+        adapter = get_adapter("rust")
+        header = adapter.parse_header(PARITY_REPLAY_PATH)
+        raw_frames = adapter.parse_network(PARITY_REPLAY_PATH).frames
+
+        timeline = build_timeline(header, raw_frames)
+
+        assert len(timeline) == len(raw_frames)
+        assert timeline[-1].timestamp == pytest.approx(323.09, abs=0.01)
+        last_goal_frame = max(goal.frame for goal in header.goals)
+        assert timeline[last_goal_frame].timestamp == pytest.approx(320.11, abs=0.01)
 
     def test_dict_format_frames(self):
         """Dict format frames handled correctly."""

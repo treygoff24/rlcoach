@@ -79,7 +79,7 @@ class Header:
     # Match results
     team0_score: int = 0
     team1_score: int = 0
-    match_length: float = 0.0  # seconds
+    match_length: float = 0.0  # NumFrames / RecordFPS, shorter than the real span
 
     # Players
     players: list[PlayerInfo] = field(default_factory=list)
