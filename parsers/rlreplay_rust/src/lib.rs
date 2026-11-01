@@ -854,15 +854,16 @@ mod tests {
 
     #[test]
     fn cam_settings_pairs_renames_swivel_and_defaults_transition() {
-        let cam = boxcars::CamSettings {
-            fov: 110.0,
-            height: 100.0,
-            angle: -3.0,
-            distance: 270.0,
-            stiffness: 0.45,
-            swivel: 2.5,
-            transition: None,
-        };
+        // boxcars structs are non_exhaustive, so build them via serde.
+        let cam: boxcars::CamSettings = serde_json::from_value(serde_json::json!({
+            "fov": 110.0,
+            "height": 100.0,
+            "angle": -3.0,
+            "distance": 270.0,
+            "stiffness": 0.45,
+            "swivel": 2.5,
+        }))
+        .unwrap();
         let pairs = cam_settings_pairs(&cam);
         assert_eq!(pairs[0], ("fov", 110.0));
         assert_eq!(pairs[3], ("distance", 270.0));
@@ -872,22 +873,19 @@ mod tests {
     }
 
     fn sample_loadout(body: u32) -> boxcars::Loadout {
-        boxcars::Loadout {
-            version: 23,
-            body,
-            decal: 2,
-            wheels: 3,
-            rocket_trail: 4,
-            antenna: 5,
-            topper: 6,
-            unknown1: 0,
-            unknown2: None,
-            engine_audio: Some(7),
-            trail: None,
-            goal_explosion: Some(9),
-            banner: None,
-            product_id: None,
-        }
+        serde_json::from_value(serde_json::json!({
+            "version": 23,
+            "body": body,
+            "decal": 2,
+            "wheels": 3,
+            "rocket_trail": 4,
+            "antenna": 5,
+            "topper": 6,
+            "unknown1": 0,
+            "engine_audio": 7,
+            "goal_explosion": 9,
+        }))
+        .unwrap()
     }
 
     #[test]
