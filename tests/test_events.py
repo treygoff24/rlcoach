@@ -1,5 +1,9 @@
 """Tests for event detection and timeline aggregation."""
 
+from pathlib import Path
+
+import pytest
+
 from rlcoach.events import (
     GOAL_LINE_THRESHOLD,
     DemoEvent,
@@ -15,15 +19,20 @@ from rlcoach.events import (
     detect_touches,
 )
 from rlcoach.field_constants import FIELD, Vec3
+from rlcoach.normalize import build_timeline as build_normalized_frames
+from rlcoach.parser import get_adapter
 from rlcoach.parser.types import (
     BallFrame,
     Frame,
+    GoalHeader,
     Header,
     ParserDemoEvent,
     ParserKickoffMarker,
     ParserTouchEvent,
     PlayerFrame,
 )
+
+REPLAY_DIR = Path(__file__).resolve().parents[1] / "Replay_files"
 
 
 def create_test_frame(
@@ -59,6 +68,32 @@ def create_test_player(
         is_on_ground=on_ground,
         is_demolished=demolished,
     )
+
+
+def create_test_match(
+    kickoffs: list[float], goals: list[tuple[float, int]]
+) -> tuple[list[Frame], Header]:
+    """Helper to create frames and a header from kickoff and (time, team) goals."""
+    player = create_test_player("p1", 0, Vec3(-200.0, -200.0, 17.0))
+    ball_at_rest = (Vec3(0.0, 0.0, 93.15), Vec3(0.0, 0.0, 0.0))
+    ball_in_play = (Vec3(200.0, 300.0, 150.0), Vec3(400.0, 600.0, 100.0))
+
+    frames = []
+    for t in kickoffs:
+        frames.append(create_test_frame(t, *ball_at_rest, [player]))
+        frames.append(create_test_frame(t + 1.0, *ball_in_play, [player]))
+    for t, _ in goals:
+        frames.append(create_test_frame(t, *ball_in_play, [player]))
+    frames.sort(key=lambda frame: frame.timestamp)
+
+    times = [frame.timestamp for frame in frames]
+    header = Header(
+        goals=[
+            GoalHeader(frame=times.index(t), player_name="Player", player_team=team)
+            for t, team in goals
+        ]
+    )
+    return frames, header
 
 
 class TestGoalDetection:
@@ -454,26 +489,76 @@ class TestKickoffDetection:
         assert kickoff.t_start == 0.0
         assert len(kickoff.players) == 2
 
-    def test_overtime_kickoff(self):
-        """Late-game kickoff detected as overtime."""
-        frames = [
-            create_test_frame(
-                350.0,  # Late in match
-                Vec3(0.0, 0.0, 93.15),
-                Vec3(0.0, 0.0, 0.0),
-                [create_test_player("p1", 0, Vec3(-200.0, -200.0, 17.0))],
-            ),
-            create_test_frame(
-                351.0,
-                Vec3(200.0, 300.0, 150.0),  # Ball moves
-                Vec3(400.0, 600.0, 100.0),
-                [create_test_player("p1", 0, Vec3(100.0, 100.0, 17.0))],
-            ),
-        ]
+    def test_overtime_kickoff_has_no_goal_since_the_last_kickoff(self):
+        """The kickoff after regulation ends level is overtime."""
+        frames, header = create_test_match(
+            [0.0, 100.0, 210.0, 350.0], [(90.0, 0), (200.0, 1), (420.0, 0)]
+        )
+
+        kickoffs = detect_kickoffs(frames, header)
+
+        assert [k.phase for k in kickoffs] == ["INITIAL", "INITIAL", "INITIAL", "OT"]
+
+    def test_late_kickoff_after_a_goal_is_not_overtime(self):
+        """Regression: replay time passes 300 s while the clock is still running."""
+        frames, header = create_test_match(
+            [0.0, 320.0, 345.0], [(315.0, 0), (340.0, 1)]
+        )
+
+        kickoffs = detect_kickoffs(frames, header)
+
+        assert [k.phase for k in kickoffs] == ["INITIAL"] * 3
+
+    def test_kickoff_without_a_goal_at_uneven_score_is_not_overtime(self):
+        """Overtime only happens when regulation ends level."""
+        frames, header = create_test_match([0.0, 100.0, 350.0], [(90.0, 0)])
+
+        kickoffs = detect_kickoffs(frames, header)
+
+        assert [k.phase for k in kickoffs] == ["INITIAL"] * 3
+
+    def test_only_kickoff_is_not_overtime(self):
+        """The opening kickoff has no kickoff before it to compare."""
+        frames, header = create_test_match([350.0], [(400.0, 0)])
+
+        kickoffs = detect_kickoffs(frames, header)
+
+        assert [k.phase for k in kickoffs] == ["INITIAL"]
+
+    def test_late_kickoffs_without_goal_data_are_not_overtime(self):
+        """Nothing proves overtime, so replay time alone does not set it."""
+        frames, _ = create_test_match([0.0, 350.0], [])
 
         kickoffs = detect_kickoffs(frames)
-        assert len(kickoffs) == 1
-        assert kickoffs[0].phase == "OT"
+
+        assert [k.phase for k in kickoffs] == ["INITIAL"] * 2
+
+    @pytest.mark.parametrize(
+        ("replay", "overtime_kickoffs"),
+        [
+            ("0925.replay", []),
+            ("4985385d-2a6a-4bea-a312-8e539c7fd098.replay", [346.3, 346.4, 351.3]),
+            ("6804bd43-5415-49f4-b7d0-31b168c871ed.replay", []),
+            ("70c0e78e-ea32-4722-a951-937baa40efc9.replay", []),
+            ("77253f53-0654-4565-b18e-e77ddbb84282.replay", []),
+            ("testing_replay.replay", [424.5, 424.7, 429.6]),
+        ],
+    )
+    def test_overtime_kickoffs_match_the_game_clock(self, replay, overtime_kickoffs):
+        """Expected values come from the game clock in each replay's network data."""
+        path = REPLAY_DIR / replay
+        if not path.exists():
+            pytest.skip("replay fixture missing")
+        pytest.importorskip("rlreplay_rust")
+        adapter = get_adapter("rust")
+        header = adapter.parse_header(path)
+        frames = build_normalized_frames(header, adapter.parse_network(path).frames)
+
+        kickoffs = detect_kickoffs(frames, header)
+
+        assert [
+            round(kickoff.t_start, 1) for kickoff in kickoffs if kickoff.phase == "OT"
+        ] == overtime_kickoffs
 
     def test_ball_not_at_center_no_kickoff(self):
         """Ball away from center doesn't trigger kickoff."""

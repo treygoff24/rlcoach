@@ -52,6 +52,7 @@ KICKOFF_CENTER_POSITION = Vec3(0.0, 0.0, 93.15)
 KICKOFF_POSITION_TOLERANCE = 120.0
 KICKOFF_MAX_DURATION = 5.0
 KICKOFF_MIN_COOLDOWN = 5.0
+KICKOFF_RESET_WINDOW = 6.0  # Kickoff events this close are one ball reset (s)
 MIN_ORIENTATION_SAMPLES = 5
 
 # Kickoff approach type keys

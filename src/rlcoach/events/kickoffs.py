@@ -6,6 +6,7 @@ roles, approach types, and timing analysis.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from ..field_constants import Vec3
@@ -16,6 +17,7 @@ from .constants import (
     KICKOFF_MAX_DURATION,
     KICKOFF_MIN_COOLDOWN,
     KICKOFF_POSITION_TOLERANCE,
+    KICKOFF_RESET_WINDOW,
     TOUCH_PROXIMITY_THRESHOLD,
 )
 from .types import KickoffEvent
@@ -36,16 +38,60 @@ def detect_kickoffs(
     if not frames:
         return []
 
-    heuristic_kickoffs = _detect_heuristic_kickoffs(frames, header)
+    heuristic_kickoffs = _detect_heuristic_kickoffs(frames)
     parser_kickoffs = _kickoffs_from_parser_markers(frames)
     if parser_kickoffs:
-        return _merge_kickoff_sources(heuristic_kickoffs, parser_kickoffs)
-    return heuristic_kickoffs
+        kickoffs = _merge_kickoff_sources(heuristic_kickoffs, parser_kickoffs)
+    else:
+        kickoffs = heuristic_kickoffs
+    return _mark_overtime_kickoff(kickoffs, frames, header)
 
 
-def _detect_heuristic_kickoffs(
-    frames: list[Frame], header: Header | None = None
+def _mark_overtime_kickoff(
+    kickoffs: list[KickoffEvent], frames: list[Frame], header: Header | None
 ) -> list[KickoffEvent]:
+    """Label the kickoff that starts overtime, if the replay has one.
+
+    Replay time can't show this: the game clock stops for countdowns and after
+    goals, so regulation kickoffs can land well past 300 s. The rules of the game
+    can. Every kickoff after the first follows a goal, except the one that starts
+    overtime. That one comes at a level score, and it is the last kickoff because
+    the next goal ends the match. Without goal data nothing proves overtime, so
+    the kickoffs keep their phase.
+    """
+    goals = [
+        (frames[min(max(goal.frame, 0), len(frames) - 1)].timestamp, goal.player_team)
+        for goal in getattr(header, "goals", None) or []
+        if goal.frame is not None
+    ]
+    if not goals or not kickoffs:
+        return kickoffs
+
+    # One ball reset can yield several kickoff events, so walk back to the start
+    # of the last reset and the event before it.
+    last_reset = kickoffs[-1].t_start
+    previous_kickoff = None
+    for kickoff in reversed(kickoffs[:-1]):
+        if last_reset - kickoff.t_start > KICKOFF_RESET_WINDOW:
+            previous_kickoff = kickoff.t_start
+            break
+        last_reset = kickoff.t_start
+    if previous_kickoff is None:
+        return kickoffs
+
+    goals_before = [(t, team) for t, team in goals if t < last_reset]
+    goal_since_previous = any(t >= previous_kickoff for t, _ in goals_before)
+    blue_goals = sum(1 for _, team in goals_before if team == 0)
+    if goal_since_previous or blue_goals * 2 != len(goals_before):
+        return kickoffs
+
+    return [
+        replace(kickoff, phase="OT") if kickoff.t_start >= last_reset else kickoff
+        for kickoff in kickoffs
+    ]
+
+
+def _detect_heuristic_kickoffs(frames: list[Frame]) -> list[KickoffEvent]:
     """Detect kickoff windows from gameplay state alone."""
 
     kickoffs: list[KickoffEvent] = []
@@ -86,7 +132,7 @@ def _detect_heuristic_kickoffs(
         duration_exceeded = elapsed >= KICKOFF_MAX_DURATION
 
         if ball_left_center or duration_exceeded:
-            kickoff_event = _finalize_kickoff(kickoff_state, frame, header)
+            kickoff_event = _finalize_kickoff(kickoff_state, frame)
             if kickoff_event is not None:
                 kickoffs.append(kickoff_event)
                 last_kickoff_end_time = frame.timestamp
@@ -94,7 +140,7 @@ def _detect_heuristic_kickoffs(
 
     # Handle dangling kickoff if replay ends while still at center
     if kickoff_state is not None:
-        kickoff_event = _finalize_kickoff(kickoff_state, frames[-1], header)
+        kickoff_event = _finalize_kickoff(kickoff_state, frames[-1])
         if kickoff_event is not None:
             kickoffs.append(kickoff_event)
 
@@ -335,9 +381,7 @@ def _update_kickoff_state(state: dict[str, Any], frame: Frame) -> None:
                 }
 
 
-def _finalize_kickoff(
-    state: dict[str, Any], frame: Frame, header: Header | None
-) -> KickoffEvent | None:
+def _finalize_kickoff(state: dict[str, Any], frame: Frame) -> KickoffEvent | None:
     """Produce the KickoffEvent dataclass from tracked state."""
     t_start = state["t_start"]
     elapsed = frame.timestamp - t_start
@@ -370,11 +414,10 @@ def _finalize_kickoff(
             }
         )
 
-    phase = _determine_kickoff_phase(t_start, header)
     outcome = _classify_kickoff_outcome(first_touch)
 
     return KickoffEvent(
-        phase=phase,
+        phase="INITIAL",
         t_start=t_start,
         players=players_payload,
         outcome=outcome,
@@ -584,19 +627,6 @@ def _classify_approach_type(pdata: dict[str, Any]) -> str:
         return "STANDARD"
 
     return "UNKNOWN"
-
-
-def _determine_kickoff_phase(kickoff_start: float, header: Header | None) -> str:
-    """Determine kickoff phase (INITIAL vs OT)."""
-    if header:
-        match_length = float(getattr(header, "match_length", 0.0) or 0.0)
-        if getattr(header, "overtime", False) and kickoff_start >= max(
-            300.0, match_length
-        ):
-            return "OT"
-    if kickoff_start >= 300.0:
-        return "OT"
-    return "INITIAL"
 
 
 def _classify_kickoff_outcome(first_touch: dict[str, Any] | None) -> str:
