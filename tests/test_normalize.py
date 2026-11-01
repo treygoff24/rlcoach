@@ -696,6 +696,30 @@ class TestTimelineBuilding:
         assert frame.parser_kickoff_markers[0].phase == "INITIAL"
         assert frame.parser_kickoff_markers[0].timestamp == 0.0
 
+    def test_same_frame_parser_touches_have_a_fixed_order(self):
+        """Regression: the parser emits same-frame touches in random order."""
+        touches = [
+            {"timestamp": 12.0, "player_id": "player_1", "team": 1, "frame_index": 0},
+            {"timestamp": 12.0, "player_id": "player_0", "team": 0, "frame_index": 0},
+        ]
+
+        def make_frame(parser_touch_events):
+            return {
+                "timestamp": 12.0,
+                "ball": {
+                    "position": {"x": 0, "y": 0, "z": 93.15},
+                    "velocity": {"x": 0, "y": 0, "z": 0},
+                    "angular_velocity": {"x": 0, "y": 0, "z": 0},
+                },
+                "players": [],
+                "parser_touch_events": parser_touch_events,
+            }
+
+        forward = build_timeline(Header(), [make_frame(touches)])
+        backward = build_timeline(Header(), [make_frame(touches[::-1])])
+
+        assert forward[0].parser_touch_events == backward[0].parser_touch_events
+
     def test_parser_event_player_ids_follow_alias_lookup(self):
         """Parser touch/demo IDs are canonicalized alongside player frames."""
         header = Header(

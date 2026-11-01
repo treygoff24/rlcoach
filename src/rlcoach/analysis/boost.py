@@ -512,7 +512,8 @@ def _analyze_team_boost(
 
     team_metrics = _empty_boost()
 
-    for player_id in team_players:
+    # Sorted because float totals depend on the order they are added in
+    for player_id in sorted(team_players):
         player_metrics = _analyze_player_boost(
             frames, frame_timestamps, pickups, player_id, match_duration
         )

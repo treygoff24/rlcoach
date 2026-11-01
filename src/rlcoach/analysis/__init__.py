@@ -218,7 +218,8 @@ def _aggregate_team_mechanics(
     total_mechanics = 0
 
     per_player = cached_mechanics.get("per_player", {})
-    for player_id in team_player_ids:
+    # Sorted because float totals depend on the order they are added in
+    for player_id in sorted(team_player_ids):
         player_mech = per_player.get(player_id, {})
         total_wavedashes += player_mech.get("wavedash_count", 0)
         total_halfflips += player_mech.get("halfflip_count", 0)

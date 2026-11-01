@@ -5,12 +5,18 @@ from pathlib import Path
 import pytest
 
 from rlcoach.cli import main as cli_main
+from rlcoach.events import detect_touches
+from rlcoach.normalize import build_timeline
+from rlcoach.parser import get_adapter
 from rlcoach.parser.types import Header, NetworkDiagnostics, NetworkFrames, PlayerInfo
 from rlcoach.report import generate_report
 from rlcoach.schema import validate_report, validate_report_file
 
 REPO_ROOT = Path(__file__).parent.parent
 SAMPLE_REPLAY = REPO_ROOT / "Replay_files" / "0925.replay"
+TIED_TOUCH_REPLAY = (
+    REPO_ROOT / "Replay_files" / "70c0e78e-ea32-4722-a951-937baa40efc9.replay"
+)
 
 
 def _make_dummy_replay(path: Path) -> None:
@@ -535,6 +541,20 @@ def test_generate_report_without_identity_config():
         ), "is_me field should NOT be present without identity_config"
 
     validate_report(report)
+
+
+@pytest.mark.skipif(not TIED_TOUCH_REPLAY.exists(), reason="Sample replay not found")
+def test_touches_are_repeatable_between_parses():
+    """Regression: same-frame touches swapped, which changed passing stats."""
+    pytest.importorskip("rlreplay_rust")
+    adapter = get_adapter("rust")
+    header = adapter.parse_header(TIED_TOUCH_REPLAY)
+
+    def parse_touches():
+        frames = adapter.parse_network(TIED_TOUCH_REPLAY).frames
+        return detect_touches(build_timeline(header, frames))
+
+    assert parse_touches() == parse_touches()
 
 
 class _FakeAdapterWithHeaderGoalsButNoFrames:

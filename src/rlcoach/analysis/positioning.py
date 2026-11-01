@@ -276,7 +276,8 @@ def _analyze_team_positioning(frames: list[Frame], team: str) -> dict[str, Any]:
         "third_man_pct": 0.0 if team_size >= 3 else None,
     }
 
-    for player_id in team_players:
+    # Sorted because float totals depend on the order they are added in
+    for player_id in sorted(team_players):
         player_metrics = _analyze_player_positioning(frames, player_id)
 
         # Sum time-based metrics

@@ -985,6 +985,9 @@ def build_timeline(header: Header, frames: list[Any]) -> list[Frame]:
             parser_touch_events = _parse_events(
                 frame_data, "parser_touch_events", _convert_touch_event, alias_lookup
             )
+            # The parser emits same-frame touches in hash map order, which changes
+            # between parses, and that order decides who touched the ball first
+            parser_touch_events.sort(key=lambda event: event.player_id)
             parser_demo_events = _parse_events(
                 frame_data, "parser_demo_events", _convert_demo_event, alias_lookup
             )

@@ -314,7 +314,8 @@ def _analyze_team_movement(frames: list[Frame], team: str) -> dict[str, Any]:
     team_metrics = _empty_movement()
     player_count = len(team_players)
 
-    for player_id in team_players:
+    # Sorted because float totals depend on the order they are added in
+    for player_id in sorted(team_players):
         player_metrics = _analyze_player_movement(frames, player_id)
 
         # Sum time-based metrics
